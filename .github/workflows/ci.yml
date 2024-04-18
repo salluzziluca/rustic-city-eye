@@ -20,7 +20,7 @@ jobs:
       run: sudo apt-get install libgtk-3-dev
     - name: Change to subdirectory
       run: cd rustic_city_eye
-     - name: Build
+    - name: Build
       run: cargo build --verbose
       working-directory: rustic_city_eye
     - name: Run tests
