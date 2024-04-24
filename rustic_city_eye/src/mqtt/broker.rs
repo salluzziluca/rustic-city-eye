@@ -36,8 +36,13 @@ fn handle_client(stream: &mut TcpStream) -> std::io::Result<()> {
     let reader = BufReader::new(cloned_stream); // Use the cloned stream in BufReader
     let mut lines = reader.lines();
     while let Some(Ok(line)) = lines.next() {
-        println!("Recibido: {:?}", line);
-        stream.write_all(b"Recibido wachin\n")?;
+        if line == "hola" {
+            stream.write_all(b"chau\n")?;
+        } else if line == "wasaa" {
+            stream.write_all(b"wasaa\n")?;
+        } else {
+            stream.write_all(b"no entiendo\n")?;
+        }
     }
     Ok(())
 }

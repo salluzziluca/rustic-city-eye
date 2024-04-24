@@ -48,8 +48,6 @@ fn client_run(address: &str, stream: &mut dyn Read) -> std::io::Result<()> {
                 let mut response = String::new();
                 server_response.read_line(&mut response)?;
                 println!("Respuesta del sv: {:?}", response);
-                //close the connection
-                break;
             }
         }
     }
