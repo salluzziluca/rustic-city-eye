@@ -4,7 +4,7 @@
 mod client;
 
 use std::env::args;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 
 static SERVER_ARGS: usize = 2;
