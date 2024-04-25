@@ -25,9 +25,15 @@ fn main() -> Result<(), ()> {
 
 fn server_run(address: &str) -> std::io::Result<()> {
     let listener = TcpListener::bind(address)?;
-    let (mut client_stream, socket_addr) = listener.accept()?;
-    println!("La socket addr del client: {:?}", socket_addr);
-    handle_client(&mut client_stream)?;
+
+    for stream in listener.incoming() {
+        match stream {
+            Ok(mut stream) => {
+                std::thread::spawn(move || handle_client(&mut stream));
+            }
+            Err(err) => return Err(err),
+        }
+    }
     Ok(())
 }
 
