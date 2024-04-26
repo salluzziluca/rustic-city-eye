@@ -5,4 +5,17 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+
 [dependencies]
+
+[[bin]]
+name = "broker"
+path = "src/mqtt/broker.rs"
+
+[[bin]]
+name = "monitoring_client"
+path = "src/monitoring_app/monitoring_client.rs"
+
+[[bin]]
+name = "camera_system_client"
+path = "src/camera_system/camera_system_client.rs"
