@@ -17,7 +17,7 @@
 ==El mensaje llega, quizas 2 veces, quizas medio medio, pero llega==
 ![image](https://hackmd.io/_uploads/SkWf8CBe0.png)
 
-### Pro
+### Pros
 
 - Ya lo encontramos implementado
 - It is simpler and more lightweight, making it easier to implement on resource-constrained devices and suitable for IoT applications. It uses a lightweight packet structure that reduces the data transmitted over the network.
@@ -46,6 +46,8 @@
 - In terms of reliability and message delivery, AMQP generally provides stronger guarantees than MQTT. This ensures that messages are reliably delivered to the intended recipients even in the face of network or system failures.
 - AMQP, on the other hand, provides more robust security features. It supports SSL/TLS for encryption and SASL for authentication and integrity. AMQP also provides support for secure multi-tenancy, which allows multiple users to share the same messaging system while keeping their messages private and separate.
 - MQTT, being lightweight, requires less computational power and hence less expensive hardware. It also uses less network bandwidth, which can save you money in terms of data usage costs.
+
+---
 
 ### Contras
 
