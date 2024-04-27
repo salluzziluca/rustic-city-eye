@@ -1,6 +1,9 @@
-// use super::quality_of_service::QualityOfService;
-
 use std::{io::{BufWriter, Error, Read, Write}, net::TcpStream};
+
+//use self::quality_of_service::QualityOfService;
+
+#[path = "quality_of_service.rs"] mod quality_of_service;
+
 
 #[derive(Debug)]
 pub enum ClientMessage {
@@ -9,14 +12,14 @@ pub enum ClientMessage {
         //clean_session: bool,
         //username: String
     },
-    // Publish {
-    //     packet_id: usize,
-    //     topic_name: String,
-    //     qos: QualityOfService,
-    //     retain_flag: bool,
-    //     payload: String,
-    //     dup_flag: bool
-    // }
+    Publish {
+        packet_id: usize,
+        topic_name: String,
+        qos: usize,
+        retain_flag: bool,
+        payload: String,
+        dup_flag: bool
+    }
 }
 
 impl ClientMessage {
@@ -30,7 +33,11 @@ impl ClientMessage {
 
                 Ok(())
             },
-            //ClientMessage::Publish { packet_id } => todo!(),
+            ClientMessage::Publish { packet_id, topic_name, qos, retain_flag, payload, dup_flag } => {
+                println!("Publishing...");
+
+                Ok(())
+            },
         }
     }
 

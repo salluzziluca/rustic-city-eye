@@ -14,19 +14,18 @@ impl BrokerMessage {
         match self {
             BrokerMessage::Connack { session_present, return_code } => {
                 let mut session_present_usize: u32  = 0; //false
-
+                
                 if *session_present {
                     session_present_usize = 1;
                 }
-
+                
                 let session_present_be = session_present_usize.to_be_bytes();
                 writer.write(&session_present_be)?;
                 writer.flush()?;
-
+                
                 let return_code_be = return_code.to_be_bytes();
                 writer.write(&return_code_be)?;
-                writer.flush()?;
-
+                
                 Ok(())
             },
         }
