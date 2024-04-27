@@ -2,8 +2,9 @@
 //! Lee lineas desde stdin y las manda mediante el socket.
 
 use std::env::args;
-use std::io::stdin;
-use std::io::Read;
+use std::io::{stdin, BufRead};
+
+use std::io::{BufReader, Read};
 
 use rustic_city_eye::mqtt::client::Client;
 
@@ -27,16 +28,29 @@ fn main() -> Result<(), ()> {
 
 /// Client run recibe una dirección y cualquier cosa "legible"
 /// Esto nos da la libertad de pasarle stdin, un archivo, incluso otro socket
-fn client_run(address: &str, _stream: &mut dyn Read) -> std::io::Result<()> {
-    //let reader = BufReader::new(stream);
-
+fn client_run(address: &str, stream: &mut dyn Read) -> std::io::Result<()> {
+    let reader = BufReader::new(stream);
 
     let mut client = match Client::new(address) {
         Ok(client) => client,
         Err(_) => todo!(),
     };
 
-    client.publish_message();
+    for line in reader.lines() {
+        if let Ok(line) = line {
+            if line.starts_with("publish:") {
+                let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
+                let message = post_colon.trim(); // remove leading/trailing whitespace
+                println!("Publishing message: {}", message);
+                client.publish_message(message);
+            }
+        } else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Error al leer linea",
+            ));
+        }
+    }
 
     // for line in reader.lines() {
     //     if let Ok(line) = line {
