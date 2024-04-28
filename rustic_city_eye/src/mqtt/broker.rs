@@ -38,25 +38,40 @@ fn server_run(address: &str) -> std::io::Result<()> {
 }
 
 fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
-    let connect = ClientMessage::read_from(stream);
-    println!("recibi un {:?}", connect);
-
-    let connack = BrokerMessage::Connack { session_present: true, return_code: 0 };
-    println!("Sending connack: {:?}", connack);
-    connack.write_to(&mut stream).unwrap();
-
-    let cloned_stream = stream.try_clone()?; // Clone the TcpStream
-    let reader = BufReader::new(cloned_stream); // Use the cloned stream in BufReader
-    let mut lines = reader.lines();
-    while let Some(Ok(line)) = lines.next() {
-        println!("me llego un {:?}", line);
-        if line == "hola" {
-            stream.write_all(b"chau\n")?;
-        } else if line == "wasaa" {
-            stream.write_all(b"wasaa\n")?;
-        } else {
-            stream.write_all(b"no entiendo\n")?;
+    while let Ok(message) = ClientMessage::read_from(stream) {
+        match message {
+            ClientMessage::Connect {} => {
+                println!("Recibí un connect: {:?}", message);
+                let connack = BrokerMessage::Connack {
+                    //session_present: true,
+                    //return_code: 0,
+                };
+                println!("Sending connack: {:?}", connack);
+                connack.write_to(&mut stream).unwrap();
+            },
+            ClientMessage::Publish { packet_id, ref topic_name, qos, retain_flag, ref payload, dup_flag } => {
+                println!("Recibí un publish: {:?}", message);
+                println!("sending puback");
+            },
+            _ => {
+                println!("Recibí un mensaje que no es connect");
+            }
         }
     }
+    
+    // let cloned_stream = stream.try_clone()?; // Clone the TcpStream
+    // let reader = BufReader::new(cloned_stream); // Use the cloned stream in BufReader
+    // let mut lines = reader.lines();
+    // while let Some(Ok(line)) = lines.next() {
+    //     println!("me llego un {:?}", line);
+    //     if line == "hola" {
+    //         stream.write_all(b"chau\n")?;
+    //     } else if line == "wasaa" {
+    //         stream.write_all(b"wasaa\n")?;
+    //     } else {
+    //         stream.write_all(b"no entiendo\n")?;
+    //     }
+    // }
+
     Ok(())
 }
