@@ -4,11 +4,13 @@ use std::{
 };
 
 //use self::quality_of_service::QualityOfService;
-
+const PROTOCOL_VERSION: u8 = 5;
 #[path = "quality_of_service.rs"]
 mod quality_of_service;
 
 #[derive(Debug)]
+//implement partial eq
+#[derive(PartialEq)]
 pub enum ClientMessage {
     Connect {
         //client_id: u32,
@@ -60,6 +62,9 @@ impl ClientMessage {
                 writer.write(&[protocol_name_length_bytes[1]])?;
                 writer.write(&protocol_name.as_bytes())?;
 
+                //protocol version
+                let protocol_version: u8 = 0x05;
+                writer.write(&[protocol_version])?;
 
                 Ok(())
             }
@@ -105,9 +110,36 @@ impl ClientMessage {
                         "Invalid protocol name",
                     ));
                 }
+
+                //protocol version
+                let mut protocol_version_buf = [0u8; 1];
+                stream.read_exact(&mut protocol_version_buf)?;
+                let protocol_version = u8::from_le_bytes(protocol_version_buf);
+
+                if protocol_version != PROTOCOL_VERSION {
+                    return Err(Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid protocol version",
+                    ));
+                }
+                println!("protocol version: {:?}", protocol_version);
+
                 Ok(ClientMessage::Connect {})
             }
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
 }
+
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+
+//     #[test]
+//     fn read_from_connect() {
+//         let mut stream = std::io::Cursor::new(vec![0x10, 0x00, 0x04, b'M', b'Q', b'T', b'T']);
+//         let message = ClientMessage::read_from(&mut stream).unwrap();
+//         let expected = ClientMessage::Connect {};
+//         assert_eq!(message, expected);
+//     }
+// }
