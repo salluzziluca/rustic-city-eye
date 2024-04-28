@@ -46,11 +46,20 @@ impl ClientMessage {
                 // lastWillRetain,
                 // keepAlive,
             } => {
-                //deberia armar el fixed header
-                let byte_1: u8 = 0x10_u8.to_le();
+                //fixed header
+                let byte_1: u8 = 0x10_u8.to_le();//00010000
 
                 writer.write(&[byte_1])?;
                 writer.flush()?;
+
+                //protocol name
+                let protocol_name = "MQTT";
+                let protocol_name_length = protocol_name.len()  as u16;
+                let protocol_name_length_bytes = protocol_name_length.to_le_bytes();
+                writer.write(&[protocol_name_length_bytes[0]])?;
+                writer.write(&[protocol_name_length_bytes[1]])?;
+                writer.write(&protocol_name.as_bytes())?;
+
 
                 Ok(())
             }
@@ -73,10 +82,31 @@ impl ClientMessage {
         let mut header = [0u8; 1];
         stream.read_exact(&mut header)?;
 
-        let header = u8::from_be_bytes(header);
+        let header = u8::from_le_bytes(header);
 
         match header {
-            0x10 => Ok(ClientMessage::Connect {}),
+            0x10 => {
+                //leo el protocol name
+                let mut protocol_lenght_buf = [0u8; 2];
+                stream.read_exact(&mut protocol_lenght_buf)?;
+                let protocol_lenght = u16::from_le_bytes(protocol_lenght_buf);
+                println!("protocol_lenght: {:?}", protocol_lenght);
+
+                let mut protocol_name_buf = vec![0; protocol_lenght as usize];
+                stream.read_exact(&mut protocol_name_buf)?;
+
+                let protocol_name =
+                    std::str::from_utf8(&protocol_name_buf).expect("Error al leer protocol_name");
+                println!("protocol_name: {:?}", protocol_name);
+
+                if protocol_name != "MQTT" {
+                    return Err(Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid protocol name",
+                    ));
+                }
+                Ok(ClientMessage::Connect {})
+            }
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }

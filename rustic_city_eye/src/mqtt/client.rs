@@ -26,8 +26,18 @@ impl Client {
         println!("Sending connect message to broker: {:?}", connect);
         connect.write_to(&mut stream).unwrap();
 
-        let connack = BrokerMessage::read_from(&mut stream);
-        println!("recibi un {:?}", connack);
+        if let Ok(message) = BrokerMessage::read_from(&mut stream) {
+            match message {
+                BrokerMessage::Connack {
+                   //session_present,
+                    //return_code,
+                } => {
+                    println!("Recibí un connack: {:?}", message);
+                }
+            }
+        } else {
+            println!("soy el client y no pude leer el mensaje");
+        }
 
         Ok(Client { stream })
     }

@@ -42,21 +42,20 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
         match message {
             ClientMessage::Connect {} => {
                 println!("Recibí un connect: {:?}", message);
+                let connack = BrokerMessage::Connack {
+                    //session_present: true,
+                    //return_code: 0,
+                };
+                println!("Sending connack: {:?}", connack);
+                connack.write_to(&mut stream).unwrap();
             }
             _ => {
                 println!("Recibí un mensaje que no es connect");
             }
         }
     } else {
-        println!("No pude leer el mensaje");
+        println!("Soy el broker y no pude leer el mensaje");
     }
-
-    let connack = BrokerMessage::Connack {
-        session_present: true,
-        return_code: 0,
-    };
-    println!("Sending connack: {:?}", connack);
-    connack.write_to(&mut stream).unwrap();
 
     let cloned_stream = stream.try_clone()?; // Clone the TcpStream
     let reader = BufReader::new(cloned_stream); // Use the cloned stream in BufReader
