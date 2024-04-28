@@ -1,16 +1,25 @@
-use std::{io::{BufWriter, Error, Read, Write}, net::TcpStream};
+use std::{
+    io::{BufWriter, Error, Read, Write},
+    net::TcpStream,
+};
 
 //use self::quality_of_service::QualityOfService;
 
-#[path = "quality_of_service.rs"] mod quality_of_service;
-
+#[path = "quality_of_service.rs"]
+mod quality_of_service;
 
 #[derive(Debug)]
 pub enum ClientMessage {
     Connect {
-        client_id: u32,
-        //clean_session: bool,
-        //username: String
+        //client_id: u32,
+        // clean_session: bool,
+        // username: String,
+        // password: String,
+        // lastWillTopic: String,
+        // lastWillQoS: u8,
+        // lasWillMessage: String,
+        // lastWillRetain: bool,
+        // keepAlive: u32,
     },
     Publish {
         packet_id: usize,
@@ -18,35 +27,57 @@ pub enum ClientMessage {
         qos: usize,
         retain_flag: bool,
         payload: String,
-        dup_flag: bool
-    }
+        dup_flag: bool,
+    },
 }
 
 impl ClientMessage {
     pub fn write_to(&self, stream: &mut TcpStream) -> std::io::Result<()> {
         let mut writer = BufWriter::new(stream);
         match self {
-            ClientMessage::Connect { client_id } => {
-                let client_id_be = client_id.to_be_bytes();
-                writer.write(&client_id_be)?;
+            ClientMessage::Connect {
+                //client_id,
+                // clean_session,
+                // username,
+                // password,
+                // lastWillTopic,
+                // lastWillQoS,
+                // lasWillMessage,
+                // lastWillRetain,
+                // keepAlive,
+            } => {
+                //deberia armar el fixed header
+                let byte_1: u8 = 0x10_u8.to_le();
+
+                writer.write(&[byte_1])?;
                 writer.flush()?;
 
                 Ok(())
-            },
-            ClientMessage::Publish { packet_id, topic_name, qos, retain_flag, payload, dup_flag } => {
+            }
+            ClientMessage::Publish {
+                packet_id,
+                topic_name,
+                qos,
+                retain_flag,
+                payload,
+                dup_flag,
+            } => {
                 println!("Publishing...");
 
                 Ok(())
-            },
+            }
         }
     }
 
     pub fn read_from(stream: &mut dyn Read) -> Result<ClientMessage, Error> {
-        let mut num_buffer = [0u8; 4];
-        stream.read_exact(&mut num_buffer)?;
-        
-        let client_id = u32::from_be_bytes(num_buffer);
+        let mut header = [0u8; 1];
+        stream.read_exact(&mut header)?;
 
-        Ok(ClientMessage::Connect { client_id })
+        let header = u8::from_be_bytes(header);
+
+        match header {
+            0x10 => Ok(ClientMessage::Connect {}),
+            _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
+        }
     }
 }

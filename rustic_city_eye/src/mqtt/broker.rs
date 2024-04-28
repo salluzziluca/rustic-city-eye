@@ -38,10 +38,23 @@ fn server_run(address: &str) -> std::io::Result<()> {
 }
 
 fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
-    let connect = ClientMessage::read_from(stream);
-    println!("recibi un {:?}", connect);
+    if let Ok(message) = ClientMessage::read_from(stream) {
+        match message {
+            ClientMessage::Connect {} => {
+                println!("Recibí un connect: {:?}", message);
+            }
+            _ => {
+                println!("Recibí un mensaje que no es connect");
+            }
+        }
+    } else {
+        println!("No pude leer el mensaje");
+    }
 
-    let connack = BrokerMessage::Connack { session_present: true, return_code: 0 };
+    let connack = BrokerMessage::Connack {
+        session_present: true,
+        return_code: 0,
+    };
     println!("Sending connack: {:?}", connack);
     connack.write_to(&mut stream).unwrap();
 
