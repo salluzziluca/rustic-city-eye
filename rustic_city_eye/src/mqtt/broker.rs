@@ -43,6 +43,7 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
             ClientMessage::Connect {
                 clean_start,
                 last_will_flag,
+                last_will_QoS,
                 last_will_retain,
                 ref username,
                 ref password,

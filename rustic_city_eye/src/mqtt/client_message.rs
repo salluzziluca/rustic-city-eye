@@ -16,7 +16,7 @@ pub enum ClientMessage {
         //client_id: u32,
         clean_start: bool,
         last_will_flag: bool, //si el will message tiene que ser guardado asociado a la sesion
-        // lastWillQoS: u8,    //QoS level utilizado cuando se publique el will message
+        last_will_QoS: u8,    //QoS level utilizado cuando se publique el will message
         last_will_retain: bool, // Si el will Message se retiene despues de ser publicado
         username: String,
         password: String,
@@ -42,14 +42,14 @@ impl ClientMessage {
                 //client_id,
                 clean_start,
                 last_will_flag,
-                //lastWillQoS,
+                last_will_QoS,
                 last_will_retain,
                 username,
                 password,
                 // username,
                 // password,
                 // lastWillTopic,
-                // lastWillQoS,
+                // last_will_QoS,
                 // lasWillMessage,
                 // last_will_retain,
                 // keepAlive,
@@ -82,6 +82,8 @@ impl ClientMessage {
                     connect_flags |= 1 << 2;
                 }
 
+                connect_flags |= (last_will_QoS & 0b11) << 3;
+
                 if *last_will_retain {
                     connect_flags |= 1 << 5;
                 }
@@ -93,6 +95,7 @@ impl ClientMessage {
                 if username.len() != 0 {
                     connect_flags |= 1 << 7;
                 }
+
                 writer.write(&[connect_flags])?;
                 Ok(())
             }
@@ -156,25 +159,22 @@ impl ClientMessage {
                 let mut connect_flags_buf = [0u8; 1];
                 stream.read_exact(&mut connect_flags_buf)?;
                 let connect_flags = u8::from_le_bytes(connect_flags_buf);
-                println!("connect flag{:?}", connect_flags);
 
                 let hay_user = (connect_flags & (1 << 7)) != 0;
                 let mut user = "";
                 if hay_user {
                     user = "user";
                 }
-                println!("el usuario es {:?}", user);
                 let hay_pass = (connect_flags & (1 << 6)) != 0;
                 let mut pass = "";
                 if hay_pass {
                     pass = "pass";
                 }
-                println!("la pass es {:?}", pass);
 
                 Ok(ClientMessage::Connect {
                     clean_start: (connect_flags & (1 << 1)) != 0,
                     last_will_flag: (connect_flags & (1 << 2)) != 0,
-                    //lastWillQoS: todo!(),
+                    last_will_QoS: (connect_flags >> 3) & 0b11,
                     last_will_retain: (connect_flags & (1 << 5)) != 0,
                     username: user.to_string(),
                     password: pass.to_string(),
