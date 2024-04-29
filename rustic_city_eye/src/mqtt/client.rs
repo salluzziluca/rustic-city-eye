@@ -33,25 +33,57 @@ impl Client {
                     //return_code,
                 } => {
                     println!("Recibí un connack: {:?}", message);
-                }
+                },
+                _ => println!("no recibi un connack :("),
+
             }
-        } else {
-            println!("soy el client y no pude leer el mensaje");
         }
 
         Ok(Client { stream })
     }
 
     pub fn publish_message(&mut self, message: &str) {
+        let splitted_message: Vec<&str> = message.split(' ').collect();
+        println!("{:?}", splitted_message);
+        //message interface(temp): dup:1 qos:2 retain:1 topic_name:sometopic 
+        let mut dup_flag = false;
+        let mut qos = 0;
+        let mut retain_flag = false;
+
+        if splitted_message[0] == "dup:1" {
+            dup_flag = true;
+        }
+
+        if splitted_message[1] == "qos:1" {
+            qos = 1;
+        } else if splitted_message[1] == "qos:2" {
+            qos = 2;
+        }
+
+        if splitted_message[2] == "retain:1" {
+            retain_flag = true;
+        }
+
         let publish = ClientMessage::Publish {
             packet_id: 1,
-            topic_name: "juan".to_string(),
-            qos: 0,
-            retain_flag: true,
-            payload: message.to_string(),
-            dup_flag: true,
+            topic_name: splitted_message[3].to_string(),
+            qos,
+            retain_flag,
+            payload: splitted_message[4].to_string(),
+            dup_flag,
         };
 
         publish.write_to(&mut self.stream).unwrap();
+
+        if let Ok(message) = BrokerMessage::read_from(&mut self.stream) {
+            match message {
+                BrokerMessage::Puback {
+                } => {
+                    println!("Recibí un puback: {:?}", message);
+                },
+                _ => println!("no recibi nada :("),
+
+            }
+        }
     }
 }
