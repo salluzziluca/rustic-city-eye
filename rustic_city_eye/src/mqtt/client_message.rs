@@ -158,8 +158,24 @@ impl ClientMessage {
                 let will_message_length = last_will_message.len() as u16;
                 let will_message_length_bytes = will_message_length.to_le_bytes();
                 writer.write(&will_message_length_bytes)?;
-
                 writer.write(&last_will_message.as_bytes())?;
+
+                //username
+
+                if username.len() != 0 {
+                    let username_length = username.len() as u16;
+                    let username_length_bytes = username_length.to_le_bytes();
+                    writer.write(&username_length_bytes)?;
+                    writer.write(&username.as_bytes())?;
+                }
+
+                //password
+                if password.len() != 0 {
+                    let password_length = password.len() as u16;
+                    let password_length_bytes = password_length.to_le_bytes();
+                    writer.write(&password_length_bytes)?;
+                    writer.write(&password.as_bytes())?;
+                }
 
                 writer.flush()?;
                 Ok(())
@@ -225,16 +241,7 @@ impl ClientMessage {
                 stream.read_exact(&mut connect_flags_buf)?;
                 let connect_flags = u8::from_le_bytes(connect_flags_buf);
 
-                let hay_user = (connect_flags & (1 << 7)) != 0;
-                let mut user = "";
-                if hay_user {
-                    user = "user";
-                }
-                let hay_pass = (connect_flags & (1 << 6)) != 0;
-                let mut pass = "";
-                if hay_pass {
-                    pass = "pass";
-                }
+
 
                 //keep alive
                 let mut keep_alive_buf = [0u8; 2];
@@ -291,6 +298,27 @@ impl ClientMessage {
                 let mut will_message_buf = vec![0; will_message_length as usize];
                 stream.read_exact(&mut will_message_buf)?;
                 let will_message = std::str::from_utf8(&will_message_buf).expect("Error al leer will_message");
+
+                let hay_user = (connect_flags & (1 << 7)) != 0;
+                let mut user = String::new();
+                if hay_user {
+                    let mut user_length_buf = [0u8; 2];
+                    stream.read_exact(&mut user_length_buf)?;
+                    let user_length = u16::from_le_bytes(user_length_buf);
+                    let mut user_buf = vec![0; user_length as usize];
+                    stream.read_exact(&mut user_buf)?;
+                    user = std::str::from_utf8(&user_buf).expect("Error al leer user").to_string();
+                }
+                let hay_pass = (connect_flags & (1 << 6)) != 0;
+                let mut pass = String::new();
+                if hay_pass {
+                    let mut pass_length_buf = [0u8; 2];
+                    stream.read_exact(&mut pass_length_buf)?;
+                    let pass_length = u16::from_le_bytes(pass_length_buf);
+                    let mut pass_buf = vec![0; pass_length as usize];
+                    stream.read_exact(&mut pass_buf)?;
+                    pass = std::str::from_utf8(&pass_buf).expect("Error al leer pass").to_string();
+                }
 
 
                 Ok(ClientMessage::Connect {
