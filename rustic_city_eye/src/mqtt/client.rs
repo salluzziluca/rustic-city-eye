@@ -35,6 +35,7 @@ impl Client {
             message_expiry_interval: 120,
             content_type: "plain".to_string(),
             user_property: Some(("propiedad".to_string(), "valor".to_string())),
+            last_will_message: "me he muerto, diganle a mi vieja que la quiero, adios".to_string(),
         };
         println!("Sending connect message to broker: {:?}", connect);
         connect.write_to(&mut stream).unwrap();

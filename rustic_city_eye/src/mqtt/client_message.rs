@@ -27,7 +27,7 @@ pub enum ClientMessage {
         user_property: Option<(String, String)>,
         //response_topic: String, //Topic name del response message
         // lastWillTopic: String,
-        // lasWillMessage: String,
+        last_will_message: String,
     },
     Publish {
         //packet_id: usize,
@@ -56,6 +56,7 @@ impl ClientMessage {
                 message_expiry_interval,
                 content_type,
                 user_property,
+                last_will_message,
     
                 // lastWillTopic,
                 // last_will_qos,
@@ -151,6 +152,14 @@ impl ClientMessage {
                     writer.write(&value_length_bytes)?;
                     writer.write(&value.as_bytes())?;
                 }
+
+                //will payload
+
+                let will_message_length = last_will_message.len() as u16;
+                let will_message_length_bytes = will_message_length.to_le_bytes();
+                writer.write(&will_message_length_bytes)?;
+
+                writer.write(&last_will_message.as_bytes())?;
 
                 writer.flush()?;
                 Ok(())
@@ -275,7 +284,13 @@ impl ClientMessage {
                 stream.read_exact(&mut user_property_value_buf)?;
                 let user_property_value = std::str::from_utf8(&user_property_value_buf).expect("Error al leer user_property_value");
 
-
+                //will payload
+                let mut will_message_length_buf = [0u8; 2];
+                stream.read_exact(&mut will_message_length_buf)?;
+                let will_message_length = u16::from_le_bytes(will_message_length_buf);
+                let mut will_message_buf = vec![0; will_message_length as usize];
+                stream.read_exact(&mut will_message_buf)?;
+                let will_message = std::str::from_utf8(&will_message_buf).expect("Error al leer will_message");
 
 
                 Ok(ClientMessage::Connect {
@@ -291,6 +306,7 @@ impl ClientMessage {
                     message_expiry_interval: message_expiry_interval,
                     content_type: content_type.to_string(),
                     user_property: Some((user_property_key.to_string(), user_property_value.to_string())),
+                    last_will_message: will_message.to_string(),
             
                     
                 })
