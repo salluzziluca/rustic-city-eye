@@ -14,10 +14,10 @@ mod quality_of_service;
 pub enum ClientMessage {
     Connect {
         //client_id: u32,
-        cleanStart: bool,
-        lastWillFlag: bool, //si el will message tiene que ser guardado asociado a la sesion
+        clean_start: bool,
+        last_will_flag: bool, //si el will message tiene que ser guardado asociado a la sesion
         // lastWillQoS: u8,    //QoS level utilizado cuando se publique el will message
-        lastWillRetain: bool, // Si el will Message se retiene despues de ser publicado
+        last_will_retain: bool, // Si el will Message se retiene despues de ser publicado
         username: String,
         password: String,
         // lastWillTopic: String,
@@ -40,10 +40,10 @@ impl ClientMessage {
         match self {
             ClientMessage::Connect {
                 //client_id,
-                cleanStart,
-                lastWillFlag,
+                clean_start,
+                last_will_flag,
                 //lastWillQoS,
-                lastWillRetain,
+                last_will_retain,
                 username,
                 password,
                 // username,
@@ -51,7 +51,7 @@ impl ClientMessage {
                 // lastWillTopic,
                 // lastWillQoS,
                 // lasWillMessage,
-                // lastWillRetain,
+                // last_will_retain,
                 // keepAlive,
             } => {
                 //fixed header
@@ -74,15 +74,15 @@ impl ClientMessage {
 
                 //connection flags
                 let mut connect_flags: u8 = 0x00;
-                if *cleanStart {
+                if *clean_start {
                     connect_flags |= 1 << 1; //set bit 1 to 1
                 }
 
-                if *lastWillFlag {
+                if *last_will_flag {
                     connect_flags |= 1 << 2;
                 }
 
-                if *lastWillRetain {
+                if *last_will_retain {
                     connect_flags |= 1 << 5;
                 }
 
@@ -172,10 +172,10 @@ impl ClientMessage {
                 println!("la pass es {:?}", pass);
 
                 Ok(ClientMessage::Connect {
-                    cleanStart: (connect_flags & (1 << 1)) != 0,
-                    lastWillFlag: (connect_flags & (1 << 2)) != 0,
+                    clean_start: (connect_flags & (1 << 1)) != 0,
+                    last_will_flag: (connect_flags & (1 << 2)) != 0,
                     //lastWillQoS: todo!(),
-                    lastWillRetain: (connect_flags & (1 << 5)) != 0,
+                    last_will_retain: (connect_flags & (1 << 5)) != 0,
                     username: user.to_string(),
                     password: pass.to_string(),
                 })

@@ -23,9 +23,9 @@ impl Client {
         };
 
         let connect = ClientMessage::Connect {
-            cleanStart: true,
-            lastWillFlag: true,
-            lastWillRetain: true,
+            clean_start: true,
+            last_will_flag: true,
+            last_will_retain: true,
             username: "prueba".to_string(),
             password: "".to_string(),
         };

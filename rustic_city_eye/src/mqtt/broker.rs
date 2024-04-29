@@ -41,9 +41,9 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
     if let Ok(message) = ClientMessage::read_from(stream) {
         match message {
             ClientMessage::Connect {
-                cleanStart,
-                lastWillFlag,
-                lastWillRetain,
+                clean_start,
+                last_will_flag,
+                last_will_retain,
                 ref username,
                 ref password,
             } => {
