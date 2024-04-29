@@ -16,11 +16,16 @@ pub enum ClientMessage {
         client_id: String,
         clean_start: bool,
         last_will_flag: bool, //si el will message tiene que ser guardado asociado a la sesion
-        last_will_QoS: u8,    //QoS level utilizado cuando se publique el will message
+        last_will_qos: u8,    //QoS level utilizado cuando se publique el will message
         last_will_retain: bool, // Si el will Message se retiene despues de ser publicado
         username: String,
         password: String,
-        keepAlive: u16,
+        keep_alive: u16,
+        last_will_delay_interval: u32,
+        message_expiry_interval: u16,
+        content_type: String,
+        user_property: Option<(String, String)>,
+        //response_topic: String, //Topic name del response message
         // lastWillTopic: String,
         // lasWillMessage: String,
     },
@@ -42,15 +47,18 @@ impl ClientMessage {
                 client_id,
                 clean_start,
                 last_will_flag,
-                last_will_QoS,
+                last_will_qos,
                 last_will_retain,
                 username,
                 password,
-                 keepAlive,
-                // username,
-                // password,
+                keep_alive,
+                last_will_delay_interval,
+                message_expiry_interval,
+                content_type,
+                user_property,
+    
                 // lastWillTopic,
-                // last_will_QoS,
+                // last_will_qos,
                 // lasWillMessage,
                 // last_will_retain,
             } => {
@@ -58,7 +66,6 @@ impl ClientMessage {
                 let byte_1: u8 = 0x10_u8.to_le(); //00010000
 
                 writer.write(&[byte_1])?;
-                writer.flush()?;
 
                 //protocol name
                 let protocol_name = "MQTT";
@@ -82,7 +89,7 @@ impl ClientMessage {
                     connect_flags |= 1 << 2;
                 }
 
-                connect_flags |= (last_will_QoS & 0b11) << 3;
+                connect_flags |= (last_will_qos & 0b11) << 3;
 
                 if *last_will_retain {
                     connect_flags |= 1 << 5;
@@ -99,7 +106,7 @@ impl ClientMessage {
                 writer.write(&[connect_flags])?;
 
                 //keep alive
-                let keep_alive = keepAlive.to_le_bytes();
+                let keep_alive = keep_alive.to_le_bytes();
                 writer.write(&keep_alive)?;
 
                 //connect properties
@@ -113,6 +120,39 @@ impl ClientMessage {
                 let client_id_length_bytes = client_id_length.to_le_bytes();
                 writer.write(&client_id_length_bytes)?;
                 writer.write(&client_id.as_bytes())?;
+
+                //will properties
+                let will_delay_interval_bytes = last_will_delay_interval.to_le_bytes();
+                writer.write(&will_delay_interval_bytes)?;
+
+                // let payload_format_indicator:u8;
+                // match std::str::from_utf8(last_will_message) {
+                //     Ok(_) => payload_format_indicator = 0x01,
+                //     Err(_) => payload_format_indicator = 0x00,
+                // }
+
+                let message_expiry_interval_bytes = message_expiry_interval.to_le_bytes();
+                writer.write(&message_expiry_interval_bytes)?;
+                
+                let content_type_length = content_type.len() as u16;
+                let content_type_length_bytes = content_type_length.to_le_bytes();
+                writer.write(&content_type_length_bytes)?;
+                writer.write(&content_type.as_bytes())?;
+
+                //user property
+                if let Some((key, value)) = user_property {
+                    let key_length = key.len() as u16;
+                    let key_length_bytes = key_length.to_le_bytes();
+                    writer.write(&key_length_bytes)?;
+                    writer.write(&key.as_bytes())?;
+
+                    let value_length = value.len() as u16;
+                    let value_length_bytes = value_length.to_le_bytes();
+                    writer.write(&value_length_bytes)?;
+                    writer.write(&value.as_bytes())?;
+                }
+
+                writer.flush()?;
                 Ok(())
             }
             ClientMessage::Publish {
@@ -204,15 +244,55 @@ impl ClientMessage {
                 stream.read_exact(&mut client_id_buf)?;
                 let client_id = std::str::from_utf8(&client_id_buf).expect("Error al leer client_id");
 
+                //will properties
+                let mut will_delay_interval_buf = [0u8; 4];
+                stream.read_exact(&mut will_delay_interval_buf)?;
+                let will_delay_interval = u32::from_le_bytes(will_delay_interval_buf);
+
+                let mut message_expiry_interval_buf = [0u8; 2];
+                stream.read_exact(&mut message_expiry_interval_buf)?;
+                let message_expiry_interval = u16::from_le_bytes(message_expiry_interval_buf);
+
+                let mut content_type_length_buf = [0u8; 2];
+                stream.read_exact(&mut content_type_length_buf)?;
+                let content_type_length = u16::from_le_bytes(content_type_length_buf);
+                let mut content_type_buf = vec![0; content_type_length as usize];
+                stream.read_exact(&mut content_type_buf)?;
+                let content_type = std::str::from_utf8(&content_type_buf).expect("Error al leer content_type");
+
+                //user property
+                let mut user_property_key_length_buf = [0u8; 2];
+                stream.read_exact(&mut user_property_key_length_buf)?;
+                let user_property_key_length = u16::from_le_bytes(user_property_key_length_buf);
+                let mut user_property_key_buf = vec![0; user_property_key_length as usize];
+                stream.read_exact(&mut user_property_key_buf)?;
+                let user_property_key = std::str::from_utf8(&user_property_key_buf).expect("Error al leer user_property_key");
+
+                let mut user_property_value_length_buf = [0u8; 2];
+                stream.read_exact(&mut user_property_value_length_buf)?;
+                let user_property_value_length = u16::from_le_bytes(user_property_value_length_buf);
+                let mut user_property_value_buf = vec![0; user_property_value_length as usize];
+                stream.read_exact(&mut user_property_value_buf)?;
+                let user_property_value = std::str::from_utf8(&user_property_value_buf).expect("Error al leer user_property_value");
+
+
+
+
                 Ok(ClientMessage::Connect {
                     clean_start: (connect_flags & (1 << 1)) != 0,
                     last_will_flag: (connect_flags & (1 << 2)) != 0,
-                    last_will_QoS: (connect_flags >> 3) & 0b11,
+                    last_will_qos: (connect_flags >> 3) & 0b11,
                     last_will_retain: (connect_flags & (1 << 5)) != 0,
                     username: user.to_string(),
                     password: pass.to_string(),
-                    keepAlive: keep_alive,
+                    keep_alive: keep_alive,
                     client_id: client_id.to_string(),
+                    last_will_delay_interval: will_delay_interval,
+                    message_expiry_interval: message_expiry_interval,
+                    content_type: content_type.to_string(),
+                    user_property: Some((user_property_key.to_string(), user_property_value.to_string())),
+            
+                    
                 })
             }
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),

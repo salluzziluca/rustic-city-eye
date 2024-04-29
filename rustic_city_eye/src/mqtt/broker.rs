@@ -43,12 +43,16 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
             ClientMessage::Connect {
                 clean_start,
                 last_will_flag,
-                last_will_QoS,
+                last_will_qos,
                 last_will_retain,
                 ref username,
                 ref password,
-                keepAlive,
+                keep_alive,
                 ref client_id,
+                last_will_delay_interval,
+                message_expiry_interval,
+                ref content_type,
+                ref user_property,
             } => {
                 println!("Recibí un connect: {:?}", message);
                 let connack = BrokerMessage::Connack {
