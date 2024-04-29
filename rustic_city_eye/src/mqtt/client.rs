@@ -29,6 +29,7 @@ impl Client {
             last_will_retain: true,
             username: "prueba".to_string(),
             password: "".to_string(),
+            keepAlive: 35,
         };
         println!("Sending connect message to broker: {:?}", connect);
         connect.write_to(&mut stream).unwrap();
@@ -51,12 +52,12 @@ impl Client {
 
     pub fn publish_message(&mut self, message: &str) {
         let publish = ClientMessage::Publish {
-            packet_id: 1,
-            topic_name: "juan".to_string(),
-            qos: 0,
-            retain_flag: true,
-            payload: message.to_string(),
-            dup_flag: true,
+            // packet_id: 1,
+            // topic_name: "juan".to_string(),
+            // qos: 0,
+            // retain_flag: true,
+            // payload: message.to_string(),
+            // dup_flag: true,
         };
 
         let _ = publish.write_to(&mut self.stream);

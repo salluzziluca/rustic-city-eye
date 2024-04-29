@@ -20,17 +20,17 @@ pub enum ClientMessage {
         last_will_retain: bool, // Si el will Message se retiene despues de ser publicado
         username: String,
         password: String,
+        keepAlive: u16,
         // lastWillTopic: String,
         // lasWillMessage: String,
-        // keepAlive: u32,
     },
     Publish {
-        packet_id: usize,
-        topic_name: String,
-        qos: usize,
-        retain_flag: bool,
-        payload: String,
-        dup_flag: bool,
+        //packet_id: usize,
+        // topic_name: String,
+        // qos: usize,
+        // retain_flag: bool,
+        // payload: String,
+        // dup_flag: bool,
     },
 }
 
@@ -46,13 +46,13 @@ impl ClientMessage {
                 last_will_retain,
                 username,
                 password,
+                 keepAlive,
                 // username,
                 // password,
                 // lastWillTopic,
                 // last_will_QoS,
                 // lasWillMessage,
                 // last_will_retain,
-                // keepAlive,
             } => {
                 //fixed header
                 let byte_1: u8 = 0x10_u8.to_le(); //00010000
@@ -97,15 +97,21 @@ impl ClientMessage {
                 }
 
                 writer.write(&[connect_flags])?;
+
+                //keep alive
+                let keep_alive = keepAlive.to_le_bytes();
+                writer.write(&keep_alive)?;
+
+
                 Ok(())
             }
             ClientMessage::Publish {
-                packet_id,
-                topic_name,
-                qos,
-                retain_flag,
-                payload,
-                dup_flag,
+                // packet_id,
+                // topic_name,
+                // qos,
+                // retain_flag,
+                // payload,
+                // dup_flag,
             } => {
                 println!("Publishing...");
 
@@ -171,6 +177,11 @@ impl ClientMessage {
                     pass = "pass";
                 }
 
+                //keep alive
+                let mut keep_alive_buf = [0u8; 2];
+                stream.read_exact(&mut keep_alive_buf)?;
+                let keep_alive = u16::from_le_bytes(keep_alive_buf);
+
                 Ok(ClientMessage::Connect {
                     clean_start: (connect_flags & (1 << 1)) != 0,
                     last_will_flag: (connect_flags & (1 << 2)) != 0,
@@ -178,6 +189,7 @@ impl ClientMessage {
                     last_will_retain: (connect_flags & (1 << 5)) != 0,
                     username: user.to_string(),
                     password: pass.to_string(),
+                    keepAlive: keep_alive,
                 })
             }
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
