@@ -14,13 +14,14 @@ mod quality_of_service;
 pub enum ClientMessage {
     Connect {
         //client_id: u32,
-        // clean_session: bool,
-        // username: String,
-        // password: String,
+        cleanStart: bool,
+        lastWillFlag: bool, //si el will message tiene que ser guardado asociado a la sesion
+        // lastWillQoS: u8,    //QoS level utilizado cuando se publique el will message
+        lastWillRetain: bool, // Si el will Message se retiene despues de ser publicado
+        username: String,
+        password: String,
         // lastWillTopic: String,
-        // lastWillQoS: u8,
         // lasWillMessage: String,
-        // lastWillRetain: bool,
         // keepAlive: u32,
     },
     Publish {
@@ -39,7 +40,12 @@ impl ClientMessage {
         match self {
             ClientMessage::Connect {
                 //client_id,
-                // clean_session,
+                cleanStart,
+                lastWillFlag,
+                //lastWillQoS,
+                lastWillRetain,
+                username,
+                password,
                 // username,
                 // password,
                 // lastWillTopic,
@@ -49,14 +55,14 @@ impl ClientMessage {
                 // keepAlive,
             } => {
                 //fixed header
-                let byte_1: u8 = 0x10_u8.to_le();//00010000
+                let byte_1: u8 = 0x10_u8.to_le(); //00010000
 
                 writer.write(&[byte_1])?;
                 writer.flush()?;
 
                 //protocol name
                 let protocol_name = "MQTT";
-                let protocol_name_length = protocol_name.len()  as u16;
+                let protocol_name_length = protocol_name.len() as u16;
                 let protocol_name_length_bytes = protocol_name_length.to_le_bytes();
                 writer.write(&[protocol_name_length_bytes[0]])?;
                 writer.write(&[protocol_name_length_bytes[1]])?;
@@ -66,6 +72,28 @@ impl ClientMessage {
                 let protocol_version: u8 = 0x05;
                 writer.write(&[protocol_version])?;
 
+                //connection flags
+                let mut connect_flags: u8 = 0x00;
+                if *cleanStart {
+                    connect_flags |= 1 << 1; //set bit 1 to 1
+                }
+
+                if *lastWillFlag {
+                    connect_flags |= 1 << 2;
+                }
+
+                if *lastWillRetain {
+                    connect_flags |= 1 << 5;
+                }
+
+                if password.len() != 0 {
+                    connect_flags |= 1 << 6;
+                }
+
+                if username.len() != 0 {
+                    connect_flags |= 1 << 7;
+                }
+                writer.write(&[connect_flags])?;
                 Ok(())
             }
             ClientMessage::Publish {
@@ -124,7 +152,33 @@ impl ClientMessage {
                 }
                 println!("protocol version: {:?}", protocol_version);
 
-                Ok(ClientMessage::Connect {})
+                //connect flags
+                let mut connect_flags_buf = [0u8; 1];
+                stream.read_exact(&mut connect_flags_buf)?;
+                let connect_flags = u8::from_le_bytes(connect_flags_buf);
+                println!("connect flag{:?}", connect_flags);
+
+                let hay_user = (connect_flags & (1 << 7)) != 0;
+                let mut user = "";
+                if hay_user {
+                    user = "user";
+                }
+                println!("el usuario es {:?}", user);
+                let hay_pass = (connect_flags & (1 << 6)) != 0;
+                let mut pass = "";
+                if hay_pass {
+                    pass = "pass";
+                }
+                println!("la pass es {:?}", pass);
+
+                Ok(ClientMessage::Connect {
+                    cleanStart: (connect_flags & (1 << 1)) != 0,
+                    lastWillFlag: (connect_flags & (1 << 2)) != 0,
+                    //lastWillQoS: todo!(),
+                    lastWillRetain: (connect_flags & (1 << 5)) != 0,
+                    username: user.to_string(),
+                    password: pass.to_string(),
+                })
             }
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }

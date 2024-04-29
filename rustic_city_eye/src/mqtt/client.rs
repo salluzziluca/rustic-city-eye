@@ -22,7 +22,13 @@ impl Client {
             Err(_) => return Err(ProtocolError::ConectionError),
         };
 
-        let connect = ClientMessage::Connect {};
+        let connect = ClientMessage::Connect {
+            cleanStart: true,
+            lastWillFlag: true,
+            lastWillRetain: true,
+            username: "prueba".to_string(),
+            password: "".to_string(),
+        };
         println!("Sending connect message to broker: {:?}", connect);
         connect.write_to(&mut stream).unwrap();
 

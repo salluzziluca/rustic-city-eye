@@ -40,7 +40,13 @@ fn server_run(address: &str) -> std::io::Result<()> {
 fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
     if let Ok(message) = ClientMessage::read_from(stream) {
         match message {
-            ClientMessage::Connect {} => {
+            ClientMessage::Connect {
+                cleanStart,
+                lastWillFlag,
+                lastWillRetain,
+                ref username,
+                ref password,
+            } => {
                 println!("Recibí un connect: {:?}", message);
                 let connack = BrokerMessage::Connack {
                     //session_present: true,
