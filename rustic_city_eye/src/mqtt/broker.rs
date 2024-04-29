@@ -48,6 +48,7 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
                 ref username,
                 ref password,
                 keepAlive,
+                ref client_id,
             } => {
                 println!("Recibí un connect: {:?}", message);
                 let connack = BrokerMessage::Connack {

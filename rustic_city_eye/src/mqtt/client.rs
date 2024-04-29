@@ -30,6 +30,7 @@ impl Client {
             username: "prueba".to_string(),
             password: "".to_string(),
             keepAlive: 35,
+            client_id: "kvtr33".to_string(),
         };
         println!("Sending connect message to broker: {:?}", connect);
         connect.write_to(&mut stream).unwrap();

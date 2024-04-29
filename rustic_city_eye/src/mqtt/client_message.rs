@@ -13,7 +13,7 @@ mod quality_of_service;
 #[derive(PartialEq)]
 pub enum ClientMessage {
     Connect {
-        //client_id: u32,
+        client_id: String,
         clean_start: bool,
         last_will_flag: bool, //si el will message tiene que ser guardado asociado a la sesion
         last_will_QoS: u8,    //QoS level utilizado cuando se publique el will message
@@ -39,7 +39,7 @@ impl ClientMessage {
         let mut writer = BufWriter::new(stream);
         match self {
             ClientMessage::Connect {
-                //client_id,
+                client_id,
                 clean_start,
                 last_will_flag,
                 last_will_QoS,
@@ -102,7 +102,17 @@ impl ClientMessage {
                 let keep_alive = keepAlive.to_le_bytes();
                 writer.write(&keep_alive)?;
 
+                //connect properties
+                //let mut property_length = 0;
+                //TODO: implementar las 300 millones de propiedades, por ahi estría bueno usar un struct
 
+                //payload
+                //client ID
+                
+                let client_id_length = client_id.len() as u16;
+                let client_id_length_bytes = client_id_length.to_le_bytes();
+                writer.write(&client_id_length_bytes)?;
+                writer.write(&client_id.as_bytes())?;
                 Ok(())
             }
             ClientMessage::Publish {
@@ -182,6 +192,18 @@ impl ClientMessage {
                 stream.read_exact(&mut keep_alive_buf)?;
                 let keep_alive = u16::from_le_bytes(keep_alive_buf);
 
+                // connect properties
+
+
+                //payload
+                //client ID
+                let mut client_id_length_buf = [0u8; 2];
+                stream.read_exact(&mut client_id_length_buf)?;
+                let client_id_length = u16::from_le_bytes(client_id_length_buf);
+                let mut client_id_buf = vec![0; client_id_length as usize];
+                stream.read_exact(&mut client_id_buf)?;
+                let client_id = std::str::from_utf8(&client_id_buf).expect("Error al leer client_id");
+
                 Ok(ClientMessage::Connect {
                     clean_start: (connect_flags & (1 << 1)) != 0,
                     last_will_flag: (connect_flags & (1 << 2)) != 0,
@@ -190,6 +212,7 @@ impl ClientMessage {
                     username: user.to_string(),
                     password: pass.to_string(),
                     keepAlive: keep_alive,
+                    client_id: client_id.to_string(),
                 })
             }
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
