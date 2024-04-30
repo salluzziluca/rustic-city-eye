@@ -10,7 +10,7 @@ pub enum BrokerMessage {
         //return_code: u32
     },
 }
-
+#[allow(dead_code)]
 impl BrokerMessage {
     pub fn write_to(&self, stream: &mut TcpStream) -> std::io::Result<()> {
         let mut writer = BufWriter::new(stream);

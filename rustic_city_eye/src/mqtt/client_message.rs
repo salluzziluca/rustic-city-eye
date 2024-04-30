@@ -1,7 +1,5 @@
-use std::{
-    io::{BufWriter, Error, Read, Write},
-    net::TcpStream,
-};
+use std::io::{BufWriter, Error, Read, Write};
+
 
 //use self::quality_of_service::QualityOfService;
 const PROTOCOL_VERSION: u8 = 5;
@@ -49,12 +47,6 @@ fn write_string(stream: &mut dyn Write, string: &str) -> Result<(), Error> {
     Ok(())
 }
 
-fn write_u8(stream: &mut dyn Write, value: &u8) -> Result<(), Error> {
-    let value_bytes = value.to_le_bytes();
-    stream.write(&value_bytes)?;
-    Ok(())
-}
-
 fn write_u16(stream: &mut dyn Write, value: &u16) -> Result<(), Error> {
     let value_bytes = value.to_le_bytes();
     stream.write(&value_bytes)?;
@@ -94,6 +86,7 @@ fn read_u32(stream: &mut dyn Read) -> Result<u32, Error> {
     stream.read_exact(&mut buf)?;
     Ok(u32::from_le_bytes(buf))
 }
+#[allow(dead_code)]
 impl ClientMessage {
     pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), Error> {
         let mut writer = BufWriter::new(stream);

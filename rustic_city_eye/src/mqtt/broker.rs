@@ -36,24 +36,24 @@ fn server_run(address: &str) -> std::io::Result<()> {
     }
     Ok(())
 }
-
+#[allow(dead_code)]
 fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
     if let Ok(message) = ClientMessage::read_from(stream) {
         match message {
             ClientMessage::Connect {
-                clean_start,
-                last_will_flag,
-                last_will_qos,
-                last_will_retain,
-                ref username,
-                ref password,
-                keep_alive,
-                ref client_id,
-                last_will_delay_interval,
-                message_expiry_interval,
-                ref content_type,
-                ref user_property,
-                ref last_will_message,
+                clean_start: _,
+                last_will_flag: _,
+                last_will_qos: _,
+                last_will_retain: _,
+                username: _,
+                password: _,
+                keep_alive: _,
+                client_id: _,
+                last_will_delay_interval: _,
+                message_expiry_interval: _,
+                content_type: _,
+                user_property: _,
+                last_will_message: _,
             } => {
                 println!("Recibí un connect: {:?}", message);
                 let connack = BrokerMessage::Connack {

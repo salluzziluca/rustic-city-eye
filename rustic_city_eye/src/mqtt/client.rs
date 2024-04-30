@@ -10,11 +10,11 @@ mod broker_message;
 mod client_message;
 #[path = "protocol_error.rs"]
 mod protocol_error;
-
+#[allow(dead_code)]
 pub struct Client {
     stream: TcpStream,
 }
-
+#[allow(dead_code)]
 impl Client {
     pub fn new(address: &str) -> Result<Client, ProtocolError> {
         let mut stream = match TcpStream::connect(address) {
@@ -62,9 +62,10 @@ impl Client {
             // topic_name: "juan".to_string(),
             // qos: 0,
             // retain_flag: true,
-            // payload: message.to_string(),
+            
             // dup_flag: true,
         };
+        let _= message;
 
         let _ = publish.write_to(&mut self.stream);
     }
