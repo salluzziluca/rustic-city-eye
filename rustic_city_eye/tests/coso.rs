@@ -1,4 +1,6 @@
-use rustic_city_eye::mqtt::client_message;
+use std::io::Cursor;
+
+use rustic_city_eye::mqtt::{client, client_message};
 
 #[test]
 fn test_client_message() {
@@ -17,10 +19,9 @@ fn test_client_message() {
         user_property: Some(("propiedad".to_string(), "valor".to_string())),
         last_will_message: "me he muerto, diganle a mi vieja que la quiero, adios".to_string(),
     };
-    match connect {
-        client_message::ClientMessage::Connect { clean_start, .. } => {
-            assert_eq!(clean_start, true);
-        }
-        _ => panic!("Unexpected variant"),
-    }
+    let mut cursor = Cursor::new(Vec::<u8>::new());
+    connect.write_to(&mut cursor).unwrap();
+    cursor.set_position(0);
+    let read_connect = client_message::ClientMessage::read_from(&mut cursor).unwrap();
+    assert_eq!(connect, read_connect);
 }

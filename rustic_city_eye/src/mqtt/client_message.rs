@@ -40,7 +40,7 @@ pub enum ClientMessage {
 }
 
 impl ClientMessage {
-    pub fn write_to(&self, stream: &mut TcpStream) -> std::io::Result<()> {
+    pub fn write_to(&self, stream: &mut dyn Write) -> std::io::Result<()> {
         let mut writer = BufWriter::new(stream);
         match self {
             ClientMessage::Connect {
@@ -343,16 +343,3 @@ impl ClientMessage {
         }
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     #[test]
-//     fn read_from_connect() {
-//         let mut stream = std::io::Cursor::new(vec![0x10, 0x00, 0x04, b'M', b'Q', b'T', b'T']);
-//         let message = ClientMessage::read_from(&mut stream).unwrap();
-//         let expected = ClientMessage::Connect {};
-//         assert_eq!(message, expected);
-//     }
-// }
