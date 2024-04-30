@@ -38,9 +38,46 @@ pub enum ClientMessage {
         // dup_flag: bool,
     },
 }
+///Recibe un string y el stream al que escribir ese stream
+/// 
+/// Calcula su largo y luego escribe el largo y el string en el stream 
+fn write_string(stream: &mut dyn Write, string: &str) -> Result<(), Error> {
+    let length = string.len() as u16;
+    let length_bytes = length.to_le_bytes();
+    stream.write(&length_bytes)?;
+    stream.write(string.as_bytes())?;
+    Ok(())
+}
 
+fn read_string(stream: &mut dyn Read)-> Result<String, Error>{
+    let string_length = read_u16(stream)?;
+    let mut string_buf = vec![0; string_length as usize];
+    stream.read_exact(&mut string_buf)?;
+
+    let protocol_name =
+        std::str::from_utf8(&string_buf).expect("Error al leer protocol_name");
+    Ok(protocol_name.to_string())
+}
+
+fn read_u8(stream: &mut dyn Read) -> Result<u8, Error> {
+    let mut buf = [0u8; 1];
+    stream.read_exact(&mut buf)?;
+    Ok(u8::from_le_bytes(buf))
+}
+
+fn read_u16(stream: &mut dyn Read) -> Result<u16, Error> {
+    let mut buf = [0u8; 2];
+    stream.read_exact(&mut buf)?;
+    Ok(u16::from_le_bytes(buf))
+}
+
+fn read_u32(stream: &mut dyn Read) -> Result<u32, Error> {
+    let mut buf = [0u8; 4];
+    stream.read_exact(&mut buf)?;
+    Ok(u32::from_le_bytes(buf))
+}
 impl ClientMessage {
-    pub fn write_to(&self, stream: &mut dyn Write) -> std::io::Result<()> {
+    pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), Error> {
         let mut writer = BufWriter::new(stream);
         match self {
             ClientMessage::Connect {
@@ -70,11 +107,8 @@ impl ClientMessage {
 
                 //protocol name
                 let protocol_name = "MQTT";
-                let protocol_name_length = protocol_name.len() as u16;
-                let protocol_name_length_bytes = protocol_name_length.to_le_bytes();
-                writer.write(&[protocol_name_length_bytes[0]])?;
-                writer.write(&[protocol_name_length_bytes[1]])?;
-                writer.write(&protocol_name.as_bytes())?;
+                write_string(&mut writer, protocol_name)?;
+                
 
                 //protocol version
                 let protocol_version: u8 = 0x05;
@@ -116,11 +150,8 @@ impl ClientMessage {
 
                 //payload
                 //client ID
-                
-                let client_id_length = client_id.len() as u16;
-                let client_id_length_bytes = client_id_length.to_le_bytes();
-                writer.write(&client_id_length_bytes)?;
-                writer.write(&client_id.as_bytes())?;
+                write_string(&mut writer, &client_id)?;
+     
 
                 //will properties
                 let will_delay_interval_bytes = last_will_delay_interval.to_le_bytes();
@@ -135,46 +166,28 @@ impl ClientMessage {
                 let message_expiry_interval_bytes = message_expiry_interval.to_le_bytes();
                 writer.write(&message_expiry_interval_bytes)?;
                 
-                let content_type_length = content_type.len() as u16;
-                let content_type_length_bytes = content_type_length.to_le_bytes();
-                writer.write(&content_type_length_bytes)?;
-                writer.write(&content_type.as_bytes())?;
+                write_string(&mut writer, &content_type)?;
 
                 //user property
                 if let Some((key, value)) = user_property {
-                    let key_length = key.len() as u16;
-                    let key_length_bytes = key_length.to_le_bytes();
-                    writer.write(&key_length_bytes)?;
-                    writer.write(&key.as_bytes())?;
+                    write_string(&mut writer, &key)?;
 
-                    let value_length = value.len() as u16;
-                    let value_length_bytes = value_length.to_le_bytes();
-                    writer.write(&value_length_bytes)?;
-                    writer.write(&value.as_bytes())?;
+                    write_string(&mut writer, &value)?;
                 }
 
                 //will payload
 
-                let will_message_length = last_will_message.len() as u16;
-                let will_message_length_bytes = will_message_length.to_le_bytes();
-                writer.write(&will_message_length_bytes)?;
-                writer.write(&last_will_message.as_bytes())?;
+                write_string(&mut writer, &last_will_message)?;
 
                 //username
 
                 if username.len() != 0 {
-                    let username_length = username.len() as u16;
-                    let username_length_bytes = username_length.to_le_bytes();
-                    writer.write(&username_length_bytes)?;
-                    writer.write(&username.as_bytes())?;
+                    write_string(&mut writer, &username)?;
                 }
 
                 //password
                 if password.len() != 0 {
-                    let password_length = password.len() as u16;
-                    let password_length_bytes = password_length.to_le_bytes();
-                    writer.write(&password_length_bytes)?;
-                    writer.write(&password.as_bytes())?;
+                    write_string(&mut writer, &password)?;
                 }
 
                 writer.flush()?;
@@ -204,17 +217,7 @@ impl ClientMessage {
         match header {
             0x10 => {
                 //leo el protocol name
-                let mut protocol_lenght_buf = [0u8; 2];
-                stream.read_exact(&mut protocol_lenght_buf)?;
-                let protocol_lenght = u16::from_le_bytes(protocol_lenght_buf);
-                println!("protocol_lenght: {:?}", protocol_lenght);
-
-                let mut protocol_name_buf = vec![0; protocol_lenght as usize];
-                stream.read_exact(&mut protocol_name_buf)?;
-
-                let protocol_name =
-                    std::str::from_utf8(&protocol_name_buf).expect("Error al leer protocol_name");
-                println!("protocol_name: {:?}", protocol_name);
+                let  protocol_name = read_string(stream)?;
 
                 if protocol_name != "MQTT" {
                     return Err(Error::new(
@@ -224,9 +227,7 @@ impl ClientMessage {
                 }
 
                 //protocol version
-                let mut protocol_version_buf = [0u8; 1];
-                stream.read_exact(&mut protocol_version_buf)?;
-                let protocol_version = u8::from_le_bytes(protocol_version_buf);
+                let protocol_version = read_u8(stream)?;
 
                 if protocol_version != PROTOCOL_VERSION {
                     return Err(Error::new(
@@ -237,87 +238,45 @@ impl ClientMessage {
                 println!("protocol version: {:?}", protocol_version);
 
                 //connect flags
-                let mut connect_flags_buf = [0u8; 1];
-                stream.read_exact(&mut connect_flags_buf)?;
-                let connect_flags = u8::from_le_bytes(connect_flags_buf);
+                let connect_flags = read_u8(stream)?;
 
 
 
                 //keep alive
-                let mut keep_alive_buf = [0u8; 2];
-                stream.read_exact(&mut keep_alive_buf)?;
-                let keep_alive = u16::from_le_bytes(keep_alive_buf);
+                let keep_alive = read_u16(stream)?;
 
                 // connect properties
 
 
                 //payload
                 //client ID
-                let mut client_id_length_buf = [0u8; 2];
-                stream.read_exact(&mut client_id_length_buf)?;
-                let client_id_length = u16::from_le_bytes(client_id_length_buf);
-                let mut client_id_buf = vec![0; client_id_length as usize];
-                stream.read_exact(&mut client_id_buf)?;
-                let client_id = std::str::from_utf8(&client_id_buf).expect("Error al leer client_id");
+                let client_id = read_string(stream)?;
 
                 //will properties
-                let mut will_delay_interval_buf = [0u8; 4];
-                stream.read_exact(&mut will_delay_interval_buf)?;
-                let will_delay_interval = u32::from_le_bytes(will_delay_interval_buf);
+                let will_delay_interval = read_u32(stream)?;
 
-                let mut message_expiry_interval_buf = [0u8; 2];
-                stream.read_exact(&mut message_expiry_interval_buf)?;
-                let message_expiry_interval = u16::from_le_bytes(message_expiry_interval_buf);
+                
+                let message_expiry_interval = read_u16(stream)?;
 
-                let mut content_type_length_buf = [0u8; 2];
-                stream.read_exact(&mut content_type_length_buf)?;
-                let content_type_length = u16::from_le_bytes(content_type_length_buf);
-                let mut content_type_buf = vec![0; content_type_length as usize];
-                stream.read_exact(&mut content_type_buf)?;
-                let content_type = std::str::from_utf8(&content_type_buf).expect("Error al leer content_type");
+                let content_type = read_string(stream)?;
 
                 //user property
-                let mut user_property_key_length_buf = [0u8; 2];
-                stream.read_exact(&mut user_property_key_length_buf)?;
-                let user_property_key_length = u16::from_le_bytes(user_property_key_length_buf);
-                let mut user_property_key_buf = vec![0; user_property_key_length as usize];
-                stream.read_exact(&mut user_property_key_buf)?;
-                let user_property_key = std::str::from_utf8(&user_property_key_buf).expect("Error al leer user_property_key");
+                let user_property_key = read_string(stream)?;
 
-                let mut user_property_value_length_buf = [0u8; 2];
-                stream.read_exact(&mut user_property_value_length_buf)?;
-                let user_property_value_length = u16::from_le_bytes(user_property_value_length_buf);
-                let mut user_property_value_buf = vec![0; user_property_value_length as usize];
-                stream.read_exact(&mut user_property_value_buf)?;
-                let user_property_value = std::str::from_utf8(&user_property_value_buf).expect("Error al leer user_property_value");
+                let user_property_value = read_string(stream)?;
 
                 //will payload
-                let mut will_message_length_buf = [0u8; 2];
-                stream.read_exact(&mut will_message_length_buf)?;
-                let will_message_length = u16::from_le_bytes(will_message_length_buf);
-                let mut will_message_buf = vec![0; will_message_length as usize];
-                stream.read_exact(&mut will_message_buf)?;
-                let will_message = std::str::from_utf8(&will_message_buf).expect("Error al leer will_message");
+                let will_message = read_string(stream)?;
 
                 let hay_user = (connect_flags & (1 << 7)) != 0;
                 let mut user = String::new();
                 if hay_user {
-                    let mut user_length_buf = [0u8; 2];
-                    stream.read_exact(&mut user_length_buf)?;
-                    let user_length = u16::from_le_bytes(user_length_buf);
-                    let mut user_buf = vec![0; user_length as usize];
-                    stream.read_exact(&mut user_buf)?;
-                    user = std::str::from_utf8(&user_buf).expect("Error al leer user").to_string();
+                    user = read_string(stream)?;
                 }
                 let hay_pass = (connect_flags & (1 << 6)) != 0;
                 let mut pass = String::new();
                 if hay_pass {
-                    let mut pass_length_buf = [0u8; 2];
-                    stream.read_exact(&mut pass_length_buf)?;
-                    let pass_length = u16::from_le_bytes(pass_length_buf);
-                    let mut pass_buf = vec![0; pass_length as usize];
-                    stream.read_exact(&mut pass_buf)?;
-                    pass = std::str::from_utf8(&pass_buf).expect("Error al leer pass").to_string();
+                    pass = read_string(stream)?;
                 }
 
 
