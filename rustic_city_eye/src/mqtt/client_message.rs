@@ -49,6 +49,24 @@ fn write_string(stream: &mut dyn Write, string: &str) -> Result<(), Error> {
     Ok(())
 }
 
+fn write_u8(stream: &mut dyn Write, value: &u8) -> Result<(), Error> {
+    let value_bytes = value.to_le_bytes();
+    stream.write(&value_bytes)?;
+    Ok(())
+}
+
+fn write_u16(stream: &mut dyn Write, value: &u16) -> Result<(), Error> {
+    let value_bytes = value.to_le_bytes();
+    stream.write(&value_bytes)?;
+    Ok(())
+}
+
+fn write_u32(stream: &mut dyn Write, value: &u32) -> Result<(), Error> {
+    let value_bytes = value.to_le_bytes();
+    stream.write(&value_bytes)?;
+    Ok(())
+}
+
 fn read_string(stream: &mut dyn Read)-> Result<String, Error>{
     let string_length = read_u16(stream)?;
     let mut string_buf = vec![0; string_length as usize];
@@ -102,7 +120,6 @@ impl ClientMessage {
             } => {
                 //fixed header
                 let byte_1: u8 = 0x10_u8.to_le(); //00010000
-
                 writer.write(&[byte_1])?;
 
                 //protocol name
@@ -141,8 +158,7 @@ impl ClientMessage {
                 writer.write(&[connect_flags])?;
 
                 //keep alive
-                let keep_alive = keep_alive.to_le_bytes();
-                writer.write(&keep_alive)?;
+                write_u16(&mut writer, keep_alive)?; 
 
                 //connect properties
                 //let mut property_length = 0;
@@ -154,8 +170,7 @@ impl ClientMessage {
      
 
                 //will properties
-                let will_delay_interval_bytes = last_will_delay_interval.to_le_bytes();
-                writer.write(&will_delay_interval_bytes)?;
+                write_u32(&mut writer, &last_will_delay_interval)?; 
 
                 // let payload_format_indicator:u8;
                 // match std::str::from_utf8(last_will_message) {
@@ -163,9 +178,7 @@ impl ClientMessage {
                 //     Err(_) => payload_format_indicator = 0x00,
                 // }
 
-                let message_expiry_interval_bytes = message_expiry_interval.to_le_bytes();
-                writer.write(&message_expiry_interval_bytes)?;
-                
+                write_u16(&mut writer, message_expiry_interval)?;
                 write_string(&mut writer, &content_type)?;
 
                 //user property
