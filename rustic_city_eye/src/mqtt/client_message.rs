@@ -9,13 +9,27 @@ mod quality_of_service;
 #[derive(Debug)]
 //implement partial eq
 #[derive(PartialEq)]
+
+///El Connect Message es el primer menasje que el cliente envia cuando se conecta al broker. Este contiene toda la informacion necesaria para que el broker identifique al cliente y pueda establecer una sesion con los parametros establecidos.
+/// 
+/// clean_start especifica si se debe limpiar la sesion previa del cliente y arrancar una nueva limpia y desde cero.
+/// 
+/// last_will_flag especifica si el will message se debe guardar asociado a la sesion, last_will_qos especifica el QoS level utilizado cuando se publique el will message, last_will_retain especifica si el will message se retiene despues de ser publicado.
+/// 
+/// keep_alive especifica el tiempo en segundos que el broker debe esperar entre mensajes del cliente antes de desconectarlo. 
+/// 
+/// last_will_delay_interval especifica el tiempo en segundos que el broker debe esperar antes de publicar el will message.
+/// message_expiry_interval especifica el tiempo en segundos que el broker debe esperar antes de descartar el will message.
+/// content_type especifica el tipo de contenido del will message. (ej json, plain text)
+/// 
+/// user_property especifica una propiedad del usuario que se envia en el mensaje, se pueden enviar 0, 1 o más propiedades.
 pub enum ClientMessage {
     Connect {
         client_id: String,
         clean_start: bool,
-        last_will_flag: bool, //si el will message tiene que ser guardado asociado a la sesion
-        last_will_qos: u8,    //QoS level utilizado cuando se publique el will message
-        last_will_retain: bool, // Si el will Message se retiene despues de ser publicado
+        last_will_flag: bool, 
+        last_will_qos: u8,    
+        last_will_retain: bool, 
         username: String,
         password: String,
         keep_alive: u16,
