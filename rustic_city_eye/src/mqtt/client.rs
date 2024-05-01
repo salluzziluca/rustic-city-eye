@@ -1,15 +1,9 @@
 use std::net::TcpStream;
 
-use self::broker_message::BrokerMessage;
-use self::client_message::ClientMessage;
-use self::protocol_error::ProtocolError;
+use crate::mqtt::broker_message::BrokerMessage;
+use crate::mqtt::client_message::ClientMessage;
+use crate::mqtt::protocol_error::ProtocolError;
 
-#[path = "broker_message.rs"]
-mod broker_message;
-#[path = "client_message.rs"]
-mod client_message;
-#[path = "protocol_error.rs"]
-mod protocol_error;
 #[allow(dead_code)]
 pub struct Client {
     stream: TcpStream,
