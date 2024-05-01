@@ -4,7 +4,6 @@ use std::net::{TcpListener, TcpStream};
 use rustic_city_eye::mqtt::broker_message::BrokerMessage;
 use rustic_city_eye::mqtt::client_message::ClientMessage;
 
-mod client;
 
 static SERVER_ARGS: usize = 2;
 
@@ -48,7 +47,7 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
                 println!("Sending connack: {:?}", connack);
                 connack.write_to(&mut stream).unwrap();
             },
-            ClientMessage::Publish { packet_id: _, topic_name: _, qos, retain_flag: _, payload: _, dup_flag: _ } => {
+            ClientMessage::Publish { packet_id: _, topic_name: _, qos, retain_flag: _, payload: _, dup_flag: _, properties: _ } => {
                 println!("Recibí un publish: {:?}", message);
 
                 if qos == 1 {

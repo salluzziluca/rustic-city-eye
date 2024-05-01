@@ -1,15 +1,10 @@
 use std::net::TcpStream;
 
-use self::broker_message::BrokerMessage;
-use self::client_message::ClientMessage;
-use self::protocol_error::ProtocolError;
+use crate::mqtt::broker_message::BrokerMessage;
+use crate::mqtt::client_message::ClientMessage;
+use crate::mqtt::protocol_error::ProtocolError;
 
-#[path = "broker_message.rs"]
-mod broker_message;
-#[path = "client_message.rs"]
-mod client_message;
-#[path = "protocol_error.rs"]
-mod protocol_error;
+use crate::mqtt::publish_properties::PublishProperties;
 
 pub struct Client {
     stream: TcpStream,
@@ -69,6 +64,7 @@ impl Client {
             retain_flag,
             payload: splitted_message[4].to_string(),
             dup_flag,
+            properties: PublishProperties::new()
         };
 
         publish.write_to(&mut self.stream).unwrap();

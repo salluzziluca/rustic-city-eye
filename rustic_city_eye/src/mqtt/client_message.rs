@@ -1,6 +1,9 @@
 use std::{
-    fs::read, io::{BufWriter, Error, Read, Write}, net::TcpStream
+    io::{BufWriter, Error, Read, Write}, net::TcpStream
 };
+
+use crate::mqtt::writer::*;
+use crate::mqtt::reader::*;
 
 use crate::mqtt::publish_properties::PublishProperties;
 
@@ -31,70 +34,6 @@ pub enum ClientMessage {
         dup_flag: bool,
         properties: PublishProperties
     },
-}
-
-pub fn write_string(stream: &mut dyn Write, string: &str) -> Result<(), Error> {
-    let length = string.len() as u16;
-    let length_bytes = length.to_be_bytes();
-    stream.write(&length_bytes)?;
-    stream.write(string.as_bytes())?;
-    Ok(())
-}
-
-pub fn write_u8(stream: &mut dyn Write, value: &u8) -> Result<(), Error> {
-    let value_bytes = value.to_be_bytes();
-    stream.write(&value_bytes)?;
-    Ok(())
-}
-
-pub fn write_u16(stream: &mut dyn Write, value: &u16) -> Result<(), Error> {
-    let value_bytes = value.to_be_bytes();
-    stream.write(&value_bytes)?;
-    Ok(())
-}
-
-pub fn write_u32(stream: &mut dyn Write, value: &u32) -> Result<(), Error> {
-    let value_bytes = value.to_be_bytes();
-    stream.write(&value_bytes)?;
-    Ok(())
-}
-
-pub fn read_string(stream: &mut dyn Read)-> Result<String, Error>{
-    let string_length = read_u16(stream)?;
-    let mut string_buf = vec![0; string_length as usize];
-    stream.read_exact(&mut string_buf)?;
-
-    let protocol_name =
-        std::str::from_utf8(&string_buf).expect("Error al leer protocol_name");
-    Ok(protocol_name.to_string())
-}
-
-pub fn read_u8(stream: &mut dyn Read) -> Result<u8, Error> {
-    let mut buf = [0u8; 1];
-    stream.read_exact(&mut buf)?;
-    Ok(u8::from_be_bytes(buf))
-}
-
-pub fn read_u16(stream: &mut dyn Read) -> Result<u16, Error> {
-    let mut buf = [0u8; 2];
-    stream.read_exact(&mut buf)?;
-    Ok(u16::from_be_bytes(buf))
-}
-
-pub fn read_u32(stream: &mut dyn Read) -> Result<u32, Error> {
-    let mut buf = [0u8; 4];
-    stream.read_exact(&mut buf)?;
-    Ok(u32::from_be_bytes(buf))
-}
-
-fn set_publish_header_values(header: u8) -> (bool, usize, bool) {
-    let mut dup_flag = false;
-    let mut qos = 0;
-    let mut retain_flag = false;
-    
-    
-
-    (dup_flag, qos, retain_flag)
 }
 
 impl ClientMessage {
@@ -171,8 +110,7 @@ impl ClientMessage {
                 //todo: packet_id
                 
                 //Properties
-                writer.write_u8
-
+                properties.write_properties(&mut writer)?;
                 
                 //Payload
                 write_string(&mut writer, &payload)?;
@@ -232,10 +170,10 @@ impl ClientMessage {
                 Ok(ClientMessage::Connect {})
             },
             0x30 => {
-                let topic_name = read_string(stream)?;
-                let message = read_string(stream)?;
                 let properties = PublishProperties::new();
-
+                let topic_name = read_string(stream)?;
+                properties.read_properties(stream)?;
+                let message = read_string(stream)?;
                 Ok(ClientMessage::Publish {
                     packet_id: 1,
                     topic_name,
