@@ -44,7 +44,7 @@ impl Client {
 
     pub fn publish_message(&mut self, message: &str) {
         let splitted_message: Vec<&str> = message.split(' ').collect();
-        println!("{:?}", splitted_message);
+
         //message interface(temp): dup:1 qos:2 retain:1 topic_name:sometopic 
         let mut dup_flag = false;
         let mut qos = 0;
@@ -56,8 +56,6 @@ impl Client {
 
         if splitted_message[1] == "qos:1" {
             qos = 1;
-        } else if splitted_message[1] == "qos:2" {
-            qos = 2;
         }
 
         if splitted_message[2] == "retain:1" {

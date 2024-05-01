@@ -54,6 +54,16 @@ fn read_string(stream: &mut dyn Read)-> Result<String, Error>{
     Ok(protocol_name.to_string())
 }
 
+fn set_publish_header_values(header: u8) -> (bool, usize, bool) {
+    let mut dup_flag = false;
+    let mut qos = 0;
+    let mut retain_flag = false;
+    
+    
+
+    (dup_flag, qos, retain_flag)
+}
+
 impl ClientMessage {
     pub fn write_to(&self, stream: &mut TcpStream) -> std::io::Result<()> {
         let mut writer = BufWriter::new(stream);
@@ -141,11 +151,25 @@ impl ClientMessage {
         let mut header = [0u8; 1];
         stream.read_exact(&mut header)?;
 
-        let header = u8::from_le_bytes(header);
-        let first_header_digits = header >> 4;
+        let mut header = u8::from_le_bytes(header);
+        let (mut dup_flag, mut qos, mut retain_flag) = (false, 0, false);
 
+        let first_header_digits = header >> 4;
         if first_header_digits == 0x3 {
-            println!("soy un pub");
+            let mask = 0b00001111;
+            let last_header_digits = header & mask; 
+            
+            header = 0x30_u8.to_le();
+            
+            if last_header_digits & 0b00000001 == 0b00000001 {
+                retain_flag = true;
+            } 
+            if last_header_digits & 0b00000010 == 0b00000010 {
+                qos = 1;
+            }
+            if (last_header_digits >> 3) == 1 {
+                dup_flag = true;
+            }
         }
 
         match header {
@@ -178,164 +202,10 @@ impl ClientMessage {
                 Ok(ClientMessage::Publish {
                     packet_id: 1,
                     topic_name,
-                    qos: 0,
-                    retain_flag: false,
+                    qos,
+                    retain_flag,
                     payload: message,
-                    dup_flag: false,
-                })
-            },
-            0x31 => {
-                let mut num_buffer = [0u8; 4];
-                stream.read_exact(&mut num_buffer)?;
-                // Una vez que leemos los bytes, los convertimos a un u32
-                let size = u32::from_be_bytes(num_buffer);
-                // Creamos un buffer para el nombre
-                let mut topic_buf = vec![0; size as usize];
-                stream.read_exact(&mut topic_buf)?;
-                // Convierto de bytes a string.
-                let topic_str = std::str::from_utf8(&topic_buf).expect("Error al leer topic");
-                let topic_name = topic_str.to_owned();
-                println!("{}", topic_name);
-
-                Ok(ClientMessage::Publish {
-                    packet_id: 1,
-                    topic_name,
-                    qos: 0,
-                    retain_flag: true,
-                    payload: "juancito".to_string(),
-                    dup_flag: false,
-                })
-            },
-            0x32 => {
-                let mut num_buffer = [0u8; 4];
-                stream.read_exact(&mut num_buffer)?;
-                // Una vez que leemos los bytes, los convertimos a un u32
-                let size = u32::from_be_bytes(num_buffer);
-                // Creamos un buffer para el nombre
-                let mut topic_buf = vec![0; size as usize];
-                stream.read_exact(&mut topic_buf)?;
-                // Convierto de bytes a string.
-                let topic_str = std::str::from_utf8(&topic_buf).expect("Error al leer topic");
-                let topic_name = topic_str.to_owned();
-                println!("{}", topic_name);
-
-                Ok(ClientMessage::Publish {
-                    packet_id: 1,
-                    topic_name,
-                    qos: 1,
-                    retain_flag: false,
-                    payload: "juancito".to_string(),
-                    dup_flag: false,
-                })
-            },
-            0x33 => {
-                let mut num_buffer = [0u8; 4];
-                stream.read_exact(&mut num_buffer)?;
-                // Una vez que leemos los bytes, los convertimos a un u32
-                let size = u32::from_be_bytes(num_buffer);
-                // Creamos un buffer para el nombre
-                let mut topic_buf = vec![0; size as usize];
-                stream.read_exact(&mut topic_buf)?;
-                // Convierto de bytes a string.
-                let topic_str = std::str::from_utf8(&topic_buf).expect("Error al leer topic");
-                let topic_name = topic_str.to_owned();
-                println!("{}", topic_name);
-
-                Ok(ClientMessage::Publish {
-                    packet_id: 1,
-                    topic_name,
-                    qos: 1,
-                    retain_flag: true,
-                    payload: "juancito".to_string(),
-                    dup_flag: false,
-                })
-            },
-            0x34 => {
-                let mut num_buffer = [0u8; 4];
-                stream.read_exact(&mut num_buffer)?;
-                // Una vez que leemos los bytes, los convertimos a un u32
-                let size = u32::from_be_bytes(num_buffer);
-                // Creamos un buffer para el nombre
-                let mut topic_buf = vec![0; size as usize];
-                stream.read_exact(&mut topic_buf)?;
-                // Convierto de bytes a string.
-                let topic_str = std::str::from_utf8(&topic_buf).expect("Error al leer topic");
-                let topic_name = topic_str.to_owned();
-                println!("{}", topic_name);
-
-                Ok(ClientMessage::Publish {
-                    packet_id: 1,
-                    topic_name,
-                    qos: 2,
-                    retain_flag: false,
-                    payload: "juancito".to_string(),
-                    dup_flag: false,
-                })
-            },
-            0x35 => {
-                let mut num_buffer = [0u8; 4];
-                stream.read_exact(&mut num_buffer)?;
-                // Una vez que leemos los bytes, los convertimos a un u32
-                let size = u32::from_be_bytes(num_buffer);
-                // Creamos un buffer para el nombre
-                let mut topic_buf = vec![0; size as usize];
-                stream.read_exact(&mut topic_buf)?;
-                // Convierto de bytes a string.
-                let topic_str = std::str::from_utf8(&topic_buf).expect("Error al leer topic");
-                let topic_name = topic_str.to_owned();
-                println!("{}", topic_name);
-
-                Ok(ClientMessage::Publish {
-                    packet_id: 1,
-                    topic_name,
-                    qos: 2,
-                    retain_flag: true,
-                    payload: "juancito".to_string(),
-                    dup_flag: false,
-                })
-            },
-            0x38 => {
-                let mut num_buffer = [0u8; 4];
-                stream.read_exact(&mut num_buffer)?;
-                // Una vez que leemos los bytes, los convertimos a un u32
-                let size = u32::from_be_bytes(num_buffer);
-                // Creamos un buffer para el nombre
-                let mut topic_buf = vec![0; size as usize];
-                stream.read_exact(&mut topic_buf)?;
-                // Convierto de bytes a string.
-                let topic_str = std::str::from_utf8(&topic_buf).expect("Error al leer topic");
-                let topic_name = topic_str.to_owned();
-                println!("{}", topic_name);
-
-                Ok(ClientMessage::Publish {
-                    packet_id: 1,
-                    topic_name,
-                    qos: 0,
-                    retain_flag: false,
-                    payload: "juancito".to_string(),
-                    dup_flag: true,
-                })
-            },
-            0x39 => {
-                let mut num_buffer = [0u8; 4];
-                stream.read_exact(&mut num_buffer)?;
-                // Una vez que leemos los bytes, los convertimos a un u32
-                let size = u32::from_be_bytes(num_buffer);
-                // Creamos un buffer para el nombre
-                let mut topic_buf = vec![0; size as usize];
-                stream.read_exact(&mut topic_buf)?;
-                // Convierto de bytes a string.
-                let topic_str = std::str::from_utf8(&topic_buf).expect("Error al leer topic");
-                let topic_name = topic_str.to_owned();
-                println!("{}", topic_name);
-
-                Ok(ClientMessage::Publish {
-                    packet_id: 1,
-                    topic_name,
-                    qos: 0,
-                    retain_flag: true,
-                    payload: "juancito".to_string(),
-                    dup_flag: true,
+                    dup_flag,
                 })
             },
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
