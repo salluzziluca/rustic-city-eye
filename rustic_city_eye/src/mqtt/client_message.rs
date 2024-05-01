@@ -130,6 +130,7 @@ impl ClientMessage {
                 let byte_1: u8 = 0x10_u8.to_le(); //00010000
                 writer.write(&[byte_1])?;
 
+                //TODO: aca deberia ir el remaining lenght field
                 //protocol name
                 let protocol_name = "MQTT";
                 write_string(&mut writer, protocol_name)?;
