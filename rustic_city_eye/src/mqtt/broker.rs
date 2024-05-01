@@ -5,8 +5,6 @@ use std::net::{TcpListener, TcpStream};
 use rustic_city_eye::mqtt::broker_message::BrokerMessage;
 use rustic_city_eye::mqtt::client_message::ClientMessage;
 
-mod client;
-
 static SERVER_ARGS: usize = 2;
 
 fn main() -> Result<(), ()> {
