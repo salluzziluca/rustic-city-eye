@@ -65,7 +65,7 @@ impl Client {
             
             // dup_flag: true,
         };
-        let _= message;
+        let _ = message;
 
         let _ = publish.write_to(&mut self.stream);
     }
