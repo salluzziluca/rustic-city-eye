@@ -1,13 +1,13 @@
 use std::io::{Error, Write};
 
-enum Type {
-    String,
-    U16,
-    U32,
-    Vec,
-    Bool,
-    StringTuple,
-}
+// enum Type {
+//     String,
+//     U16,
+//     U32,
+//     Vec,
+//     Bool,
+//     StringTuple,
+// }
 
 ///Recibe un string y el stream al que escribir ese stream
 ///
@@ -63,6 +63,12 @@ pub fn write_string_tuple(stream: &mut dyn Write, value: &(String, String)) -> R
     write_string(stream, &value.1)?;
     Ok(())
 }
+
+pub fn write_u8(stream: &mut dyn Write, value: &u8) -> Result<(), Error> {
+    stream.write(&[*value])?;
+    Ok(())
+}
+
 pub fn write_u16(stream: &mut dyn Write, value: &u16) -> Result<(), Error> {
     let value_bytes = value.to_be_bytes();
     stream.write(&value_bytes)?;

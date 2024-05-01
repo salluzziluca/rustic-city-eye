@@ -26,10 +26,12 @@ impl Client {
             keep_alive: 35,
             client_id: "kvtr33".to_string(),
             last_will_delay_interval: 15,
-            message_expiry_interval: 120,
+            //message_expiry_interval: 120,
             content_type: "plain".to_string(),
             user_property: Some(("propiedad".to_string(), "valor".to_string())),
             last_will_message: "me he muerto, diganle a mi vieja que la quiero, adios".to_string(),
+            response_topic: todo!(),
+            correlation_data: todo!(),
         };
         println!("Sending connect message to broker: {:?}", connect);
         connect.write_to(&mut stream).unwrap();

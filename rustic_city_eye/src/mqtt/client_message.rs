@@ -1,11 +1,20 @@
 use crate::mqtt::writer::*;
 use crate::mqtt::reader::*;
 
+use std::any::TypeId;
 use std::io::{BufWriter, Error, Read, Write};
 
 
 //use self::quality_of_service::QualityOfService;
 const PROTOCOL_VERSION: u8 = 5;
+const WILL_DELAY_INTERVAL_ID: u8 = 0x18;
+const PAYLOAD_FORMAT_INDICATOR_ID: u8 = 0x01;
+const MESSAGE_EXPIRY_INTERVAL_ID: u8 = 0x02;
+const CONTENT_TYPE_ID: u8 = 0x03;
+const RESPONSE_TOPIC_ID: u8 = 0x08;
+const CORRELATION_DATA_ID: u8 = 0x09;
+const USER_PROPERTY_ID: u8 = 0x26;
+
 #[path = "quality_of_service.rs"]
 mod quality_of_service;
 
@@ -38,8 +47,10 @@ pub enum ClientMessage {
         password: String,
         keep_alive: u16,
         last_will_delay_interval: u32,
-        message_expiry_interval: u16,
+        //message_expiry_interval: u16,
         content_type: String,
+        response_topic: String,
+        correlation_data: Vec<u8>,
         user_property: Option<(String, String)>,
         //response_topic: String, //Topic name del response message
         // lastWillTopic: String,
@@ -70,10 +81,12 @@ impl ClientMessage {
                 password,
                 keep_alive,
                 last_will_delay_interval,
-                message_expiry_interval,
+                //message_expiry_interval,
                 content_type,
                 user_property,
                 last_will_message,
+                response_topic,
+                correlation_data,
     
                 // lastWillTopic,
                 // last_will_qos,
@@ -135,18 +148,32 @@ impl ClientMessage {
      
 
                 //will properties
+                write_u8(&mut writer, &WILL_DELAY_INTERVAL_ID)?;
+
                 write_u32(&mut writer, &last_will_delay_interval)?; 
 
-                // let payload_format_indicator:u8;
-                // match std::str::from_utf8(last_will_message) {
-                //     Ok(_) => payload_format_indicator = 0x01,
-                //     Err(_) => payload_format_indicator = 0x00,
-                // }
+                let payload_format_indicator:u8 = 0x01; //siempre 1 porque los strings en rust siempre son utf-8
+                write_u8(&mut writer, &PAYLOAD_FORMAT_INDICATOR_ID)?;
+                write_u8(&mut writer, &payload_format_indicator)?;
 
-                write_u16(&mut writer, message_expiry_interval)?;
+                // write_u8(&mut writer, &MESSAGE_EXPIRY_INTERVAL_ID)?;
+                // write_u16(&mut writer, message_expiry_interval)?;
+
+                write_u8(&mut writer, &CONTENT_TYPE_ID)?;
                 write_string(&mut writer, &content_type)?;
 
+                write_u8(&mut writer, &RESPONSE_TOPIC_ID)?;
+                write_string(&mut writer, &response_topic)?;
+
+                write_u8(&mut writer, &CORRELATION_DATA_ID)?;
+                let correlation_data_length = correlation_data.len() as u16;
+                write_u16(&mut writer, &correlation_data_length)?;
+                for byte in correlation_data {
+                    write_u8(&mut writer, byte)?;
+                }
                 //user property
+
+                write_u8(&mut writer, &USER_PROPERTY_ID)?;
                 if let Some((key, value)) = user_property {
                     write_string(&mut writer, &key)?;
 
@@ -231,14 +258,70 @@ impl ClientMessage {
                 let client_id = read_string(stream)?;
 
                 //will properties
+                let will_delay_interval_id = read_u8(stream)?;
+                if will_delay_interval_id != WILL_DELAY_INTERVAL_ID {
+                    return Err(Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid will delay interval id",
+                    ));
+                }
                 let will_delay_interval = read_u32(stream)?;
 
-                
-                let message_expiry_interval = read_u16(stream)?;
+                let payload_format_indicator_id = read_u8(stream)?;
+                if payload_format_indicator_id != PAYLOAD_FORMAT_INDICATOR_ID {
+                    return Err(Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid payload format indicator id",
+                    ));
+                }
+                let message_expiry_interval_id = read_u8(stream)?;
 
+                // if message_expiry_interval_id != MESSAGE_EXPIRY_INTERVAL_ID {
+                //     return Err(Error::new(
+                //         std::io::ErrorKind::Other,
+                //         "Invalid message expiry interval id",
+                //     ));
+                // }
+                // let message_expiry_interval = read_u16(stream)?;
+
+                let content_type_id = read_u8(stream)?;
+                if content_type_id != CONTENT_TYPE_ID {
+                    return Err(Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid content type id",
+                    ));
+                }
                 let content_type = read_string(stream)?;
 
+                let response_topic_id = read_u8(stream)?;
+                if response_topic_id != RESPONSE_TOPIC_ID {
+                    return Err(Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid response topic id",
+                    ));
+                }
+                let response_topic = read_string(stream)?;
+
+                let correlation_data_id = read_u8(stream)?;
+                if correlation_data_id != CORRELATION_DATA_ID {
+                    return Err(Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid correlation data id",
+                    ));
+                }
+                let correlation_data_length = read_u16(stream)?;
+                let mut correlation_data = vec![0; correlation_data_length as usize];
+                stream.read_exact(&mut correlation_data)?;
+
                 //user property
+
+                let user_property_id = read_u8(stream)?;
+                if user_property_id != USER_PROPERTY_ID {
+                    return Err(Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid user property id",
+                    ));
+                }
                 let user_property_key = read_string(stream)?;
 
                 let user_property_value = read_string(stream)?;
@@ -268,10 +351,12 @@ impl ClientMessage {
                     keep_alive: keep_alive,
                     client_id: client_id.to_string(),
                     last_will_delay_interval: will_delay_interval,
-                    message_expiry_interval: message_expiry_interval,
+                   // message_expiry_interval: message_expiry_interval,
                     content_type: content_type.to_string(),
                     user_property: Some((user_property_key.to_string(), user_property_value.to_string())),
                     last_will_message: will_message.to_string(),
+                    response_topic: response_topic.to_string(),
+                    correlation_data: correlation_data,
             
                     
                 })
