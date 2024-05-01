@@ -1,6 +1,5 @@
 use std::{
-    io::{BufWriter, Error, Read, Write},
-    net::TcpStream,
+    fs::read, io::{BufWriter, Error, Read, Write}, net::TcpStream
 };
 
 //use self::quality_of_service::QualityOfService;
@@ -29,6 +28,30 @@ pub enum ClientMessage {
         payload: String,
         dup_flag: bool,
     },
+}
+
+fn write_string(stream: &mut dyn Write, string: &str) -> Result<(), Error> {
+    let length = string.len() as u16;
+    let length_bytes = length.to_be_bytes();
+    stream.write(&length_bytes)?;
+    stream.write(string.as_bytes())?;
+    Ok(())
+}
+
+fn read_u16(stream: &mut dyn Read) -> Result<u16, Error> {
+    let mut buf = [0u8; 2];
+    stream.read_exact(&mut buf)?;
+    Ok(u16::from_be_bytes(buf))
+}
+
+fn read_string(stream: &mut dyn Read)-> Result<String, Error>{
+    let string_length = read_u16(stream)?;
+    let mut string_buf = vec![0; string_length as usize];
+    stream.read_exact(&mut string_buf)?;
+
+    let protocol_name =
+        std::str::from_utf8(&string_buf).expect("Error al leer protocol_name");
+    Ok(protocol_name.to_string())
 }
 
 impl ClientMessage {
@@ -71,38 +94,43 @@ impl ClientMessage {
                 payload,
                 dup_flag,
             } => {
-                //byte 1 process
-                let mut byte_1_value = 0x30_u8;
+                //fixed header
+                let mut byte_1 = 0x30_u8;
 
                 if *retain_flag {
-                    byte_1_value += 0x01_u8;
+                    //we must replace any existing retained message for this topic and store
+                    //the app message.
+                    byte_1 |= 1 << 0;
                 }
 
                 if *qos == 0x01 {
-                    byte_1_value += 0x02_u8;
-                } else if *qos == 0x02 {
-                    byte_1_value += 0x04_u8;
-                } else if *qos == 0x03 {
-                    println!("qos invalida");
+                    byte_1 += 0x02_u8;
+                } else if *qos == 0x03 || *qos == 0x02 {
+                    //we should throw a DISCONNECT with reason code 0x9B(QoS not supported).
+                    println!("invalid qos");
                 }
 
                 if *dup_flag {
-                    byte_1_value += 0x08_u8;
+                    byte_1 |= 1 << 3;
                 }
 
-                let byte_1: u8 = byte_1_value.to_le();
+                //Dup flag must be set to 0 for all QoS 0 messages.
+                if *qos == 0x00 {
+                    byte_1 |= 0 << 3;
+                }
 
                 writer.write(&[byte_1])?;
-                writer.flush()?;
+                
 
-                //remaining length process
-                let size_be = (topic_name.len() as u32).to_be_bytes();
-                writer.write(&size_be)?;
-                writer.write(&topic_name.as_bytes())?;
-
-                let size_be = (payload.len() as u32).to_be_bytes();
-                writer.write(&size_be)?;
-                writer.write(&payload.as_bytes())?;
+                //Remaining Length 
+                write_string(&mut writer, &topic_name)?;
+                
+                //todo: packet_id
+                
+                //Properties
+                
+                //Payload
+                write_string(&mut writer, &payload)?;
 
                 Ok(())
             }
@@ -139,26 +167,8 @@ impl ClientMessage {
                 Ok(ClientMessage::Connect {})
             },
             0x30 => {
-                let mut num_buffer = [0u8; 4];
-                stream.read_exact(&mut num_buffer)?;
-                // Una vez que leemos los bytes, los convertimos a un u32
-                let size = u32::from_be_bytes(num_buffer);
-                // Creamos un buffer para el nombre
-                let mut topic_buf = vec![0; size as usize];
-                stream.read_exact(&mut topic_buf)?;
-                // Convierto de bytes a string.
-                let topic_str = std::str::from_utf8(&topic_buf).expect("Error al leer topic");
-                let topic_name = topic_str.to_owned();
-                
-                stream.read_exact(&mut num_buffer)?;
-                let size = u32::from_be_bytes(num_buffer);
-                // // Creamos un buffer para el nombre
-                let mut message_buf = vec![0; size as usize];
-                stream.read_exact(&mut message_buf)?;
-                // // Convierto de bytes a string.
-                let message_str = std::str::from_utf8(&message_buf).expect("Error al leer mensaje");
-                let message = message_str.to_owned();
-                
+                let topic_name = read_string(stream)?;
+                let message = read_string(stream)?;
 
                 Ok(ClientMessage::Publish {
                     packet_id: 1,
