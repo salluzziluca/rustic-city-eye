@@ -124,7 +124,6 @@ impl ClientMessage {
 
                 //Remaining Length 
                 write_string(&mut writer, &topic_name)?;
-                
                 //todo: packet_id
                 
                 //Properties
@@ -132,6 +131,7 @@ impl ClientMessage {
                 //Payload
                 write_string(&mut writer, &payload)?;
 
+                writer.flush()?;
                 Ok(())
             }
         }
@@ -142,6 +142,11 @@ impl ClientMessage {
         stream.read_exact(&mut header)?;
 
         let header = u8::from_le_bytes(header);
+        let first_header_digits = header >> 4;
+
+        if first_header_digits == 0x3 {
+            println!("soy un pub");
+        }
 
         match header {
             0x10 => {

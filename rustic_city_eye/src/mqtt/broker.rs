@@ -48,11 +48,14 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
                 println!("Sending connack: {:?}", connack);
                 connack.write_to(&mut stream).unwrap();
             },
-            ClientMessage::Publish { packet_id: _, topic_name: _, qos: _, retain_flag: _, payload: _, dup_flag: _ } => {
+            ClientMessage::Publish { packet_id: _, topic_name: _, qos, retain_flag: _, payload: _, dup_flag: _ } => {
                 println!("Recibí un publish: {:?}", message);
-                let puback = BrokerMessage::Puback {  };
-                println!("sending puback {:?}", puback);
-                puback.write_to(stream).unwrap();
+
+                if qos == 1 {
+                    println!("sending puback...");
+                    let puback = BrokerMessage::Puback {  };
+                    puback.write_to(stream).unwrap();
+                }
             }
         }
     }
