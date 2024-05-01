@@ -55,20 +55,20 @@ pub enum ClientMessage {
 /// Calcula su largo y luego escribe el largo y el string en el stream 
 fn write_string(stream: &mut dyn Write, string: &str) -> Result<(), Error> {
     let length = string.len() as u16;
-    let length_bytes = length.to_le_bytes();
+    let length_bytes = length.to_be_bytes();
     stream.write(&length_bytes)?;
     stream.write(string.as_bytes())?;
     Ok(())
 }
 
 fn write_u16(stream: &mut dyn Write, value: &u16) -> Result<(), Error> {
-    let value_bytes = value.to_le_bytes();
+    let value_bytes = value.to_be_bytes();
     stream.write(&value_bytes)?;
     Ok(())
 }
 
 fn write_u32(stream: &mut dyn Write, value: &u32) -> Result<(), Error> {
-    let value_bytes = value.to_le_bytes();
+    let value_bytes = value.to_be_bytes();
     stream.write(&value_bytes)?;
     Ok(())
 }
@@ -86,19 +86,19 @@ fn read_string(stream: &mut dyn Read)-> Result<String, Error>{
 fn read_u8(stream: &mut dyn Read) -> Result<u8, Error> {
     let mut buf = [0u8; 1];
     stream.read_exact(&mut buf)?;
-    Ok(u8::from_le_bytes(buf))
+    Ok(u8::from_be_bytes(buf))
 }
 
 fn read_u16(stream: &mut dyn Read) -> Result<u16, Error> {
     let mut buf = [0u8; 2];
     stream.read_exact(&mut buf)?;
-    Ok(u16::from_le_bytes(buf))
+    Ok(u16::from_be_bytes(buf))
 }
 
 fn read_u32(stream: &mut dyn Read) -> Result<u32, Error> {
     let mut buf = [0u8; 4];
     stream.read_exact(&mut buf)?;
-    Ok(u32::from_le_bytes(buf))
+    Ok(u32::from_be_bytes(buf))
 }
 #[allow(dead_code)]
 impl ClientMessage {
