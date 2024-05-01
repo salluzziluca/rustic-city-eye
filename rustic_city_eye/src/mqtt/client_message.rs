@@ -1,3 +1,6 @@
+use crate::mqtt::writer::*;
+use crate::mqtt::reader::*;
+
 use std::io::{BufWriter, Error, Read, Write};
 
 
@@ -51,56 +54,7 @@ pub enum ClientMessage {
         // dup_flag: bool,
     },
 }
-///Recibe un string y el stream al que escribir ese stream
-/// 
-/// Calcula su largo y luego escribe el largo y el string en el stream 
-fn write_string(stream: &mut dyn Write, string: &str) -> Result<(), Error> {
-    let length = string.len() as u16;
-    let length_bytes = length.to_be_bytes();
-    stream.write(&length_bytes)?;
-    stream.write(string.as_bytes())?;
-    Ok(())
-}
 
-fn write_u16(stream: &mut dyn Write, value: &u16) -> Result<(), Error> {
-    let value_bytes = value.to_be_bytes();
-    stream.write(&value_bytes)?;
-    Ok(())
-}
-
-fn write_u32(stream: &mut dyn Write, value: &u32) -> Result<(), Error> {
-    let value_bytes = value.to_be_bytes();
-    stream.write(&value_bytes)?;
-    Ok(())
-}
-
-fn read_string(stream: &mut dyn Read)-> Result<String, Error>{
-    let string_length = read_u16(stream)?;
-    let mut string_buf = vec![0; string_length as usize];
-    stream.read_exact(&mut string_buf)?;
-
-    let protocol_name =
-        std::str::from_utf8(&string_buf).expect("Error al leer protocol_name");
-    Ok(protocol_name.to_string())
-}
-
-fn read_u8(stream: &mut dyn Read) -> Result<u8, Error> {
-    let mut buf = [0u8; 1];
-    stream.read_exact(&mut buf)?;
-    Ok(u8::from_be_bytes(buf))
-}
-
-fn read_u16(stream: &mut dyn Read) -> Result<u16, Error> {
-    let mut buf = [0u8; 2];
-    stream.read_exact(&mut buf)?;
-    Ok(u16::from_be_bytes(buf))
-}
-
-fn read_u32(stream: &mut dyn Read) -> Result<u32, Error> {
-    let mut buf = [0u8; 4];
-    stream.read_exact(&mut buf)?;
-    Ok(u32::from_be_bytes(buf))
-}
 #[allow(dead_code)]
 impl ClientMessage {
     pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), Error> {
@@ -149,7 +103,9 @@ impl ClientMessage {
                 if *last_will_flag {
                     connect_flags |= 1 << 2;
                 }
-
+                // if connect_flags > 3 {
+                //     Err(std::io::Error::new("QoS cant be greater than 3"))
+                // }
                 connect_flags |= (last_will_qos & 0b11) << 3;
 
                 if *last_will_retain {

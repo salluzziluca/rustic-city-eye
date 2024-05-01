@@ -6,3 +6,6 @@ pub mod client_message;
 
 pub mod connect_propierties;
 pub mod quality_of_service;
+
+pub mod writer;
+pub mod reader;
