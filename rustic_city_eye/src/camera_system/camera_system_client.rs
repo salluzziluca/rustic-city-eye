@@ -42,7 +42,7 @@ fn client_run(address: &str, stream: &mut dyn Read) -> std::io::Result<()> {
                 let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
                 let message = post_colon.trim(); // remove leading/trailing whitespace
                 println!("Publishing message: {}", message);
-                client.publish_message(message);
+                let _ = client.publish_message(message);
             }
         } else {
             return Err(std::io::Error::new(

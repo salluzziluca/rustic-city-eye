@@ -9,6 +9,9 @@ pub enum BrokerMessage {
         //session_present: bool,
         //return_code: u32
     },
+    Puback {
+        reason_code: u8,
+    },
 }
 #[allow(dead_code)]
 impl BrokerMessage {
@@ -19,6 +22,18 @@ impl BrokerMessage {
                 let byte_1: u8 = 0x10_u8.to_le();
 
                 writer.write(&[byte_1])?;
+                writer.flush()?;
+
+                Ok(())
+            }
+            BrokerMessage::Puback { reason_code: _ } => {
+                //fixed header
+                let byte_1: u8 = 0x40_u8.to_le(); //01000000
+
+                writer.write(&[byte_1])?;
+
+                //variable header
+
                 writer.flush()?;
 
                 Ok(())
@@ -34,6 +49,7 @@ impl BrokerMessage {
 
         match header {
             0x10 => Ok(BrokerMessage::Connack {}),
+            0x40 => Ok(BrokerMessage::Puback { reason_code: 1 }),
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }

@@ -1,5 +1,4 @@
 use std::env::args;
-use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 
 use rustic_city_eye::mqtt::broker_message::BrokerMessage;
@@ -59,25 +58,23 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
                 println!("Sending connack: {:?}", connack);
                 connack.write_to(&mut stream).unwrap();
             }
-            _ => {
-                println!("Recibí un mensaje que no es connect");
-            }
-        }
-    } else {
-        println!("Soy el broker y no pude leer el mensaje");
-    }
+            ClientMessage::Publish {
+                packet_id: _,
+                topic_name: _,
+                qos,
+                retain_flag: _,
+                payload: _,
+                dup_flag: _,
+                properties: _,
+            } => {
+                println!("Recibí un publish: {:?}", message);
 
-    let cloned_stream = stream.try_clone()?; // Clone the TcpStream
-    let reader = BufReader::new(cloned_stream); // Use the cloned stream in BufReader
-    let mut lines = reader.lines();
-    while let Some(Ok(line)) = lines.next() {
-        println!("me llego un {:?}", line);
-        if line == "hola" {
-            stream.write_all(b"chau\n")?;
-        } else if line == "wasaa" {
-            stream.write_all(b"wasaa\n")?;
-        } else {
-            stream.write_all(b"no entiendo\n")?;
+                if qos == 1 {
+                    println!("sending puback...");
+                    let puback = BrokerMessage::Puback { reason_code: 1 };
+                    puback.write_to(stream).unwrap();
+                }
+            }
         }
     }
     Ok(())
