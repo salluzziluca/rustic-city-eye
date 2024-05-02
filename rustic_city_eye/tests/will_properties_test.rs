@@ -1,6 +1,6 @@
 use std::{io::Cursor, vec};
 
-use rustic_city_eye::mqtt::will_properties::{self, WillProperties};
+use rustic_city_eye::mqtt::will_properties::WillProperties;
 
 #[test]
 fn test_will_prop() {

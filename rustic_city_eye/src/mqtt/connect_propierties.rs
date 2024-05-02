@@ -115,9 +115,6 @@ impl ConnectProperties {
         let mut authentication_data: Option<Vec<u8>> = None;
         let mut count = 0;
         while let Ok(property_id) = read_u8(&mut reader) {
-            if count == 9 {
-                break;
-            }
             match property_id {
                 0x11 => {
                     let value = read_u32(&mut reader)?;
@@ -160,6 +157,9 @@ impl ConnectProperties {
                 }
             }
             count += 1;
+            if count == 9 {
+                break;
+            }
         }
 
         Ok(ConnectProperties {

@@ -1,18 +1,16 @@
 use std::io::{Error, Read, Write};
 
-use crate::mqtt::writer::*;
 use crate::mqtt::reader::*;
+use crate::mqtt::writer::*;
 
 //PROPERTIES IDs
 const PAYLOAD_FORMAT_INDICATOR_ID: u8 = 0x01;
 const MESSAGE_EXPIRY_INTERVAL_ID: u8 = 0x02;
 const TOPIC_ALIAS_ID: u8 = 0x23;
 const RESPONSE_TOPIC_ID: u8 = 0x08;
-const CORRELATION_DATA_ID: u8 = 0x09;
 const USER_PROPERTY_ID: u8 = 0x26;
 const SUBSCRIPTION_IDENTIFIER_ID: u8 = 0x0B;
 const CONTENT_TYPE_ID: u8 = 0x03;
-
 
 #[derive(Debug, PartialEq)]
 pub struct PublishProperties {
@@ -23,7 +21,7 @@ pub struct PublishProperties {
     correlation_data: Vec<u8>,
     user_property: String,
     subscription_identifier: u32,
-    content_type: String
+    content_type: String,
 }
 
 impl PublishProperties {
@@ -35,9 +33,9 @@ impl PublishProperties {
         correlation_data: Vec<u8>,
         user_property: String,
         subscription_identifier: u32,
-        content_type: String
+        content_type: String,
     ) -> PublishProperties {
-        PublishProperties { 
+        PublishProperties {
             payload_format_indicator,
             message_expiry_interval,
             topic_alias,
@@ -45,7 +43,7 @@ impl PublishProperties {
             correlation_data,
             user_property,
             subscription_identifier,
-            content_type
+            content_type,
         }
     }
 
@@ -76,7 +74,7 @@ impl PublishProperties {
         //user property
         write_u8(stream, &USER_PROPERTY_ID)?;
         write_string(stream, &self.user_property)?;
-        
+
         //subscription identifier
         write_u8(stream, &SUBSCRIPTION_IDENTIFIER_ID)?;
         write_u32(stream, &self.subscription_identifier)?;
@@ -85,25 +83,24 @@ impl PublishProperties {
         write_u8(stream, &CONTENT_TYPE_ID)?;
         write_string(stream, &self.content_type)?;
 
-
         Ok(())
     }
-
+    #[allow(dead_code)]
     pub fn read_properties(&self, stream: &mut dyn Read) -> Result<PublishProperties, Error> {
         //payload format indicator
-        let payload_format_indicator_id = read_u8(stream)?;
+        let _payload_format_indicator_id = read_u8(stream)?;
         let payload_format_indicator = read_u8(stream)?;
 
         //message expiry interval
-        let message_expiry_interval_id = read_u8(stream)?;
+        let _message_expiry_interval_id = read_u8(stream)?;
         let message_expiry_interval = read_u32(stream)?;
 
         //topic alias
-        let topic_alias_id = read_u8(stream)?;
+        let _topic_alias_id = read_u8(stream)?;
         let topic_alias = read_u16(stream)?;
 
         //response topic
-        let response_topic_id = read_u8(stream)?;
+        let _response_topic_id = read_u8(stream)?;
         let response_topic = read_string(stream)?;
 
         //correlation data
@@ -113,18 +110,18 @@ impl PublishProperties {
         // let correlation_data: Vec<u8> = vec![0; correlation_data_len as usize];
 
         //user property
-        let user_property_id = read_u8(stream)?;
+        let _user_property_id = read_u8(stream)?;
         let user_property = read_string(stream)?;
-        
+
         //subscription identifier
-        let subscription_identifier_id = read_u8(stream)?;
+        let _subscription_identifier_id = read_u8(stream)?;
         let subscription_identifier = read_u32(stream)?;
 
         //content type
-        let content_type_id = read_u8(stream)?;
+        let _content_type_id = read_u8(stream)?;
         let content_type = read_string(stream)?;
 
-        Ok(PublishProperties { 
+        Ok(PublishProperties {
             payload_format_indicator,
             message_expiry_interval,
             topic_alias,
@@ -132,7 +129,7 @@ impl PublishProperties {
             correlation_data: [1, 1, 1].to_vec(),
             user_property,
             subscription_identifier,
-            content_type
+            content_type,
         })
     }
 }

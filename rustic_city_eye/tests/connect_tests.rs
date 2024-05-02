@@ -1,9 +1,6 @@
-use std::{io::Cursor, ptr::null};
+use std::io::Cursor;
 
-use rustic_city_eye::mqtt::{
-    client_message, connect_propierties,
-    will_properties::{self, WillProperties},
-};
+use rustic_city_eye::mqtt::{client_message, connect_propierties, will_properties::WillProperties};
 
 #[test]
 fn test_client_message() {
