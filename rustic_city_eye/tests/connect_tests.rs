@@ -14,16 +14,19 @@ fn test_client_message() {
         keep_alive: 35,
         client_id: "kvtr33".to_string(),
         last_will_delay_interval: 15,
-        //message_expiry_interval: 120,
+        message_expiry_interval: 120,
         content_type: "plain".to_string(),
         user_property: Some(("propiedad".to_string(), "valor".to_string())),
         last_will_message: "chauchis".to_string(),
         response_topic: "algo".to_string(),
         correlation_data: vec![1, 2, 3, 4, 5],
+        payload_format_indicator: 1,
     };
     let mut cursor = Cursor::new(Vec::<u8>::new());
     connect.write_to(&mut cursor).unwrap();
     cursor.set_position(0);
+
     let read_connect = client_message::ClientMessage::read_from(&mut cursor).unwrap();
+
     assert_eq!(connect, read_connect);
 }

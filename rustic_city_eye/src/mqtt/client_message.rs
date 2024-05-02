@@ -47,7 +47,8 @@ pub enum ClientMessage {
         password: String,
         keep_alive: u16,
         last_will_delay_interval: u32,
-        //message_expiry_interval: u16,
+        payload_format_indicator: u8,
+        message_expiry_interval: u16,
         content_type: String,
         response_topic: String,
         correlation_data: Vec<u8>,
@@ -81,12 +82,13 @@ impl ClientMessage {
                 password,
                 keep_alive,
                 last_will_delay_interval,
-                //message_expiry_interval,
+                message_expiry_interval,
                 content_type,
                 user_property,
                 last_will_message,
                 response_topic,
                 correlation_data,
+                mut payload_format_indicator,
     
                 // lastWillTopic,
                 // last_will_qos,
@@ -116,9 +118,12 @@ impl ClientMessage {
                 if *last_will_flag {
                     connect_flags |= 1 << 2;
                 }
-                // if connect_flags > 3 {
-                //     Err(std::io::Error::new("QoS cant be greater than 3"))
-                // }
+                if *last_will_qos > 3 {
+                    return Err(Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid last will qos",
+                    ));
+                }
                 connect_flags |= (last_will_qos & 0b11) << 3;
 
                 if *last_will_retain {
@@ -152,12 +157,14 @@ impl ClientMessage {
 
                 write_u32(&mut writer, &last_will_delay_interval)?; 
 
-                let payload_format_indicator:u8 = 0x01; //siempre 1 porque los strings en rust siempre son utf-8
+                payload_format_indicator = 0x01_u8;
+                //siempre 1 porque los strings en rust siempre son utf-8
                 write_u8(&mut writer, &PAYLOAD_FORMAT_INDICATOR_ID)?;
                 write_u8(&mut writer, &payload_format_indicator)?;
 
-                // write_u8(&mut writer, &MESSAGE_EXPIRY_INTERVAL_ID)?;
-                // write_u16(&mut writer, message_expiry_interval)?;
+                write_u8(&mut writer, &MESSAGE_EXPIRY_INTERVAL_ID)?;
+                println!("message_expiry_interval ID: {:?}", MESSAGE_EXPIRY_INTERVAL_ID);
+                write_u16(&mut writer, message_expiry_interval)?;
 
                 write_u8(&mut writer, &CONTENT_TYPE_ID)?;
                 write_string(&mut writer, &content_type)?;
@@ -274,15 +281,18 @@ impl ClientMessage {
                         "Invalid payload format indicator id",
                     ));
                 }
-                let message_expiry_interval_id = read_u8(stream)?;
 
-                // if message_expiry_interval_id != MESSAGE_EXPIRY_INTERVAL_ID {
-                //     return Err(Error::new(
-                //         std::io::ErrorKind::Other,
-                //         "Invalid message expiry interval id",
-                //     ));
-                // }
-                // let message_expiry_interval = read_u16(stream)?;
+                let payload_format_indicator = read_u8(stream)?;
+
+                let message_expiry_interval_id = read_u8(stream)?;
+                println!("message_expiry_interval ID: {:?}", message_expiry_interval_id);
+                if message_expiry_interval_id != MESSAGE_EXPIRY_INTERVAL_ID {
+                    return Err(Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid message expiry interval id",
+                    ));
+                }
+                let message_expiry_interval = read_u16(stream)?;
 
                 let content_type_id = read_u8(stream)?;
                 if content_type_id != CONTENT_TYPE_ID {
@@ -351,12 +361,13 @@ impl ClientMessage {
                     keep_alive: keep_alive,
                     client_id: client_id.to_string(),
                     last_will_delay_interval: will_delay_interval,
-                   // message_expiry_interval: message_expiry_interval,
+                    message_expiry_interval: message_expiry_interval,
                     content_type: content_type.to_string(),
                     user_property: Some((user_property_key.to_string(), user_property_value.to_string())),
                     last_will_message: will_message.to_string(),
                     response_topic: response_topic.to_string(),
                     correlation_data: correlation_data,
+                    payload_format_indicator,
             
                     
                 })
