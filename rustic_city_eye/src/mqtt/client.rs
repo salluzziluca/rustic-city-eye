@@ -3,6 +3,7 @@ use std::net::TcpStream;
 use crate::mqtt::broker_message::BrokerMessage;
 use crate::mqtt::client_message::ClientMessage;
 use crate::mqtt::protocol_error::ProtocolError;
+use crate::mqtt::will_properties::WillProperties;
 
 #[allow(dead_code)]
 pub struct Client {
@@ -16,6 +17,8 @@ impl Client {
             Err(_) => return Err(ProtocolError::ConectionError),
         };
 
+        let will_properties = WillProperties::new(120, 1, 30, "plain".to_string(), "topic".to_string(), vec![1, 2, 3, 4, 5], vec![("propiedad".to_string(), "valor".to_string())]);
+
         let connect = ClientMessage::Connect {
             clean_start: true,
             last_will_flag: true,
@@ -25,15 +28,9 @@ impl Client {
             password: "".to_string(),
             keep_alive: 35,
             client_id: "kvtr33".to_string(),
-            last_will_delay_interval: 15,
-            message_expiry_interval: 120,
-            content_type: "plain".to_string(),
-            user_property: Some(("propiedad".to_string(), "valor".to_string())),
+            will_properties: will_properties,
+            last_will_topic: "topic".to_string(),
             last_will_message: "chauchis".to_string(),
-            response_topic: "algo".to_string(),
-            correlation_data: vec![1, 2, 3, 4, 5],
-            payload_format_indicator: 1,
-            lastWillTopic: "topic".to_string(),
         };
         println!("Sending connect message to broker: {:?}", connect);
         connect.write_to(&mut stream).unwrap();

@@ -1,19 +1,16 @@
+use crate::mqtt::will_properties;
 use crate::mqtt::writer::*;
 use crate::mqtt::reader::*;
+use crate::mqtt::will_properties::*;
 
-use std::any::TypeId;
 use std::io::{BufWriter, Error, Read, Write};
+
+use super::client;
 
 
 //use self::quality_of_service::QualityOfService;
 const PROTOCOL_VERSION: u8 = 5;
-const WILL_DELAY_INTERVAL_ID: u8 = 0x18;
-const PAYLOAD_FORMAT_INDICATOR_ID: u8 = 0x01;
-const MESSAGE_EXPIRY_INTERVAL_ID: u8 = 0x02;
-const CONTENT_TYPE_ID: u8 = 0x03;
-const RESPONSE_TOPIC_ID: u8 = 0x08;
-const CORRELATION_DATA_ID: u8 = 0x09;
-const USER_PROPERTY_ID: u8 = 0x26;
+
 
 #[path = "quality_of_service.rs"]
 mod quality_of_service;
@@ -32,31 +29,18 @@ pub enum ClientMessage {
     /// 
     /// keep_alive especifica el tiempo en segundos que el broker debe esperar entre mensajes del cliente antes de desconectarlo. 
     /// 
-    /// last_will_delay_interval especifica el tiempo en segundos que el broker debe esperar antes de publicar el will message.
+    /// Si el will flag es true, se escriben el will topic y el will message.
     /// 
-    /// payload_format_indicator indica si el payload esta encodado en utf-8 o no.
-    /// message_expiry_interval especifica el tiempo en segundos que el broker debe esperar antes de descartar el will message.
-    /// content_type especifica el tipo de contenido del will message. (ej json, plain text)
-    /// el response_topic es el el topic name que debera usar el mensaje de respuesta. Si hay response_topic, el will message se considera un request message.
-    /// 
-    /// `The Correlation Data is used by the sender of the Request Message to identify which request the Response Message is for when it is received`
-    /// 
-    /// user_property especifica una propiedad del usuario que se envia en el mensaje, se pueden enviar 0, 1 o más propiedades.
+    /// finalmente, si el cliente envia un username y un password, estos se escriben en el payload.
     Connect {
-        client_id: String,
         clean_start: bool,
         last_will_flag: bool, 
         last_will_qos: u8,    
         last_will_retain: bool, 
         keep_alive: u16,
-        last_will_delay_interval: u32,
-        payload_format_indicator: u8,
-        message_expiry_interval: u16,
-        content_type: String,
-        response_topic: String,
-        correlation_data: Vec<u8>,
-        user_property: Option<(String, String)>,
-        lastWillTopic: String,
+        client_id: String,
+        will_properties: WillProperties,
+        last_will_topic: String,
         last_will_message: String,
         username: String,
         password: String,
@@ -82,23 +66,12 @@ impl ClientMessage {
                 last_will_flag,
                 last_will_qos,
                 last_will_retain,
+                keep_alive,
+                will_properties,
+                last_will_topic,
+                last_will_message,
                 username,
                 password,
-                keep_alive,
-                last_will_delay_interval,
-                message_expiry_interval,
-                content_type,
-                user_property,
-                last_will_message,
-                response_topic,
-                correlation_data,
-                mut payload_format_indicator,
-                lastWillTopic,
-    
-                // lastWillTopic,
-                // last_will_qos,
-                // lasWillMessage,
-                // last_will_retain,
             } => {
                 //fixed header
                 let byte_1: u8 = 0x10_u8.to_le(); //00010000
@@ -153,58 +126,18 @@ impl ClientMessage {
                 //TODO: implementar las 300 millones de propiedades, por ahi estría bueno usar un struct
 
                 //payload
-                //client ID
                 write_string(&mut writer, &client_id)?;
-     
-
-                //will properties
-                write_u8(&mut writer, &WILL_DELAY_INTERVAL_ID)?;
-
-                write_u32(&mut writer, &last_will_delay_interval)?; 
-
-                payload_format_indicator = 0x01_u8;
-                //siempre 1 porque los strings en rust siempre son utf-8
-                write_u8(&mut writer, &PAYLOAD_FORMAT_INDICATOR_ID)?;
-                write_u8(&mut writer, &payload_format_indicator)?;
-
-                write_u8(&mut writer, &MESSAGE_EXPIRY_INTERVAL_ID)?;
-                println!("message_expiry_interval ID: {:?}", MESSAGE_EXPIRY_INTERVAL_ID);
-                write_u16(&mut writer, message_expiry_interval)?;
-
-                write_u8(&mut writer, &CONTENT_TYPE_ID)?;
-                write_string(&mut writer, &content_type)?;
-
-                write_u8(&mut writer, &RESPONSE_TOPIC_ID)?;
-                write_string(&mut writer, &response_topic)?;
-
-                write_u8(&mut writer, &CORRELATION_DATA_ID)?;
-                let correlation_data_length = correlation_data.len() as u16;
-                write_u16(&mut writer, &correlation_data_length)?;
-                for byte in correlation_data {
-                    write_u8(&mut writer, byte)?;
-                }
-                //user property
-
-                write_u8(&mut writer, &USER_PROPERTY_ID)?;
-                if let Some((key, value)) = user_property {
-                    write_string(&mut writer, &key)?;
-
-                    write_string(&mut writer, &value)?;
-                }
+                will_properties.write_to(&mut writer)?;
 
                 if *last_will_flag {
-                    write_string(&mut writer, &lastWillTopic)?;
+                    write_string(&mut writer, &last_will_topic)?;
                     write_string(&mut writer, &last_will_message)?;
 
                 }
 
-                //username
-
                 if username.len() != 0 {
                     write_string(&mut writer, &username)?;
                 }
-
-                //password
                 if password.len() != 0 {
                     write_string(&mut writer, &password)?;
                 }
@@ -254,7 +187,6 @@ impl ClientMessage {
                         "Invalid protocol version",
                     ));
                 }
-                println!("protocol version: {:?}", protocol_version);
 
                 //connect flags
                 let connect_flags = read_u8(stream)?;
@@ -262,90 +194,15 @@ impl ClientMessage {
                 let last_will_flag = (connect_flags & (1 << 2)) != 0;
                 let last_will_qos = (connect_flags >> 3) & 0b11;
                 let last_will_retain = (connect_flags & (1 << 5)) != 0;
-
-
+                
                 //keep alive
-                let keep_alive = read_u16(stream)?;
-
-                // connect properties
-
-
+                let keep_alive = read_u16(stream)?;                
+                
                 //payload
                 //client ID
                 let client_id = read_string(stream)?;
 
-                //will properties
-                let will_delay_interval_id = read_u8(stream)?;
-                if will_delay_interval_id != WILL_DELAY_INTERVAL_ID {
-                    return Err(Error::new(
-                        std::io::ErrorKind::Other,
-                        "Invalid will delay interval id",
-                    ));
-                }
-                let will_delay_interval = read_u32(stream)?;
-
-                let payload_format_indicator_id = read_u8(stream)?;
-                if payload_format_indicator_id != PAYLOAD_FORMAT_INDICATOR_ID {
-                    return Err(Error::new(
-                        std::io::ErrorKind::Other,
-                        "Invalid payload format indicator id",
-                    ));
-                }
-
-                let payload_format_indicator = read_u8(stream)?;
-
-                let message_expiry_interval_id = read_u8(stream)?;
-                println!("message_expiry_interval ID: {:?}", message_expiry_interval_id);
-                if message_expiry_interval_id != MESSAGE_EXPIRY_INTERVAL_ID {
-                    return Err(Error::new(
-                        std::io::ErrorKind::Other,
-                        "Invalid message expiry interval id",
-                    ));
-                }
-                let message_expiry_interval = read_u16(stream)?;
-
-                let content_type_id = read_u8(stream)?;
-                if content_type_id != CONTENT_TYPE_ID {
-                    return Err(Error::new(
-                        std::io::ErrorKind::Other,
-                        "Invalid content type id",
-                    ));
-                }
-                let content_type = read_string(stream)?;
-
-                let response_topic_id = read_u8(stream)?;
-                if response_topic_id != RESPONSE_TOPIC_ID {
-                    return Err(Error::new(
-                        std::io::ErrorKind::Other,
-                        "Invalid response topic id",
-                    ));
-                }
-                let response_topic = read_string(stream)?;
-
-                let correlation_data_id = read_u8(stream)?;
-                if correlation_data_id != CORRELATION_DATA_ID {
-                    return Err(Error::new(
-                        std::io::ErrorKind::Other,
-                        "Invalid correlation data id",
-                    ));
-                }
-                let correlation_data_length = read_u16(stream)?;
-                let mut correlation_data = vec![0; correlation_data_length as usize];
-                stream.read_exact(&mut correlation_data)?;
-
-                //user property
-
-                let user_property_id = read_u8(stream)?;
-                if user_property_id != USER_PROPERTY_ID {
-                    return Err(Error::new(
-                        std::io::ErrorKind::Other,
-                        "Invalid user property id",
-                    ));
-                }
-                let user_property_key = read_string(stream)?;
-
-                let user_property_value = read_string(stream)?;
-
+                let will_properties = WillProperties::read_from(stream)?;
                 let mut last_will_topic = String::new();
                 let mut will_message = String::new();
                 if last_will_flag {
@@ -358,6 +215,7 @@ impl ClientMessage {
                 if hay_user {
                     user = read_string(stream)?;
                 }
+
                 let hay_pass = (connect_flags & (1 << 6)) != 0;
                 let mut pass = String::new();
                 if hay_pass {
@@ -372,14 +230,8 @@ impl ClientMessage {
                     last_will_qos: last_will_qos,
                     last_will_retain: last_will_retain,
                     keep_alive: keep_alive,
-                    last_will_delay_interval: will_delay_interval,
-                    payload_format_indicator,
-                    message_expiry_interval: message_expiry_interval,
-                    content_type: content_type.to_string(),
-                    response_topic: response_topic.to_string(),
-                    correlation_data: correlation_data,
-                    user_property: Some((user_property_key.to_string(), user_property_value.to_string())),
-                    lastWillTopic: last_will_topic.to_string(),
+                    will_properties : will_properties,
+                    last_will_topic: last_will_topic.to_string(),
                     last_will_message: will_message.to_string(),
                     username: user.to_string(),
                     password: pass.to_string(),
