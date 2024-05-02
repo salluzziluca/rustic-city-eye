@@ -115,7 +115,6 @@ impl ClientMessage {
 
                 //keep alive
                 write_u16(&mut writer, keep_alive)?;
-                properties.write_to(&mut writer)?;
                 write_string(&mut writer, &client_id)?;
 
                 will_properties.write_to(&mut writer)?;
@@ -131,6 +130,7 @@ impl ClientMessage {
                 if password.len() != 0 {
                     write_string(&mut writer, &password)?;
                 }
+                properties.write_to(&mut writer)?;
 
                 writer.flush()?;
                 Ok(())
@@ -248,7 +248,6 @@ impl ClientMessage {
                 let keep_alive = read_u16(stream)?;
                 println!("keep alive: {:?}", keep_alive);
                 //properties
-                let properties: ConnectProperties = ConnectProperties::read_from(stream)?;
                 //payload
                 //client ID
                 let client_id = read_string(stream)?;
@@ -276,6 +275,7 @@ impl ClientMessage {
                     pass = read_string(stream)?;
                 }
 
+                let properties: ConnectProperties = ConnectProperties::read_from(stream)?;
                 Ok(ClientMessage::Connect {
                     client_id: client_id.to_string(),
                     clean_start: clean_start,
