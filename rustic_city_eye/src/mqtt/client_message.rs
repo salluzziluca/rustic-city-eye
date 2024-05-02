@@ -119,6 +119,7 @@ impl ClientMessage {
 
                 //payload
                 write_string(&mut writer, &client_id)?;
+
                 will_properties.write_to(&mut writer)?;
 
                 if *last_will_flag {
@@ -219,17 +220,7 @@ impl ClientMessage {
         match header {
             0x10 => {
                 //leo el protocol name
-                let mut protocol_lenght_buf = [0u8; 2];
-                stream.read_exact(&mut protocol_lenght_buf)?;
-                let protocol_lenght = u16::from_le_bytes(protocol_lenght_buf);
-                println!("protocol_lenght: {:?}", protocol_lenght);
 
-                let mut protocol_name_buf = vec![0; protocol_lenght as usize];
-                stream.read_exact(&mut protocol_name_buf)?;
-
-                let protocol_name =
-                    std::str::from_utf8(&protocol_name_buf).expect("Error al leer protocol_name");
-                println!("protocol_name: {:?}", protocol_name);
                 let protocol_name = read_string(stream)?;
 
                 if protocol_name != "MQTT" {
@@ -257,12 +248,14 @@ impl ClientMessage {
 
                 //keep alive
                 let keep_alive = read_u16(stream)?;
-
+                println!("keep_alive: {:?}", keep_alive);
                 //payload
                 //client ID
                 let client_id = read_string(stream)?;
-
+                println!("client_id: {:?}", client_id);
                 let will_properties = WillProperties::read_from(stream)?;
+                println!("will properties: {:?}", will_properties);
+
                 let mut last_will_topic = String::new();
                 let mut will_message = String::new();
                 if last_will_flag {
