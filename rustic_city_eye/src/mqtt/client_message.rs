@@ -33,8 +33,13 @@ pub enum ClientMessage {
     /// keep_alive especifica el tiempo en segundos que el broker debe esperar entre mensajes del cliente antes de desconectarlo. 
     /// 
     /// last_will_delay_interval especifica el tiempo en segundos que el broker debe esperar antes de publicar el will message.
+    /// 
+    /// payload_format_indicator indica si el payload esta encodado en utf-8 o no.
     /// message_expiry_interval especifica el tiempo en segundos que el broker debe esperar antes de descartar el will message.
     /// content_type especifica el tipo de contenido del will message. (ej json, plain text)
+    /// el response_topic es el el topic name que debera usar el mensaje de respuesta. Si hay response_topic, el will message se considera un request message.
+    /// 
+    /// `The Correlation Data is used by the sender of the Request Message to identify which request the Response Message is for when it is received`
     /// 
     /// user_property especifica una propiedad del usuario que se envia en el mensaje, se pueden enviar 0, 1 o más propiedades.
     Connect {
@@ -43,8 +48,6 @@ pub enum ClientMessage {
         last_will_flag: bool, 
         last_will_qos: u8,    
         last_will_retain: bool, 
-        username: String,
-        password: String,
         keep_alive: u16,
         last_will_delay_interval: u32,
         payload_format_indicator: u8,
@@ -53,9 +56,10 @@ pub enum ClientMessage {
         response_topic: String,
         correlation_data: Vec<u8>,
         user_property: Option<(String, String)>,
-        //response_topic: String, //Topic name del response message
-        // lastWillTopic: String,
+        lastWillTopic: String,
         last_will_message: String,
+        username: String,
+        password: String,
     },
     Publish {
         //packet_id: usize,
@@ -89,6 +93,7 @@ impl ClientMessage {
                 response_topic,
                 correlation_data,
                 mut payload_format_indicator,
+                lastWillTopic,
     
                 // lastWillTopic,
                 // last_will_qos,
@@ -187,9 +192,11 @@ impl ClientMessage {
                     write_string(&mut writer, &value)?;
                 }
 
-                //will payload
+                if *last_will_flag {
+                    write_string(&mut writer, &lastWillTopic)?;
+                    write_string(&mut writer, &last_will_message)?;
 
-                write_string(&mut writer, &last_will_message)?;
+                }
 
                 //username
 
@@ -251,7 +258,10 @@ impl ClientMessage {
 
                 //connect flags
                 let connect_flags = read_u8(stream)?;
-
+                let clean_start = (connect_flags & (1 << 1)) != 0;
+                let last_will_flag = (connect_flags & (1 << 2)) != 0;
+                let last_will_qos = (connect_flags >> 3) & 0b11;
+                let last_will_retain = (connect_flags & (1 << 5)) != 0;
 
 
                 //keep alive
@@ -336,8 +346,12 @@ impl ClientMessage {
 
                 let user_property_value = read_string(stream)?;
 
-                //will payload
-                let will_message = read_string(stream)?;
+                let mut last_will_topic = String::new();
+                let mut will_message = String::new();
+                if last_will_flag {
+                    last_will_topic = read_string(stream)?;
+                    will_message = read_string(stream)?;
+                }
 
                 let hay_user = (connect_flags & (1 << 7)) != 0;
                 let mut user = String::new();
@@ -352,22 +366,23 @@ impl ClientMessage {
 
 
                 Ok(ClientMessage::Connect {
-                    clean_start: (connect_flags & (1 << 1)) != 0,
-                    last_will_flag: (connect_flags & (1 << 2)) != 0,
-                    last_will_qos: (connect_flags >> 3) & 0b11,
-                    last_will_retain: (connect_flags & (1 << 5)) != 0,
-                    username: user.to_string(),
-                    password: pass.to_string(),
-                    keep_alive: keep_alive,
                     client_id: client_id.to_string(),
+                    clean_start:clean_start,
+                    last_will_flag: last_will_flag,
+                    last_will_qos: last_will_qos,
+                    last_will_retain: last_will_retain,
+                    keep_alive: keep_alive,
                     last_will_delay_interval: will_delay_interval,
+                    payload_format_indicator,
                     message_expiry_interval: message_expiry_interval,
                     content_type: content_type.to_string(),
-                    user_property: Some((user_property_key.to_string(), user_property_value.to_string())),
-                    last_will_message: will_message.to_string(),
                     response_topic: response_topic.to_string(),
                     correlation_data: correlation_data,
-                    payload_format_indicator,
+                    user_property: Some((user_property_key.to_string(), user_property_value.to_string())),
+                    lastWillTopic: last_will_topic.to_string(),
+                    last_will_message: will_message.to_string(),
+                    username: user.to_string(),
+                    password: pass.to_string(),
             
                     
                 })

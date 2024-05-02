@@ -21,6 +21,7 @@ fn test_client_message() {
         response_topic: "algo".to_string(),
         correlation_data: vec![1, 2, 3, 4, 5],
         payload_format_indicator: 1,
+        lastWillTopic: "topico".to_string(),
     };
     let mut cursor = Cursor::new(Vec::<u8>::new());
     connect.write_to(&mut cursor).unwrap();

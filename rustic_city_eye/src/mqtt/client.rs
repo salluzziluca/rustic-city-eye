@@ -33,6 +33,7 @@ impl Client {
             response_topic: "algo".to_string(),
             correlation_data: vec![1, 2, 3, 4, 5],
             payload_format_indicator: 1,
+            lastWillTopic: "topic".to_string(),
         };
         println!("Sending connect message to broker: {:?}", connect);
         connect.write_to(&mut stream).unwrap();

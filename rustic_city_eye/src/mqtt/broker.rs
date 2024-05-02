@@ -55,6 +55,7 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
                 response_topic: _,
                 correlation_data: _,
                 payload_format_indicator: _,
+                lastWillTopic: _,
             } => {
                 println!("Recibí un connect: {:?}", message);
                 let connack = BrokerMessage::Connack {
