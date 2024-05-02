@@ -34,7 +34,7 @@ fn server_run(address: &str) -> std::io::Result<()> {
     Ok(())
 }
 #[allow(dead_code)]
-fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
+fn handle_client(stream: &mut TcpStream) -> std::io::Result<()> {
     if let Ok(message) = ClientMessage::read_from(stream) {
         match message {
             ClientMessage::Connect {
@@ -57,7 +57,7 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
                     //return_code: 0,
                 };
                 println!("Sending connack: {:?}", connack);
-                connack.write_to(&mut stream).unwrap();
+                connack.write_to(stream).unwrap();
             }
             ClientMessage::Publish {
                 packet_id: _,

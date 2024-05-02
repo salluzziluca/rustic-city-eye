@@ -9,9 +9,6 @@ use crate::mqtt::writer::*;
 //use self::quality_of_service::QualityOfService;
 const PROTOCOL_VERSION: u8 = 5;
 
-#[path = "quality_of_service.rs"]
-mod quality_of_service;
-
 #[derive(Debug, PartialEq)]
 pub enum ClientMessage {
     ///El Connect Message es el primer menasje que el cliente envia cuando se conecta al broker. Este contiene toda la informacion necesaria para que el broker identifique al cliente y pueda establecer una sesion con los parametros establecidos.
@@ -71,7 +68,7 @@ impl ClientMessage {
             } => {
                 //fixed header
                 let byte_1: u8 = 0x10_u8.to_le(); //00010000
-                writer.write(&[byte_1])?;
+                writer.write_all(&[byte_1])?;
 
                 //TODO: aca deberia ir el remaining lenght field
                 //protocol name
@@ -80,7 +77,7 @@ impl ClientMessage {
 
                 //protocol version
                 let protocol_version: u8 = 0x05;
-                writer.write(&[protocol_version])?;
+                writer.write_all(&[protocol_version])?;
 
                 //connection flags
                 let mut connect_flags: u8 = 0x00;
@@ -103,32 +100,32 @@ impl ClientMessage {
                     connect_flags |= 1 << 5;
                 }
 
-                if password.len() != 0 {
+                if !password.is_empty() {
                     connect_flags |= 1 << 6;
                 }
 
-                if username.len() != 0 {
+                if !username.is_empty() {
                     connect_flags |= 1 << 7;
                 }
 
-                writer.write(&[connect_flags])?;
+                writer.write_all(&[connect_flags])?;
 
                 //keep alive
                 write_u16(&mut writer, keep_alive)?;
-                write_string(&mut writer, &client_id)?;
+                write_string(&mut writer, client_id)?;
 
                 will_properties.write_to(&mut writer)?;
 
                 if *last_will_flag {
-                    write_string(&mut writer, &last_will_topic)?;
-                    write_string(&mut writer, &last_will_message)?;
+                    write_string(&mut writer, last_will_topic)?;
+                    write_string(&mut writer, last_will_message)?;
                 }
 
-                if username.len() != 0 {
-                    write_string(&mut writer, &username)?;
+                if !username.is_empty() {
+                    write_string(&mut writer, username)?;
                 }
-                if password.len() != 0 {
-                    write_string(&mut writer, &password)?;
+                if !password.is_empty() {
+                    write_string(&mut writer, password)?;
                 }
                 properties.write_to(&mut writer)?;
 
@@ -170,10 +167,10 @@ impl ClientMessage {
                     byte_1 |= 0 << 3;
                 }
 
-                writer.write(&[byte_1])?;
+                writer.write_all(&[byte_1])?;
 
                 //Remaining Length
-                write_string(&mut writer, &topic_name)?;
+                write_string(&mut writer, topic_name)?;
 
                 //packet_id
                 write_u16(&mut writer, packet_id)?;
@@ -182,7 +179,7 @@ impl ClientMessage {
                 properties.write_properties(&mut writer)?;
 
                 //Payload
-                write_string(&mut writer, &payload)?;
+                write_string(&mut writer, payload)?;
 
                 writer.flush()?;
                 Ok(())
@@ -278,13 +275,13 @@ impl ClientMessage {
                 let properties: ConnectProperties = ConnectProperties::read_from(stream)?;
                 Ok(ClientMessage::Connect {
                     client_id: client_id.to_string(),
-                    clean_start: clean_start,
-                    last_will_flag: last_will_flag,
-                    last_will_qos: last_will_qos,
-                    last_will_retain: last_will_retain,
-                    keep_alive: keep_alive,
-                    properties: properties,
-                    will_properties: will_properties,
+                    clean_start,
+                    last_will_flag,
+                    last_will_qos,
+                    last_will_retain,
+                    keep_alive,
+                    properties,
+                    will_properties,
                     last_will_topic: last_will_topic.to_string(),
                     last_will_message: will_message.to_string(),
                     username: user.to_string(),

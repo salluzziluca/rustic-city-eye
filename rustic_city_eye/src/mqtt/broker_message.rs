@@ -21,7 +21,7 @@ impl BrokerMessage {
             BrokerMessage::Connack {} => {
                 let byte_1: u8 = 0x10_u8.to_le();
 
-                writer.write(&[byte_1])?;
+                writer.write_all(&[byte_1])?;
                 writer.flush()?;
 
                 Ok(())
@@ -30,7 +30,7 @@ impl BrokerMessage {
                 //fixed header
                 let byte_1: u8 = 0x40_u8.to_le(); //01000000
 
-                writer.write(&[byte_1])?;
+                writer.write_all(&[byte_1])?;
 
                 //variable header
 

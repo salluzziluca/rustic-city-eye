@@ -50,9 +50,9 @@ impl Client {
             username: "prueba".to_string(),
             password: "".to_string(),
             keep_alive: 35,
-            properties: properties,
+            properties,
             client_id: "kvtr33".to_string(),
-            will_properties: will_properties,
+            will_properties,
             last_will_topic: "topic".to_string(),
             last_will_message: "chauchis".to_string(),
         };

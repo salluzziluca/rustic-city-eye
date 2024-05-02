@@ -81,7 +81,7 @@ impl WillProperties {
         let correlation_data_length = self.correlation_data.len() as u16;
         write_u16(&mut writer, &correlation_data_length)?;
         for byte in &self.correlation_data {
-            write_u8(&mut writer, &byte)?;
+            write_u8(&mut writer, byte)?;
         }
         //user property
 
@@ -89,8 +89,8 @@ impl WillProperties {
         let user_properties_length = self.user_properties.len() as u16;
         write_u16(&mut writer, &user_properties_length)?;
         for (key, value) in &self.user_properties {
-            write_string(&mut writer, &key)?;
-            write_string(&mut writer, &value)?;
+            write_string(&mut writer, key)?;
+            write_string(&mut writer, value)?;
         }
 
         Ok(())
@@ -176,7 +176,7 @@ impl WillProperties {
             content_type,
             response_topic,
             correlation_data,
-            user_properties: user_properties,
+            user_properties,
         })
     }
 }
