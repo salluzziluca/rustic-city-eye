@@ -4,16 +4,17 @@ use crate::mqtt::reader::*;
 use std::io::ErrorKind;
 use std::io::{BufReader, BufWriter, Error, Read, Write};
 
-struct ConnectProperties {
-    session_expiry_interval: u32,
-    receive_maximum: u16,
-    maximum_packet_size: u32,
-    topic_alias_maximum: u16,
-    request_response_information: bool,
-    request_problem_information: bool,
-    user_properties: Vec<(String, String)>,
-    authentication_method: String,
-    authentication_data: Vec<u8>,
+#[derive(Debug, PartialEq)]
+pub struct ConnectProperties {
+    pub session_expiry_interval: u32,
+    pub receive_maximum: u16,
+    pub maximum_packet_size: u32,
+    pub topic_alias_maximum: u16,
+    pub request_response_information: bool,
+    pub request_problem_information: bool,
+    pub user_properties: Vec<(String, String)>,
+    pub authentication_method: String,
+    pub authentication_data: Vec<u8>,
 }
 
 impl ConnectProperties {

@@ -1,11 +1,10 @@
 use crate::mqtt::reader::*;
-use crate::mqtt::will_properties;
 use crate::mqtt::will_properties::*;
 use crate::mqtt::writer::*;
 
 use std::io::{BufWriter, Error, Read, Write};
 
-use super::client;
+use super::connect_propierties::ConnectProperties;
 
 //use self::quality_of_service::QualityOfService;
 const PROTOCOL_VERSION: u8 = 5;
@@ -35,6 +34,7 @@ pub enum ClientMessage {
         last_will_qos: u8,
         last_will_retain: bool,
         keep_alive: u16,
+        // properties: ConnectProperties,
         client_id: String,
         will_properties: WillProperties,
         last_will_topic: String,
@@ -64,6 +64,7 @@ impl ClientMessage {
                 last_will_qos,
                 last_will_retain,
                 keep_alive,
+                // properties,
                 will_properties,
                 last_will_topic,
                 last_will_message,
@@ -119,6 +120,7 @@ impl ClientMessage {
                 write_u16(&mut writer, keep_alive)?; 
 
                 //connect properties
+                // properties.write_to(&mut writer)?;
                 //let mut property_length = 0;
                 //TODO: implementar las 300 millones de propiedades, por ahi estría bueno usar un struct
 
@@ -195,6 +197,9 @@ impl ClientMessage {
                 //keep alive
                 let keep_alive = read_u16(stream)?;
 
+                //properties
+                let properties = ConnectProperties::read_from(stream)?;
+
                 //payload
                 //client ID
                 let client_id = read_string(stream)?;
@@ -226,6 +231,7 @@ impl ClientMessage {
                     last_will_qos: last_will_qos,
                     last_will_retain: last_will_retain,
                     keep_alive: keep_alive,
+                    // properties: properties,
                     will_properties: will_properties,
                     last_will_topic: last_will_topic.to_string(),
                     last_will_message: will_message.to_string(),

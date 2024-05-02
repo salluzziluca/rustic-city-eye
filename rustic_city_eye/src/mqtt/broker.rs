@@ -46,6 +46,7 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
                 username: _,
                 password: _,
                 keep_alive: _,
+                // properties: _,
                 client_id: _,
                 will_properties: _,
                 last_will_topic: _,

@@ -2,6 +2,7 @@ use std::net::TcpStream;
 
 use crate::mqtt::broker_message::BrokerMessage;
 use crate::mqtt::client_message::ClientMessage;
+use crate::mqtt::connect_propierties::ConnectProperties;
 use crate::mqtt::protocol_error::ProtocolError;
 use crate::mqtt::will_properties::WillProperties;
 
@@ -27,6 +28,18 @@ impl Client {
             vec![("propiedad".to_string(), "valor".to_string())],
         );
 
+        let properties = ConnectProperties{ 
+            session_expiry_interval: todo!(), 
+            receive_maximum: todo!(), 
+            maximum_packet_size: todo!(), 
+            topic_alias_maximum: todo!(), 
+            request_response_information: todo!(), 
+            request_problem_information: todo!(), 
+            user_properties: todo!(), 
+            authentication_method: todo!(), 
+            authentication_data: todo!(),
+        };
+
         let connect = ClientMessage::Connect {
             clean_start: true,
             last_will_flag: true,
@@ -35,6 +48,7 @@ impl Client {
             username: "prueba".to_string(),
             password: "".to_string(),
             keep_alive: 35,
+            // properties: properties,
             client_id: "kvtr33".to_string(),
             will_properties: will_properties,
             last_will_topic: "topic".to_string(),
