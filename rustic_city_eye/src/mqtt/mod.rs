@@ -8,12 +8,12 @@ pub mod publish_properties;
 
 pub mod protocol_error;
 
-pub mod quality_of_service;
+pub mod connect_propierties;
 
-pub mod writer;
+pub mod quality_of_service;
 
 pub mod reader;
 
+pub mod writer;
 
-
-
+pub mod will_properties;

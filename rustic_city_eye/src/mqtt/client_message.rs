@@ -1,29 +1,41 @@
-use std::{
-    io::{BufWriter, Error, Read, Write}, net::TcpStream
-};
-
-use crate::mqtt::writer::*;
-use crate::mqtt::reader::*;
+use std::io::{BufWriter, Error, Read, Write};
 
 use crate::mqtt::publish_properties::PublishProperties;
+use crate::mqtt::reader::*;
+use crate::mqtt::will_properties::*;
+use crate::mqtt::writer::*;
 
 //use self::quality_of_service::QualityOfService;
+const PROTOCOL_VERSION: u8 = 5;
 
 #[path = "quality_of_service.rs"]
 mod quality_of_service;
 
 #[derive(Debug, PartialEq)]
 pub enum ClientMessage {
+    ///El Connect Message es el primer menasje que el cliente envia cuando se conecta al broker. Este contiene toda la informacion necesaria para que el broker identifique al cliente y pueda establecer una sesion con los parametros establecidos.
+    ///
+    /// clean_start especifica si se debe limpiar la sesion previa del cliente y arrancar una nueva limpia y desde cero.
+    ///
+    /// last_will_flag especifica si el will message se debe guardar asociado a la sesion, last_will_qos especifica el QoS level utilizado cuando se publique el will message, last_will_retain especifica si el will message se retiene despues de ser publicado.
+    ///
+    /// keep_alive especifica el tiempo en segundos que el broker debe esperar entre mensajes del cliente antes de desconectarlo.
+    ///
+    /// Si el will flag es true, se escriben el will topic y el will message.
+    ///
+    /// finalmente, si el cliente envia un username y un password, estos se escriben en el payload.
     Connect {
-        //client_id: u32,
-        // clean_session: bool,
-        // username: String,
-        // password: String,
-        // lastWillTopic: String,
-        // lastWillQoS: u8,
-        // lasWillMessage: String,
-        // lastWillRetain: bool,
-        // keepAlive: u32,
+        clean_start: bool,
+        last_will_flag: bool,
+        last_will_qos: u8,
+        last_will_retain: bool,
+        keep_alive: u16,
+        client_id: String,
+        will_properties: WillProperties,
+        last_will_topic: String,
+        last_will_message: String,
+        username: String,
+        password: String,
     },
     Publish {
         packet_id: u16,
@@ -32,40 +44,96 @@ pub enum ClientMessage {
         retain_flag: bool,
         payload: String,
         dup_flag: bool,
-        properties: PublishProperties
+        properties: PublishProperties,
     },
 }
 
+#[allow(dead_code)]
 impl ClientMessage {
     pub fn write_to(&self, stream: &mut dyn Write) -> std::io::Result<()> {
         let mut writer = BufWriter::new(stream);
         match self {
             ClientMessage::Connect {
-                //client_id,
-                // clean_session,
-                // username,
-                // password,
-                // lastWillTopic,
-                // lastWillQoS,
-                // lasWillMessage,
-                // lastWillRetain,
-                // keepAlive,
+                client_id,
+                clean_start,
+                last_will_flag,
+                last_will_qos,
+                last_will_retain,
+                keep_alive,
+                will_properties,
+                last_will_topic,
+                last_will_message,
+                username,
+                password,
             } => {
                 //fixed header
-                let byte_1: u8 = 0x10_u8.to_le();//00010000
-
+                let byte_1: u8 = 0x10_u8.to_le(); //00010000
                 writer.write(&[byte_1])?;
-                writer.flush()?;
 
+                //TODO: aca deberia ir el remaining lenght field
                 //protocol name
                 let protocol_name = "MQTT";
-                let protocol_name_length = protocol_name.len()  as u16;
-                let protocol_name_length_bytes = protocol_name_length.to_le_bytes();
-                writer.write(&[protocol_name_length_bytes[0]])?;
-                writer.write(&[protocol_name_length_bytes[1]])?;
-                writer.write(&protocol_name.as_bytes())?;
+                write_string(&mut writer, protocol_name)?;
 
+                //protocol version
+                let protocol_version: u8 = 0x05;
+                writer.write(&[protocol_version])?;
 
+                //connection flags
+                let mut connect_flags: u8 = 0x00;
+                if *clean_start {
+                    connect_flags |= 1 << 1; //set bit 1 to 1
+                }
+
+                if *last_will_flag {
+                    connect_flags |= 1 << 2;
+                }
+                if *last_will_qos > 3 {
+                    return Err(Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid last will qos",
+                    ));
+                }
+                connect_flags |= (last_will_qos & 0b11) << 3;
+
+                if *last_will_retain {
+                    connect_flags |= 1 << 5;
+                }
+
+                if password.len() != 0 {
+                    connect_flags |= 1 << 6;
+                }
+
+                if username.len() != 0 {
+                    connect_flags |= 1 << 7;
+                }
+
+                writer.write(&[connect_flags])?;
+
+                //keep alive
+                write_u16(&mut writer, keep_alive)?;
+
+                //connect properties
+                //let mut property_length = 0;
+                //TODO: implementar las 300 millones de propiedades, por ahi estría bueno usar un struct
+
+                //payload
+                write_string(&mut writer, &client_id)?;
+                will_properties.write_to(&mut writer)?;
+
+                if *last_will_flag {
+                    write_string(&mut writer, &last_will_topic)?;
+                    write_string(&mut writer, &last_will_message)?;
+                }
+
+                if username.len() != 0 {
+                    write_string(&mut writer, &username)?;
+                }
+                if password.len() != 0 {
+                    write_string(&mut writer, &password)?;
+                }
+
+                writer.flush()?;
                 Ok(())
             }
             ClientMessage::Publish {
@@ -75,7 +143,7 @@ impl ClientMessage {
                 retain_flag,
                 payload,
                 dup_flag,
-                properties
+                properties,
             } => {
                 //fixed header
                 let mut byte_1 = 0x30_u8;
@@ -104,17 +172,16 @@ impl ClientMessage {
                 }
 
                 writer.write(&[byte_1])?;
-                
 
-                //Remaining Length 
+                //Remaining Length
                 write_string(&mut writer, &topic_name)?;
-                
+
                 //packet_id
-                write_u16(&mut writer, packet_id)?;                
-                
+                write_u16(&mut writer, packet_id)?;
+
                 //Properties
                 properties.write_properties(&mut writer)?;
-                
+
                 //Payload
                 write_string(&mut writer, &payload)?;
 
@@ -134,13 +201,13 @@ impl ClientMessage {
         let first_header_digits = header >> 4;
         if first_header_digits == 0x3 {
             let mask = 0b00001111;
-            let last_header_digits = header & mask; 
-            
+            let last_header_digits = header & mask;
+
             header = 0x30_u8.to_le();
-            
+
             if last_header_digits & 0b00000001 == 0b00000001 {
                 retain_flag = true;
-            } 
+            }
             if last_header_digits & 0b00000010 == 0b00000010 {
                 qos = 1;
             }
@@ -163,6 +230,7 @@ impl ClientMessage {
                 let protocol_name =
                     std::str::from_utf8(&protocol_name_buf).expect("Error al leer protocol_name");
                 println!("protocol_name: {:?}", protocol_name);
+                let protocol_name = read_string(stream)?;
 
                 if protocol_name != "MQTT" {
                     return Err(Error::new(
@@ -170,10 +238,75 @@ impl ClientMessage {
                         "Invalid protocol name",
                     ));
                 }
-                Ok(ClientMessage::Connect {})
-            },
+                //protocol version
+                let protocol_version = read_u8(stream)?;
+
+                if protocol_version != PROTOCOL_VERSION {
+                    return Err(Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid protocol version",
+                    ));
+                }
+
+                //connect flags
+                let connect_flags = read_u8(stream)?;
+                let clean_start = (connect_flags & (1 << 1)) != 0;
+                let last_will_flag = (connect_flags & (1 << 2)) != 0;
+                let last_will_qos = (connect_flags >> 3) & 0b11;
+                let last_will_retain = (connect_flags & (1 << 5)) != 0;
+
+                //keep alive
+                let keep_alive = read_u16(stream)?;
+
+                //payload
+                //client ID
+                let client_id = read_string(stream)?;
+
+                let will_properties = WillProperties::read_from(stream)?;
+                let mut last_will_topic = String::new();
+                let mut will_message = String::new();
+                if last_will_flag {
+                    last_will_topic = read_string(stream)?;
+                    will_message = read_string(stream)?;
+                }
+
+                let hay_user = (connect_flags & (1 << 7)) != 0;
+                let mut user = String::new();
+                if hay_user {
+                    user = read_string(stream)?;
+                }
+
+                let hay_pass = (connect_flags & (1 << 6)) != 0;
+                let mut pass = String::new();
+                if hay_pass {
+                    pass = read_string(stream)?;
+                }
+
+                Ok(ClientMessage::Connect {
+                    client_id: client_id.to_string(),
+                    clean_start: clean_start,
+                    last_will_flag: last_will_flag,
+                    last_will_qos: last_will_qos,
+                    last_will_retain: last_will_retain,
+                    keep_alive: keep_alive,
+                    will_properties: will_properties,
+                    last_will_topic: last_will_topic.to_string(),
+                    last_will_message: will_message.to_string(),
+                    username: user.to_string(),
+                    password: pass.to_string(),
+                })
+            }
             0x30 => {
-                let properties = PublishProperties::new(1, 10, 10, "String".to_string(), [1, 2, 3].to_vec(), "a".to_string(), 1, "a".to_string());
+                let properties = PublishProperties::new(
+                    1,
+                    10,
+                    10,
+                    "String".to_string(),
+                    [1, 2, 3].to_vec(),
+                    "a".to_string(),
+                    1,
+                    "a".to_string(),
+                );
                 let topic_name = read_string(stream)?;
                 let packet_id = read_u16(stream)?;
                 properties.read_properties(stream)?;
@@ -185,9 +318,9 @@ impl ClientMessage {
                     retain_flag,
                     payload: message,
                     dup_flag,
-                    properties
+                    properties,
                 })
-            },
+            }
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
@@ -201,15 +334,31 @@ mod tests {
 
     #[test]
     fn test_publish_message_ok() {
-        let properties = PublishProperties::new(1, 10, 10, "String".to_string(), [1, 2, 3].to_vec(), "a".to_string(), 1, "a".to_string());
-    
-        let publish = ClientMessage::Publish { packet_id: 1, topic_name: "mensajes para juan".to_string(), qos: 1, retain_flag: true, payload: "hola soy juan".to_string(), dup_flag: true, properties };
-        
+        let properties = PublishProperties::new(
+            1,
+            10,
+            10,
+            "String".to_string(),
+            [1, 2, 3].to_vec(),
+            "a".to_string(),
+            1,
+            "a".to_string(),
+        );
+
+        let publish = ClientMessage::Publish {
+            packet_id: 1,
+            topic_name: "mensajes para juan".to_string(),
+            qos: 1,
+            retain_flag: true,
+            payload: "hola soy juan".to_string(),
+            dup_flag: true,
+            properties,
+        };
+
         let mut cursor = Cursor::new(Vec::<u8>::new());
         publish.write_to(&mut cursor).unwrap();
         cursor.set_position(0);
-    
-    
+
         match ClientMessage::read_from(&mut cursor) {
             Ok(read_publish) => {
                 assert_eq!(publish, read_publish);

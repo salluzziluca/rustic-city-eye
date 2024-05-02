@@ -1,5 +1,5 @@
 #[derive(Debug)]
 pub enum QualityOfService {
-    AtMostOnce, //QoS = 0
+    AtMostOnce,  //QoS = 0
     AtLeastOnce, //QoS = 1
 }

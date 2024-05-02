@@ -4,7 +4,6 @@ use std::net::{TcpListener, TcpStream};
 use rustic_city_eye::mqtt::broker_message::BrokerMessage;
 use rustic_city_eye::mqtt::client_message::ClientMessage;
 
-
 static SERVER_ARGS: usize = 2;
 
 fn main() -> Result<(), ()> {
@@ -34,11 +33,23 @@ fn server_run(address: &str) -> std::io::Result<()> {
     }
     Ok(())
 }
-
+#[allow(dead_code)]
 fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
-    while let Ok(message) = ClientMessage::read_from(stream) {
+    if let Ok(message) = ClientMessage::read_from(stream) {
         match message {
-            ClientMessage::Connect {} => {
+            ClientMessage::Connect {
+                clean_start: _,
+                last_will_flag: _,
+                last_will_qos: _,
+                last_will_retain: _,
+                username: _,
+                password: _,
+                keep_alive: _,
+                client_id: _,
+                will_properties: _,
+                last_will_topic: _,
+                last_will_message: _,
+            } => {
                 println!("Recibí un connect: {:?}", message);
                 let connack = BrokerMessage::Connack {
                     //session_present: true,
@@ -46,8 +57,16 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
                 };
                 println!("Sending connack: {:?}", connack);
                 connack.write_to(&mut stream).unwrap();
-            },
-            ClientMessage::Publish { packet_id: _, topic_name: _, qos, retain_flag: _, payload: _, dup_flag: _, properties: _ } => {
+            }
+            ClientMessage::Publish {
+                packet_id: _,
+                topic_name: _,
+                qos,
+                retain_flag: _,
+                payload: _,
+                dup_flag: _,
+                properties: _,
+            } => {
                 println!("Recibí un publish: {:?}", message);
 
                 if qos == 1 {

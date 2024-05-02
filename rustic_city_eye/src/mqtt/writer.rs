@@ -1,5 +1,14 @@
 use std::io::{Error, Write};
 
+// enum Type {
+//     String,
+//     U16,
+//     U32,
+//     Vec,
+//     Bool,
+//     StringTuple,
+// }
+
 ///Recibe un string y el stream al que escribir ese stream
 ///
 /// Calcula su largo y luego escribe el largo y el string en el stream
@@ -21,6 +30,24 @@ pub fn write_tuple_vec(stream: &mut dyn Write, vec: &Vec<(String, String)>) -> R
     Ok(())
 }
 
+// pub fn write_vec<T>(stream: &mut dyn Write, vec: &Vec<T>, data_type: Type) -> Result<(), Error> {
+//     match data_type {
+//         Type::String => {
+//             for item in vec {
+//                 write_string(stream, &item.to_string())?;
+//             }
+//         },
+
+//         Type::U16 => {},
+//         Type::U32 => todo!(),
+//         Type::Vec => todo!(),
+//         Type::Bool => todo!(),
+//         Type::StringTuple => todo!(),
+//     }
+
+//     Ok(())
+// }
+
 pub fn write_bin_vec(stream: &mut dyn Write, vec: &Vec<u8>) -> Result<(), Error> {
     let length = vec.len() as u16;
     let length_bytes = length.to_be_bytes();
@@ -37,10 +64,8 @@ pub fn write_string_tuple(stream: &mut dyn Write, value: &(String, String)) -> R
     Ok(())
 }
 
-
 pub fn write_u8(stream: &mut dyn Write, value: &u8) -> Result<(), Error> {
-    let value_bytes = value.to_be_bytes();
-    stream.write(&value_bytes)?;
+    stream.write(&[*value])?;
     Ok(())
 }
 

@@ -10,10 +10,10 @@ pub enum BrokerMessage {
         //return_code: u32
     },
     Puback {
-        reason_code: u8
-    }
+        reason_code: u8,
+    },
 }
-
+#[allow(dead_code)]
 impl BrokerMessage {
     pub fn write_to(&self, stream: &mut TcpStream) -> std::io::Result<()> {
         let mut writer = BufWriter::new(stream);
@@ -25,17 +25,14 @@ impl BrokerMessage {
                 writer.flush()?;
 
                 Ok(())
-            },
+            }
             BrokerMessage::Puback { reason_code: _ } => {
                 //fixed header
                 let byte_1: u8 = 0x40_u8.to_le(); //01000000
 
                 writer.write(&[byte_1])?;
 
-
                 //variable header
-
-
 
                 writer.flush()?;
 

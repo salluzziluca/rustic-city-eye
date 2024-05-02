@@ -5,11 +5,13 @@ use crate::mqtt::client_message::ClientMessage;
 use crate::mqtt::protocol_error::ProtocolError;
 
 use crate::mqtt::publish_properties::PublishProperties;
+use crate::mqtt::will_properties::WillProperties;
 
+#[allow(dead_code)]
 pub struct Client {
     stream: TcpStream,
 }
-
+#[allow(dead_code)]
 impl Client {
     pub fn new(address: &str) -> Result<Client, ProtocolError> {
         let mut stream = match TcpStream::connect(address) {
@@ -17,7 +19,29 @@ impl Client {
             Err(_) => return Err(ProtocolError::ConectionError),
         };
 
-        let connect = ClientMessage::Connect {};
+        let will_properties = WillProperties::new(
+            120,
+            1,
+            30,
+            "plain".to_string(),
+            "topic".to_string(),
+            vec![1, 2, 3, 4, 5],
+            vec![("propiedad".to_string(), "valor".to_string())],
+        );
+
+        let connect = ClientMessage::Connect {
+            clean_start: true,
+            last_will_flag: true,
+            last_will_qos: 1,
+            last_will_retain: true,
+            username: "prueba".to_string(),
+            password: "".to_string(),
+            keep_alive: 35,
+            client_id: "kvtr33".to_string(),
+            will_properties: will_properties,
+            last_will_topic: "topic".to_string(),
+            last_will_message: "chauchis".to_string(),
+        };
         println!("Sending connect message to broker: {:?}", connect);
         connect.write_to(&mut stream).unwrap();
 
@@ -32,6 +56,8 @@ impl Client {
                 _ => println!("no recibi un connack :("),
 
             }
+        } else {
+            println!("soy el client y no pude leer el mensaje");
         }
 
         Ok(Client { stream })
@@ -40,7 +66,7 @@ impl Client {
     pub fn publish_message(&mut self, message: &str) {
         let splitted_message: Vec<&str> = message.split(' ').collect();
 
-        //message interface(temp): dup:1 qos:2 retain:1 topic_name:sometopic 
+        //message interface(temp): dup:1 qos:2 retain:1 topic_name:sometopic
         let mut dup_flag = false;
         let mut qos = 0;
         let mut retain_flag = false;
@@ -59,8 +85,16 @@ impl Client {
             retain_flag = true;
         }
 
-        let properties = PublishProperties::new(1, 10, 10, "String".to_string(), [1, 2, 3].to_vec(), "a".to_string(), 1, "a".to_string());
-
+        let properties = PublishProperties::new(
+            1,
+            10,
+            10,
+            "String".to_string(),
+            [1, 2, 3].to_vec(),
+            "a".to_string(),
+            1,
+            "a".to_string(),
+        );
 
         let publish = ClientMessage::Publish {
             packet_id,
@@ -69,19 +103,18 @@ impl Client {
             retain_flag,
             payload: splitted_message[4].to_string(),
             dup_flag,
-            properties
+            properties,
         };
+        let _ = message;
 
         publish.write_to(&mut self.stream).unwrap();
 
         if let Ok(message) = BrokerMessage::read_from(&mut self.stream) {
             match message {
-                BrokerMessage::Puback { reason_code: _
-                } => {
+                BrokerMessage::Puback { reason_code: _ } => {
                     println!("Recibí un puback: {:?}", message);
-                },
+                }
                 _ => println!("no recibi nada :("),
-
             }
         }
     }
