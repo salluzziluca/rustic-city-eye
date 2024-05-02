@@ -64,6 +64,11 @@ pub enum ClientMessage {
         // payload: String,
         // dup_flag: bool,
     },
+    Subscribe {
+        packet_id: usize,
+        topic: String,
+        qos: usize,
+    },
 }
 
 #[allow(dead_code)]
@@ -208,6 +213,21 @@ impl ClientMessage {
             } => {
                 println!("Publishing...");
 
+                Ok(())
+            },
+            ClientMessage::Subscribe {
+                packet_id,
+                topic,
+                qos,
+            } => {
+                writer.write_all(&[0x82])?;
+                let remaining_length = 2 + topic.len() + 1;
+                write_remaining_length(&mut writer, remaining_length as u32)?;
+                write_u16(&mut writer, &(*packet_id as u16))?;
+                write_string(&mut writer, &topic)?;
+                write_u8(&mut writer, &(*qos as u8))?;
+                writer.flush()?;
+                println!("Subscribing to topic: {:?}", topic);
                 Ok(())
             }
         }
