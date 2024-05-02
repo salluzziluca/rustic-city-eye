@@ -17,7 +17,15 @@ impl Client {
             Err(_) => return Err(ProtocolError::ConectionError),
         };
 
-        let will_properties = WillProperties::new(120, 1, 30, "plain".to_string(), "topic".to_string(), vec![1, 2, 3, 4, 5], vec![("propiedad".to_string(), "valor".to_string())]);
+        let will_properties = WillProperties::new(
+            120,
+            1,
+            30,
+            "plain".to_string(),
+            "topic".to_string(),
+            vec![1, 2, 3, 4, 5],
+            vec![("propiedad".to_string(), "valor".to_string())],
+        );
 
         let connect = ClientMessage::Connect {
             clean_start: true,

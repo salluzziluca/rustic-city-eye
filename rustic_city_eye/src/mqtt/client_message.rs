@@ -1,16 +1,14 @@
-use crate::mqtt::will_properties;
-use crate::mqtt::writer::*;
 use crate::mqtt::reader::*;
+use crate::mqtt::will_properties;
 use crate::mqtt::will_properties::*;
+use crate::mqtt::writer::*;
 
 use std::io::{BufWriter, Error, Read, Write};
 
 use super::client;
 
-
 //use self::quality_of_service::QualityOfService;
 const PROTOCOL_VERSION: u8 = 5;
-
 
 #[path = "quality_of_service.rs"]
 mod quality_of_service;
@@ -19,24 +17,23 @@ mod quality_of_service;
 //implement partial eq
 #[derive(PartialEq)]
 
-
 pub enum ClientMessage {
     ///El Connect Message es el primer menasje que el cliente envia cuando se conecta al broker. Este contiene toda la informacion necesaria para que el broker identifique al cliente y pueda establecer una sesion con los parametros establecidos.
-    /// 
+    ///
     /// clean_start especifica si se debe limpiar la sesion previa del cliente y arrancar una nueva limpia y desde cero.
-    /// 
+    ///
     /// last_will_flag especifica si el will message se debe guardar asociado a la sesion, last_will_qos especifica el QoS level utilizado cuando se publique el will message, last_will_retain especifica si el will message se retiene despues de ser publicado.
-    /// 
-    /// keep_alive especifica el tiempo en segundos que el broker debe esperar entre mensajes del cliente antes de desconectarlo. 
-    /// 
+    ///
+    /// keep_alive especifica el tiempo en segundos que el broker debe esperar entre mensajes del cliente antes de desconectarlo.
+    ///
     /// Si el will flag es true, se escriben el will topic y el will message.
-    /// 
+    ///
     /// finalmente, si el cliente envia un username y un password, estos se escriben en el payload.
     Connect {
         clean_start: bool,
-        last_will_flag: bool, 
-        last_will_qos: u8,    
-        last_will_retain: bool, 
+        last_will_flag: bool,
+        last_will_qos: u8,
+        last_will_retain: bool,
         keep_alive: u16,
         client_id: String,
         will_properties: WillProperties,
@@ -169,7 +166,7 @@ impl ClientMessage {
         match header {
             0x10 => {
                 //leo el protocol name
-                let  protocol_name = read_string(stream)?;
+                let protocol_name = read_string(stream)?;
 
                 if protocol_name != "MQTT" {
                     return Err(Error::new(
@@ -194,10 +191,10 @@ impl ClientMessage {
                 let last_will_flag = (connect_flags & (1 << 2)) != 0;
                 let last_will_qos = (connect_flags >> 3) & 0b11;
                 let last_will_retain = (connect_flags & (1 << 5)) != 0;
-                
+
                 //keep alive
-                let keep_alive = read_u16(stream)?;                
-                
+                let keep_alive = read_u16(stream)?;
+
                 //payload
                 //client ID
                 let client_id = read_string(stream)?;
@@ -222,21 +219,18 @@ impl ClientMessage {
                     pass = read_string(stream)?;
                 }
 
-
                 Ok(ClientMessage::Connect {
                     client_id: client_id.to_string(),
-                    clean_start:clean_start,
+                    clean_start: clean_start,
                     last_will_flag: last_will_flag,
                     last_will_qos: last_will_qos,
                     last_will_retain: last_will_retain,
                     keep_alive: keep_alive,
-                    will_properties : will_properties,
+                    will_properties: will_properties,
                     last_will_topic: last_will_topic.to_string(),
                     last_will_message: will_message.to_string(),
                     username: user.to_string(),
                     password: pass.to_string(),
-            
-                    
                 })
             }
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),

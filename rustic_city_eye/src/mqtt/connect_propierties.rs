@@ -1,5 +1,8 @@
 use crate::mqtt::writer::*;
-use std::io::{BufWriter, Error, Write};
+use crate::mqtt::reader::*;
+
+use std::io::ErrorKind;
+use std::io::{BufReader, BufWriter, Error, Read, Write};
 
 struct ConnectProperties {
     session_expiry_interval: u32,
@@ -27,7 +30,7 @@ impl ConnectProperties {
 
         let authentication_data_id: u8 = 0x16_u8;
         writer.write(&[authentication_data_id])?;
-        //write_vec_bin // ?????????????????????
+        write_bin_vec(&mut writer, &self.authentication_data)?;
 
         let request_problem_information_id: u8 = 0x17_u8;
         writer.write(&[request_problem_information_id])?;
@@ -56,5 +59,100 @@ impl ConnectProperties {
         Ok(())
     }
 
-    // pub fn read_from(stream: &mut dyn Read) -> Result<connectProperties, Error> {}
+    pub fn read_from(stream: &mut dyn Read) -> Result<ConnectProperties, Error> {
+        let mut reader = BufReader::new(stream);
+
+        let mut session_expiry_interval: Option<u32> = None;
+        let mut receive_maximum: Option<u16> = None;
+        let mut maximum_packet_size: Option<u32> = None;
+        let mut topic_alias_maximum: Option<u16> = None;
+        let mut request_response_information: Option<bool> = None;
+        let mut request_problem_information: Option<bool> = None;
+        let mut user_properties: Option<Vec<(String, String)>> = None;
+        let mut authentication_method: Option<String> = None;
+        let mut authentication_data: Option<Vec<u8>> = None;
+
+        while let Ok(property_id) = read_u8(&mut reader){
+            match property_id {
+                0x11 => {
+                    let value = read_u32(&mut reader)?;
+                    session_expiry_interval = Some(value);
+                }
+                0x15 => {
+                    let value = read_string(&mut reader)?;
+                    authentication_method = Some(value);
+                }
+                0x16 => {
+                    let value = read_bin_vec(&mut reader)?;
+                    authentication_data = Some(value);
+                }
+                0x17 => {
+                    let value = read_bool(&mut reader)?;
+                    request_problem_information = Some(value);
+                }
+                0x19 => {
+                    let value = read_bool(&mut reader)?;
+                    request_response_information = Some(value);
+                }
+                0x21 => {
+                    let value = read_u16(&mut reader)?;
+                    receive_maximum = Some(value);
+                }
+                0x22 => {
+                    let value = read_u16(&mut reader)?;
+                    topic_alias_maximum = Some(value);
+                }
+                0x26 => {
+                    let value = read_tuple_vec(&mut reader)?;
+                    user_properties = Some(value);
+                }
+                0x27 => {
+                    let value = read_u32(&mut reader)?;
+                    maximum_packet_size = Some(value);
+                }
+                _ => {
+                    return Err(Error::new(ErrorKind::InvalidData, "Invalid property id"));
+                }
+            }
+        }
+
+        Ok(ConnectProperties {
+            session_expiry_interval: session_expiry_interval.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing session_expiry_interval property",
+            ))?,
+            receive_maximum: receive_maximum.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing receive_maximum property",
+            ))?,
+            maximum_packet_size: maximum_packet_size.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing maximum_packet_size property",
+            ))?,
+            topic_alias_maximum: topic_alias_maximum.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing topic_alias_maximum property",
+            ))?,
+            request_response_information: request_response_information.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing request_response_information property",
+            ))?,
+            request_problem_information: request_problem_information.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing request_problem_information property",
+            ))?,
+            user_properties: user_properties.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing user_properties property",
+            ))?,
+            authentication_method: authentication_method.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing authentication_method property",
+            ))?,
+            authentication_data: authentication_data.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing authentication_data property",
+            ))?,
+        })
+    }
 }
