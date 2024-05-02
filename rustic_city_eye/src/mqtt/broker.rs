@@ -52,7 +52,7 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
 
                 if qos == 1 {
                     println!("sending puback...");
-                    let puback = BrokerMessage::Puback {  };
+                    let puback = BrokerMessage::Puback { reason_code: 1 };
                     puback.write_to(stream).unwrap();
                 }
             }

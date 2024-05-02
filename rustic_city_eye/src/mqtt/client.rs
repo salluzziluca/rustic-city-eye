@@ -71,7 +71,7 @@ impl Client {
 
         if let Ok(message) = BrokerMessage::read_from(&mut self.stream) {
             match message {
-                BrokerMessage::Puback {
+                BrokerMessage::Puback { reason_code: _
                 } => {
                     println!("Recibí un puback: {:?}", message);
                 },
