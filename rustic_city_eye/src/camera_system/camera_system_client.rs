@@ -52,23 +52,5 @@ fn client_run(address: &str, stream: &mut dyn Read) -> std::io::Result<()> {
         }
     }
 
-    // for line in reader.lines() {
-    //     if let Ok(line) = line {
-    //         println!("Enviando: {:?}", line);
-    //         socket.write_all(line.as_bytes())?;
-    //         socket.write_all("\n".as_bytes())?;
-    //         {
-    //             let mut server_response = BufReader::new(&mut socket);
-    //             let mut response = String::new();
-    //             server_response.read_line(&mut response)?;
-    //             println!("Respuesta del sv: {:?}", response);
-    //         }
-    //     } else {
-    //         return Err(std::io::Error::new(
-    //             std::io::ErrorKind::Other,
-    //             "Error al leer linea",
-    //         ));
-    //     }
-    // }
     Ok(())
 }
