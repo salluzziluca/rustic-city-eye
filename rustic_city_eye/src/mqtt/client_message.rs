@@ -1,5 +1,6 @@
 use std::io::{BufWriter, Error, Read, Write};
 
+use crate::mqtt::connect_propierties::ConnectProperties;
 use crate::mqtt::publish_properties::PublishProperties;
 use crate::mqtt::reader::*;
 use crate::mqtt::will_properties::*;
@@ -30,6 +31,7 @@ pub enum ClientMessage {
         last_will_qos: u8,
         last_will_retain: bool,
         keep_alive: u16,
+        properties: ConnectProperties,
         client_id: String,
         will_properties: WillProperties,
         last_will_topic: String,
@@ -60,6 +62,7 @@ impl ClientMessage {
                 last_will_qos,
                 last_will_retain,
                 keep_alive,
+                properties,
                 will_properties,
                 last_will_topic,
                 last_will_message,
@@ -113,11 +116,6 @@ impl ClientMessage {
                 //keep alive
                 write_u16(&mut writer, keep_alive)?;
 
-                //connect properties
-                //let mut property_length = 0;
-                //TODO: implementar las 300 millones de propiedades, por ahi estría bueno usar un struct
-
-                //payload
                 write_string(&mut writer, &client_id)?;
 
                 will_properties.write_to(&mut writer)?;
@@ -134,6 +132,7 @@ impl ClientMessage {
                     write_string(&mut writer, &password)?;
                 }
 
+                properties.write_to(&mut writer)?;
                 writer.flush()?;
                 Ok(())
             }
@@ -248,7 +247,8 @@ impl ClientMessage {
 
                 //keep alive
                 let keep_alive = read_u16(stream)?;
-                println!("keep_alive: {:?}", keep_alive);
+                println!("keep alive: {:?}", keep_alive);
+                //properties
                 //payload
                 //client ID
                 let client_id = read_string(stream)?;
@@ -262,6 +262,7 @@ impl ClientMessage {
                     last_will_topic = read_string(stream)?;
                     will_message = read_string(stream)?;
                 }
+                print!("last will topic: {:?}", last_will_topic);
 
                 let hay_user = (connect_flags & (1 << 7)) != 0;
                 let mut user = String::new();
@@ -274,6 +275,7 @@ impl ClientMessage {
                 if hay_pass {
                     pass = read_string(stream)?;
                 }
+                let properties = ConnectProperties::read_from(stream)?;
 
                 Ok(ClientMessage::Connect {
                     client_id: client_id.to_string(),
@@ -282,6 +284,7 @@ impl ClientMessage {
                     last_will_qos: last_will_qos,
                     last_will_retain: last_will_retain,
                     keep_alive: keep_alive,
+                    properties: properties,
                     will_properties: will_properties,
                     last_will_topic: last_will_topic.to_string(),
                     last_will_message: will_message.to_string(),

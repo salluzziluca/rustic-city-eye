@@ -1,58 +1,100 @@
-use crate::mqtt::writer::*;
 use crate::mqtt::reader::*;
+use crate::mqtt::writer::*;
 
 use std::io::ErrorKind;
 use std::io::{BufReader, BufWriter, Error, Read, Write};
 
-struct ConnectProperties {
-    session_expiry_interval: u32,
-    receive_maximum: u16,
-    maximum_packet_size: u32,
-    topic_alias_maximum: u16,
-    request_response_information: bool,
-    request_problem_information: bool,
-    user_properties: Vec<(String, String)>,
-    authentication_method: String,
-    authentication_data: Vec<u8>,
+#[derive(Debug, PartialEq)]
+pub struct ConnectProperties {
+    pub session_expiry_interval: u32,
+    pub receive_maximum: u16,
+    pub maximum_packet_size: u32,
+    pub topic_alias_maximum: u16,
+    pub request_response_information: bool,
+    pub request_problem_information: bool,
+    pub user_properties: Vec<(String, String)>,
+    pub authentication_method: String,
+    pub authentication_data: Vec<u8>,
 }
 
 impl ConnectProperties {
+    pub fn new(
+        session_expiry_interval: u32,
+        receive_maximum: u16,
+        maximum_packet_size: u32,
+        topic_alias_maximum: u16,
+        request_response_information: bool,
+        request_problem_information: bool,
+        user_properties: Vec<(String, String)>,
+        authentication_method: String,
+        authentication_data: Vec<u8>,
+    ) -> ConnectProperties {
+        ConnectProperties {
+            session_expiry_interval,
+            receive_maximum,
+            maximum_packet_size,
+            topic_alias_maximum,
+            request_response_information,
+            request_problem_information,
+            user_properties,
+            authentication_method,
+            authentication_data,
+        }
+    }
     pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), Error> {
         let mut writer = BufWriter::new(stream);
 
         let session_expiry_interval_id: u8 = 0x11_u8;
+        print!(
+            "session_expiry_interval_id: {:?}",
+            session_expiry_interval_id
+        );
         writer.write(&[session_expiry_interval_id])?;
         write_u32(&mut writer, &self.session_expiry_interval)?;
 
         let authentication_method_id: u8 = 0x15_u8;
+        print!("authentication_method_id: {:?}", authentication_method_id);
         writer.write(&[authentication_method_id])?;
         write_string(&mut writer, &self.authentication_method)?;
 
         let authentication_data_id: u8 = 0x16_u8;
+        println!("authentication_data_id: {:?}", authentication_data_id);
         writer.write(&[authentication_data_id])?;
         write_bin_vec(&mut writer, &self.authentication_data)?;
 
         let request_problem_information_id: u8 = 0x17_u8;
+        println!(
+            "request_problem_information_id: {:?}",
+            request_problem_information_id
+        );
         writer.write(&[request_problem_information_id])?;
         write_bool(&mut writer, &self.request_problem_information)?;
 
         let request_response_information_id: u8 = 0x19_u8; // 25
+        println!(
+            "request_response_information_id: {:?}",
+            request_response_information_id
+        );
         writer.write(&[request_response_information_id])?;
         write_bool(&mut writer, &self.request_response_information)?;
 
         let receive_maximum_id: u8 = 0x21_u8; // 33
+        println!("receive_maximum_id: {:?}", receive_maximum_id);
         writer.write(&[receive_maximum_id])?;
         write_u16(&mut writer, &self.receive_maximum)?;
 
         let topic_alias_maximum_id: u8 = 0x22_u8; // 34
+        println!("topic_alias_maximum_id: {:?}", topic_alias_maximum_id);
         writer.write(&[topic_alias_maximum_id])?;
         write_u16(&mut writer, &self.topic_alias_maximum)?;
 
         let user_properties_id: u8 = 0x26_u8; // 38
+        println!("user_properties_id: {:?}", user_properties_id);
         writer.write(&[user_properties_id])?;
         write_tuple_vec(&mut writer, &self.user_properties)?;
 
         let maximum_packet_size_id: u8 = 0x27_u8; // 39
+        println!("maximum_packet_size_id: {:?}", maximum_packet_size_id);
         writer.write(&[maximum_packet_size_id])?;
         write_u32(&mut writer, &self.maximum_packet_size)?;
 
@@ -71,8 +113,11 @@ impl ConnectProperties {
         let mut user_properties: Option<Vec<(String, String)>> = None;
         let mut authentication_method: Option<String> = None;
         let mut authentication_data: Option<Vec<u8>> = None;
-
-        while let Ok(property_id) = read_u8(&mut reader){
+        let mut count = 0;
+        while let Ok(property_id) = read_u8(&mut reader) {
+            if count == 9 {
+                break;
+            }
             match property_id {
                 0x11 => {
                     let value = read_u32(&mut reader)?;
@@ -114,6 +159,7 @@ impl ConnectProperties {
                     return Err(Error::new(ErrorKind::InvalidData, "Invalid property id"));
                 }
             }
+            count += 1;
         }
 
         Ok(ConnectProperties {
