@@ -12,7 +12,7 @@ use crate::mqtt::publish_properties::PublishProperties;
 #[path = "quality_of_service.rs"]
 mod quality_of_service;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ClientMessage {
     Connect {
         //client_id: u32,
@@ -26,7 +26,7 @@ pub enum ClientMessage {
         // keepAlive: u32,
     },
     Publish {
-        packet_id: usize,
+        packet_id: u16,
         topic_name: String,
         qos: usize,
         retain_flag: bool,
@@ -37,7 +37,7 @@ pub enum ClientMessage {
 }
 
 impl ClientMessage {
-    pub fn write_to(&self, stream: &mut TcpStream) -> std::io::Result<()> {
+    pub fn write_to(&self, stream: &mut dyn Write) -> std::io::Result<()> {
         let mut writer = BufWriter::new(stream);
         match self {
             ClientMessage::Connect {
@@ -87,8 +87,9 @@ impl ClientMessage {
                 }
 
                 if *qos == 0x01 {
-                    byte_1 += 0x02_u8;
-                } else if *qos == 0x03 || *qos == 0x02 {
+                    byte_1 |= 1 << 1;
+                    byte_1 |= 0 << 2;
+                } else if *qos != 0x00 && *qos != 0x01 {
                     //we should throw a DISCONNECT with reason code 0x9B(QoS not supported).
                     println!("invalid qos");
                 }
@@ -107,7 +108,9 @@ impl ClientMessage {
 
                 //Remaining Length 
                 write_string(&mut writer, &topic_name)?;
-                //todo: packet_id
+                
+                //packet_id
+                write_u16(&mut writer, packet_id)?;                
                 
                 //Properties
                 properties.write_properties(&mut writer)?;
@@ -170,12 +173,13 @@ impl ClientMessage {
                 Ok(ClientMessage::Connect {})
             },
             0x30 => {
-                let properties = PublishProperties::new();
+                let properties = PublishProperties::new(1, 10, 10, "String".to_string(), [1, 2, 3].to_vec(), "a".to_string(), 1, "a".to_string());
                 let topic_name = read_string(stream)?;
+                let packet_id = read_u16(stream)?;
                 properties.read_properties(stream)?;
                 let message = read_string(stream)?;
                 Ok(ClientMessage::Publish {
-                    packet_id: 1,
+                    packet_id,
                     topic_name,
                     qos,
                     retain_flag,
@@ -185,6 +189,34 @@ impl ClientMessage {
                 })
             },
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use super::*;
+
+    #[test]
+    fn test_publish_message_ok() {
+        let properties = PublishProperties::new(1, 10, 10, "String".to_string(), [1, 2, 3].to_vec(), "a".to_string(), 1, "a".to_string());
+    
+        let publish = ClientMessage::Publish { packet_id: 1, topic_name: "mensajes para juan".to_string(), qos: 1, retain_flag: true, payload: "hola soy juan".to_string(), dup_flag: true, properties };
+        
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+        publish.write_to(&mut cursor).unwrap();
+        cursor.set_position(0);
+    
+    
+        match ClientMessage::read_from(&mut cursor) {
+            Ok(read_publish) => {
+                assert_eq!(publish, read_publish);
+            }
+            Err(e) => {
+                panic!("no se pudo leer del cursor {:?}", e);
+            }
         }
     }
 }

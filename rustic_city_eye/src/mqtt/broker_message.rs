@@ -26,7 +26,7 @@ impl BrokerMessage {
 
                 Ok(())
             },
-            BrokerMessage::Puback { reason_code } => {
+            BrokerMessage::Puback { reason_code: _ } => {
                 //fixed header
                 let byte_1: u8 = 0x40_u8.to_le(); //01000000
 

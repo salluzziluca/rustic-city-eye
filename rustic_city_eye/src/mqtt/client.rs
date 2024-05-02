@@ -44,6 +44,7 @@ impl Client {
         let mut dup_flag = false;
         let mut qos = 0;
         let mut retain_flag = false;
+        let mut packet_id = 0x00;
 
         if splitted_message[0] == "dup:1" {
             dup_flag = true;
@@ -51,20 +52,24 @@ impl Client {
 
         if splitted_message[1] == "qos:1" {
             qos = 1;
+            packet_id = 0x20;
         }
 
         if splitted_message[2] == "retain:1" {
             retain_flag = true;
         }
 
+        let properties = PublishProperties::new(1, 10, 10, "String".to_string(), [1, 2, 3].to_vec(), "a".to_string(), 1, "a".to_string());
+
+
         let publish = ClientMessage::Publish {
-            packet_id: 1,
+            packet_id,
             topic_name: splitted_message[3].to_string(),
             qos,
             retain_flag,
             payload: splitted_message[4].to_string(),
             dup_flag,
-            properties: PublishProperties::new()
+            properties
         };
 
         publish.write_to(&mut self.stream).unwrap();

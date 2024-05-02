@@ -14,63 +14,56 @@ const SUBSCRIPTION_IDENTIFIER_ID: u8 = 0x0B;
 const CONTENT_TYPE_ID: u8 = 0x03;
 
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct PublishProperties {
-    payload_format_indicator_id: u8,
     payload_format_indicator: u8,
-    message_expiry_interval_id: u8,
     message_expiry_interval: u32,
-    topic_alias_id: u8,
     topic_alias: u16,
-    response_topic_id: u8,
     response_topic: String,
-    correlation_data_id: u8,
     correlation_data: Vec<u8>,
-    user_property_id: u8,
     user_property: String,
-    subscription_identifier_id: u8,
     subscription_identifier: u32,
-    content_type_id: u8,
     content_type: String
 }
 
 impl PublishProperties {
-    pub fn new() -> PublishProperties {
+    pub fn new(
+        payload_format_indicator: u8,
+        message_expiry_interval: u32,
+        topic_alias: u16,
+        response_topic: String,
+        correlation_data: Vec<u8>,
+        user_property: String,
+        subscription_identifier: u32,
+        content_type: String
+    ) -> PublishProperties {
         PublishProperties { 
-            payload_format_indicator_id: PAYLOAD_FORMAT_INDICATOR_ID,
-            payload_format_indicator: 1,
-            message_expiry_interval_id: MESSAGE_EXPIRY_INTERVAL_ID,
-            message_expiry_interval: 10,
-            topic_alias_id: TOPIC_ALIAS_ID,
-            topic_alias: 10,
-            response_topic_id: RESPONSE_TOPIC_ID,
-            response_topic: "String".to_string(),
-            correlation_data_id: CORRELATION_DATA_ID,
-            correlation_data: [1, 2, 3].to_vec(),
-            user_property_id: USER_PROPERTY_ID,
-            user_property: "String".to_string(),
-            subscription_identifier_id: SUBSCRIPTION_IDENTIFIER_ID,
-            subscription_identifier: 1,
-            content_type_id: CONTENT_TYPE_ID,
-            content_type: "String".to_string()
+            payload_format_indicator,
+            message_expiry_interval,
+            topic_alias,
+            response_topic,
+            correlation_data,
+            user_property,
+            subscription_identifier,
+            content_type
         }
     }
 
     pub fn write_properties(&self, stream: &mut dyn Write) -> std::io::Result<()> {
         //payload format indicator
-        write_u8(stream, &self.payload_format_indicator_id)?;
+        write_u8(stream, &PAYLOAD_FORMAT_INDICATOR_ID)?;
         write_u8(stream, &self.payload_format_indicator)?;
 
         //message expiry interval
-        write_u8(stream, &self.message_expiry_interval_id)?;
+        write_u8(stream, &MESSAGE_EXPIRY_INTERVAL_ID)?;
         write_u32(stream, &self.message_expiry_interval)?;
 
         //topic alias
-        write_u8(stream, &self.topic_alias_id)?;
+        write_u8(stream, &TOPIC_ALIAS_ID)?;
         write_u16(stream, &self.topic_alias)?;
 
         //response topic
-        write_u8(stream, &self.response_topic_id)?;
+        write_u8(stream, &RESPONSE_TOPIC_ID)?;
         write_string(stream, &self.response_topic)?;
 
         //correlation data
@@ -81,15 +74,15 @@ impl PublishProperties {
         // }
 
         //user property
-        write_u8(stream, &self.user_property_id)?;
+        write_u8(stream, &USER_PROPERTY_ID)?;
         write_string(stream, &self.user_property)?;
         
         //subscription identifier
-        write_u8(stream, &self.subscription_identifier_id)?;
+        write_u8(stream, &SUBSCRIPTION_IDENTIFIER_ID)?;
         write_u32(stream, &self.subscription_identifier)?;
 
         //content type
-        write_u8(stream, &self.content_type_id)?;
+        write_u8(stream, &CONTENT_TYPE_ID)?;
         write_string(stream, &self.content_type)?;
 
 
@@ -132,21 +125,13 @@ impl PublishProperties {
         let content_type = read_string(stream)?;
 
         Ok(PublishProperties { 
-            payload_format_indicator_id,
             payload_format_indicator,
-            message_expiry_interval_id,
             message_expiry_interval,
-            topic_alias_id,
             topic_alias,
-            response_topic_id,
             response_topic,
-            correlation_data_id: 1,
             correlation_data: [1, 1, 1].to_vec(),
-            user_property_id,
             user_property,
-            subscription_identifier_id,
             subscription_identifier,
-            content_type_id,
             content_type
         })
     }
