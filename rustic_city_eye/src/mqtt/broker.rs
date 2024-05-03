@@ -36,7 +36,8 @@ fn server_run(address: &str) -> std::io::Result<()> {
 }
 #[allow(dead_code)]
 fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
-    if let Ok(message) = ClientMessage::read_from(stream) {
+    println!("entré a handle_client");
+    while let Ok(message) = ClientMessage::read_from(stream) {
         match message {
             ClientMessage::Connect {
                 clean_start: _,
@@ -55,34 +56,39 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
                 response_topic: _,
                 correlation_data: _,
             } => {
-                println!("Recibí un connect: {:?}", message);
+                //println!("Recibí un connect: {:?}", message);
+                println!("Recibí un connect");
                 let connack = BrokerMessage::Connack {
                     //session_present: true,
                     //return_code: 0,
                 };
                 println!("Sending connack: {:?}", connack);
                 connack.write_to(&mut stream).unwrap();
-            }
+            },
+            ClientMessage::Publish {
+                //packet_id: _,
+                //topic: _,
+            } => {
+                println!("Recibí un publish: {:?}", message);
+            },
+            ClientMessage::Subscribe { 
+                packet_id: _, 
+                topic_name: _, 
+                properties: _,
+            } => {
+                println!("Recibí un subscribe: {:?}", message);
+                println!("Recibí esta VERRRRRGA");
+                let suback = BrokerMessage::Suback {
+                    reason_code: 0,
+                };
+                println!("Sending suback: {:?}", suback);
+                suback.write_to(&mut stream).unwrap();
+            },
             _ => {
                 println!("Recibí un mensaje que no es connect");
             }
         }
-    } else {
-        println!("Soy el broker y no pude leer el mensaje");
-    }
+    } 
 
-    let cloned_stream = stream.try_clone()?; // Clone the TcpStream
-    let reader = BufReader::new(cloned_stream); // Use the cloned stream in BufReader
-    let mut lines = reader.lines();
-    while let Some(Ok(line)) = lines.next() {
-        println!("me llego un {:?}", line);
-        if line == "hola" {
-            stream.write_all(b"chau\n")?;
-        } else if line == "wasaa" {
-            stream.write_all(b"wasaa\n")?;
-        } else {
-            stream.write_all(b"no entiendo\n")?;
-        }
-    }
     Ok(())
 }
