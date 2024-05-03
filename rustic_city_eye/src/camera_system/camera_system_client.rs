@@ -33,7 +33,7 @@ fn client_run(address: &str, stream: &mut dyn Read) -> std::io::Result<()> {
 
     let mut client = match Client::new(address) {
         Ok(client) => client,
-        Err(_) => todo!(),
+        Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::Other, "Error al crear cliente")), //todo
     };
 
     for line in reader.lines() {
@@ -43,6 +43,13 @@ fn client_run(address: &str, stream: &mut dyn Read) -> std::io::Result<()> {
                 let message = post_colon.trim(); // remove leading/trailing whitespace
                 println!("Publishing message: {}", message);
                 client.publish_message(message);
+            } else if line.starts_with("subscribe:") {
+                let (_, post_colon) = line.split_at(10); // "subscribe:" is 10 characters
+                let topic = post_colon.trim(); // remove leading/trailing whitespace
+                println!("Subscribing to topic: {}", topic);
+                client.subscribe(topic);
+            } else {
+                println!("Comando no reconocido: {}", line);
             }
         } else {
             return Err(std::io::Error::new(
