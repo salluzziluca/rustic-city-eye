@@ -6,6 +6,8 @@ use crate::mqtt::reader::*;
 use crate::mqtt::will_properties::*;
 use crate::mqtt::writer::*;
 
+use super::publish_properties::TopicProperties;
+
 //use self::quality_of_service::QualityOfService;
 const PROTOCOL_VERSION: u8 = 5;
 
@@ -289,11 +291,11 @@ impl ClientMessage {
                 })
             }
             0x30 => {
+                let topic_properties = TopicProperties { topic_alias: 10, response_topic: "String".to_string() };
                 let properties = PublishProperties::new(
                     1,
                     10,
-                    10,
-                    "String".to_string(),
+                    topic_properties,
                     [1, 2, 3].to_vec(),
                     "a".to_string(),
                     1,
@@ -326,11 +328,12 @@ mod tests {
 
     #[test]
     fn test_publish_message_ok() {
+        let topic_properties = TopicProperties { topic_alias: 10, response_topic: "String".to_string() };
+
         let properties = PublishProperties::new(
             1,
             10,
-            10,
-            "String".to_string(),
+            topic_properties,
             [1, 2, 3].to_vec(),
             "a".to_string(),
             1,
