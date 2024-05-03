@@ -1,11 +1,8 @@
-//! Abre un puerto TCP en el puerto asignado por argv.
-//! Escribe las lineas recibidas a stdout y las manda mediante el socket.
-
-mod client;
-
 use std::env::args;
-use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
+
+use rustic_city_eye::mqtt::broker_message::BrokerMessage;
+use rustic_city_eye::mqtt::client_message::ClientMessage;
 
 static SERVER_ARGS: usize = 2;
 
@@ -36,18 +33,49 @@ fn server_run(address: &str) -> std::io::Result<()> {
     }
     Ok(())
 }
-
+#[allow(dead_code)]
 fn handle_client(stream: &mut TcpStream) -> std::io::Result<()> {
-    let cloned_stream = stream.try_clone()?; // Clone the TcpStream
-    let reader = BufReader::new(cloned_stream); // Use the cloned stream in BufReader
-    let mut lines = reader.lines();
-    while let Some(Ok(line)) = lines.next() {
-        if line == "hola" {
-            stream.write_all(b"chau\n")?;
-        } else if line == "wasaa" {
-            stream.write_all(b"wasaa\n")?;
-        } else {
-            stream.write_all(b"no entiendo\n")?;
+    if let Ok(message) = ClientMessage::read_from(stream) {
+        match message {
+            ClientMessage::Connect {
+                clean_start: _,
+                last_will_flag: _,
+                last_will_qos: _,
+                last_will_retain: _,
+                username: _,
+                password: _,
+                keep_alive: _,
+                properties: _,
+                client_id: _,
+                will_properties: _,
+                last_will_topic: _,
+                last_will_message: _,
+            } => {
+                println!("Recibí un connect: {:?}", message);
+                let connack = BrokerMessage::Connack {
+                    //session_present: true,
+                    //return_code: 0,
+                };
+                println!("Sending connack: {:?}", connack);
+                connack.write_to(stream).unwrap();
+            }
+            ClientMessage::Publish {
+                packet_id: _,
+                topic_name: _,
+                qos,
+                retain_flag: _,
+                payload: _,
+                dup_flag: _,
+                properties: _,
+            } => {
+                println!("Recibí un publish: {:?}", message);
+
+                if qos == 1 {
+                    println!("sending puback...");
+                    let puback = BrokerMessage::Puback { reason_code: 1 };
+                    puback.write_to(stream).unwrap();
+                }
+            }
         }
     }
     Ok(())
