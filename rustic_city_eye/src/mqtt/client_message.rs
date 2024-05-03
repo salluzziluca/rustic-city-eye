@@ -383,7 +383,7 @@ impl ClientMessage {
                     
                 })
             },
-            0x86 => {
+            0x82 => {
                 let packet_id = read_u16(stream)?;
                 let topic = read_string(stream)?;
                 let properties = SubscribeProperties::read_properties(stream)?;
