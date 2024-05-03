@@ -3,6 +3,8 @@ use std::{
     net::TcpStream,
 };
 
+use super::{reader::read_u8, writer::write_u8};
+
 #[derive(Debug)]
 pub enum BrokerMessage {
     Connack {
@@ -10,6 +12,8 @@ pub enum BrokerMessage {
         //return_code: u32
     },
     Puback {
+        packet_id_msb: u8,
+        packet_id_lsb: u8,
         reason_code: u8,
     },
 }
@@ -25,14 +29,18 @@ impl BrokerMessage {
                 writer.flush()?;
 
                 Ok(())
-            }
-            BrokerMessage::Puback { reason_code: _ } => {
+            },
+            BrokerMessage::Puback { packet_id_msb, packet_id_lsb, reason_code } => {
                 //fixed header
                 let byte_1: u8 = 0x40_u8.to_le(); //01000000
 
                 writer.write_all(&[byte_1])?;
 
                 //variable header
+                //packet_id
+                write_u8(&mut writer, packet_id_msb)?;
+                write_u8(&mut writer, packet_id_lsb)?;
+
 
                 writer.flush()?;
 
@@ -49,7 +57,17 @@ impl BrokerMessage {
 
         match header {
             0x10 => Ok(BrokerMessage::Connack {}),
-            0x40 => Ok(BrokerMessage::Puback { reason_code: 1 }),
+            0x40 => {
+                let packet_id_msb = read_u8(stream)?;
+                let packet_id_lsb = read_u8(stream)?;
+
+
+                Ok(BrokerMessage::Puback { 
+                    packet_id_msb, 
+                    packet_id_lsb, 
+                    reason_code: 1 
+                })
+            },
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }

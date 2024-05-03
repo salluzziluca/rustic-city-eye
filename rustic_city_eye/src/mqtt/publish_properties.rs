@@ -14,14 +14,14 @@ const CONTENT_TYPE_ID: u8 = 0x03;
 
 #[derive(Debug, PartialEq)]
 pub struct PublishProperties {
-    payload_format_indicator: u8,
-    message_expiry_interval: u32,
-    topic_alias: u16,
-    response_topic: String,
-    correlation_data: Vec<u8>,
-    user_property: String,
-    subscription_identifier: u32,
-    content_type: String,
+    pub payload_format_indicator: u8,
+    pub message_expiry_interval: u32,
+    pub topic_alias: u16,
+    pub response_topic: String,
+    pub correlation_data: Vec<u8>,
+    pub user_property: String,
+    pub subscription_identifier: u32,
+    pub content_type: String,
 }
 
 impl PublishProperties {

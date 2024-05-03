@@ -35,7 +35,7 @@ fn server_run(address: &str) -> std::io::Result<()> {
 }
 #[allow(dead_code)]
 fn handle_client(stream: &mut TcpStream) -> std::io::Result<()> {
-    if let Ok(message) = ClientMessage::read_from(stream) {
+    while let Ok(message) = ClientMessage::read_from(stream) {
         match message {
             ClientMessage::Connect {
                 clean_start: _,
@@ -60,7 +60,7 @@ fn handle_client(stream: &mut TcpStream) -> std::io::Result<()> {
                 connack.write_to(stream).unwrap();
             }
             ClientMessage::Publish {
-                packet_id: _,
+                packet_id,
                 topic_name: _,
                 qos,
                 retain_flag: _,
@@ -69,10 +69,11 @@ fn handle_client(stream: &mut TcpStream) -> std::io::Result<()> {
                 properties: _,
             } => {
                 println!("Recibí un publish: {:?}", message);
+                let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
                 if qos == 1 {
                     println!("sending puback...");
-                    let puback = BrokerMessage::Puback { reason_code: 1 };
+                    let puback = BrokerMessage::Puback { packet_id_msb: packet_id_bytes[0], packet_id_lsb: packet_id_bytes[1], reason_code: 1 };
                     puback.write_to(stream).unwrap();
                 }
             }
