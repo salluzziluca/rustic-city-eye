@@ -9,3 +9,4 @@ pub mod protocol_error;
 pub mod quality_of_service;
 pub mod reader;
 pub mod writer;
+pub mod subscribe_properties;
