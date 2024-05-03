@@ -2,7 +2,7 @@ use std::net::TcpStream;
 
 use crate::mqtt::broker_message::BrokerMessage;
 use crate::mqtt::client_message::ClientMessage;
-use crate::mqtt::connect_propierties::ConnectProperties;
+use crate::mqtt::connect_properties::ConnectProperties;
 use crate::mqtt::protocol_error::ProtocolError;
 
 use crate::mqtt::publish_properties::PublishProperties;

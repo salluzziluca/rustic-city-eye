@@ -1,5 +1,5 @@
     use std::io::Cursor;
-    use rustic_city_eye::mqtt::connect_propierties::ConnectProperties;
+    use rustic_city_eye::mqtt::connect_properties::ConnectProperties;
 
 
     #[test]

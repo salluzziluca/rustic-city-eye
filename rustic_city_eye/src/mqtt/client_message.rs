@@ -1,6 +1,6 @@
 use std::io::{BufWriter, Error, Read, Write};
 
-use crate::mqtt::connect_propierties::ConnectProperties;
+use crate::mqtt::connect_properties::ConnectProperties;
 use crate::mqtt::publish_properties::PublishProperties;
 use crate::mqtt::reader::*;
 use crate::mqtt::will_properties::*;

@@ -8,7 +8,7 @@ pub mod publish_properties;
 
 pub mod protocol_error;
 
-pub mod connect_propierties;
+pub mod connect_properties;
 
 pub mod quality_of_service;
 

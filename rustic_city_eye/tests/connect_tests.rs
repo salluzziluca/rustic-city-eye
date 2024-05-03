@@ -1,10 +1,10 @@
 use std::io::Cursor;
 
-use rustic_city_eye::mqtt::{client_message, connect_propierties, will_properties::WillProperties};
+use rustic_city_eye::mqtt::{client_message, connect_properties, will_properties::WillProperties};
 
 #[test]
 fn test_client_message() {
-    let connect_propierties = connect_propierties::ConnectProperties {
+    let connect_propierties = connect_properties::ConnectProperties {
         session_expiry_interval: 1,
         receive_maximum: 2,
         maximum_packet_size: 10,
@@ -57,23 +57,25 @@ fn test_client_message() {
 
 #[test]
 fn test_sin_props() {
+    let connect_properties = connect_properties::ConnectProperties {
+        session_expiry_interval: 0,
+        receive_maximum: 0,
+        maximum_packet_size: 0,
+        topic_alias_maximum: 0,
+        request_response_information: false,
+        request_problem_information: false,
+        user_properties: vec![],
+        authentication_method: "".to_string(),
+        authentication_data: vec![],
+    };
+
     let connect = client_message::ClientMessage::Connect {
         clean_start: true,
         last_will_flag: true,
         last_will_qos: 1,
         last_will_retain: true,
         keep_alive: 35,
-        properties: connect_propierties::ConnectProperties::new(
-            0,
-            0,
-            0,
-            0,
-            false,
-            false,
-            vec![],
-            "".to_string(),
-            vec![],
-        ),
+        connect_properties,
         client_id: "kvtr33".to_string(),
         will_properties: WillProperties::new(
             0,
