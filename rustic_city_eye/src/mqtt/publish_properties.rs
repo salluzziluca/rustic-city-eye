@@ -14,22 +14,26 @@ const CONTENT_TYPE_ID: u8 = 0x03;
 
 #[derive(Debug, PartialEq)]
 pub struct PublishProperties {
-    pub payload_format_indicator: u8,
-    pub message_expiry_interval: u32,
-    pub topic_alias: u16,
-    pub response_topic: String,
-    pub correlation_data: Vec<u8>,
-    pub user_property: String,
-    pub subscription_identifier: u32,
-    pub content_type: String,
+    payload_format_indicator: u8,
+    message_expiry_interval: u32,
+    topic_properties: TopicProperties,
+    correlation_data: Vec<u8>,
+    user_property: String,
+    subscription_identifier: u32,
+    content_type: String,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct TopicProperties {
+    pub(crate) topic_alias: u16,
+    pub(crate) response_topic: String,
 }
 
 impl PublishProperties {
     pub fn new(
         payload_format_indicator: u8,
         message_expiry_interval: u32,
-        topic_alias: u16,
-        response_topic: String,
+        topic_properties: TopicProperties,
         correlation_data: Vec<u8>,
         user_property: String,
         subscription_identifier: u32,
@@ -38,8 +42,7 @@ impl PublishProperties {
         PublishProperties {
             payload_format_indicator,
             message_expiry_interval,
-            topic_alias,
-            response_topic,
+            topic_properties,
             correlation_data,
             user_property,
             subscription_identifier,
@@ -58,11 +61,11 @@ impl PublishProperties {
 
         //topic alias
         write_u8(stream, &TOPIC_ALIAS_ID)?;
-        write_u16(stream, &self.topic_alias)?;
+        write_u16(stream, &self.topic_properties.topic_alias)?;
 
         //response topic
         write_u8(stream, &RESPONSE_TOPIC_ID)?;
-        write_string(stream, &self.response_topic)?;
+        write_string(stream, &self.topic_properties.response_topic)?;
 
         //correlation data
         // write_u8(stream, &self.correlation_data_id)?;
@@ -103,6 +106,8 @@ impl PublishProperties {
         let _response_topic_id = read_u8(stream)?;
         let response_topic = read_string(stream)?;
 
+        let topic_properties = TopicProperties { topic_alias, response_topic };
+
         //correlation data
         //let correlation_data_id = read_u8(stream)?;
 
@@ -124,8 +129,7 @@ impl PublishProperties {
         Ok(PublishProperties {
             payload_format_indicator,
             message_expiry_interval,
-            topic_alias,
-            response_topic,
+            topic_properties,
             correlation_data: [1, 1, 1].to_vec(),
             user_property,
             subscription_identifier,

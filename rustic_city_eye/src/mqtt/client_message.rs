@@ -1,7 +1,7 @@
 use std::io::{BufWriter, Error, Read, Write};
 
 use crate::mqtt::connect_properties::ConnectProperties;
-use crate::mqtt::publish_properties::PublishProperties;
+use crate::mqtt::publish_properties::{PublishProperties, TopicProperties};
 use crate::mqtt::reader::*;
 use crate::mqtt::will_properties::*;
 use crate::mqtt::writer::*;
@@ -289,11 +289,11 @@ impl ClientMessage {
                 })
             }
             0x30 => {
+                let topic_properties = TopicProperties { topic_alias: 10, response_topic: "String".to_string() };
                 let properties = PublishProperties::new(
                     1,
                     10,
-                    10,
-                    "String".to_string(),
+                    topic_properties,
                     [1, 2, 3].to_vec(),
                     "a".to_string(),
                     1,
@@ -326,11 +326,12 @@ mod tests {
 
     #[test]
     fn test_publish_message_ok() {
+        let topic_properties = TopicProperties { topic_alias: 10, response_topic: "String".to_string() };
+
         let properties = PublishProperties::new(
             1,
             10,
-            10,
-            "String".to_string(),
+            topic_properties,
             [1, 2, 3].to_vec(),
             "a".to_string(),
             1,
