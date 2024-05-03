@@ -7,13 +7,13 @@ use rustic_city_eye::mqtt::protocol_error::ProtocolError;
 
 static SERVER_ARGS: usize = 2;
 
-/// The broker can be thought of as the server.
-/// Binds to a given port and starts running.
-/// Contains information about the messages being sent and also about the clients.
-/// Plays the role of mediator between different clients, and sends ACK messages to the publishers. This allows us to have an asynchronous communication.
+/// El broker puede ser considerado un sv.
+/// Bindea a un puerto dado y comienza a correr.
+/// Contiene la info de los mensajes que están siendo enviados y del cliente
+/// Es un mediador entra los diferentes clientes, enviendo los ACKs correspondientes a los publishers. Esto permite implementar un tipo de comunicación asincronica.
 pub struct Broker {
-    address: String, 
-    packet_ids: Vec<u16>
+    address: String,
+    packet_ids: Vec<u16>,
 }
 
 impl Broker {
@@ -28,16 +28,18 @@ impl Broker {
         let packet_ids = Vec::new();
         let address = "127.0.0.1:".to_owned() + &args[1];
 
-        Ok(Broker { address, packet_ids})
+        Ok(Broker {
+            address,
+            packet_ids,
+        })
     }
 
-    ///Runs the server. 
-    /// It creates a bind in the broker address, and for 
-    /// every incoming connection creates a thread 
-    /// to handle the new client.
+    /// Ejecuta el servidor.
+    /// Crea un enlace en la dirección del broker y, para
+    /// cada conexión entrante, crea un hilo para manejar el nuevo cliente.
     pub fn server_run(&self) -> std::io::Result<()> {
         let listener = TcpListener::bind(&self.address)?;
-    
+
         for stream in listener.incoming() {
             match stream {
                 Ok(mut stream) => {
@@ -49,7 +51,7 @@ impl Broker {
         Ok(())
     }
 
-    ///Handles the different client messages, and it sends the corresponding acknoledges.
+    ///Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
     fn handle_client(stream: &mut TcpStream) -> std::io::Result<()> {
         while let Ok(message) = ClientMessage::read_from(stream) {
             match message {
@@ -89,7 +91,11 @@ impl Broker {
 
                     if qos == 1 {
                         println!("sending puback...");
-                        let puback = BrokerMessage::Puback { packet_id_msb: packet_id_bytes[0], packet_id_lsb: packet_id_bytes[1], reason_code: 1 };
+                        let puback = BrokerMessage::Puback {
+                            packet_id_msb: packet_id_bytes[0],
+                            packet_id_lsb: packet_id_bytes[1],
+                            reason_code: 1,
+                        };
                         puback.write_to(stream)?;
                     }
                 }
@@ -103,7 +109,7 @@ impl Broker {
 
         while new_id == 0x00 || self.packet_ids.contains(&new_id) {
             new_id = rand::random::<u16>();
-        } 
+        }
 
         self.packet_ids.push(new_id);
         new_id
