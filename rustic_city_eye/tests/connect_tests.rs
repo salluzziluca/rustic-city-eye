@@ -75,7 +75,7 @@ fn test_sin_props() {
         last_will_qos: 1,
         last_will_retain: true,
         keep_alive: 35,
-        connect_properties,
+        properties: connect_properties,
         client_id: "kvtr33".to_string(),
         will_properties: WillProperties::new(
             0,
