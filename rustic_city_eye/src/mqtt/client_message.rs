@@ -1,8 +1,11 @@
 use crate::mqtt::writer::*;
 use crate::mqtt::reader::*;
 
+
+use crate::mqtt::subscribe_properties::SubscribeProperties;
 use std::any::TypeId;
 use std::io::{BufWriter, Error, Read, Write};
+use std::ops::Sub;
 
 
 //use self::quality_of_service::QualityOfService;
@@ -65,9 +68,9 @@ pub enum ClientMessage {
         // dup_flag: bool,
     },
     Subscribe {
-        packet_id: usize,
-        topic: String,
-        qos: usize,
+        packet_id: u16,
+        topic_name: String,
+        properties: SubscribeProperties,
     },
 }
 
@@ -217,18 +220,17 @@ impl ClientMessage {
             },
             ClientMessage::Subscribe {
                 packet_id,
-                topic,
-                qos,
+                topic_name,
+                properties,
             } => {
-                writer.write_all(&[0x82])?;
-                let remaining_length = 2 + topic.len() + 1;
-                write_remaining_length(&mut writer, remaining_length as u32)?;
-                write_u16(&mut writer, &(*packet_id as u16))?;
-                write_string(&mut writer, &topic)?;
-                write_u8(&mut writer, &(*qos as u8))?;
+                print!("Subscribing...");
+                let byte_1: u8 = 0x82_u8;
+                writer.write(&[byte_1])?;
+                write_u16(&mut writer, &packet_id)?;
+                write_string(&mut writer, &topic_name)?;
+                properties.write_properties(&mut writer)?;
                 writer.flush()?;
-                println!("Subscribing to topic: {:?}", topic);
-                Ok(())
+                Ok(())                
             }
         }
     }
@@ -380,7 +382,17 @@ impl ClientMessage {
             
                     
                 })
-            }
+            },
+            0x86 => {
+                let packet_id = read_u16(stream)?;
+                let topic = read_string(stream)?;
+                let properties = SubscribeProperties::read_properties(stream)?;
+                Ok(ClientMessage::Subscribe {
+                    packet_id: packet_id,
+                    topic_name: topic,
+                    properties: properties,
+                })
+            },
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
