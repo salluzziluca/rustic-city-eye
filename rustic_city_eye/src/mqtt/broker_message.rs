@@ -30,7 +30,7 @@ impl BrokerMessage {
 
                 Ok(())
             },
-            BrokerMessage::Puback { packet_id_msb, packet_id_lsb, reason_code } => {
+            BrokerMessage::Puback { packet_id_msb, packet_id_lsb, reason_code: _ } => {
                 //fixed header
                 let byte_1: u8 = 0x40_u8.to_le(); //01000000
 
