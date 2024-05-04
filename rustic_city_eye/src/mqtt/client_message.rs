@@ -207,9 +207,9 @@ impl ClientMessage {
                 properties,
             } => {
                 let byte_1: u8 = 0x82_u8;
-                writer.write(&[byte_1])?;
-                write_u16(&mut writer, &packet_id)?;
-                write_string(&mut writer, &topic_name)?;
+                writer.write_all(&[byte_1])?;
+                write_u16(&mut writer, packet_id)?;
+                write_string(&mut writer, topic_name)?;
                 properties.write_properties(&mut writer)?;
                 writer.flush()?;
                 Ok(())
@@ -351,9 +351,9 @@ impl ClientMessage {
                 let topic = read_string(stream)?;
                 let properties = SubscribeProperties::read_properties(stream)?;
                 Ok(ClientMessage::Subscribe {
-                    packet_id: packet_id,
+                    packet_id,
                     topic_name: topic,
-                    properties: properties,
+                    properties,
                 })
             }
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
