@@ -98,10 +98,26 @@ impl Broker {
                         };
                         puback.write_to(stream)?;
                     }
+                },
+                ClientMessage::Subscribe {
+                    packet_id: _,
+                    topic_name: _,
+                    properties: _,
+                } => {
+                    println!("Recibí un subscribe: {:?}", message);
+                    let suback = BrokerMessage::Suback {
+                        packet_id_msb: 0,
+                        packet_id_lsb: 1,
+                        reason_code: 0,
+                    };
+                    println!("Sending suback: {:?}", suback);
+                    suback.write_to(stream).unwrap();
                 }
             }
+
         }
         Ok(())
+     
     }
 
     pub fn assign_new_packet_id(&mut self) -> u16 {

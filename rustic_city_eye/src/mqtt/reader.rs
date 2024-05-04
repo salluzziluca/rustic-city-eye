@@ -27,6 +27,17 @@ pub fn read_u32(stream: &mut dyn Read) -> Result<u32, Error> {
     Ok(u32::from_be_bytes(buf))
 }
 
+pub fn read_string_pairs(stream: &mut dyn Read) -> Result<Vec<(String, String)>, Error> {
+    let length = read_u16(stream)?;
+    let mut pairs = Vec::new();
+    for _ in 0..length {
+        let key = read_string(stream)?;
+        let value = read_string(stream)?;
+        pairs.push((key, value));
+    }
+    Ok(pairs)
+}
+
 pub fn read_bin_vec(reader: &mut dyn Read) -> Result<Vec<u8>, Error> {
     let length = read_u16(reader)?;
     let mut buffer = vec![0; length as usize];

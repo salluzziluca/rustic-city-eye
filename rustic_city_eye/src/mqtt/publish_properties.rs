@@ -17,6 +17,8 @@ pub struct PublishProperties {
     payload_format_indicator: u8,
     message_expiry_interval: u32,
     topic_properties: TopicProperties,
+    // topic_alias: u16,
+    // response_topic: String,
     correlation_data: Vec<u8>,
     user_property: String,
     subscription_identifier: u32,
