@@ -11,8 +11,11 @@ pub enum BrokerMessage {
         //session_present: bool,
         //return_code: u32
     },
+    Puback {
+        reason_code: u8,
+    },
     /// El Suback se utiliza para confirmar la suscripción a un topic
-    /// 
+    ///
     /// reason_code es el código de razón de la confirmación
     /// packet_id_msb y packet_id_lsb son los bytes más significativos y menos significativos del packet_id
     Suback {
@@ -32,12 +35,28 @@ impl BrokerMessage {
             BrokerMessage::Connack {} => {
                 let byte_1: u8 = 0x10_u8.to_le();
 
-                writer.write(&[byte_1])?;
+                writer.write_all(&[byte_1])?;
                 writer.flush()?;
 
                 Ok(())
-            },
-            BrokerMessage::Suback { packet_id_msb, packet_id_lsb, reason_code: _ } => {
+            }
+            BrokerMessage::Puback { reason_code: _ } => {
+                //fixed header
+                let byte_1: u8 = 0x40_u8.to_le(); //01000000
+
+                writer.write_all(&[byte_1])?;
+
+                //variable header
+
+                writer.flush()?;
+
+                Ok(())
+            }
+            BrokerMessage::Suback {
+                packet_id_msb,
+                packet_id_lsb,
+                reason_code: _,
+            } => {
                 println!("Subacking...");
                 //fixed header
                 let byte_1: u8 = 0x90_u8.to_le(); //10010000
@@ -47,8 +66,7 @@ impl BrokerMessage {
                 //variable header
                 //let byte_2: u8 = 0x00_u8.to_le(); //00000000
                 //writer.write(&[byte_2])?;
-                
-               
+
                 //payload
                 //let byte_3: u8 = 0x01_u8.to_le(); //00000001
                 //writer.write(&[byte_3])?;
@@ -57,7 +75,7 @@ impl BrokerMessage {
                 writer.flush()?;
 
                 Ok(())
-            },
+            }
         }
     }
 
@@ -77,10 +95,9 @@ impl BrokerMessage {
                     packet_id_lsb,
                     reason_code: 1,
                 })
-            },
+            }
+            0x40 => Ok(BrokerMessage::Puback { reason_code: 1 }),
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
-        
-        
     }
 }

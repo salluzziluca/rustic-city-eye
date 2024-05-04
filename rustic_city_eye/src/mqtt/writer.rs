@@ -15,15 +15,15 @@ use std::io::{Error, Write};
 pub fn write_string(stream: &mut dyn Write, string: &str) -> Result<(), Error> {
     let length = string.len() as u16;
     let length_bytes = length.to_be_bytes();
-    stream.write(&length_bytes)?;
-    stream.write(string.as_bytes())?;
+    stream.write_all(&length_bytes)?;
+    stream.write_all(string.as_bytes())?;
     Ok(())
 }
 
 pub fn write_tuple_vec(stream: &mut dyn Write, vec: &Vec<(String, String)>) -> Result<(), Error> {
     let length = vec.len() as u16;
     let length_bytes = length.to_be_bytes();
-    stream.write(&length_bytes)?;
+    stream.write_all(&length_bytes)?;
     for item in vec {
         write_string_tuple(stream, item)?;
     }
@@ -51,9 +51,9 @@ pub fn write_tuple_vec(stream: &mut dyn Write, vec: &Vec<(String, String)>) -> R
 pub fn write_bin_vec(stream: &mut dyn Write, vec: &Vec<u8>) -> Result<(), Error> {
     let length = vec.len() as u16;
     let length_bytes = length.to_be_bytes();
-    stream.write(&length_bytes)?;
+    stream.write_all(&length_bytes)?;
     for byte in vec {
-        stream.write(&[*byte])?;
+        stream.write_all(&[*byte])?;
     }
     Ok(())
 }
@@ -65,25 +65,25 @@ pub fn write_string_tuple(stream: &mut dyn Write, value: &(String, String)) -> R
 }
 
 pub fn write_u8(stream: &mut dyn Write, value: &u8) -> Result<(), Error> {
-    stream.write(&[*value])?;
+    stream.write_all(&[*value])?;
     Ok(())
 }
 
 pub fn write_u16(stream: &mut dyn Write, value: &u16) -> Result<(), Error> {
     let value_bytes = value.to_be_bytes();
-    stream.write(&value_bytes)?;
+    stream.write_all(&value_bytes)?;
     Ok(())
 }
 
 pub fn write_u32(stream: &mut dyn Write, value: &u32) -> Result<(), Error> {
     let value_bytes = value.to_be_bytes();
-    stream.write(&value_bytes)?;
+    stream.write_all(&value_bytes)?;
     Ok(())
 }
 
 pub fn write_bool(stream: &mut dyn Write, value: &bool) -> Result<(), Error> {
     let value_bytes = if *value { 1u8 } else { 0u8 };
-    stream.write(&[value_bytes])?;
+    stream.write_all(&[value_bytes])?;
     Ok(())
 }
 

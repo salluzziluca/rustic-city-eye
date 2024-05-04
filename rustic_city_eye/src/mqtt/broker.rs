@@ -1,5 +1,4 @@
 use std::env::args;
-use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 
 use rustic_city_eye::mqtt::broker_message::BrokerMessage;
@@ -46,14 +45,11 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
                 username: _,
                 password: _,
                 keep_alive: _,
+                properties: _,
                 client_id: _,
-                last_will_delay_interval: _,
-                //message_expiry_interval: _,
-                content_type: _,
-                user_property: _,
+                will_properties: _,
+                last_will_topic: _,
                 last_will_message: _,
-                response_topic: _,
-                correlation_data: _,
             } => {
                 //println!("Recibí un connect: {:?}", message);
                 println!("Recibí un connect");
@@ -63,16 +59,27 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
                 };
                 println!("Sending connack: {:?}", connack);
                 connack.write_to(&mut stream).unwrap();
-            },
+            }
             ClientMessage::Publish {
-                //packet_id: _,
-                //topic: _,
+                packet_id: _,
+                topic_name: _,
+                qos,
+                retain_flag: _,
+                payload: _,
+                dup_flag: _,
+                properties: _,
             } => {
                 println!("Recibí un publish: {:?}", message);
-            },
-            ClientMessage::Subscribe { 
-                packet_id: _, 
-                topic_name: _, 
+
+                if qos == 1 {
+                    println!("sending puback...");
+                    let puback = BrokerMessage::Puback { reason_code: 1 };
+                    puback.write_to(stream).unwrap();
+                }
+            }
+            ClientMessage::Subscribe {
+                packet_id: _,
+                topic_name: _,
                 properties: _,
             } => {
                 println!("Recibí un subscribe: {:?}", message);
@@ -83,12 +90,12 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
                 };
                 println!("Sending suback: {:?}", suback);
                 suback.write_to(&mut stream).unwrap();
-            },
+            }
             _ => {
                 println!("Recibí un mensaje que no es connect");
             }
         }
-    } 
+    }
 
     Ok(())
 }
