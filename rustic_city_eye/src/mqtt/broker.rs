@@ -34,8 +34,8 @@ fn server_run(address: &str) -> std::io::Result<()> {
     Ok(())
 }
 #[allow(dead_code)]
-fn handle_client(stream: &mut TcpStream) -> std::io::Result<()> {
-    if let Ok(message) = ClientMessage::read_from(stream) {
+fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
+    while let Ok(message) = ClientMessage::read_from(stream) {
         match message {
             ClientMessage::Connect {
                 clean_start: _,
@@ -51,13 +51,14 @@ fn handle_client(stream: &mut TcpStream) -> std::io::Result<()> {
                 last_will_topic: _,
                 last_will_message: _,
             } => {
-                println!("Recibí un connect: {:?}", message);
+                //println!("Recibí un connect: {:?}", message);
+                println!("Recibí un connect");
                 let connack = BrokerMessage::Connack {
                     //session_present: true,
                     //return_code: 0,
                 };
                 println!("Sending connack: {:?}", connack);
-                connack.write_to(stream).unwrap();
+                connack.write_to(&mut stream).unwrap();
             }
             ClientMessage::Publish {
                 packet_id: _,
@@ -76,7 +77,25 @@ fn handle_client(stream: &mut TcpStream) -> std::io::Result<()> {
                     puback.write_to(stream).unwrap();
                 }
             }
+            ClientMessage::Subscribe {
+                packet_id: _,
+                topic_name: _,
+                properties: _,
+            } => {
+                println!("Recibí un subscribe: {:?}", message);
+                let suback = BrokerMessage::Suback {
+                    packet_id_msb: 0,
+                    packet_id_lsb: 1,
+                    reason_code: 0,
+                };
+                println!("Sending suback: {:?}", suback);
+                suback.write_to(&mut stream).unwrap();
+            }
+            _ => {
+                println!("Recibí un mensaje que no es connect");
+            }
         }
     }
+
     Ok(())
 }

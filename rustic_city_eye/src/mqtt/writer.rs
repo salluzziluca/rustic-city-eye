@@ -86,3 +86,15 @@ pub fn write_bool(stream: &mut dyn Write, value: &bool) -> Result<(), Error> {
     stream.write_all(&[value_bytes])?;
     Ok(())
 }
+
+pub fn write_string_pairs(stream: &mut dyn Write, vec: &Vec<(String, String)>) -> Result<(), Error> {
+    let length = vec.len() as u16;
+    let length_bytes = length.to_be_bytes();
+    stream.write(&length_bytes)?;
+    for pair in vec {
+        write_string(stream, &pair.0)?;
+        write_string(stream, &pair.1)?;
+    }
+    Ok(())
+}
+

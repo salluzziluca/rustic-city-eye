@@ -4,8 +4,8 @@ use crate::mqtt::broker_message::BrokerMessage;
 use crate::mqtt::client_message::ClientMessage;
 use crate::mqtt::connect_properties::ConnectProperties;
 use crate::mqtt::protocol_error::ProtocolError;
-
 use crate::mqtt::publish_properties::{PublishProperties, TopicProperties};
+use crate::mqtt::subscribe_properties::SubscribeProperties;
 use crate::mqtt::will_properties::WillProperties;
 
 #[allow(dead_code)]
@@ -56,7 +56,8 @@ impl Client {
             last_will_topic: "topic".to_string(),
             last_will_message: "chauchis".to_string(),
         };
-        println!("Sending connect message to broker: {:?}", connect);
+        //println!("Sending connect message to broker: {:?}", connect);
+        println!("Sending connect message to broker");
         connect.write_to(&mut stream).unwrap();
 
         if let Ok(message) = BrokerMessage::read_from(&mut stream) {
@@ -99,7 +100,10 @@ impl Client {
             retain_flag = true;
         }
 
-        let topic_properties = TopicProperties { topic_alias: 10, response_topic: "String".to_string() };
+        let topic_properties = TopicProperties {
+            topic_alias: 10,
+            response_topic: "String".to_string(),
+        };
 
         let properties = PublishProperties::new(
             1,
@@ -131,6 +135,42 @@ impl Client {
                 }
                 _ => println!("no recibi nada :("),
             }
+        }
+    }
+
+    /// Suscribe al cliente a un topic
+    ///
+    /// Recibe el nombre del topic al que se quiere suscribir
+    /// Creará un mensaje de suscripción y lo enviará al broker
+    /// Esperará un mensaje de confirmación de suscripción
+    /// Si recibe un mensaje de confirmación, lo imprimirá
+    ///
+    pub fn subscribe(&mut self, topic: &str) {
+        let subscribe = ClientMessage::Subscribe {
+            packet_id: 1,
+            topic_name: topic.to_string(),
+            properties: SubscribeProperties::new(
+                1,
+                vec![("propiedad".to_string(), "valor".to_string())],
+                vec![0, 1, 2, 3],
+            ),
+        };
+
+        subscribe.write_to(&mut self.stream).unwrap();
+
+        if let Ok(message) = BrokerMessage::read_from(&mut self.stream) {
+            match message {
+                BrokerMessage::Suback {
+                    packet_id_msb: _,
+                    packet_id_lsb: _,
+                    reason_code: _,
+                } => {
+                    println!("Recibí un suback: {:?}", message);
+                }
+                _ => println!("Recibí un mensaje que no es suback"),
+            }
+        } else {
+            println!("soy el client y no pude leer el mensaje 2");
         }
     }
 }
