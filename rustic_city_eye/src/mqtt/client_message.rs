@@ -1,7 +1,5 @@
 use crate::mqtt::subscribe_properties::SubscribeProperties;
-use std::any::TypeId;
 use std::io::{BufWriter, Error, Read, Write};
-use std::ops::Sub;
 
 use crate::mqtt::connect_properties::ConnectProperties;
 use crate::mqtt::publish_properties::PublishProperties;

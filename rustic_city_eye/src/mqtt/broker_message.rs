@@ -1,7 +1,4 @@
-use std::{
-    io::{BufWriter, Error, Read, Write},
-    net::TcpStream,
-};
+use std::io::{BufWriter, Error, Read, Write};
 
 use super::{reader::read_u8, writer::write_u8};
 
