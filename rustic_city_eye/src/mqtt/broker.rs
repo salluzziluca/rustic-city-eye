@@ -77,8 +77,9 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
                 properties: _,
             } => {
                 println!("Recibí un subscribe: {:?}", message);
-                println!("Recibí esta VERRRRRGA");
                 let suback = BrokerMessage::Suback {
+                    packet_id_msb: 0,
+                    packet_id_lsb: 1,
                     reason_code: 0,
                 };
                 println!("Sending suback: {:?}", suback);
