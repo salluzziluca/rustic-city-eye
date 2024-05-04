@@ -36,7 +36,6 @@ fn server_run(address: &str) -> std::io::Result<()> {
 }
 #[allow(dead_code)]
 fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
-    println!("entré a handle_client");
     while let Ok(message) = ClientMessage::read_from(stream) {
         match message {
             ClientMessage::Connect {
