@@ -5,6 +5,7 @@ use std::fmt;
 pub enum ProtocolError {
     ConectionError,
     InvalidQOS,
+    InvalidNumberOfArguments
 }
 
 impl fmt::Display for ProtocolError {
@@ -12,6 +13,8 @@ impl fmt::Display for ProtocolError {
         match *self {
             ProtocolError::ConectionError => write!(f, "Error while connecting to broker."),
             ProtocolError::InvalidQOS => write!(f, "Error: Invalid QoS value. It must be 0 or 1."),
+            ProtocolError::InvalidNumberOfArguments => write!(f, "Error: Invalid number of arguments"),
+
         }
     }
 }

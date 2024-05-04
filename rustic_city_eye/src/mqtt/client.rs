@@ -93,7 +93,10 @@ impl Client {
 
         if splitted_message[1] == "qos:1" {
             qos = 1;
-            packet_id = 0x20;
+            packet_id = 0x20FF;
+            
+        } else { 
+            dup_flag = false;
         }
 
         if splitted_message[2] == "retain:1" {
@@ -130,7 +133,7 @@ impl Client {
 
         if let Ok(message) = BrokerMessage::read_from(&mut self.stream) {
             match message {
-                BrokerMessage::Puback { reason_code: _ } => {
+                BrokerMessage::Puback { packet_id_msb: _, packet_id_lsb: _, reason_code: _ } => {
                     println!("Recibí un puback: {:?}", message);
                 }
                 _ => println!("no recibi nada :("),
