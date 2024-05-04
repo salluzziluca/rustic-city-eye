@@ -42,7 +42,7 @@
 - The protocol defines not only the message format but also the rules for interactions between the entities in the messaging system. This includes how to establish a connection, maintain a session, and ensure secure communication.
 - Soporta mas protocolos de comunicacion (ademas del publisher-subscriber).
 - The protocol supports a wide range of messaging patterns and has strong delivery guarantees, including at-most-once, at-least-once, and exactly-once message delivery. It also provides flexible message routing features, which makes it a powerful tool for building complex distributed systems.
-![message_delivering](https://hackmd.io/_uploads/S1HcHCSeA.png)
+![message_delivering](https://media.licdn.com/dms/image/C4E12AQGMbD9fqiwfLw/article-cover_image-shrink_720_1280/0/1521942243982?e=2147483647&v=beta&t=6VblIfdTt7IouQGHX_8lP-mDN6ErZ_dLkXhfZi8VcZY)
 - In terms of reliability and message delivery, AMQP generally provides stronger guarantees than MQTT. This ensures that messages are reliably delivered to the intended recipients even in the face of network or system failures.
 - AMQP, on the other hand, provides more robust security features. It supports SSL/TLS for encryption and SASL for authentication and integrity. AMQP also provides support for secure multi-tenancy, which allows multiple users to share the same messaging system while keeping their messages private and separate.
 - MQTT, being lightweight, requires less computational power and hence less expensive hardware. It also uses less network bandwidth, which can save you money in terms of data usage costs.
