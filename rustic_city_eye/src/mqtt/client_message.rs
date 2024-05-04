@@ -67,9 +67,18 @@ pub enum ClientMessage {
         // payload: String,
         // dup_flag: bool,
     },
+    /// El Subscribe Message se utiliza para suscribirse a uno o más topics. El cliente puede enviar un mensaje de subscribe con un packet id y una lista de topics a los que se quiere suscribir. El broker responde con un mensaje de suback con el mismo packet id y una lista de return codes que indican si la suscripcion fue exitosa o no.
+    /// 
+    /// packet_id es un identificador unico para el mensaje de subscribe.
+    /// topic_name es el nombre del topic al que se quiere suscribir.
+    /// properties es un struct que contiene las propiedades del mensaje de subscribe.
+    ///
     Subscribe {
+        /// packet_id es un identificador unico para el mensaje de subscribe.
         packet_id: u16,
+        /// topic_name es el nombre del topic al que se quiere suscribir.
         topic_name: String,
+        /// properties es un struct que contiene las propiedades del mensaje de subscribe.
         properties: SubscribeProperties,
     },
 }
@@ -223,7 +232,6 @@ impl ClientMessage {
                 topic_name,
                 properties,
             } => {
-                print!("Subscribing...");
                 let byte_1: u8 = 0x82_u8;
                 writer.write(&[byte_1])?;
                 write_u16(&mut writer, &packet_id)?;
@@ -240,7 +248,6 @@ impl ClientMessage {
         stream.read_exact(&mut header)?;
 
         let header = u8::from_le_bytes(header);
-
         match header {
             0x10 => {
                 //leo el protocol name
