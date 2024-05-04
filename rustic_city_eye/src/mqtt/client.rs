@@ -72,8 +72,14 @@ impl Client {
         let _ = publish.write_to(&mut self.stream);
     }
 
+    /// Suscribe al cliente a un topic
+    /// 
+    /// Recibe el nombre del topic al que se quiere suscribir
+    /// Creará un mensaje de suscripción y lo enviará al broker
+    /// Esperará un mensaje de confirmación de suscripción
+    /// Si recibe un mensaje de confirmación, lo imprimirá
+    /// 
     pub fn subscribe(&mut self, topic: &str)  {
-        println!("Entra a subscribe"); 
         let subscribe = ClientMessage::Subscribe {
             packet_id: 1,
             topic_name: topic.to_string(),
@@ -86,11 +92,11 @@ impl Client {
 
         subscribe.write_to(&mut self.stream).unwrap();
 
-        println!("Después de write_to" );  //hasta acá llega
-
         if let Ok(message) = BrokerMessage::read_from(&mut self.stream) {
             match message {
                 BrokerMessage::Suback {
+                    packet_id_msb: _,
+                    packet_id_lsb: _,
                     reason_code: _,
                 } => {
                     println!("Recibí un suback: {:?}", message);
@@ -99,7 +105,7 @@ impl Client {
                 
             }
         } else {
-            println!("soy el client y no pude leer el mensaje 2"); // imprime esto
+            println!("soy el client y no pude leer el mensaje 2"); 
         }
     }
 }
