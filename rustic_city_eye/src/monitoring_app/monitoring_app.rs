@@ -34,7 +34,7 @@ fn main() -> Result<(), std::io::Error> {
     let address = argv[1].clone() + ":" + &argv[2];
     println!("Soy la app de Monitoreo, conectándome AAAA {:?}", address);
     let mut monitoring_app = MonitoringApp::new(&address);
-    monitoring_app.client_run(&address, &mut stdin().lock())?;
+    monitoring_app.app_run(&address, &mut stdin().lock())?;
     Ok(())
 }
 
@@ -93,9 +93,10 @@ impl MonitoringApp {
         monitoring_app.camera_system.add_camera(camera1);
         monitoring_app
     }
-    /// Client run recibe una dirección y cualquier cosa "legible"
-    /// Crea un cliente del tipo app de monitoreo, crea un cliente del tipo camera system y crea varios clientes del tipo camera que se conectan al camera system.
-    pub fn client_run(&mut self, address: &str, stream: &mut dyn Read) -> Result<(), Error> {
+
+    /// En este momento la app de monitoreo ya tiene todos los clientes conectados y funcionales
+    /// Aca es donde se gestiona la interaccion entre los diferentes clientes
+    pub fn app_run(&mut self, address: &str, stream: &mut dyn Read) -> Result<(), Error> {
         let reader = BufReader::new(stream);
 
         // for line in reader.lines() {
