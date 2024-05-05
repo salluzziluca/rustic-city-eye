@@ -10,11 +10,12 @@ use rustic_city_eye::mqtt::will_properties;
 use std::env::args;
 use std::io::stdin;
 use std::io::Error;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufReader, Read};
 
 static CLIENT_ARGS: usize = 3;
 
 pub struct MonitoringApp {
+    monitoring_app_client: Client,
     camera_system: CameraSystem,
 }
 
@@ -32,25 +33,17 @@ fn main() -> Result<(), std::io::Error> {
 
     let address = argv[1].clone() + ":" + &argv[2];
     println!("Soy la app de Monitoreo, conectándome AAAA {:?}", address);
-    let mut monitoring_app = MonitoringApp::new();
+    let mut monitoring_app = MonitoringApp::new(&address);
     monitoring_app.client_run(&address, &mut stdin().lock())?;
     Ok(())
 }
 
 #[allow(dead_code)]
 impl MonitoringApp {
-    pub fn new() -> MonitoringApp {
-        let mut monitoring_app = MonitoringApp {
-            camera_system: CameraSystem::new(),
-        };
-        let camera1 = Camera::new();
-        monitoring_app.camera_system.add_camera(camera1);
-        monitoring_app
-    }
-    /// Client run recibe una dirección y cualquier cosa "legible"
-    /// Crea un cliente del tipo app de monitoreo, crea un cliente del tipo camera system y crea varios clientes del tipo camera que se conectan al camera system.
-    pub fn client_run(&mut self, address: &str, stream: &mut dyn Read) -> Result<(), Error> {
-        let reader = BufReader::new(stream);
+    ///recibe una addres a la que conectarse
+    /// Crea el cliente de la app de monitoreo y lo conecta al broker
+    /// Crea un sistema de cámaras y agrega una cámara al sistema
+    pub fn new(address: &str) -> MonitoringApp {
         let will_properties = will_properties::WillProperties::new(
             1,
             1,
@@ -73,29 +66,37 @@ impl MonitoringApp {
             vec![1, 2, 3],
         );
 
-        let mut client = match Client::new(
-            address,
-            will_properties,
-            connect_properties,
-            true,
-            true,
-            1,
-            true,
-            "prueba".to_string(),
-            "".to_string(),
-            35,
-            "kvtr33".to_string(),
-            "topic".to_string(),
-            "chauchis".to_string(),
-        ) {
-            Ok(client) => client,
-            Err(_) => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "Error al crear cliente",
-                ))
-            } //todo
+        let mut monitoring_app = MonitoringApp {
+            camera_system: CameraSystem::new(),
+            monitoring_app_client: match Client::new(
+                address,
+                will_properties,
+                connect_properties,
+                true,
+                true,
+                1,
+                true,
+                "prueba".to_string(),
+                "".to_string(),
+                35,
+                "kvtr33".to_string(),
+                "camera_system".to_string(),
+                "soy el camera_system y me desconecté".to_string(),
+            ) {
+                Ok(client) => client,
+                Err(_) => {
+                    panic!("Error al crear el cliente de la app de monitoreo");
+                }
+            },
         };
+        let camera1 = Camera::new();
+        monitoring_app.camera_system.add_camera(camera1);
+        monitoring_app
+    }
+    /// Client run recibe una dirección y cualquier cosa "legible"
+    /// Crea un cliente del tipo app de monitoreo, crea un cliente del tipo camera system y crea varios clientes del tipo camera que se conectan al camera system.
+    pub fn client_run(&mut self, address: &str, stream: &mut dyn Read) -> Result<(), Error> {
+        let reader = BufReader::new(stream);
 
         // for line in reader.lines() {
         //     if let Ok(line) = line {
