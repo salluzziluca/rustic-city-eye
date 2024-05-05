@@ -14,47 +14,43 @@ pub struct Client {
 }
 #[allow(dead_code)]
 impl Client {
-    pub fn new(address: &str) -> Result<Client, ProtocolError> {
+    pub fn new(
+        address: &str,
+        will_properties: WillProperties,
+        connect_properties: ConnectProperties,
+        clean_start: bool,
+        last_will_flag: bool,
+        last_will_qos: u8,
+        last_will_retain: bool,
+        username: String,
+        password: String,
+        keep_alive: u16,
+        client_id: String,
+        last_will_topic: String,
+        last_will_message: String,
+    ) -> Result<Client, ProtocolError> {
         let mut stream = match TcpStream::connect(address) {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::ConectionError),
         };
 
-        let will_properties = WillProperties::new(
-            120,
-            1,
-            30,
-            "plain".to_string(),
-            "topic".to_string(),
-            vec![1, 2, 3, 4, 5],
-            vec![("propiedad".to_string(), "valor".to_string())],
-        );
+        let will_properties = will_properties;
 
-        let properties = ConnectProperties {
-            session_expiry_interval: 10,
-            receive_maximum: 10,
-            maximum_packet_size: 10,
-            topic_alias_maximum: 10,
-            request_response_information: true,
-            request_problem_information: true,
-            user_properties: vec![("a".to_string(), "a".to_string())],
-            authentication_method: "a".to_string(),
-            authentication_data: vec![1, 2, 3, 4, 5],
-        };
+        let properties = connect_properties;
 
         let connect = ClientMessage::Connect {
-            clean_start: true,
-            last_will_flag: true,
-            last_will_qos: 1,
-            last_will_retain: true,
-            username: "prueba".to_string(),
-            password: "".to_string(),
-            keep_alive: 35,
+            clean_start,
+            last_will_flag,
+            last_will_qos,
+            last_will_retain,
+            username,
+            password,
+            keep_alive,
             properties,
-            client_id: "kvtr33".to_string(),
+            client_id,
             will_properties,
-            last_will_topic: "topic".to_string(),
-            last_will_message: "chauchis".to_string(),
+            last_will_topic,
+            last_will_message,
         };
         //println!("Sending connect message to broker: {:?}", connect);
         println!("Sending connect message to broker");
@@ -94,8 +90,7 @@ impl Client {
         if splitted_message[1] == "qos:1" {
             qos = 1;
             packet_id = 0x20FF;
-            
-        } else { 
+        } else {
             dup_flag = false;
         }
 
@@ -133,7 +128,11 @@ impl Client {
 
         if let Ok(message) = BrokerMessage::read_from(&mut self.stream) {
             match message {
-                BrokerMessage::Puback { packet_id_msb: _, packet_id_lsb: _, reason_code: _ } => {
+                BrokerMessage::Puback {
+                    packet_id_msb: _,
+                    packet_id_lsb: _,
+                    reason_code: _,
+                } => {
                     println!("Recibí un puback: {:?}", message);
                 }
                 _ => println!("no recibi nada :("),

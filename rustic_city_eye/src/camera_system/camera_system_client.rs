@@ -7,6 +7,7 @@ use std::io::{stdin, BufRead};
 use std::io::{BufReader, Read};
 
 use rustic_city_eye::mqtt::client::Client;
+use rustic_city_eye::mqtt::{connect_properties, will_properties};
 
 static CLIENT_ARGS: usize = 3;
 
@@ -31,9 +32,50 @@ fn main() -> Result<(), ()> {
 fn client_run(address: &str, stream: &mut dyn Read) -> std::io::Result<()> {
     let reader = BufReader::new(stream);
 
-    let mut client = match Client::new(address) {
+    let will_properties = will_properties::WillProperties::new(
+        1,
+        1,
+        1,
+        "a".to_string(),
+        "a".to_string(),
+        [1, 2, 3].to_vec(),
+        vec![("a".to_string(), "a".to_string())],
+    );
+
+    let connect_properties = connect_properties::ConnectProperties::new(
+        30,
+        1,
+        20,
+        20,
+        true,
+        true,
+        vec![("hola".to_string(), "chau".to_string())],
+        "auth".to_string(),
+        vec![1, 2, 3],
+    );
+
+    let mut client = match Client::new(
+        address,
+        will_properties,
+        connect_properties,
+        true,
+        true,
+        1,
+        true,
+        "prueba".to_string(),
+        "".to_string(),
+        35,
+        "kvtr33".to_string(),
+        "topic".to_string(),
+        "chauchis".to_string(),
+    ) {
         Ok(client) => client,
-        Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::Other, "Error al crear cliente")), //todo
+        Err(_) => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Error al crear cliente",
+            ))
+        } //todo
     };
 
     for line in reader.lines() {

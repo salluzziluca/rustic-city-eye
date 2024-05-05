@@ -1,7 +1,6 @@
-use std::io::{BufReader, BufWriter, Error, ErrorKind, Read, Write};
-use crate::mqtt::writer::*;
 use crate::mqtt::reader::*;
-
+use crate::mqtt::writer::*;
+use std::io::{BufReader, BufWriter, Error, ErrorKind, Read, Write};
 
 #[derive(Debug, PartialEq)]
 pub struct ConnectProperties {
@@ -17,9 +16,31 @@ pub struct ConnectProperties {
 }
 
 impl ConnectProperties {
+    pub fn new(
+        session_expiry_interval: u32,
+        receive_maximum: u16,
+        maximum_packet_size: u32,
+        topic_alias_maximum: u16,
+        request_response_information: bool,
+        request_problem_information: bool,
+        user_properties: Vec<(String, String)>,
+        authentication_method: String,
+        authentication_data: Vec<u8>,
+    ) -> ConnectProperties {
+        ConnectProperties {
+            session_expiry_interval,
+            receive_maximum,
+            maximum_packet_size,
+            topic_alias_maximum,
+            request_response_information,
+            request_problem_information,
+            user_properties,
+            authentication_method,
+            authentication_data,
+        }
+    }
 
     pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), Error> {
-
         let mut writer = BufWriter::new(stream);
 
         let session_expiry_interval_id: u8 = 0x11_u8;
@@ -80,7 +101,6 @@ impl ConnectProperties {
     }
 
     pub fn read_from(stream: &mut dyn Read) -> Result<ConnectProperties, Error> {
-        
         let mut reader = BufReader::new(stream);
 
         let mut session_expiry_interval: Option<u32> = None;
@@ -194,7 +214,6 @@ pub struct ConnectPropertiesBuilder {
     authentication_data: Option<Vec<u8>>,
 }
 
-
 impl Default for ConnectPropertiesBuilder {
     fn default() -> Self {
         ConnectPropertiesBuilder::new()
@@ -225,37 +244,37 @@ impl ConnectPropertiesBuilder {
         self.receive_maximum = Some(value);
         self
     }
-    
+
     pub fn maximum_packet_size(mut self, value: u32) -> Self {
         self.maximum_packet_size = Some(value);
         self
     }
-    
+
     pub fn topic_alias_maximum(mut self, value: u16) -> Self {
         self.topic_alias_maximum = Some(value);
         self
     }
-    
+
     pub fn request_response_information(mut self, value: bool) -> Self {
         self.request_response_information = Some(value);
         self
     }
-    
+
     pub fn request_problem_information(mut self, value: bool) -> Self {
         self.request_problem_information = Some(value);
         self
     }
-    
+
     pub fn user_properties(mut self, value: Vec<(String, String)>) -> Self {
         self.user_properties = Some(value);
         self
     }
-    
+
     pub fn authentication_method(mut self, value: String) -> Self {
         self.authentication_method = Some(value);
         self
     }
-    
+
     pub fn authentication_data(mut self, value: Vec<u8>) -> Self {
         self.authentication_data = Some(value);
         self
