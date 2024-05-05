@@ -112,3 +112,26 @@ impl BrokerMessage {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use super::*;
+
+    #[test]
+    fn test_01_suback_ok() {
+        let suback = BrokerMessage::Suback {
+            reason_code: 1,
+            packet_id_msb: 1,
+            packet_id_lsb: 1,
+        };
+
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+        suback.write_to(&mut cursor).unwrap();
+        cursor.set_position(0);
+        let read_suback = BrokerMessage::read_from(&mut cursor).unwrap();
+        assert_eq!(suback, read_suback);
+    }
+}
