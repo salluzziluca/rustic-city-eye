@@ -98,7 +98,7 @@ impl Broker {
                         };
                         puback.write_to(stream)?;
                     }
-                },
+                }
                 ClientMessage::Subscribe {
                     packet_id: _,
                     topic_name: _,
@@ -114,10 +114,8 @@ impl Broker {
                     suback.write_to(stream).unwrap();
                 }
             }
-
         }
         Ok(())
-     
     }
 
     pub fn assign_new_packet_id(&mut self) -> u16 {

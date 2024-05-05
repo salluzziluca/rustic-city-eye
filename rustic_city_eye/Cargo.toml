@@ -14,8 +14,8 @@ name = "broker"
 path = "src/mqtt/broker.rs"
 
 [[bin]]
-name = "monitoring_client"
-path = "src/monitoring_app/monitoring_client.rs"
+name = "monitoring_app"
+path = "src/monitoring_app/monitoring_app.rs"
 
 [[bin]]
 name = "camera_system_client"
