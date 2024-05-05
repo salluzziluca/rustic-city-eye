@@ -4,10 +4,10 @@
 
 ### Integrantes
 
-Carranza, Lihuén
-Demarchi, Ignacio
-Giacobbe, Juan Ignacio
-Saluzzi, Luca
+* Carranza, Lihuén
+* Demarchi, Ignacio
+* Giacobbe, Juan Ignacio
+* Saluzzi, Luca
 
 ## ¿Qué es un Sistema de Mensajería Asincrónico?
 
