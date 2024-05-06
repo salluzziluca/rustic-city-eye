@@ -1,7 +1,4 @@
-use std::{
-    env::args,
-    io::{stdin, BufRead, BufReader, Error, Read},
-};
+use std::io::{BufRead, BufReader, Error, Read};
 
 use crate::mqtt::client::Client;
 use crate::mqtt::protocol_error::ProtocolError;
@@ -10,13 +7,7 @@ use crate::mqtt::{connect_properties, will_properties};
 pub struct Camera {
     camera_client: Client,
 }
-// fn main() -> Result<(), ProtocolError> {
-//     let argv = args().collect::<Vec<String>>();
 
-//     let mut camera = Camera::new(argv)?;
-//     let _ = camera.app_run(&mut stdin().lock());
-//     Ok(())
-// }
 impl Camera {
     pub fn new(args: Vec<String>) -> Result<Camera, ProtocolError> {
         let will_properties = will_properties::WillProperties::new(
@@ -41,7 +32,7 @@ impl Camera {
             vec![1, 2, 3],
         );
 
-        let camera_system_client = match Client::new(
+        let camera_client = match Client::new(
             args,
             will_properties,
             connect_properties,
@@ -61,7 +52,7 @@ impl Camera {
         };
 
         Ok(Camera {
-            camera_client: camera_system_client,
+            camera_client,
         })
     }
 
