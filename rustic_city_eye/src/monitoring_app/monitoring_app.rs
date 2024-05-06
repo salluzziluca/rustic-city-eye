@@ -18,13 +18,13 @@ pub struct MonitoringApp {
     camera_system: CameraSystem,
 }
 
-fn main() -> Result<(), ProtocolError> {
-    let argv = args().collect::<Vec<String>>();
+// fn main() -> Result<(), ProtocolError> {
+//     let argv = args().collect::<Vec<String>>();
 
-    let mut monitoring_app = MonitoringApp::new(argv)?;
-    let _ = monitoring_app.app_run(&mut stdin().lock());
-    Ok(())
-}
+//     let mut monitoring_app = MonitoringApp::new(argv)?;
+//     let _ = monitoring_app.app_run(&mut stdin().lock());
+//     Ok(())
+// }
 
 #[allow(dead_code)]
 impl MonitoringApp {

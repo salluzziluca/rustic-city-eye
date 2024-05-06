@@ -10,13 +10,13 @@ use crate::mqtt::{connect_properties, will_properties};
 pub struct Camera {
     camera_client: Client,
 }
-fn main() -> Result<(), ProtocolError> {
-    let argv = args().collect::<Vec<String>>();
+// fn main() -> Result<(), ProtocolError> {
+//     let argv = args().collect::<Vec<String>>();
 
-    let mut camera = Camera::new(argv)?;
-    let _ = camera.app_run(&mut stdin().lock());
-    Ok(())
-}
+//     let mut camera = Camera::new(argv)?;
+//     let _ = camera.app_run(&mut stdin().lock());
+//     Ok(())
+// }
 impl Camera {
     pub fn new(args: Vec<String>) -> Result<Camera, ProtocolError> {
         let will_properties = will_properties::WillProperties::new(

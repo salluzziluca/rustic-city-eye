@@ -1,1 +1,1 @@
-mod monitoring_app;
+pub mod monitoring_app;

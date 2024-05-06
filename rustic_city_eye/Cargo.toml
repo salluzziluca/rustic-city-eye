@@ -11,11 +11,11 @@ rand = "0.8.5"
 
 [[bin]]
 name = "broker"
-path = "src/mqtt/broker.rs"
+path = "src/mqtt/run_broker.rs"
 
 [[bin]]
 name = "monitoring_app"
-path = "src/monitoring_app/monitoring_app.rs"
+path = "src/monitoring_app/run_monitoring.rs"
 
 [[bin]]
 name = "camera_system_client"
@@ -23,4 +23,4 @@ path = "src/camera_system/camera_system_client.rs"
 
 [[bin]]
 name = "camera"
-path = "src/camera_system/camera.rs"
+path = "src/camera_system/run_camera.rs"
