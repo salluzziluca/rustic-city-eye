@@ -29,7 +29,7 @@ fn test_connack() {
     let connack = client_message::ClientMessage::Connack {
         session_present: true,
         reason_code: 0,
-        properties: properties,
+        properties,
     };
 
     let mut cursor = Cursor::new(Vec::<u8>::new());
