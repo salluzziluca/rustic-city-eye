@@ -20,3 +20,7 @@ path = "src/monitoring_app/monitoring_app.rs"
 [[bin]]
 name = "camera_system_client"
 path = "src/camera_system/camera_system_client.rs"
+
+[[bin]]
+name = "camera"
+path = "src/camera_system/camera.rs"

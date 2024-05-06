@@ -6,8 +6,8 @@ use std::io::{stdin, BufRead};
 
 use std::io::{BufReader, Read};
 
-use rustic_city_eye::mqtt::client::Client;
-use rustic_city_eye::mqtt::{connect_properties, will_properties};
+use crate::mqtt::client::Client;
+use crate::mqtt::{connect_properties, will_properties};
 
 static CLIENT_ARGS: usize = 3;
 

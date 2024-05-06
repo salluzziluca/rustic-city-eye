@@ -1,12 +1,12 @@
 //! Se conecta mediante TCP a la dirección asignada por argv.
 //! Lee lineas desde stdin y las manda mediante el socket.
 
-use rustic_city_eye::camera_system::camera::Camera;
-use rustic_city_eye::camera_system::camera_system::CameraSystem;
-use rustic_city_eye::mqtt::client::Client;
-use rustic_city_eye::mqtt::connect_properties;
-use rustic_city_eye::mqtt::protocol_error::ProtocolError;
-use rustic_city_eye::mqtt::will_properties;
+use crate::camera_system::camera::Camera;
+use crate::camera_system::camera_system::CameraSystem;
+use crate::mqtt::client::Client;
+use crate::mqtt::connect_properties;
+use crate::mqtt::protocol_error::ProtocolError;
+use crate::mqtt::will_properties;
 
 use std::env::args;
 use std::io::stdin;
@@ -75,8 +75,8 @@ impl MonitoringApp {
                 Err(err) => return Err(err),
             },
         };
-        let camera1 = Camera::new();
-        monitoring_app.camera_system.add_camera(camera1);
+        // let camera1 = Camera::new();
+        // monitoring_app.camera_system.add_camera(camera1);
         Ok(monitoring_app)
     }
 
