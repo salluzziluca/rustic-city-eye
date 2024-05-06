@@ -1,7 +1,7 @@
 use std::io::Cursor;
 
-use rustic_city_eye::mqtt::{client_message, subscribe_properties::SubscribeProperties};
 use rustic_city_eye::mqtt::broker_message;
+use rustic_city_eye::mqtt::{client_message, subscribe_properties::SubscribeProperties};
 
 #[test]
 fn test_sub() {

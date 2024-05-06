@@ -1,12 +1,12 @@
 use crate::mqtt::subscribe_properties::SubscribeProperties;
 use std::io::{BufWriter, Error, Read, Write};
 
+use crate::mqtt::connack_properties::ConnackProperties;
 use crate::mqtt::connect_properties::ConnectProperties;
 use crate::mqtt::publish_properties::PublishProperties;
 use crate::mqtt::reader::*;
 use crate::mqtt::will_properties::*;
 use crate::mqtt::writer::*;
-use crate::mqtt::connack_properties::ConnackProperties;
 
 use super::publish_properties::TopicProperties;
 
@@ -222,16 +222,20 @@ impl ClientMessage {
                 writer.flush()?;
                 Ok(())
             }
-            ClientMessage::Connack { session_present , reason_code, properties } => 
-            {
+            ClientMessage::Connack {
+                session_present,
+                reason_code,
+                properties,
+            } => {
                 let byte_1: u8 = 0x20_u8; //00100000
                 writer.write_all(&[byte_1])?;
+                println!("session present: {:?}", session_present);
                 writer.write_all(&[if *session_present { 1u8 } else { 0u8 }])?;
                 writer.write_all(&[*reason_code])?;
                 properties.write_to(&mut writer)?;
                 writer.flush()?;
                 Ok(())
-            },
+            }
         }
     }
 

@@ -108,7 +108,10 @@ impl PublishProperties {
         let _response_topic_id = read_u8(stream)?;
         let response_topic = read_string(stream)?;
 
-        let topic_properties = TopicProperties { topic_alias, response_topic };
+        let topic_properties = TopicProperties {
+            topic_alias,
+            response_topic,
+        };
 
         //correlation data
         //let correlation_data_id = read_u8(stream)?;
