@@ -6,6 +6,7 @@ use crate::mqtt::publish_properties::PublishProperties;
 use crate::mqtt::reader::*;
 use crate::mqtt::will_properties::*;
 use crate::mqtt::writer::*;
+use crate::mqtt::connack_properties::ConnackProperties;
 
 use super::publish_properties::TopicProperties;
 
@@ -61,6 +62,13 @@ pub enum ClientMessage {
         topic_name: String,
         /// properties es un struct que contiene las propiedades del mensaje de subscribe.
         properties: SubscribeProperties,
+    },
+
+    // EL connack el paquete de respuesta que el broker envia al cliente despues de recibir un connect message.
+    Connack {
+        session_present: bool,
+        reason_code: u8,
+        properties: ConnackProperties,
     },
 }
 
@@ -214,6 +222,16 @@ impl ClientMessage {
                 writer.flush()?;
                 Ok(())
             }
+            ClientMessage::Connack { session_present , reason_code, properties } => 
+            {
+                let byte_1: u8 = 0x20_u8; //00100000
+                writer.write_all(&[byte_1])?;
+                writer.write_all(&[if *session_present { 1u8 } else { 0u8 }])?;
+                writer.write_all(&[*reason_code])?;
+                properties.write_to(&mut writer)?;
+                writer.flush()?;
+                Ok(())
+            },
         }
     }
 
@@ -353,6 +371,16 @@ impl ClientMessage {
                 Ok(ClientMessage::Subscribe {
                     packet_id,
                     topic_name: topic,
+                    properties,
+                })
+            }
+            0x20 => {
+                let session_present = read_u8(stream)? == 1;
+                let reason_code = read_u8(stream)?;
+                let properties = ConnackProperties::read_from(stream)?;
+                Ok(ClientMessage::Connack {
+                    session_present,
+                    reason_code,
                     properties,
                 })
             }
