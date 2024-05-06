@@ -51,9 +51,7 @@ impl Camera {
             Err(err) => return Err(err),
         };
 
-        Ok(Camera {
-            camera_client,
-        })
+        Ok(Camera { camera_client })
     }
 
     pub fn app_run(&mut self, stream: &mut dyn Read) -> Result<(), Error> {

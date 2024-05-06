@@ -1,6 +1,14 @@
-use std::net::{TcpListener, TcpStream};
+use std::{
+    net::{TcpListener, TcpStream},
+    sync::{Arc, Mutex},
+};
 
-use crate::mqtt::{broker_message::BrokerMessage, client_message::ClientMessage, protocol_error:: ProtocolError};
+use crate::mqtt::{
+    broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError,
+};
+
+use super::client::Client;
+use std::io::Write; // Import the Write trait
 
 static SERVER_ARGS: usize = 2;
 
@@ -8,9 +16,11 @@ static SERVER_ARGS: usize = 2;
 /// Bindea a un puerto dado y comienza a correr.
 /// Contiene la info de los mensajes que están siendo enviados y del cliente
 /// Es un mediador entra los diferentes clientes, enviendo los ACKs correspondientes a los publishers. Esto permite implementar un tipo de comunicación asincronica.
+#[derive(Clone)]
 pub struct Broker {
     address: String,
     packet_ids: Vec<u16>,
+    subscribers: Arc<Mutex<Vec<TcpStream>>>,
 }
 
 impl Broker {
@@ -28,19 +38,23 @@ impl Broker {
         Ok(Broker {
             address,
             packet_ids,
+            subscribers: Arc::new(Mutex::new(Vec::new())),
         })
     }
 
     /// Ejecuta el servidor.
     /// Crea un enlace en la dirección del broker y, para
     /// cada conexión entrante, crea un hilo para manejar el nuevo cliente.
-    pub fn server_run(&self) -> std::io::Result<()> {
+    pub fn server_run(&mut self) -> std::io::Result<()> {
         let listener = TcpListener::bind(&self.address)?;
 
         for stream in listener.incoming() {
             match stream {
                 Ok(mut stream) => {
-                    std::thread::spawn(move || Broker::handle_client(&mut stream));
+                    let mut self_clone = self.clone(); // Clone the `self` reference
+                    std::thread::spawn(move || {
+                        self_clone.handle_client(&mut stream); // Use the cloned reference
+                    });
                 }
                 Err(err) => return Err(err),
             }
@@ -49,7 +63,7 @@ impl Broker {
     }
 
     ///Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
-    fn handle_client(stream: &mut TcpStream) -> std::io::Result<()> {
+    fn handle_client(&mut self, stream: &mut TcpStream) -> std::io::Result<()> {
         while let Ok(message) = ClientMessage::read_from(stream) {
             match message {
                 ClientMessage::Connect {
@@ -76,18 +90,34 @@ impl Broker {
                 }
                 ClientMessage::Publish {
                     packet_id,
-                    topic_name: _,
-                    qos,
+                    topic_name: ref topic,
+                    qos: _,
                     retain_flag: _,
                     payload: _,
                     dup_flag: _,
                     properties: _,
                 } => {
                     println!("Recibí un publish: {:?}", message);
+                    println!("topic {:?}", topic);
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
+                    // ...
+                    if topic == "accidente" {
+                        let subscribers = self.subscribers.lock().unwrap();
 
-                    if qos == 1 {
-                        println!("sending puback...");
+                        for mut subscriber in subscribers.iter() {
+                            println!("stream {:?}", subscriber);
+
+                            println!("Sending message to subscriber");
+                            // Write the message to the subscriber's stream.
+                            // You would replace this with your actual message sending code.
+                            let mensaje = "accidente";
+                            let lenght = mensaje.len();
+                            let lenght_bytes = lenght.to_be_bytes();
+                            let mensaje_bytes = mensaje.as_bytes();
+                            subscriber.write_all(&lenght_bytes)?;
+
+                            subscriber.write_all(mensaje_bytes)?;
+                        }
                         let puback = BrokerMessage::Puback {
                             packet_id_msb: packet_id_bytes[0],
                             packet_id_lsb: packet_id_bytes[1],
@@ -98,17 +128,22 @@ impl Broker {
                 }
                 ClientMessage::Subscribe {
                     packet_id: _,
-                    topic_name: _,
+                    topic_name: ref topic,
                     properties: _,
                 } => {
                     println!("Recibí un subscribe: {:?}", message);
-                    let suback = BrokerMessage::Suback {
-                        packet_id_msb: 0,
-                        packet_id_lsb: 1,
-                        reason_code: 0,
-                    };
-                    println!("Sending suback: {:?}", suback);
-                    suback.write_to(stream).unwrap();
+                    if topic == "accidente" {
+                        let mut subscribers = self.subscribers.lock().unwrap();
+                        println!("stream {:?}", stream);
+                        subscribers.push(stream.try_clone().unwrap());
+                        let suback = BrokerMessage::Suback {
+                            packet_id_msb: 0,
+                            packet_id_lsb: 1,
+                            reason_code: 0,
+                        };
+                        println!("Sending suback: {:?}", suback);
+                        suback.write_to(stream).unwrap();
+                    }
                 }
             }
         }
@@ -126,13 +161,6 @@ impl Broker {
         new_id
     }
 }
-
-// fn main() -> Result<(), ProtocolError> {
-//     let argv = args().collect::<Vec<String>>();
-//     let broker = Broker::new(argv)?;
-//     let _ = broker.server_run();
-//     Ok(())
-// }
 
 #[cfg(test)]
 mod tests {
