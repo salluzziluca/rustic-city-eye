@@ -55,8 +55,8 @@ impl MonitoringApp {
         );
 
         let mut monitoring_app = MonitoringApp {
-            camera_system: CameraSystem::build(args.clone())?,
-            monitoring_app_client: match Client::build(
+            camera_system: CameraSystem::new(args.clone())?,
+            monitoring_app_client: match Client::new(
                 args,
                 will_properties,
                 connect_properties,
@@ -72,7 +72,7 @@ impl MonitoringApp {
                 "soy el camera_system y me desconecté".to_string(),
             ) {
                 Ok(client) => client,
-                Err(err) => return Err(err)
+                Err(err) => return Err(err),
             },
         };
         let camera1 = Camera::new();
@@ -97,7 +97,6 @@ impl MonitoringApp {
                     let topic = post_colon.trim(); // remove leading/trailing whitespace
                     println!("Subscribing to topic: {}", topic);
                     self.monitoring_app_client.subscribe(topic);
-
                 } else {
                     println!("Comando no reconocido: {}", line);
                 }

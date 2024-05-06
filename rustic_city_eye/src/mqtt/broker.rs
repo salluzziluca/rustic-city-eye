@@ -18,7 +18,7 @@ pub struct Broker {
 
 impl Broker {
     ///Check that the number of arguments is valid.
-    pub fn build(args: Vec<String>) -> Result<Broker, ProtocolError> {
+    pub fn new(args: Vec<String>) -> Result<Broker, ProtocolError> {
         if args.len() != SERVER_ARGS {
             let app_name = &args[0];
             println!("Usage:\n{:?} <puerto>", app_name);
@@ -132,7 +132,7 @@ impl Broker {
 
 fn main() -> Result<(), ProtocolError> {
     let argv = args().collect::<Vec<String>>();
-    let broker = Broker::build(argv)?;
+    let broker = Broker::new(argv)?;
     let _ = broker.server_run();
     Ok(())
 }
@@ -146,7 +146,7 @@ mod tests {
         let mut args = Vec::new();
         args.push("target/debug/broker".to_string());
 
-        let _ = Broker::build(args);
+        let _ = Broker::new(args);
 
         Ok(())
     }

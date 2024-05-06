@@ -16,7 +16,7 @@ pub struct Client {
 }
 #[allow(dead_code)]
 impl Client {
-    pub fn build(
+    pub fn new(
         args: Vec<String>,
         will_properties: WillProperties,
         connect_properties: ConnectProperties,
@@ -30,7 +30,7 @@ impl Client {
         client_id: String,
         last_will_topic: String,
         last_will_message: String,
-        ) -> Result<Client, ProtocolError> {
+    ) -> Result<Client, ProtocolError> {
         if args.len() != CLIENT_ARGS {
             let app_name = &args[0];
             println!("Usage:\n{:?} <host> <puerto>", app_name);
@@ -39,67 +39,6 @@ impl Client {
 
         let address = args[1].clone() + ":" + &args[2];
 
-        let mut stream = match TcpStream::connect(address) {
-            Ok(stream) => stream,
-            Err(_) => return Err(ProtocolError::ConectionError),
-        };
-
-        let will_properties = will_properties;
-
-        let properties = connect_properties;
-
-        let connect = ClientMessage::Connect {
-            clean_start,
-            last_will_flag,
-            last_will_qos,
-            last_will_retain,
-            username,
-            password,
-            keep_alive,
-            properties,
-            client_id,
-            will_properties,
-            last_will_topic,
-            last_will_message,
-        };
-        //println!("Sending connect message to broker: {:?}", connect);
-        println!("Sending connect message to broker");
-        connect.write_to(&mut stream).unwrap();
-
-        if let Ok(message) = BrokerMessage::read_from(&mut stream) {
-            match message {
-                BrokerMessage::Connack {
-                   //session_present,
-                    //return_code,
-                } => {
-                    println!("Recibí un connack: {:?}", message);
-                },
-                _ => println!("no recibi un connack :("),
-
-            }
-        } else {
-            println!("soy el client y no pude leer el mensaje");
-        }
-
-        Ok(Client { stream })
-    }
-
-
-    pub fn new(
-        address: &str,
-        will_properties: WillProperties,
-        connect_properties: ConnectProperties,
-        clean_start: bool,
-        last_will_flag: bool,
-        last_will_qos: u8,
-        last_will_retain: bool,
-        username: String,
-        password: String,
-        keep_alive: u16,
-        client_id: String,
-        last_will_topic: String,
-        last_will_message: String,
-    ) -> Result<Client, ProtocolError> {
         let mut stream = match TcpStream::connect(address) {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::ConectionError),

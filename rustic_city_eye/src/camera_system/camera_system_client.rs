@@ -23,13 +23,13 @@ fn main() -> Result<(), ()> {
     let address = argv[1].clone() + ":" + &argv[2];
     println!("Soy el Camera System, conectándome a {:?}", address);
 
-    client_run(&address, &mut stdin()).unwrap();
+    client_run(argv, &mut stdin()).unwrap();
     Ok(())
 }
 
 /// Client run recibe una dirección y cualquier cosa "legible"
 /// Esto nos da la libertad de pasarle stdin, un archivo, incluso otro socket
-fn client_run(address: &str, stream: &mut dyn Read) -> std::io::Result<()> {
+fn client_run(args: Vec<String>, stream: &mut dyn Read) -> std::io::Result<()> {
     let reader = BufReader::new(stream);
 
     let will_properties = will_properties::WillProperties::new(
@@ -55,7 +55,7 @@ fn client_run(address: &str, stream: &mut dyn Read) -> std::io::Result<()> {
     );
 
     let mut client = match Client::new(
-        address,
+        args,
         will_properties,
         connect_properties,
         true,

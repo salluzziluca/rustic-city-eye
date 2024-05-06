@@ -216,12 +216,6 @@ pub struct ConnectPropertiesBuilder {
 
 impl Default for ConnectPropertiesBuilder {
     fn default() -> Self {
-        ConnectPropertiesBuilder::new()
-    }
-}
-
-impl ConnectPropertiesBuilder {
-    pub fn new() -> ConnectPropertiesBuilder {
         ConnectPropertiesBuilder {
             session_expiry_interval: None,
             receive_maximum: None,
@@ -233,6 +227,22 @@ impl ConnectPropertiesBuilder {
             authentication_method: None,
             authentication_data: None,
         }
+    }
+}
+
+impl ConnectPropertiesBuilder {
+    pub fn new(self) -> Result<ConnectProperties, Error> {
+        Ok(ConnectProperties {
+            session_expiry_interval: self.session_expiry_interval.unwrap_or_default(),
+            receive_maximum: self.receive_maximum.unwrap_or_default(),
+            maximum_packet_size: self.maximum_packet_size.unwrap_or_default(),
+            topic_alias_maximum: self.topic_alias_maximum.unwrap_or_default(),
+            request_response_information: self.request_response_information.unwrap_or_default(),
+            request_problem_information: self.request_problem_information.unwrap_or_default(),
+            user_properties: self.user_properties.unwrap_or_default(),
+            authentication_method: self.authentication_method.unwrap_or_default(),
+            authentication_data: self.authentication_data.unwrap_or_default(),
+        })
     }
 
     pub fn session_expiry_interval(mut self, value: u32) -> Self {
@@ -279,20 +289,6 @@ impl ConnectPropertiesBuilder {
         self.authentication_data = Some(value);
         self
     }
-
-    pub fn build(self) -> Result<ConnectProperties, Error> {
-        Ok(ConnectProperties {
-            session_expiry_interval: self.session_expiry_interval.unwrap_or_default(),
-            receive_maximum: self.receive_maximum.unwrap_or_default(),
-            maximum_packet_size: self.maximum_packet_size.unwrap_or_default(),
-            topic_alias_maximum: self.topic_alias_maximum.unwrap_or_default(),
-            request_response_information: self.request_response_information.unwrap_or_default(),
-            request_problem_information: self.request_problem_information.unwrap_or_default(),
-            user_properties: self.user_properties.unwrap_or_default(),
-            authentication_method: self.authentication_method.unwrap_or_default(),
-            authentication_data: self.authentication_data.unwrap_or_default(),
-        })
-    }
 }
 
 #[cfg(test)]
@@ -311,7 +307,10 @@ mod tests {
             topic_alias_maximum: 99,
             request_response_information: true,
             request_problem_information: false,
-            user_properties: vec![("Hola".to_string(),"Mundo".to_string()), ("Chau".to_string(),"Mundo".to_string())],
+            user_properties: vec![
+                ("Hola".to_string(), "Mundo".to_string()),
+                ("Chau".to_string(), "Mundo".to_string()),
+            ],
             authentication_method: "test".to_string(),
             authentication_data: vec![1_u8, 2_u8, 3_u8, 4_u8, 5_u8],
         };
