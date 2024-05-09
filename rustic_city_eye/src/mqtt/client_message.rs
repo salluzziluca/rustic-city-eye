@@ -321,6 +321,7 @@ impl ClientMessage {
                     topic_alias: 10,
                     response_topic: "String".to_string(),
                 };
+
                 let properties = PublishProperties::new(
                     1,
                     10,
@@ -501,6 +502,7 @@ mod tests {
 
         match ClientMessage::read_from(&mut cursor) {
             Ok(read_publish) => {
+                println!("{:?}", read_publish);
                 assert_eq!(publish, read_publish);
             }
             Err(e) => {
