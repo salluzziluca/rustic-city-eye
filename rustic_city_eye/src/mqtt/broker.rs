@@ -91,7 +91,13 @@ fn handle_client(mut stream: &mut TcpStream) -> std::io::Result<()> {
                 println!("Sending suback: {:?}", suback);
                 suback.write_to(&mut stream).unwrap();
             }
-            ClientMessage::Connack { .. } => todo!(),
+            _ => {
+                println!("Recibí un mensaje desconocido: {:?}", message);
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Mensaje desconocido",
+                ));
+            }
         }
     }
 
