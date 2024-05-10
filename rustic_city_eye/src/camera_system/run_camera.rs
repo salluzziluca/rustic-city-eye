@@ -1,4 +1,7 @@
-use std::{env::args, io::stdin};
+use std::{
+    env::args,
+    io::{stdin, Read},
+};
 
 use rustic_city_eye::{camera_system::camera::Camera, mqtt::protocol_error::ProtocolError};
 

@@ -1,4 +1,8 @@
-use std::{io::{BufRead, BufReader, Read}, net::TcpStream, sync::{Arc, Mutex}};
+use std::{
+    io::{BufRead, BufReader, Read},
+    net::TcpStream,
+    sync::{Arc, Mutex},
+};
 
 use crate::mqtt::{
     broker_message::BrokerMessage,
@@ -8,7 +12,7 @@ use crate::mqtt::{
     publish_properties::{PublishProperties, TopicProperties},
     //reader::read_string,
     subscribe_properties::SubscribeProperties,
-    will_properties::WillProperties
+    will_properties::WillProperties,
 };
 
 static CLIENT_ARGS: usize = 3;
@@ -84,7 +88,9 @@ impl Client {
             println!("soy el client y no pude leer el mensaje");
         };
 
-        Ok(Client { stream: Arc::new(Mutex::new(stream)) })
+        Ok(Client {
+            stream: Arc::new(Mutex::new(stream)),
+        })
     }
 
     pub fn publish_message(message: &str, stream: Arc<Mutex<TcpStream>>) {
@@ -193,7 +199,6 @@ impl Client {
     }
 
     pub fn client_run(&mut self, input_stream: Box<dyn Read + Send>) -> Result<(), ProtocolError> {
-
         let stream_reference = Arc::clone(&self.stream);
         let stream_reference1 = Arc::clone(&self.stream);
 
@@ -220,12 +225,12 @@ impl Client {
                             let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
                             let message = post_colon.trim(); // remove leading/trailing whitespace
                             println!("Publishing message: {}", message);
-                            Client::publish_message(message, stream_reference1);
+                            Client::publish_message(message, Arc::clone(&stream_reference1));
                         } else if line.starts_with("subscribe:") {
                             let (_, post_colon) = line.split_at(10); // "subscribe:" is 10 characters
                             let topic = post_colon.trim(); // remove leading/trailing whitespace
                             println!("Subscribing to topic: {}", topic);
-                            Client::subscribe(topic, stream_reference1);
+                            Client::subscribe(topic, Arc::clone(&stream_reference1));
                         } else {
                             println!("Comando no reconocido: {}", line);
                         }
@@ -234,45 +239,44 @@ impl Client {
                             std::io::ErrorKind::Other,
                             "Error al leer linea",
                         ));
-                   }
+                    }
                 }
                 Ok(())
             });
         };
 
-
         Ok(())
-    } 
+    }
 }
 
 /*
-        let self_arc =  Arc::new(Mutex::new(self));
-        let self_ref = Arc::clone(&self_arc);
+let self_arc =  Arc::new(Mutex::new(self));
+let self_ref = Arc::clone(&self_arc);
 
-        let message_enviator = std::thread::spawn(move || {
-            let reader = BufReader::new(input_stream);
-            for line in reader.lines() {
-                if let Ok(line) = line {
-                    if line.starts_with("publish:") {
-                        let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
-                        let message = post_colon.trim(); // remove leading/trailing whitespace
-                        println!("Publishing message: {}", message);
-                        self_ref.lock().unwrap().publish_message(message);
-                    } else if line.starts_with("subscribe:") {
-                        let (_, post_colon) = line.split_at(10); // "subscribe:" is 10 characters
-                        let topic = post_colon.trim(); // remove leading/trailing whitespace
-                        println!("Subscribing to topic: {}", topic);
-                         self_ref.lock().unwrap().subscribe(topic);
-                    } else {
-                        println!("Comando no reconocido: {}", line);
-                    }
-                } else {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        "Error al leer linea",
-                    ));
-                }
+let message_enviator = std::thread::spawn(move || {
+    let reader = BufReader::new(input_stream);
+    for line in reader.lines() {
+        if let Ok(line) = line {
+            if line.starts_with("publish:") {
+                let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
+                let message = post_colon.trim(); // remove leading/trailing whitespace
+                println!("Publishing message: {}", message);
+                self_ref.lock().unwrap().publish_message(message);
+            } else if line.starts_with("subscribe:") {
+                let (_, post_colon) = line.split_at(10); // "subscribe:" is 10 characters
+                let topic = post_colon.trim(); // remove leading/trailing whitespace
+                println!("Subscribing to topic: {}", topic);
+                 self_ref.lock().unwrap().subscribe(topic);
+            } else {
+                println!("Comando no reconocido: {}", line);
             }
-            Ok(())
-        });
-        */
+        } else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Error al leer linea",
+            ));
+        }
+    }
+    Ok(())
+});
+*/

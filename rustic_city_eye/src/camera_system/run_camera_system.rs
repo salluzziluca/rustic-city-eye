@@ -1,6 +1,11 @@
-use std::{env::args, io::stdin};
+use std::{
+    env::args,
+    io::{stdin, Read},
+};
 
-use rustic_city_eye::{camera_system::camera_system::CameraSystem, mqtt::protocol_error::ProtocolError};
+use rustic_city_eye::{
+    camera_system::camera_system::CameraSystem, mqtt::protocol_error::ProtocolError,
+};
 
 fn main() -> Result<(), ProtocolError> {
     let argv = args().collect::<Vec<String>>();
