@@ -7,8 +7,7 @@ use crate::mqtt::connect_properties;
 use crate::mqtt::protocol_error::ProtocolError;
 use crate::mqtt::will_properties;
 
-use std::io::{BufRead, Error};
-use std::io::{BufReader, Read};
+use std::io::{Error,Read};
 
 pub struct MonitoringApp {
     monitoring_app_client: Client,
@@ -73,31 +72,9 @@ impl MonitoringApp {
 
     /// En este momento la app de monitoreo ya tiene todos los clientes conectados y funcionales
     /// Aca es donde se gestiona la interaccion entre los diferentes clientes
-    pub fn app_run(&mut self, stream: &mut dyn Read) -> Result<(), Error> {
-        let reader = BufReader::new(stream);
+    pub fn app_run(&mut self, stream: Box<dyn Read + Send>) -> Result<(), Error> {
+        self.monitoring_app_client.client_run(Box::new(stream));
 
-        for line in reader.lines() {
-            if let Ok(line) = line {
-                if line.starts_with("publish:") {
-                    let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
-                    let message = post_colon.trim(); // remove leading/trailing whitespace
-                    println!("Publishing message: {}", message);
-                    self.monitoring_app_client.publish_message(message);
-                } else if line.starts_with("subscribe:") {
-                    let (_, post_colon) = line.split_at(10); // "subscribe:" is 10 characters
-                    let topic = post_colon.trim(); // remove leading/trailing whitespace
-                    println!("Subscribing to topic: {}", topic);
-                    self.monitoring_app_client.subscribe(topic);
-                } else {
-                    println!("Comando no reconocido: {}", line);
-                }
-            } else {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "Error al leer linea",
-                ));
-            }
-        }
         Ok(())
     }
 

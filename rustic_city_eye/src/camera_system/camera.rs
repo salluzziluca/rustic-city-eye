@@ -1,4 +1,4 @@
-use std::io::{BufRead, BufReader, Error, Read};
+use std::io::{Error, Read};
 
 use crate::mqtt::client::Client;
 use crate::mqtt::protocol_error::ProtocolError;
@@ -54,31 +54,32 @@ impl Camera {
         Ok(Camera { camera_client })
     }
 
-    pub fn app_run(&mut self, stream: &mut dyn Read) -> Result<(), Error> {
-        let reader = BufReader::new(stream);
+    pub fn camera_run(&mut self, stream: Box<dyn Read + Send>) -> Result<(), Error> {
+        // let reader = BufReader::new(stream);
 
-        for line in reader.lines() {
-            if let Ok(line) = line {
-                if line.starts_with("publish:") {
-                    let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
-                    let message = post_colon.trim(); // remove leading/trailing whitespace
-                    println!("Publishing message: {}", message);
-                    self.camera_client.publish_message(message);
-                } else if line.starts_with("subscribe:") {
-                    let (_, post_colon) = line.split_at(10); // "subscribe:" is 10 characters
-                    let topic = post_colon.trim(); // remove leading/trailing whitespace
-                    println!("Subscribing to topic: {}", topic);
-                    self.camera_client.subscribe(topic);
-                } else {
-                    println!("Comando no reconocido: {}", line);
-                }
-            } else {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "Error al leer linea",
-                ));
-            }
-        }
+        // for line in reader.lines() {
+        //     if let Ok(line) = line {
+        //         if line.starts_with("publish:") {
+        //             let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
+        //             let message = post_colon.trim(); // remove leading/trailing whitespace
+        //             println!("Publishing message: {}", message);
+        //             self.camera_client.publish_message(message);
+        //         } else if line.starts_with("subscribe:") {
+        //             let (_, post_colon) = line.split_at(10); // "subscribe:" is 10 characters
+        //             let topic = post_colon.trim(); // remove leading/trailing whitespace
+        //             println!("Subscribing to topic: {}", topic);
+        //             self.camera_client.subscribe(topic);
+        //         } else {
+        //             println!("Comando no reconocido: {}", line);
+        //         }
+        //     } else {
+        //         return Err(std::io::Error::new(
+        //             std::io::ErrorKind::Other,
+        //             "Error al leer linea",
+        //         ));
+        //     }
+        // }
+        self.camera_client.client_run(Box::new(stream));
         Ok(())
     }
 }

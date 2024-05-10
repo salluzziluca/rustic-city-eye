@@ -7,7 +7,7 @@ use crate::mqtt::{
     broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError,
 };
 
-use super::client::Client;
+//use super::client::Client;
 use std::io::Write; // Import the Write trait
 
 static SERVER_ARGS: usize = 2;
@@ -53,7 +53,7 @@ impl Broker {
                 Ok(mut stream) => {
                     let mut self_clone = self.clone(); // Clone the `self` reference
                     std::thread::spawn(move || {
-                        self_clone.handle_client(&mut stream); // Use the cloned reference
+                        let _ = self_clone.handle_client(&mut stream); // Use the cloned reference
                     });
                 }
                 Err(err) => return Err(err),

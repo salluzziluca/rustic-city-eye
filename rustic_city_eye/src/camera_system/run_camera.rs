@@ -6,6 +6,8 @@ fn main() -> Result<(), ProtocolError> {
     let argv = args().collect::<Vec<String>>();
 
     let mut camera = Camera::new(argv)?;
-    let _ = camera.app_run(&mut stdin().lock());
+    let stream: Box<dyn Read + Send> = Box::new(stdin());
+
+    let _ = camera.camera_run(stream);
     Ok(())
 }

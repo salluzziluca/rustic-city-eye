@@ -6,6 +6,8 @@ fn main() -> Result<(), ProtocolError> {
     let argv = args().collect::<Vec<String>>();
 
     let mut monitoring_app = MonitoringApp::new(argv)?;
-    let _ = monitoring_app.app_run(&mut stdin().lock());
+    let stream: Box<dyn Read + Send> = Box::new(stdin());
+
+    let _ = monitoring_app.app_run(stream);
     Ok(())
 }
