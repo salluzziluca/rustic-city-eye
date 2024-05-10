@@ -79,7 +79,12 @@ impl Camera {
         //         ));
         //     }
         // }
-        self.camera_client.client_run(Box::new(stream));
-        Ok(())
+        match self.camera_client.client_run(Box::new(stream)) {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                println!("Error: {:?}", err);
+                Err(Error::new(std::io::ErrorKind::Other, "Error al leer linea"))
+            }
+        }
     }
 }

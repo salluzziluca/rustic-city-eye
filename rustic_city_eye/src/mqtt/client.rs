@@ -177,9 +177,10 @@ impl Client {
                 vec![0, 1, 2, 3],
             ),
         };
-        let stream_reference = Arc::clone(&stream);
+        println!("AAAAAAAAA: {}", topic);
+        let stream_reference = Arc::clone(&stream); //BUG: esta linea y la de abajo rompen
         let mut stream = stream_reference.lock().unwrap();
-
+        println!("stream {:?}", *stream);
         subscribe.write_to(&mut *stream).unwrap();
 
         if let Ok(message) = BrokerMessage::read_from(&mut *stream) {
@@ -205,7 +206,9 @@ impl Client {
         let input_stream_shared = Arc::new(Mutex::new(input_stream));
 
         let _messages_reception = std::thread::spawn(move || {
+            println!("toy readi para recibir mensajes");
             let mut stream = stream_reference.lock().unwrap();
+            println!("stream {:?}", stream);
             loop {
                 let mut buf = [0u8; 1];
                 let numerito = stream.read_exact(&mut buf);
@@ -213,38 +216,39 @@ impl Client {
             }
         });
 
-        let _message_enviator = {
+        let _message_sender = std::thread::spawn(move || {
+            println!("toy readi para mandar mensajes");
             let input_stream_ref = Arc::clone(&input_stream_shared);
-            std::thread::spawn(move || {
-                let mut locked_input = input_stream_ref.lock().unwrap();
-                let reader = BufReader::new(&mut *locked_input);
+            let mut locked_input = input_stream_ref.lock().unwrap();
+            let reader = BufReader::new(&mut *locked_input);
 
-                for line in reader.lines() {
-                    if let Ok(line) = line {
-                        if line.starts_with("publish:") {
-                            let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
-                            let message = post_colon.trim(); // remove leading/trailing whitespace
-                            println!("Publishing message: {}", message);
-                            Client::publish_message(message, Arc::clone(&stream_reference1));
-                        } else if line.starts_with("subscribe:") {
-                            let (_, post_colon) = line.split_at(10); // "subscribe:" is 10 characters
-                            let topic = post_colon.trim(); // remove leading/trailing whitespace
-                            println!("Subscribing to topic: {}", topic);
-                            Client::subscribe(topic, Arc::clone(&stream_reference1));
-                        } else {
-                            println!("Comando no reconocido: {}", line);
-                        }
+            for line in reader.lines() {
+                if let Ok(line) = line {
+                    println!("line: {:?}", line);
+                    if line.starts_with("publish:") {
+                        let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
+                        let message = post_colon.trim(); // remove leading/trailing whitespace
+                        println!("Publishing message: {}", message);
+                        Client::publish_message(message, Arc::clone(&stream_reference1));
+                    } else if line.starts_with("subscribe:") {
+                        let (_, post_colon) = line.split_at(10); // "subscribe:" is 10 characters
+                        let topic = post_colon.trim(); // remove leading/trailing whitespace
+                        println!("Subscribing to topic: {}", topic);
+                        Client::subscribe(topic, Arc::clone(&stream_reference1));
                     } else {
-                        return Err(std::io::Error::new(
-                            std::io::ErrorKind::Other,
-                            "Error al leer linea",
-                        ));
+                        println!("Comando no reconocido: {}", line);
                     }
+                } else {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "Error al leer linea",
+                    ));
                 }
-                Ok(())
-            });
-        };
-
+            }
+            Ok(())
+        });
+        _messages_reception.join().unwrap();
+        _message_sender.join().unwrap();
         Ok(())
     }
 }
