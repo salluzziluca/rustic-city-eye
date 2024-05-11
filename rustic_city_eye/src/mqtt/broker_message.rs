@@ -91,6 +91,7 @@ impl BrokerMessage {
         match header {
             0x10 => Ok(BrokerMessage::Connack {}),
             0x40 => {
+
                 let packet_id_msb = read_u8(stream)?;
                 let packet_id_lsb = read_u8(stream)?;
                 Ok(BrokerMessage::Puback { 
@@ -100,6 +101,7 @@ impl BrokerMessage {
                 })
             },
             0x90 => {
+
                 let packet_id_msb = read_u8(stream)?;
                 let packet_id_lsb = read_u8(stream)?;
                 Ok(BrokerMessage::Suback {

@@ -62,10 +62,10 @@ impl CameraSystem {
         })
     }
 
-    pub fn app_run(&mut self, stream: Box<dyn Read + Send>) -> Result<(), Error> {
-        let _ = self.camera_system_client.client_run(Box::new(stream));
-        Ok(())
-    }
+    //pub fn app_run(&mut self, stream: Box<dyn Read + Send>) -> Result<(), Error> {
+    //     let _ = self.camera_system_client.client_run(Box::new(stream));
+    //     Ok(())
+    // }
 
     pub fn add_camera(&mut self) -> Result<(), ProtocolError> {
         //let camera = Camera::new(self.args.clone())?;

@@ -7,7 +7,7 @@ use crate::mqtt::connect_properties;
 use crate::mqtt::protocol_error::ProtocolError;
 use crate::mqtt::will_properties;
 
-use std::io::{Error,Read};
+use std::{io::{stdin, BufRead, Error}, sync::mpsc};
 
 pub struct MonitoringApp {
     monitoring_app_client: Client,
@@ -65,19 +65,26 @@ impl MonitoringApp {
                 Err(err) => return Err(err),
             },
         };
-        // let camera1 = Camera::new();
-        // monitoring_app.camera_system.add_camera(camera1);
         Ok(monitoring_app)
     }
 
     /// En este momento la app de monitoreo ya tiene todos los clientes conectados y funcionales
     /// Aca es donde se gestiona la interaccion entre los diferentes clientes
-    pub fn app_run(&mut self, stream: Box<dyn Read + Send>) -> Result<(), Error> {
-        let _ = self.monitoring_app_client.client_run(Box::new(stream));
+    pub fn app_run(&mut self) -> Result<(), Error> {
+        
+        let (tx, rx) = mpsc::channel();
+        let _ = self.monitoring_app_client.client_run(rx);
+
+        let stdin = stdin();
+        for line in stdin.lock().lines() {
+            match line {
+                Ok(line) => tx.send(line).unwrap(),
+                Err(_) => println!("error in line"),
+            }
+        }
 
         Ok(())
     }
-
 
     // pub fn add_camera (&mut self) -> Result<(), ProtocolError> {
     //     self.camera_system.add_camera()?;

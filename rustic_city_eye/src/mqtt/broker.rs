@@ -24,7 +24,7 @@ pub struct Broker {
 }
 
 impl Broker {
-    ///Check that the number of arguments is valid.
+    ///Chequea que el numero de argumentos sea valido.
     pub fn new(args: Vec<String>) -> Result<Broker, ProtocolError> {
         if args.len() != SERVER_ARGS {
             let app_name = &args[0];
