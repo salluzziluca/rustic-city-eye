@@ -18,9 +18,5 @@ name = "monitoring_app"
 path = "src/monitoring_app/run_monitoring.rs"
 
 [[bin]]
-name = "camera_system_client"
+name = "camera_system"
 path = "src/camera_system/run_camera_system.rs"
-
-[[bin]]
-name = "camera"
-path = "src/camera_system/run_camera.rs"

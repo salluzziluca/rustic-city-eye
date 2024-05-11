@@ -5,7 +5,7 @@ use crate::{
     mqtt::{client::Client, connect_properties, protocol_error::ProtocolError, will_properties},
 };
 pub struct CameraSystem {
-    args: Vec<String>,
+   // args: Vec<String>,
     camera_system_client: Client,
     cameras: Vec<Camera>,
 }
@@ -56,19 +56,20 @@ impl CameraSystem {
         };
 
         Ok(CameraSystem {
-            args,
+           // args,
             camera_system_client,
             cameras,
         })
     }
 
     pub fn app_run(&mut self, stream: Box<dyn Read + Send>) -> Result<(), Error> {
-        self.camera_system_client.client_run(Box::new(stream));
+        let _ = self.camera_system_client.client_run(Box::new(stream));
         Ok(())
     }
 
     pub fn add_camera(&mut self) -> Result<(), ProtocolError> {
-        let camera = Camera::new(self.args.clone())?;
+        //let camera = Camera::new(self.args.clone())?;
+        let camera = Camera::new();
 
         self.cameras.push(camera);
 
