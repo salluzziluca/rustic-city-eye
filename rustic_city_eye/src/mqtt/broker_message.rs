@@ -101,7 +101,6 @@ impl BrokerMessage {
                 })
             },
             0x90 => {
-
                 let packet_id_msb = read_u8(stream)?;
                 let packet_id_lsb = read_u8(stream)?;
                 Ok(BrokerMessage::Suback {

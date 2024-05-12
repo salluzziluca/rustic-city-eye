@@ -1,5 +1,5 @@
 use std::{
-    net::TcpStream, sync::{mpsc::{self, TryRecvError}, Arc, Mutex}, time::Duration
+    fs::read, net::TcpStream, sync::{mpsc::{self, TryRecvError}, Arc, Mutex}, time::Duration
 };
 
 use crate::mqtt::{
@@ -169,8 +169,8 @@ impl Client {
             ),
         };
     
-        let stream_reference = Arc::clone(&stream);
-        let mut stream = stream_reference.lock().unwrap();
+        //let stream_reference = Arc::clone(&stream);
+        let mut stream = stream.lock().unwrap();
         
         subscribe.write_to(&mut *stream).unwrap();
 
@@ -194,15 +194,18 @@ impl Client {
         let stream_reference_one = Arc::clone(&self.stream);
         let stream_reference_two = Arc::clone(&self.stream);
 
-        let handle_receive_messages = std::thread::spawn(move || {
-            println!("gola");
-            let stream_reference = Arc::clone(&stream_reference_one);
-            let mut stream = stream_reference.lock().unwrap();
-            loop {
-                let message = read_string(&mut *stream).unwrap();
-                println!("mensaje {}", message);
-            }
-        });
+        // let handle_receive_messages = std::thread::spawn(move || {
+        //     println!("gola");
+        //     let stream_reference = Arc::clone(&stream_reference_one);
+        //     let mut stream = stream_reference.lock().unwrap();
+        //     loop {
+        //         let message = match read_string(&mut *stream){
+        //             Ok(msg) => msg,
+        //             Err(err) => err.to_string()
+        //         };
+        //         println!("mensaje {}", message);
+        //     }
+        // });
 
         let handle_sending_messages = std::thread::spawn(move || {
             loop {
@@ -235,62 +238,6 @@ impl Client {
             }
         });
 
-        
-
-
         Ok(())
     }
-
-    // pub fn client_run(&mut self, input_stream: Box<dyn Read + Send>) -> Result<(), ProtocolError> {
-    //     let stream_reference = Arc::clone(&self.stream);
-    //     let stream_reference1 = Arc::clone(&self.stream);
-
-    //     let input_stream_shared = Arc::new(Mutex::new(input_stream));
-
-    //     let _messages_reception = std::thread::spawn(move || {
-    //         println!("toy readi para recibir mensajes");
-    //         let mut stream = stream_reference.lock().unwrap();
-    //         println!("stream {:?}", stream);
-    //         loop {
-    //             let mut buf = [0u8; 1];
-    //             let numerito = stream.read_exact(&mut buf);
-    //             println!("numerito: {:?}", numerito)
-    //         }
-    //     });
-
-    //     let _message_sender = std::thread::spawn(move || {
-    //         let input_stream_ref = Arc::clone(&input_stream_shared);
-    //         let mut locked_input = input_stream_ref.lock().unwrap();
-    //         let reader = BufReader::new(&mut *locked_input);
-
-    //         for line in reader.lines() {
-    //             if let Ok(line) = line {
-    //                 println!("line: {:?}", line);
-    //                 if line.starts_with("publish:") {
-    //                     let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
-    //                     let message = post_colon.trim(); // remove leading/trailing whitespace
-    //                     println!("Publishing message: {}", message);
-    //                     //Client::publish_message(message, Arc::clone(&stream_reference1));
-    //                 } else if line.starts_with("subscribe:") {
-    //                     let (_, post_colon) = line.split_at(10); // "subscribe:" is 10 characters
-    //                     let topic = post_colon.trim(); // remove leading/trailing whitespace
-    //                     println!("Subscribing to topic: {}", topic);
-
-    //                     Client::subscribe(topic, Arc::clone(&stream_reference1));
-    //                 } else {
-    //                     println!("Comando no reconocido: {}", line);
-    //                 }
-    //             } else {
-    //                 return Err(std::io::Error::new(
-    //                     std::io::ErrorKind::Other,
-    //                     "Error al leer linea",
-    //                 ));
-    //             }
-    //         }
-    //         Ok(())
-    //     });
-    //     _messages_reception.join().unwrap();
-    //     let _ = _message_sender.join().unwrap();
-   //     Ok(())
-   // }
 }

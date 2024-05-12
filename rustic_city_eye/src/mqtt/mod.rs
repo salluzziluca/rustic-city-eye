@@ -21,3 +21,5 @@ pub mod writer;
 
 pub mod read_and_write;
 pub mod will_properties;
+
+pub mod topic;

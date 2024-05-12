@@ -17,4 +17,5 @@ pub mod mqtt {
     pub mod client_message;
     pub mod broker_message;
     pub mod publish_properties;
+    pub mod topic;
 }

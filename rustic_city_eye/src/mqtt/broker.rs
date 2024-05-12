@@ -133,9 +133,12 @@ impl Broker {
                 } => {
                     println!("Recibí un subscribe: {:?}", message);
                     if topic == "accidente" {
-                        let mut subscribers = self.subscribers.lock().unwrap();
+                        let _ = self.subscribers.lock().unwrap().push(stream.try_clone().unwrap());
                         println!("stream {:?}", stream);
-                        subscribers.push(stream.try_clone().unwrap());
+                        //self.subscribers.push(stream.try_clone().unwrap());
+                        println!("subs del broker: {:?}", self.subscribers);
+
+                        //println!("subs: {:?}", subscribers);
                         let suback = BrokerMessage::Suback {
                             packet_id_msb: 0,
                             packet_id_lsb: 1,
