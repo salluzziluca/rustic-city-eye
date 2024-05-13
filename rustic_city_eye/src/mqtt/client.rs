@@ -195,24 +195,26 @@ impl Client {
         let stream_reference_two = Arc::clone(&self.stream);
 
         let handle_receive_messages = std::thread::spawn(move || {
-           let stream_reference = Arc::clone(&stream_reference_one);
-           let mut stream = stream_reference.lock().unwrap();
-           let _ = stream.set_nonblocking(true);
             loop {
-               let message = match read_string(&mut *stream){
-                    // Ok(0) => {
-                    //     break;
-                    // }
-                   Ok(msg) => msg,
-                   Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
-                    println!("failed");
-                    // No data available yet, but we don't want to block
-                    break;
-                },
-                Err(e) => e.to_string(), // Propagate other errors
-            };
-            //drop(&mut *stream);
-                println!("mensaje ");
+                let message = {
+                    let stream_reference = Arc::clone(&stream_reference_one);
+                    let mut stream = stream_reference.lock().unwrap();
+                    let _ = stream.set_nonblocking(true);
+        
+                    match read_string(&mut *stream){
+                        Ok(msg) => Some(msg),
+                        Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
+                            None
+                        },
+                        Err(e) => Some(e.to_string()), // Propagate other errors
+                    }
+                };
+        
+                if let Some(message) = message {
+                    println!("mensaje: {}", message);
+                } else {
+                    std::thread::sleep(Duration::from_secs(1));
+                }
             }
         });
 

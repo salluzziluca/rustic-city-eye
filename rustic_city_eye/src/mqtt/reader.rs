@@ -1,14 +1,18 @@
 use std::io::{Error, ErrorKind, Read};
 
 pub fn read_string(stream: &mut dyn Read) -> Result<String, Error> {
-
     let string_length = match read_u16(stream) {
         Ok(s) => s,
-        Err(e: Error::ErrorKind::WouldBlock) =>{
-            println!("aia");
-            return Err(e)
-        },
-        Err(e) => return Err(e)
+        Err(e) => {
+            match e.kind() {
+                ErrorKind::WouldBlock => {
+                    println!("aia");
+                    return Err(Error::from(ErrorKind::WouldBlock));
+                },
+                _ => return Err(e),
+            }
+        }
+
     };
     let mut string_buf = vec![0; string_length as usize];
     stream.read_exact(&mut string_buf)?;

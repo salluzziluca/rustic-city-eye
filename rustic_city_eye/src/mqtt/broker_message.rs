@@ -83,10 +83,11 @@ impl BrokerMessage {
     }
 
     pub fn read_from(stream: &mut dyn Read) -> Result<BrokerMessage, Error> {
-        let mut header = [0u8; 1];
-        stream.read_exact(&mut header)?;
+        //let mut header = [0u8; 1];
+        let header = read_u8(stream)?; ///ACA ESTA EL BUG
+        println!("Header: {:?}", header);
 
-        let header = u8::from_le_bytes(header);
+        // let header = u8::from_le_bytes(header);
 
         match header {
             0x10 => Ok(BrokerMessage::Connack {}),
