@@ -38,8 +38,12 @@ impl BrokerMessage {
                 writer.flush()?;
 
                 Ok(())
-            },
-            BrokerMessage::Puback { packet_id_msb, packet_id_lsb, reason_code: _ } => {
+            }
+            BrokerMessage::Puback {
+                packet_id_msb,
+                packet_id_lsb,
+                reason_code: _,
+            } => {
                 //fixed header
                 let byte_1: u8 = 0x40_u8.to_le(); //01000000
 
@@ -49,7 +53,6 @@ impl BrokerMessage {
                 //packet_id
                 write_u8(&mut writer, packet_id_msb)?;
                 write_u8(&mut writer, packet_id_lsb)?;
-
 
                 writer.flush()?;
 
@@ -83,8 +86,13 @@ impl BrokerMessage {
     }
 
     pub fn read_from(stream: &mut dyn Read) -> Result<BrokerMessage, Error> {
-        //let mut header = [0u8; 1];
-        let header = read_u8(stream)?; ///ACA ESTA EL BUG
+        println!("estoy intentando leer el header");
+        let mut header = [0u8; 1];
+        match stream.read_exact(&mut header) {
+            Ok(_) => println!("Header leído"),
+            Err(e) => println!("Error al leer el header: {:?}", e),
+        }
+        let header = u8::from_le_bytes(header); //BUG:
         println!("Header: {:?}", header);
 
         // let header = u8::from_le_bytes(header);
@@ -92,15 +100,14 @@ impl BrokerMessage {
         match header {
             0x10 => Ok(BrokerMessage::Connack {}),
             0x40 => {
-
                 let packet_id_msb = read_u8(stream)?;
                 let packet_id_lsb = read_u8(stream)?;
-                Ok(BrokerMessage::Puback { 
-                    packet_id_msb, 
-                    packet_id_lsb, 
-                    reason_code: 1 
+                Ok(BrokerMessage::Puback {
+                    packet_id_msb,
+                    packet_id_lsb,
+                    reason_code: 1,
                 })
-            },
+            }
             0x90 => {
                 let packet_id_msb = read_u8(stream)?;
                 let packet_id_lsb = read_u8(stream)?;
@@ -109,12 +116,11 @@ impl BrokerMessage {
                     packet_id_lsb,
                     reason_code: 1,
                 })
-            },
+            }
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {

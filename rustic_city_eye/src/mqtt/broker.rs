@@ -1,10 +1,10 @@
 use std::{
     net::{TcpListener, TcpStream},
-    sync::{mpsc::{self, Receiver}, Arc, Mutex},
+    sync::{Arc, Mutex},
 };
 
 use crate::mqtt::{
-    broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError, writer::write_bin_vec,
+    broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError,
 };
 
 //use super::client::Client;
@@ -63,7 +63,7 @@ impl Broker {
     }
 
     ///Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
-    fn handle_client(&mut self, stream: &mut TcpStream) -> std::io::Result<()> {
+    pub fn handle_client(&mut self, stream: &mut TcpStream) -> std::io::Result<()> {
         while let Ok(message) = ClientMessage::read_from(stream) {
             match message {
                 ClientMessage::Connect {
@@ -133,7 +133,6 @@ impl Broker {
                 } => {
                     println!("Recibí un subscribe: {:?}", message);
                     if topic == "accidente" {
-                        let _ = self.subscribers.lock().unwrap().push(stream.try_clone().unwrap());
                         println!("stream {:?}", stream);
                         //self.subscribers.push(stream.try_clone().unwrap());
                         println!("subs del broker: {:?}", self.subscribers);

@@ -1,22 +1,22 @@
 use std::sync::mpsc::Sender;
 
 #[derive(Debug)]
-pub struct Topic{
+pub struct Topic {
     topic_name: String,
-    subscribers: Vec<Sender<String>>
+    subscribers: Vec<Sender<String>>,
 }
 
 impl Topic {
     pub fn new(topic_name: &str) -> Self {
-        Self { 
+        Self {
             topic_name: topic_name.to_string(),
-            subscribers: Vec::new()
+            subscribers: Vec::new(),
         }
     }
 
     pub fn add_subscriber(&mut self, subscriber_channel: Sender<String>) {
         self.subscribers.push(subscriber_channel);
-    }   
+    }
 
     pub fn send_message(self, message: &str) -> Result<(), std::io::Error> {
         for sub in self.subscribers {
@@ -26,7 +26,6 @@ impl Topic {
         Ok(())
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -44,7 +43,7 @@ mod tests {
     #[test]
     fn test_02_adding_sub_ok() -> std::io::Result<()> {
         let mut topic = Topic::new("mensajes-para-juan");
-        
+
         let (tx, _rx) = mpsc::channel();
         topic.add_subscriber(tx);
 
@@ -75,17 +74,14 @@ mod tests {
         topic.add_subscriber(tx2);
         topic.add_subscriber(tx3);
 
-
         let _ = topic.send_message("holaholahola");
 
         let message_received1 = rx1.recv().unwrap();
         let message_received2 = rx2.recv().unwrap();
         let message_received3 = rx3.recv().unwrap();
 
-
         assert_eq!(message_received1, "holaholahola".to_string());
         assert_eq!(message_received2, "holaholahola".to_string());
         assert_eq!(message_received3, "holaholahola".to_string());
-
     }
 }

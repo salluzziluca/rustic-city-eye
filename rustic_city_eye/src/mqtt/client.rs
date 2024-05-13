@@ -1,9 +1,22 @@
 use std::{
-    io::ErrorKind, net::TcpStream, sync::{mpsc::{self, Receiver, TryRecvError}, Arc, Mutex}, time::Duration
+    io::ErrorKind,
+    net::TcpStream,
+    sync::{
+        mpsc::{self, TryRecvError},
+        Arc, Mutex,
+    },
+    time::Duration,
 };
 
 use crate::mqtt::{
-    broker_message::BrokerMessage, client_message::ClientMessage, connect_properties::ConnectProperties, protocol_error::ProtocolError, publish_properties::{PublishProperties, TopicProperties}, reader::{read_bin_vec, read_string}, subscribe_properties::SubscribeProperties, will_properties::WillProperties, writer::write_bin_vec
+    broker_message::BrokerMessage,
+    client_message::ClientMessage,
+    connect_properties::ConnectProperties,
+    protocol_error::ProtocolError,
+    publish_properties::{PublishProperties, TopicProperties},
+    reader::read_string,
+    subscribe_properties::SubscribeProperties,
+    will_properties::WillProperties,
 };
 
 static CLIENT_ARGS: usize = 3;
@@ -34,7 +47,7 @@ impl Client {
             println!("Usage:\n{:?} <host> <puerto>", app_name);
             return Err(ProtocolError::InvalidNumberOfArguments);
         }
-        
+
         let address = args[1].clone() + ":" + &args[2];
 
         let mut stream = match TcpStream::connect(address) {
@@ -168,10 +181,11 @@ impl Client {
                 vec![0, 1, 2, 3],
             ),
         };
-    
+
         //let stream_reference = Arc::clone(&stream);
+
         let mut stream = stream.lock().unwrap();
-        
+
         subscribe.write_to(&mut *stream).unwrap();
 
         if let Ok(message) = BrokerMessage::read_from(&mut *stream) {
@@ -194,32 +208,34 @@ impl Client {
         let stream_reference_one = Arc::clone(&self.stream);
         let stream_reference_two = Arc::clone(&self.stream);
 
-        let handle_receive_messages = std::thread::spawn(move || {
+        let _handle_receive_messages: std::thread::JoinHandle<_> = std::thread::spawn(move || {
             loop {
+                println!("Esperando mensaje");
                 let message = {
                     let stream_reference = Arc::clone(&stream_reference_one);
                     let mut stream = stream_reference.lock().unwrap();
                     let _ = stream.set_nonblocking(true);
-        
-                    match read_string(&mut *stream){
+
+                    match read_string(&mut *stream) {
                         Ok(msg) => Some(msg),
-                        Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
-                            None
-                        },
+                        Err(ref e) if e.kind() == ErrorKind::WouldBlock => None,
                         Err(e) => Some(e.to_string()), // Propagate other errors
                     }
                 };
-        
+
                 if let Some(message) = message {
                     println!("mensaje: {}", message);
                 } else {
-                    std::thread::sleep(Duration::from_secs(1));
+                    std::thread::sleep(Duration::from_secs(10));
                 }
             }
         });
 
-        let handle_sending_messages = std::thread::spawn(move || {
+        let _handle_sending_messages = std::thread::spawn(move || {
             loop {
+                // let stream_reference = Arc::clone(&stream_reference_two);
+                // let _stream = stream_reference.lock().unwrap();
+                println!("leyendo de consola");
                 match rx.try_recv() {
                     Ok(line) => {
                         if line.starts_with("publish:") {
@@ -231,19 +247,19 @@ impl Client {
                             let (_, post_colon) = line.split_at(10); // "subscribe:" is 10 characters
                             let topic = post_colon.trim(); // remove leading/trailing whitespace
                             println!("Subscribing to topic: {}", topic);
-    
+
                             Client::subscribe(topic, Arc::clone(&stream_reference_two));
                         } else {
                             println!("Comando no reconocido: {}", line);
                         }
-                    },
+                    }
                     Err(TryRecvError::Empty) => {
-                        println!("no recibi nati");
-                        std::thread::sleep(Duration::from_millis(5000));
-                    },
+                        println!("No me llegó ningun ack");
+                        std::thread::sleep(Duration::from_millis(10000));
+                    }
                     Err(TryRecvError::Disconnected) => {
                         println!("Error: el transmisor fue desconectado");
-                        break; 
+                        break;
                     }
                 }
             }

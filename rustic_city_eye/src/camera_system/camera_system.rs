@@ -1,11 +1,9 @@
-use std::io::{Error, Read};
-
 use crate::{
     camera_system::camera::Camera,
     mqtt::{client::Client, connect_properties, protocol_error::ProtocolError, will_properties},
 };
 pub struct CameraSystem {
-   // args: Vec<String>,
+    // args: Vec<String>,
     camera_system_client: Client,
     cameras: Vec<Camera>,
 }
@@ -56,7 +54,7 @@ impl CameraSystem {
         };
 
         Ok(CameraSystem {
-           // args,
+            // args,
             camera_system_client,
             cameras,
         })
