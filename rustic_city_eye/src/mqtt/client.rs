@@ -1,9 +1,9 @@
 use std::{
-    fs::read, net::TcpStream, sync::{mpsc::{self, TryRecvError}, Arc, Mutex}, time::Duration
+    io::ErrorKind, net::TcpStream, sync::{mpsc::{self, Receiver, TryRecvError}, Arc, Mutex}, time::Duration
 };
 
 use crate::mqtt::{
-    broker_message::BrokerMessage, client_message::ClientMessage, connect_properties::ConnectProperties, protocol_error::ProtocolError, publish_properties::{PublishProperties, TopicProperties}, reader::read_string, subscribe_properties::SubscribeProperties, will_properties::WillProperties
+    broker_message::BrokerMessage, client_message::ClientMessage, connect_properties::ConnectProperties, protocol_error::ProtocolError, publish_properties::{PublishProperties, TopicProperties}, reader::{read_bin_vec, read_string}, subscribe_properties::SubscribeProperties, will_properties::WillProperties, writer::write_bin_vec
 };
 
 static CLIENT_ARGS: usize = 3;
@@ -34,7 +34,7 @@ impl Client {
             println!("Usage:\n{:?} <host> <puerto>", app_name);
             return Err(ProtocolError::InvalidNumberOfArguments);
         }
-
+        
         let address = args[1].clone() + ":" + &args[2];
 
         let mut stream = match TcpStream::connect(address) {
@@ -194,18 +194,27 @@ impl Client {
         let stream_reference_one = Arc::clone(&self.stream);
         let stream_reference_two = Arc::clone(&self.stream);
 
-        // let handle_receive_messages = std::thread::spawn(move || {
-        //     println!("gola");
-        //     let stream_reference = Arc::clone(&stream_reference_one);
-        //     let mut stream = stream_reference.lock().unwrap();
-        //     loop {
-        //         let message = match read_string(&mut *stream){
-        //             Ok(msg) => msg,
-        //             Err(err) => err.to_string()
-        //         };
-        //         println!("mensaje {}", message);
-        //     }
-        // });
+        let handle_receive_messages = std::thread::spawn(move || {
+           let stream_reference = Arc::clone(&stream_reference_one);
+           let mut stream = stream_reference.lock().unwrap();
+           let _ = stream.set_nonblocking(true);
+            loop {
+               let message = match read_string(&mut *stream){
+                    // Ok(0) => {
+                    //     break;
+                    // }
+                   Ok(msg) => msg,
+                   Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
+                    println!("failed");
+                    // No data available yet, but we don't want to block
+                    break;
+                },
+                Err(e) => e.to_string(), // Propagate other errors
+            };
+            //drop(&mut *stream);
+                println!("mensaje ");
+            }
+        });
 
         let handle_sending_messages = std::thread::spawn(move || {
             loop {
