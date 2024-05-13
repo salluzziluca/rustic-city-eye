@@ -33,7 +33,12 @@ fn client_run(address: &str, stream: &mut dyn Read) -> std::io::Result<()> {
 
     let mut client = match Client::new(address) {
         Ok(client) => client,
-        Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::Other, "Error al crear cliente")), //todo
+        Err(_) => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Error al crear cliente",
+            ))
+        } //todo
     };
 
     for line in reader.lines() {
