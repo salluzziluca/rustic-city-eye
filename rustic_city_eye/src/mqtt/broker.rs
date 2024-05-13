@@ -1,10 +1,11 @@
-use std::{
-    net::{TcpListener, TcpStream},
-    sync::{Arc, Mutex},
-};
-
 use crate::mqtt::{
     broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError,
+};
+use std::fmt::Debug;
+use std::{
+    io::Read,
+    net::{TcpListener, TcpStream},
+    sync::{Arc, Mutex},
 };
 
 //use super::client::Client;
@@ -63,7 +64,10 @@ impl Broker {
     }
 
     ///Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
-    pub fn handle_client(&mut self, stream: &mut TcpStream) -> std::io::Result<()> {
+    pub fn handle_client<T: Read + Write + Debug>(
+        &mut self,
+        stream: &mut T,
+    ) -> std::io::Result<()> {
         while let Ok(message) = ClientMessage::read_from(stream) {
             match message {
                 ClientMessage::Connect {
