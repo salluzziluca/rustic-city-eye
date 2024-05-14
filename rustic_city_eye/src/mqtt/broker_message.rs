@@ -1,6 +1,6 @@
 use std::io::{BufWriter, Error, Read, Write};
 
-use super::{reader::read_u8, writer::write_u8};
+use super::{reader::read_u8, writer::{write_string, write_u8}};
 
 #[derive(Debug, PartialEq)]
 pub enum BrokerMessage {
@@ -25,6 +25,9 @@ pub enum BrokerMessage {
         /// reason_code es el código de razón de la confirmación
         reason_code: u8,
     },
+    PublishDelivery {
+        payload: String
+    }
 }
 #[allow(dead_code)]
 impl BrokerMessage {
@@ -82,6 +85,13 @@ impl BrokerMessage {
 
                 Ok(())
             }
+            BrokerMessage::PublishDelivery { payload } => {
+                write_string(&mut writer, &payload)?;
+                
+                writer.flush()?;
+
+                Ok(())
+            },
         }
     }
 
@@ -133,6 +143,7 @@ impl BrokerMessage {
                 }
                 false
             }
+            BrokerMessage::PublishDelivery { payload } => true,
         }
     }
 }

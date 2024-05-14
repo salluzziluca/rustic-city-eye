@@ -1,6 +1,6 @@
 use std::env::args;
 
-use rustic_city_eye::mqtt::{broker::Broker, protocol_error::ProtocolError};
+use rustic_city_eye::mqtt::{neobroker::Broker, protocol_error::ProtocolError};
 
 fn main() -> Result<(), ProtocolError> {
     let argv = args().collect::<Vec<String>>();

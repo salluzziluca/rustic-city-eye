@@ -1,11 +1,9 @@
-use std::collections::HashMap;
 use std::{
-    net::{TcpListener, TcpStream},
-    sync::{Arc, Mutex},
+    collections::HashMap, net::{TcpListener, TcpStream}, sync::{Arc, Mutex}
 };
 
 use crate::mqtt::{
-    broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError, topic::Topic
+    broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError, topic::{self, Topic}
 };
 
 static SERVER_ARGS: usize = 2;
@@ -18,7 +16,7 @@ static SERVER_ARGS: usize = 2;
 pub struct Broker {
     address: String,
     packet_ids: Vec<u16>,
-    subscribers: Vec<Arc<Mutex<TcpStream>>>,
+    subscribers: Arc<Mutex<Vec<TcpStream>>>,
     topics: HashMap<String, Topic>
 }
 
@@ -36,11 +34,11 @@ impl Broker {
         let mut topics = HashMap::new();
 
         topics.insert("accidente".to_string(), Topic::new());
-    
+
         Ok(Broker {
             address,
             packet_ids,
-            subscribers: Vec::new(),
+            subscribers: Arc::new(Mutex::new(Vec::new())),
             topics
         })
     }
@@ -53,10 +51,11 @@ impl Broker {
 
         for stream in listener.incoming() {
             match stream {
-                Ok(mut stream) => {
+                Ok(stream) => {
                     let mut self_clone = self.clone(); // Clone the `self` reference
                     std::thread::spawn(move || {
-                        let _ = self_clone.handle_client(&mut stream); // Use the cloned reference
+                        let stream = Arc::new(Mutex::new(stream));
+                        let _ = self_clone.handle_client(stream); // Use the cloned reference
                     });
                 }
                 Err(err) => return Err(err),
@@ -68,9 +67,12 @@ impl Broker {
     ///Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
     pub fn handle_client(
         &mut self,
-        stream: &mut TcpStream,
+        stream: Arc<Mutex<TcpStream>>,
     ) -> std::io::Result<()> {
-        while let Ok(message) = ClientMessage::read_from(stream) {
+        let stream_reference = Arc::clone(&stream);
+        let mut stream = stream.lock().unwrap();
+
+        while let Ok(message) = ClientMessage::read_from(&mut *stream) {
             match message {
                 ClientMessage::Connect {
                     clean_start: _,
@@ -92,7 +94,7 @@ impl Broker {
                         //return_code: 0,
                     };
                     println!("Sending connack: {:?}", connack);
-                    connack.write_to(stream).unwrap();
+                    connack.write_to(&mut *stream).unwrap();
                 }
                 ClientMessage::Publish {
                     packet_id,
@@ -103,14 +105,21 @@ impl Broker {
                     dup_flag: _,
                     properties: _,
                 } => {
-                    println!("topic {:?}", topic);
+              //      println!("topic {:?}", topic);
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
                     // ...
                     if topic == "accidente" {
+                       // let delivery_message = message;
+
+                        //delivery_message.write_to(&mut *stream)?;
+                        //if let Some(topic) = self.topics.get_mut("accidente") {
+                            // println!("mandando mensajes a mis subs");
+                            // <topic::Topic as Clone>::clone(&topic).send_message(message)?;
+                       // }
                       //  let subscribers = self.subscribers.lock().unwrap();
 
-                        for mut subscriber in self.subscribers.iter() {
-                            println!("message {:?}", message);
+                        //for mut subscriber in self.subscribers.iter() {
+                       //  println!("message {:?}", message);
                      //       let _ = message.write_to(&mut subscriber);
                             // println!("Sending message to subscriber");
                             // // Write the message to the subscriber's stream.
@@ -122,13 +131,13 @@ impl Broker {
                             // subscriber.write_all(&lenght_bytes)?;
 
                             // subscriber.write_all(mensaje_bytes)?;
-                        }
+                        //}
                         let puback = BrokerMessage::Puback {
                             packet_id_msb: packet_id_bytes[0],
                             packet_id_lsb: packet_id_bytes[1],
                             reason_code: 1,
                         };
-                        puback.write_to(stream)?;
+                        puback.write_to(&mut *stream)?;
                     }
                 }
                 ClientMessage::Subscribe {
@@ -140,13 +149,17 @@ impl Broker {
 
                     println!("Recibí un subscribe: {:?}", message);
                     if topic == "accidente" {
-                        let stream_reference = Arc::new(stream);
-                        let stream_clone = Arc::clone(&stream_reference);
-
-
                         // if let Some(topic) = self.topics.get_mut("accidente") {
-                        //     topic.add_subscriber(stream);
+                        //     topic.add_subscriber(stream_reference.clone());
                         // }
+                        // let subs = self.subscribers.lock().unwrap();
+                        // subs.push(stream);
+                        println!("topic subs: {:?}", self.subscribers);
+                        // let stream_reference = Arc::new(stream);
+                        // let stream_clone = Arc::clone(&stream_reference);
+
+
+                        
                       //  let subs_reference = Arc::clone(&self.subscribers);
                         //let mut subscribers = subs_reference.lock().unwrap();
                         
@@ -166,7 +179,7 @@ impl Broker {
                             reason_code: 0,
                         };
                         println!("Sending suback: {:?}", suback);
-                        match suback.write_to(stream){
+                        match suback.write_to(&mut *stream){
                             Ok(_) => println!("suback enviado"),
                             Err(err) => println!("Error al enviar suback: {:?}", err)
                         }

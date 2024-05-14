@@ -2,7 +2,7 @@
 //! Lee lineas desde stdin y las manda mediante el socket.
 
 //use crate::camera_system::camera_system::CameraSystem;
-use crate::mqtt::client::Client;
+use crate::mqtt::neoclient::Client;
 use crate::mqtt::connect_properties;
 use crate::mqtt::protocol_error::ProtocolError;
 use crate::mqtt::will_properties;

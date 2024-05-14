@@ -7,7 +7,7 @@ pub mod monitoring_app;
 
 pub mod mqtt {
     pub mod client;
-    pub mod broker;
+    // pub mod broker;
     pub mod protocol_error;
     pub mod connect_properties;
     pub mod will_properties;
@@ -18,4 +18,8 @@ pub mod mqtt {
     pub mod broker_message;
     pub mod publish_properties;
     pub mod topic;
+
+    pub mod neobroker;
+    pub mod neoclient;
+
 }

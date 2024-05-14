@@ -1,31 +1,32 @@
-use std::{io::{Read, Write}, net::TcpStream, sync::{Arc, Mutex}};
+use std::net::TcpStream;
 use std::fmt::Debug;
 
-#[derive(Debug, Clone)]
+use super::broker_message::BrokerMessage;
+
+#[derive(Debug)]
 pub struct Topic {
-    subscribers: Arc<Mutex<Vec<TcpStream>>>
+    subscribers: Vec<TcpStream>
 }
 
 impl Topic {
     pub fn new() -> Self {
         Self {
-            subscribers: Arc::new(Mutex::new(Vec::new()))
+            subscribers: Vec::new()
         }
     }
 
-    // pub fn add_subscriber(&mut self, subscriber_stream: &mut TcpStream) {
-    //     let mut subs = self.subscribers.lock().unwrap();
-    //     subs.push(*subscriber_stream);
-    //     println!("mis subs son: {:?}", subs);
-    // }
+    pub fn add_subscriber(&mut self, subscriber_stream: TcpStream) {
+        self.subscribers.push(subscriber_stream);
+        println!("mis subs son: {:?}", self.subscribers);
+    }
 
-    // pub fn send_message(self, message: &str) -> Result<(), std::io::Error> {
-    //     for sub in self.subscribers {
-    //         sub.send(message.to_string()).unwrap();
-    //     }
+    pub fn send_message(&mut self, message: BrokerMessage) -> Result<(), std::io::Error> {
+        for mut sub in &self.subscribers {
+            let _ = message.write_to(&mut sub);
+        }
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
