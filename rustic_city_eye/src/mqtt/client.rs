@@ -97,25 +97,27 @@ impl Client {
         let splitted_message: Vec<&str> = message.split(' ').collect();
 
         //message interface(temp): dup:1 qos:2 retain:1 topic_name:sometopic
-        let mut dup_flag = false;
+    //    let mut dup_flag = false;
         let mut qos = 0;
-        let mut retain_flag = false;
-        let mut packet_id = 0x00;
+  //      let mut retain_flag = false;
+//        let mut packet_id = 0x00;
 
-        if splitted_message[0] == "dup:1" {
-            dup_flag = true;
-        }
+        // if splitted_message[0] == "dup:1" {
+        //     dup_flag = true;
+        // }
 
-        if splitted_message[1] == "qos:1" {
-            qos = 1;
-            packet_id = 0x20FF;
-        } else {
-            dup_flag = false;
-        }
+        // if splitted_message[1] == "qos:1" {
+        //     qos = 1;
+        //     packet_id = 0x20FF;
+        // } else {
+        //     dup_flag = false;
+        // }
 
-        if splitted_message[2] == "retain:1" {
-            retain_flag = true;
-        }
+        // if splitted_message[2] == "retain:1" {
+        //     retain_flag = true;
+        // }
+
+        qos = 1;
 
         let topic_properties = TopicProperties {
             topic_alias: 10,
@@ -133,19 +135,19 @@ impl Client {
         );
 
         let publish = ClientMessage::Publish {
-            packet_id,
-            topic_name: splitted_message[3].to_string(),
+            packet_id: 0x20FF,
+            topic_name: splitted_message[0].to_string(),
             qos,
-            retain_flag,
-            payload: splitted_message[4].to_string(),
-            dup_flag,
+            retain_flag: true,
+            payload: "buendia".to_string(),
+            dup_flag: false,
             properties,
         };
         let _ = message;
         let mut stream = stream.lock().unwrap();
         
         match publish.write_to(&mut *stream) {
-            Ok(()) => Ok(packet_id),
+            Ok(()) => Ok(0x20FF),
             Err(_) => Err(()),
         }
 
@@ -230,18 +232,21 @@ impl Client {
                 if let Ok(pending_message) = receiver.recv() {
                     pending_messages.push(pending_message);
                 }
+                println!("pending: {:?}", pending_messages);
 
                 let ack_message = {
                     let stream_reference = Arc::clone(&stream_reference_two);
-                    let mut stream = stream_reference.lock().unwrap();
+                    let mut stream = match stream_reference.lock() {
+                        Ok(stream) => stream,
+                        Err(e) => {print!("Error: {:?}", e); continue},
+                    };
                 
                     if let Ok(message) = BrokerMessage::read_from(&mut *stream) {
                         Some(message)
                     } else {
-                        None //aca deberiamos intentar levantar el mensaje del topic!
+                        None
                     } 
                 };
-      
 
                 if let Some(message) = ack_message {
                     for pending_message in &pending_messages {
@@ -252,57 +257,34 @@ impl Client {
                         }
                     }
                 } 
-
-                // let del_message = {
-                //     let stream_reference = Arc::clone(&stream_reference_two);
-                //     let mut stream = match stream_reference.lock() {
-                //         Ok(stream) => stream,
-                //         Err(e) => {print!("Error: {:?}", e); return Err(e)},
-                //     };
-                //     if let Ok(del_message) = ClientMessage::read_from(&mut *stream) {
-                //         Some(del_message)
-                //     } else {
-                //         None //aca deberiamos intentar levantar el mensaje del topic!
-                //     } 
-                // };
-      
-
-                // if let Some(message) = del_message {
-                //     for pending_message in &pending_messages {
-                //         if message.analize_packet_id(*pending_message) {
-                //             println!("recibi del topic el mensaje {:?}", message);
-                //         }
-                        
-                //     }
-                // } 
             }
         });
 
-        let read_delivery_messages = std::thread::spawn(move || {
-            loop {
-                let del_message = {
-                    let stream_reference = Arc::clone(&stream_reference_three);
-                    let mut stream = stream_reference.lock().unwrap();
-                    let _ = stream.set_nonblocking(true);
+        // let read_delivery_messages = std::thread::spawn(move || {
+        //     loop {
+        //         let del_message = {
+        //             let stream_reference = Arc::clone(&stream_reference_three);
+        //             let mut stream = stream_reference.lock().unwrap();
+        //             let _ = stream.set_nonblocking(true);
                 
-                    //let stream_reference = Arc::clone(&stream_reference_three);
-                    //let mut stream = match stream_reference.lock() {
-                    //     Ok(stream) => stream,
-                    //     Err(e) => {print!("Error: {:?}", e); return Err(e)},
-                    // };
-                    if let Ok(del_message) = ClientMessage::read_from(&mut *stream) {
-                        Some(del_message)
-                    } else {
-                        None //aca deberiamos intentar levantar el mensaje del topic!
-                    } 
-                };
+        //             //let stream_reference = Arc::clone(&stream_reference_three);
+        //             //let mut stream = match stream_reference.lock() {
+        //             //     Ok(stream) => stream,
+        //             //     Err(e) => {print!("Error: {:?}", e); return Err(e)},
+        //             // };
+        //             if let Ok(del_message) = ClientMessage::read_from(&mut *stream) {
+        //                 Some(del_message)
+        //             } else {
+        //                 None //aca deberiamos intentar levantar el mensaje del topic!
+        //             } 
+        //         };
           
     
-                if let Some(message) = del_message {
-                   println!("recibi del topic el mensaje {:?}", message);
-                } 
-            }
-        });
+        //         if let Some(message) = del_message {
+        //            println!("recibi del topic el mensaje {:?}", message);
+        //         } 
+        //     }
+        // });
         Ok(())
     }
 }

@@ -1,7 +1,5 @@
 use std::collections::HashMap;
-use std::fmt::Debug;
 use std::{
-    io::{Read, Write},
     net::{TcpListener, TcpStream},
     sync::{Arc, Mutex},
 };
@@ -20,7 +18,7 @@ static SERVER_ARGS: usize = 2;
 pub struct Broker {
     address: String,
     packet_ids: Vec<u16>,
-    subscribers: Arc<Mutex<Vec<TcpStream>>>,
+    subscribers: Vec<Arc<Mutex<TcpStream>>>,
     topics: HashMap<String, Topic>
 }
 
@@ -42,7 +40,7 @@ impl Broker {
         Ok(Broker {
             address,
             packet_ids,
-            subscribers: Arc::new(Mutex::new(Vec::new())),
+            subscribers: Vec::new(),
             topics
         })
     }
@@ -105,18 +103,15 @@ impl Broker {
                     dup_flag: _,
                     properties: _,
                 } => {
-                    //println!("Recibí un publish: {:?}", message);
                     println!("topic {:?}", topic);
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
                     // ...
                     if topic == "accidente" {
-                        let subscribers = self.subscribers.lock().unwrap();
+                      //  let subscribers = self.subscribers.lock().unwrap();
 
-
-                        for mut subscriber in subscribers.iter() {
-                            // println!("stream {:?}", subscriber);
+                        for mut subscriber in self.subscribers.iter() {
                             println!("message {:?}", message);
-                            let _ = message.write_to(&mut subscriber);
+                     //       let _ = message.write_to(&mut subscriber);
                             // println!("Sending message to subscriber");
                             // // Write the message to the subscriber's stream.
                             // // You would replace this with your actual message sending code.
@@ -145,31 +140,36 @@ impl Broker {
 
                     println!("Recibí un subscribe: {:?}", message);
                     if topic == "accidente" {
+                        let stream_reference = Arc::new(stream);
+                        let stream_clone = Arc::clone(&stream_reference);
+
+
                         // if let Some(topic) = self.topics.get_mut("accidente") {
                         //     topic.add_subscriber(stream);
                         // }
-                        // println!("holis");
-                        let subs_reference = Arc::clone(&self.subscribers);
-                        let mut subscribers = subs_reference.lock().unwrap();
-                        // println!("holis222");
+                      //  let subs_reference = Arc::clone(&self.subscribers);
+                        //let mut subscribers = subs_reference.lock().unwrap();
                         
                         // match stream.try_clone(){
                         //     Ok(stream) => subscribers.push(stream),
                         //     Err(err) => println!("Error al clonar el stream: {:?}", err)
                         // };
                         
-                        subscribers.push(stream.try_clone().unwrap());
+                     //   subscribers.push(stream.try_clone().unwrap());
                         // self.subscribers.push(stream.try_clone().unwrap());
                         // println!("subs del broker: {:?}", self.subscribers);
 
-                        println!("subs: {:?}", subscribers);
+                       // println!("subs: {:?}", subscribers);
                         let suback = BrokerMessage::Suback {
                             packet_id_msb: 0,
                             packet_id_lsb: 1,
                             reason_code: 0,
                         };
                         println!("Sending suback: {:?}", suback);
-                        suback.write_to(stream).unwrap();
+                        match suback.write_to(stream){
+                            Ok(_) => println!("suback enviado"),
+                            Err(err) => println!("Error al enviar suback: {:?}", err)
+                        }
                     }
                 }
             }
