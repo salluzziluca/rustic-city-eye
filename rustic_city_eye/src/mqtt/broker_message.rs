@@ -86,16 +86,9 @@ impl BrokerMessage {
     }
 
     pub fn read_from(stream: &mut dyn Read) -> Result<BrokerMessage, Error> {
-        println!("estoy intentando leer el header");
         let mut header = [0u8; 1];
-        match stream.read_exact(&mut header) {
-            Ok(_) => println!("Header leído"),
-            Err(e) => println!("Error al leer el header: {:?}", e),
-        }
+        stream.read_exact(&mut header)?;
         let header = u8::from_le_bytes(header); //BUG:
-        println!("Header: {:?}", header);
-
-        // let header = u8::from_le_bytes(header);
 
         match header {
             0x10 => Ok(BrokerMessage::Connack {}),
@@ -120,6 +113,28 @@ impl BrokerMessage {
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
+
+    pub fn analize_packet_id(&self, packet_id: u16) -> bool {
+        match self {
+            BrokerMessage::Connack {  } => true,
+            BrokerMessage::Puback { packet_id_msb, packet_id_lsb, reason_code: _ } => {
+                let bytes = packet_id.to_be_bytes();
+
+                if bytes[0] == *packet_id_msb && bytes[1] == *packet_id_lsb {
+                    return true;
+                }
+                false
+            },
+            BrokerMessage::Suback { packet_id_msb, packet_id_lsb, reason_code: _ } => {
+                let bytes = packet_id.to_be_bytes();
+
+                if bytes[0] == *packet_id_msb && bytes[1] == *packet_id_lsb {
+                    return true;
+                }
+                false
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -141,5 +156,20 @@ mod tests {
         cursor.set_position(0);
         let read_suback = BrokerMessage::read_from(&mut cursor).unwrap();
         assert_eq!(suback, read_suback);
+    }
+
+    #[test]
+    fn test_02_analizing_packet_ids_ok () {
+        let suback = BrokerMessage::Suback {
+            reason_code: 1,
+            packet_id_msb: 2,
+            packet_id_lsb: 1,
+        };
+
+        let puback = BrokerMessage::Puback { packet_id_msb: 1, packet_id_lsb: 5, reason_code: 1 };
+
+        assert!(suback.analize_packet_id(513));
+        assert!(puback.analize_packet_id(261));
+
     }
 }

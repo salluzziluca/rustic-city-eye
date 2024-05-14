@@ -1,19 +1,18 @@
-use crate::mqtt::{
-    broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError,
-};
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::{
-    io::Read,
+    io::{Read, Write},
     net::{TcpListener, TcpStream},
     sync::{Arc, Mutex},
 };
 
-//use super::client::Client;
-use std::io::Write; // Import the Write trait
+use crate::mqtt::{
+    broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError, topic::Topic
+};
 
 static SERVER_ARGS: usize = 2;
 
-/// El broker puede ser considerado un sv.
+/// El broker puede ser considerado un servidor.
 /// Bindea a un puerto dado y comienza a correr.
 /// Contiene la info de los mensajes que están siendo enviados y del cliente
 /// Es un mediador entra los diferentes clientes, enviendo los ACKs correspondientes a los publishers. Esto permite implementar un tipo de comunicación asincronica.
@@ -22,6 +21,7 @@ pub struct Broker {
     address: String,
     packet_ids: Vec<u16>,
     subscribers: Arc<Mutex<Vec<TcpStream>>>,
+    topics: HashMap<String, Topic>
 }
 
 impl Broker {
@@ -35,11 +35,15 @@ impl Broker {
 
         let packet_ids = Vec::new();
         let address = "127.0.0.1:".to_owned() + &args[1];
+        let mut topics = HashMap::new();
 
+        topics.insert("accidente".to_string(), Topic::new());
+    
         Ok(Broker {
             address,
             packet_ids,
             subscribers: Arc::new(Mutex::new(Vec::new())),
+            topics
         })
     }
 
