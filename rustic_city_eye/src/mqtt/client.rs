@@ -190,6 +190,7 @@ impl Client {
     pub fn client_run(&mut self, rx: mpsc::Receiver<String>) -> Result<(), ProtocolError> {
         let stream_reference_one = Arc::clone(&self.stream);
         let stream_reference_two = Arc::clone(&self.stream);
+        let stream_reference_three = Arc::clone(&self.stream);
         let (sender, receiver) = mpsc::channel();
 
 
@@ -223,25 +224,26 @@ impl Client {
             }
         });
 
-        let read_messages = std::thread::spawn(move || {
+        let read_ack_messages = std::thread::spawn(move || {
             let mut pending_messages: Vec<u16> = Vec::new();
             loop{
                 if let Ok(pending_message) = receiver.recv() {
                     pending_messages.push(pending_message);
                 }
 
-                let message = {
+                let ack_message = {
                     let stream_reference = Arc::clone(&stream_reference_two);
                     let mut stream = stream_reference.lock().unwrap();
-
+                
                     if let Ok(message) = BrokerMessage::read_from(&mut *stream) {
                         Some(message)
                     } else {
                         None //aca deberiamos intentar levantar el mensaje del topic!
                     } 
                 };
+      
 
-                if let Some(message) = message {
+                if let Some(message) = ack_message {
                     for pending_message in &pending_messages {
                         if message.analize_packet_id(*pending_message) {
                             println!("mensaje {:?}", message);
@@ -249,6 +251,55 @@ impl Client {
                             // pending_message.
                         }
                     }
+                } 
+
+                // let del_message = {
+                //     let stream_reference = Arc::clone(&stream_reference_two);
+                //     let mut stream = match stream_reference.lock() {
+                //         Ok(stream) => stream,
+                //         Err(e) => {print!("Error: {:?}", e); return Err(e)},
+                //     };
+                //     if let Ok(del_message) = ClientMessage::read_from(&mut *stream) {
+                //         Some(del_message)
+                //     } else {
+                //         None //aca deberiamos intentar levantar el mensaje del topic!
+                //     } 
+                // };
+      
+
+                // if let Some(message) = del_message {
+                //     for pending_message in &pending_messages {
+                //         if message.analize_packet_id(*pending_message) {
+                //             println!("recibi del topic el mensaje {:?}", message);
+                //         }
+                        
+                //     }
+                // } 
+            }
+        });
+
+        let read_delivery_messages = std::thread::spawn(move || {
+            loop {
+                let del_message = {
+                    let stream_reference = Arc::clone(&stream_reference_three);
+                    let mut stream = stream_reference.lock().unwrap();
+                    let _ = stream.set_nonblocking(true);
+                
+                    //let stream_reference = Arc::clone(&stream_reference_three);
+                    //let mut stream = match stream_reference.lock() {
+                    //     Ok(stream) => stream,
+                    //     Err(e) => {print!("Error: {:?}", e); return Err(e)},
+                    // };
+                    if let Ok(del_message) = ClientMessage::read_from(&mut *stream) {
+                        Some(del_message)
+                    } else {
+                        None //aca deberiamos intentar levantar el mensaje del topic!
+                    } 
+                };
+          
+    
+                if let Some(message) = del_message {
+                   println!("recibi del topic el mensaje {:?}", message);
                 } 
             }
         });

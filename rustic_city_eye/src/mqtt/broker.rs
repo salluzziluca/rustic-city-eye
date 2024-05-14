@@ -68,9 +68,9 @@ impl Broker {
     }
 
     ///Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
-    pub fn handle_client<T: Read + Write + Debug>(
+    pub fn handle_client(
         &mut self,
-        stream: &mut T,
+        stream: &mut TcpStream,
     ) -> std::io::Result<()> {
         while let Ok(message) = ClientMessage::read_from(stream) {
             match message {
@@ -105,26 +105,28 @@ impl Broker {
                     dup_flag: _,
                     properties: _,
                 } => {
-                    println!("Recibí un publish: {:?}", message);
+                    //println!("Recibí un publish: {:?}", message);
                     println!("topic {:?}", topic);
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
                     // ...
                     if topic == "accidente" {
                         let subscribers = self.subscribers.lock().unwrap();
 
+
                         for mut subscriber in subscribers.iter() {
-                            println!("stream {:?}", subscriber);
+                            // println!("stream {:?}", subscriber);
+                            println!("message {:?}", message);
+                            let _ = message.write_to(&mut subscriber);
+                            // println!("Sending message to subscriber");
+                            // // Write the message to the subscriber's stream.
+                            // // You would replace this with your actual message sending code.
+                            // let mensaje = "accidente";
+                            // let lenght = mensaje.len();
+                            // let lenght_bytes = lenght.to_be_bytes();
+                            // let mensaje_bytes = mensaje.as_bytes();
+                            // subscriber.write_all(&lenght_bytes)?;
 
-                            println!("Sending message to subscriber");
-                            // Write the message to the subscriber's stream.
-                            // You would replace this with your actual message sending code.
-                            let mensaje = "accidente";
-                            let lenght = mensaje.len();
-                            let lenght_bytes = lenght.to_be_bytes();
-                            let mensaje_bytes = mensaje.as_bytes();
-                            subscriber.write_all(&lenght_bytes)?;
-
-                            subscriber.write_all(mensaje_bytes)?;
+                            // subscriber.write_all(mensaje_bytes)?;
                         }
                         let puback = BrokerMessage::Puback {
                             packet_id_msb: packet_id_bytes[0],
@@ -139,13 +141,28 @@ impl Broker {
                     topic_name: ref topic,
                     properties: _,
                 } => {
+                    //habria que agarrar el packet id y partirlo(porque el suback usa el mismo ;) ) 
+
                     println!("Recibí un subscribe: {:?}", message);
                     if topic == "accidente" {
-                        println!("stream {:?}", stream);
-                        //self.subscribers.push(stream.try_clone().unwrap());
-                        println!("subs del broker: {:?}", self.subscribers);
+                        // if let Some(topic) = self.topics.get_mut("accidente") {
+                        //     topic.add_subscriber(stream);
+                        // }
+                        // println!("holis");
+                        let subs_reference = Arc::clone(&self.subscribers);
+                        let mut subscribers = subs_reference.lock().unwrap();
+                        // println!("holis222");
+                        
+                        // match stream.try_clone(){
+                        //     Ok(stream) => subscribers.push(stream),
+                        //     Err(err) => println!("Error al clonar el stream: {:?}", err)
+                        // };
+                        
+                        subscribers.push(stream.try_clone().unwrap());
+                        // self.subscribers.push(stream.try_clone().unwrap());
+                        // println!("subs del broker: {:?}", self.subscribers);
 
-                        //println!("subs: {:?}", subscribers);
+                        println!("subs: {:?}", subscribers);
                         let suback = BrokerMessage::Suback {
                             packet_id_msb: 0,
                             packet_id_lsb: 1,

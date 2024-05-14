@@ -13,9 +13,10 @@ impl Topic {
         }
     }
 
-    // pub fn add_subscriber<T: Read + Write + Debug>(&mut self, subscriber_stream: T) {
+    // pub fn add_subscriber(&mut self, subscriber_stream: &mut TcpStream) {
     //     let mut subs = self.subscribers.lock().unwrap();
-    //     subs.push(subscriber_stream);
+    //     subs.push(*subscriber_stream);
+    //     println!("mis subs son: {:?}", subs);
     // }
 
     // pub fn send_message(self, message: &str) -> Result<(), std::io::Error> {
@@ -29,8 +30,6 @@ impl Topic {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::mpsc;
-
     use super::*;
 
     #[test]

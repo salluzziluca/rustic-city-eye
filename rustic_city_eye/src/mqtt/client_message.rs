@@ -358,6 +358,24 @@ impl ClientMessage {
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
+
+    // pub fn analize_packet_id(&self, packet: u16) -> bool {
+    //     match self {
+    //         ClientMessage::Connect { clean_start, last_will_flag, last_will_qos, last_will_retain, keep_alive, properties, client_id, will_properties, last_will_topic, last_will_message, username, password } => todo!(),
+    //         ClientMessage::Publish { packet_id, topic_name, qos, retain_flag, payload, dup_flag, properties } => {
+    //             if *packet_id == packet {
+    //                 return true;
+    //             }
+    //             false
+    //         },
+    //         ClientMessage::Subscribe { packet_id, topic_name, properties } => {
+    //             if *packet_id == packet {
+    //                 return true;
+    //             }
+    //             false
+    //         },
+    //     }
+    // }
 }
 
 #[cfg(test)]
