@@ -1,6 +1,6 @@
 use std::io::{BufWriter, Error, Read, Write};
 
-use super::{reader::read_u8, writer::{write_string, write_u8}};
+use super::{reader::{read_string, read_u8}, writer::{write_string, write_u8}};
 
 #[derive(Debug, PartialEq)]
 pub enum BrokerMessage {
@@ -86,6 +86,10 @@ impl BrokerMessage {
                 Ok(())
             }
             BrokerMessage::PublishDelivery { payload } => {
+                //fixed header -> es uno de juguete, hay que pensarlo mejor
+                let byte_1: u8 = 0x00_u8.to_le(); 
+                writer.write_all(&[byte_1])?;
+
                 write_string(&mut writer, &payload)?;
                 writer.flush()?;
 
@@ -100,6 +104,11 @@ impl BrokerMessage {
         let header = u8::from_le_bytes(header); //BUG:
 
         match header {
+            0x00 => {
+                let payload = read_string(stream)?;
+
+                Ok(BrokerMessage::PublishDelivery { payload })
+            }
             0x10 => Ok(BrokerMessage::Connack {}),
             0x40 => {
                 let packet_id_msb = read_u8(stream)?;
