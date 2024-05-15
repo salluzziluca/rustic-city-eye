@@ -64,7 +64,10 @@ impl Client {
         };
 
         println!("Enviando connect message to broker");
-        connect.write_to(&mut stream).unwrap();
+        match connect.write_to(&mut stream) {
+            Ok(()) => println!("Connect message enviado"),
+            Err(_) => println!("Error al enviar connect message"),
+        }
 
         if let Ok(message) = BrokerMessage::read_from(&mut stream) {
             match message {
@@ -168,42 +171,86 @@ impl Client {
     }
 
     /// Se encarga de que el cliente este funcionando correctamente.
-    /// El Client debe encargarse de dos tareas: leer mensajes que le lleguen del Broker(ya sean
-    /// mensajes ack como puede ser un Connack, Puback, etc, como tambien espera por pubs que vienen
-    /// de los topics al que este subscrito). Su segunda tarea es enviar mensajes: puede enviar mensajes
-    /// como Publish, Suscribe, etc.
+    /// El Client debe encargarse de dos tareas: leer mensajes que le lleguen del Broker.
+    /// Estos mensajes pueden ser tanto acks (Connack, Puback, etc.)
+    /// como pubs que vengan por parte otros clientes (mediante el broker)
+    /// a cuyos topics esté subscrito.
     ///
-    /// Las dos tareas del Client se deben ejecutar concurrentemente, por eso declaramos dos threads(uno de
-    /// lectura y otro de escritura), por lo que ambos threads deben compartir el recurso del TcpStream.
+    /// Su segunda tarea es enviar mensajes:
+    /// puede enviar mensajes como Publish, Suscribe, etc.
+    ///
+    /// Las dos tareas del Client se deben ejecutar concurrentemente,
+    /// por eso su tilizan dos threads(uno de lectura y otro de escritura),
+    /// ambos threads deben compaten el recurso TcpStream.
+    ///
+    /// El thread de escritura (write_messages) recibe por consola los mensajes a enviar.
+    /// Si logra enviar los mensajes correctamente, envia el pacjet id mediante el channel
+    ///
+    /// El thread de lectura (read_messages) se encarga de leer los mensajes que le llegan del broker.
     pub fn client_run(&mut self, rx: mpsc::Receiver<String>) -> Result<(), ProtocolError> {
         let (sender, _) = mpsc::channel();
 
-        let stream_clone_one = self.stream.try_clone().unwrap();
-        let stream_clone_two = self.stream.try_clone().unwrap();
-        let stream_clone_three = self.stream.try_clone().unwrap();
+        let stream_clone_one = match self.stream.try_clone() {
+            Ok(stream) => stream,
+            Err(_) => return Err(ProtocolError::StreamError),
+        };
+        let stream_clone_two = match self.stream.try_clone() {
+            Ok(stream) => stream,
+            Err(_) => return Err(ProtocolError::StreamError),
+        };
+        let stream_clone_three = match self.stream.try_clone() {
+            Ok(stream) => stream,
+            Err(_) => return Err(ProtocolError::StreamError),
+        };
 
-        let _ = std::thread::spawn(move || {
+        let _write_messages = std::thread::spawn(move || {
             loop {
                 if let Ok(line) = rx.recv() {
                     if line.starts_with("publish:") {
                         let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
                         let message = post_colon.trim(); // remove leading/trailing whitespace
-                        println!("Publishing message: {}", message);
+                        println!("Publicando mensaje: {}", message);
 
-                        if let Ok(packet_id) =
-                            Client::publish_message(message, stream_clone_one.try_clone().unwrap())
-                        {
-                            let _ = sender.send(packet_id);
+                        match stream_clone_one.try_clone() {
+                            Ok(stream_clone) => {
+                                if let Ok(packet_id) =
+                                    Client::publish_message(message, stream_clone)
+                                {
+                                    match sender.send(packet_id) {
+                                        Ok(_) => continue,
+                                        Err(_) => {
+                                            println!(
+                                                "Error al enviar packet_id de puback al receiver"
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                            }
                         }
                     } else if line.starts_with("subscribe:") {
                         let (_, post_colon) = line.split_at(10); // "subscribe:" is 10 characters
                         let topic = post_colon.trim(); // remove leading/trailing whitespace
-                        println!("Subscribing to topic: {}", topic);
+                        println!("Subscribiendome al topic: {}", topic);
 
-                        if let Ok(packet_id) =
-                            Client::subscribe(topic, stream_clone_two.try_clone().unwrap())
-                        {
-                            let _ = sender.send(packet_id);
+                        match stream_clone_two.try_clone() {
+                            Ok(stream_clone) => {
+                                if let Ok(packet_id) = Client::subscribe(topic, stream_clone) {
+                                    match sender.send(packet_id) {
+                                        Ok(_) => continue,
+                                        Err(_) => {
+                                            println!(
+                                                "Error al enviar packet_id de puback al receiver"
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                            }
                         }
                     } else {
                         println!("Comando no reconocido: {}", line);
@@ -219,43 +266,47 @@ impl Client {
                 // for received in &receiver {
                 //     println!("recibi el packet {:?}", received);
                 //     pending_messages.push(received);
-                // }
+                // }s
 
-                if let Ok(message) =
-                    BrokerMessage::read_from(&mut stream_clone_three.try_clone().unwrap())
-                {
-                    match message {
-                        BrokerMessage::Connack {} => todo!(),
-                        BrokerMessage::Puback {
-                            packet_id_msb: _,
-                            packet_id_lsb: _,
-                            reason_code: _,
-                        } => {
-                            //  for pending_message in &pending_messages {
-                            //   if message.analize_packet_id(*pending_message) {
-                            println!("Recibi un mensaje {:?}", message);
+                if let Ok(mut stream_clone) = stream_clone_three.try_clone() {
+                    if let Ok(message) = BrokerMessage::read_from(&mut stream_clone) {
+                        match message {
+                            BrokerMessage::Connack {} => todo!(),
+                            BrokerMessage::Puback {
+                                packet_id_msb: _,
+                                packet_id_lsb: _,
+                                reason_code: _,
+                            } => {
+                                //  for pending_message in &pending_messages {
+                                //   if message.analize_packet_id(*pending_message) {
+                                println!("Recibi un mensaje {:?}", message);
 
-                            //pending_messages.remove(pending_message.)
-                            //     }
-                            // }
-                        }
-                        BrokerMessage::Suback {
-                            packet_id_msb: _,
-                            packet_id_lsb: _,
-                            reason_code: _,
-                        } => {
-                            // for pending_message in &pending_messages {
-                            //  if message.analize_packet_id(*pending_message) {
-                            println!("Recibi un mensaje {:?}", message);
+                                //pending_messages.remove(pending_message.)
+                                //     }
+                                // }
+                            }
+                            BrokerMessage::Suback {
+                                packet_id_msb: _,
+                                packet_id_lsb: _,
+                                reason_code: _,
+                            } => {
+                                // for pending_message in &pending_messages {
+                                //  if message.analize_packet_id(*pending_message) {
+                                println!("Recibi un mensaje {:?}", message);
 
-                            //pending_messages.remove(pending_message.)
-                            // }
-                            // }
+                                //pending_messages.remove(pending_message.)
+                                // }
+                                // }
+                            }
+                            BrokerMessage::PublishDelivery { payload: _ } => {
+                                println!("Recibi un mensaje {:?}", message)
+                            }
                         }
-                        BrokerMessage::PublishDelivery { payload: _ } => {
-                            println!("Recibi un mensaje {:?}", message)
-                        }
+                    } else {
+                        println!("Failed to read message from broker");
                     }
+                } else {
+                    println!("Failed to clone stream");
                 }
             }
         });
