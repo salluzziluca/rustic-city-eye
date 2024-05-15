@@ -1,5 +1,7 @@
 use std::{net::TcpStream, sync::mpsc::{self}};
 
+use mockall::predicate::ne;
+
 use crate::mqtt::{
     broker_message::BrokerMessage, client_message::ClientMessage, connect_properties::ConnectProperties, protocol_error::ProtocolError, will_properties::WillProperties, publish_properties::{PublishProperties, TopicProperties}, subscribe_properties::SubscribeProperties
 };
@@ -116,8 +118,10 @@ impl Client {
             "a".to_string(),
         );
 
+        let packet_id: u16 = 0x20FF;
+
         let publish = ClientMessage::Publish {
-            packet_id: 0x20FF,
+            packet_id,
             topic_name: splitted_message[0].to_string(),
             qos,
             retain_flag: true,
@@ -127,7 +131,7 @@ impl Client {
         };
         
         match publish.write_to(&mut stream) {
-            Ok(()) => Ok(0x20FF),
+            Ok(()) => Ok(packet_id),
             Err(_) => Err(()),
         }
 
@@ -170,6 +174,7 @@ impl Client {
     /// lectura y otro de escritura), por lo que ambos threads deben compartir el recurso del TcpStream.
     pub fn client_run(&mut self, rx: mpsc::Receiver<String>) -> Result<(), ProtocolError> {
         let (sender, receiver) = mpsc::channel();
+
         let stream_clone_one = self.stream.try_clone().unwrap();
         let stream_clone_two = self.stream.try_clone().unwrap();
         let stream_clone_three = self.stream.try_clone().unwrap();
@@ -181,20 +186,19 @@ impl Client {
                         let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
                         let message = post_colon.trim(); // remove leading/trailing whitespace
                         println!("Publishing message: {}", message);
-                        let _ = match Client::publish_message(message, stream_clone_one.try_clone().unwrap()) {
-                            Ok(packet_id) => sender.send(packet_id),
-                            Err(_) => todo!(),
-                        };
+
+                        if let Ok(packet_id) = Client::publish_message(message, stream_clone_one.try_clone().unwrap()) {
+                            let _ = sender.send(packet_id);
+                        }
                         
                     } else if line.starts_with("subscribe:") {
                         let (_, post_colon) = line.split_at(10); // "subscribe:" is 10 characters
                         let topic = post_colon.trim(); // remove leading/trailing whitespace
                         println!("Subscribing to topic: {}", topic);
 
-                        let _ = match Client::subscribe(topic, stream_clone_three.try_clone().unwrap()) {
-                            Ok(packet_id) => sender.send(packet_id),
-                            Err(_) => todo!(),
-                        };
+                        if let Ok(packet_id) = Client::subscribe(topic, stream_clone_two.try_clone().unwrap()) {
+                            let _ = sender.send(packet_id);
+                        }
                     } else {
                         println!("Comando no reconocido: {}", line);
                     }
@@ -203,32 +207,38 @@ impl Client {
         });
 
         let read_messages = std::thread::spawn(move || {
-            let mut pending_messages = Vec::new();
+            //let mut pending_messages = Vec::new();
 
             loop {
-                if let Ok(pending_message) = receiver.recv() {
-                    println!("recibi el packet {:?}", pending_message);
-                    pending_messages.push(pending_message);
-                }
+                // for received in &receiver {
+                //     println!("recibi el packet {:?}", received);
+                //     pending_messages.push(received);
+                // }
 
-                let ack_message = {
-                    if let Ok(message) = BrokerMessage::read_from(&mut stream_clone_two.try_clone().unwrap()) {
-                        Some(message)
-                    } else {
-                        None
+               if let Ok(message) = BrokerMessage::read_from(&mut stream_clone_three.try_clone().unwrap()) {
+                    match message {
+                        BrokerMessage::Connack {  } => todo!(),
+                        BrokerMessage::Puback { packet_id_msb: _, packet_id_lsb: _, reason_code: _ } => {
+                          //  for pending_message in &pending_messages {
+                            //   if message.analize_packet_id(*pending_message) {
+                                    println!("mensaje {:?}", message);
+        
+                                    //pending_messages.remove(pending_message.)
+                           //     }
+                           // }
+                        },
+                        BrokerMessage::Suback { packet_id_msb: _, packet_id_lsb: _, reason_code: _ } => {
+                           // for pending_message in &pending_messages {
+                              //  if message.analize_packet_id(*pending_message) {
+                                    println!("mensaje {:?}", message);
+        
+                                    //pending_messages.remove(pending_message.)
+                               // }
+                           // }
+                        },
+                        BrokerMessage::PublishDelivery { payload: _ } => println!("mensaje {:?}", message),
                     }
-                };
-
-                if let Some(message) = ack_message {
-                    println!("mensaje {:?}", message);
-                    // for pending_message in &pending_messages {
-                    //     if message.analize_packet_id(*pending_message) {
-                    //         println!("mensaje {:?}", message);
-
-                    //         // pending_message.
-                    //     }
-                    // }
-                } 
+               }
             }
         });
 

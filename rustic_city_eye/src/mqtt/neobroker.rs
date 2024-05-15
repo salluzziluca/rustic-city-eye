@@ -98,7 +98,8 @@ impl Broker {
                     dup_flag: _,
                     properties: _,
                 } => {
-                    let packet_id = Broker::assign_packet_id(packets.clone());
+                   // let packet_id = Broker::assign_packet_id(packets.clone());
+
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
                     Broker::handle_publish(payload, topics.clone());
@@ -110,8 +111,8 @@ impl Broker {
                     };
                     puback.write_to(&mut stream)?;
                 },
-                ClientMessage::Subscribe { packet_id: _, topic_name: _, properties: _ } => {
-                    let packet_id = Broker::assign_packet_id(packets.clone());
+                ClientMessage::Subscribe { packet_id, topic_name: _, properties: _ } => {
+                  //  let packet_id = Broker::assign_packet_id(packets.clone());
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
                     let suback = BrokerMessage::Suback {
