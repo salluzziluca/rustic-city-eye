@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 // use super::broker_message::BrokerMessage;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Topic {
     subscribers: Arc<Mutex<Vec<TcpStream>>>,
 }

@@ -2,6 +2,7 @@ use crate::{
     camera_system::camera::Camera,
     mqtt::{client::Client, connect_properties, protocol_error::ProtocolError, will_properties},
 };
+#[allow(dead_code)]
 pub struct CameraSystem {
     // args: Vec<String>,
     camera_system_client: Client,

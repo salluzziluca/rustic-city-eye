@@ -136,7 +136,7 @@ impl ConnectProperties {
                     maximum_packet_size = Some(value);
                 }
                 _ => {
-                    return Err(Error::new(ErrorKind::InvalidData, "Invalid property id"));
+                    return Err(Error::new(ErrorKind::InvalidData, "Property ID inválido"));
                 }
             }
             count += 1;

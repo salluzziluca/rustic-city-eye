@@ -4,8 +4,6 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use rand::Rng;
-
 use crate::mqtt::{
     broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError,
 };
@@ -142,10 +140,17 @@ impl Broker {
                         packet_id_lsb: packet_id_bytes[1],
                         reason_code: 0,
                     };
-                    let stream_for_topic = stream.try_clone().unwrap();
+                    //let stream_for_topic = stream.try_clone().unwrap();
+                    let stream_for_topic = match stream.try_clone() {
+                        Ok(stream) => stream,
+                        Err(err) => {
+                            println!("Error al clonar el stream: {:?}", err);
+                            return Err(err);
+                        }
+                    };
 
                     Broker::handle_subscribe(stream_for_topic, Arc::clone(&topics));
-                    println!("Envio un Suback");
+                    println!("Envío un Suback");
                     match suback.write_to(&mut stream) {
                         Ok(_) => println!("Suback enviado"),
                         Err(err) => println!("Error al enviar suback: {:?}", err),
@@ -158,7 +163,13 @@ impl Broker {
     }
 
     fn handle_subscribe(stream: TcpStream, topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>) {
-        let mut lock = topics.write().unwrap();
+        let mut lock = match topics.write() {
+            Ok(guard) => guard,
+            Err(err) => {
+                println!("Error al obtener el lock: {:?}", err);
+                return;
+            }
+        };
         if let Some(topic) = lock.get_mut("accidente") {
             topic.push(stream);
         }
@@ -176,20 +187,20 @@ impl Broker {
         }
     }
 
-    ///Asigna un id al packet que ingresa como parametro.
-    ///Guarda el packet en el hashmap de paquetes.
-    fn assign_packet_id(packets: Arc<RwLock<HashMap<u16, ClientMessage>>>) -> u16 {
-        let mut rng = rand::thread_rng();
+    // ///Asigna un id al packet que ingresa como parametro.
+    // ///Guarda el packet en el hashmap de paquetes.
+    // fn assign_packet_id(packets: Arc<RwLock<HashMap<u16, ClientMessage>>>) -> u16 {
+    //     let mut rng = rand::thread_rng();
 
-        let mut packet_id: u16;
-        let lock = packets.read().unwrap();
-        loop {
-            packet_id = rng.gen();
-            if packet_id != 0 && !lock.contains_key(&packet_id) {
-                break;
-            }
-        }
-        println!("new packet: {:?}", packet_id);
-        packet_id
-    }
+    //     let mut packet_id: u16;
+    //     let lock = packets.read().unwrap();
+    //     loop {
+    //         packet_id = rng.gen();
+    //         if packet_id != 0 && !lock.contains_key(&packet_id) {
+    //             break;
+    //         }
+    //     }
+    //     println!("new packet: {:?}", packet_id);
+    //     packet_id
+    // }
 }

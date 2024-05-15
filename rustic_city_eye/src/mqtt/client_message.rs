@@ -170,7 +170,7 @@ impl ClientMessage {
                     byte_1 |= 0 << 2;
                 } else if *qos != 0x00 && *qos != 0x01 {
                     //we should throw a DISCONNECT with reason code 0x9B(QoS not supported).
-                    println!("invalid qos");
+                    println!("Qos inválido");
                 }
 
                 if *dup_flag {
@@ -249,7 +249,7 @@ impl ClientMessage {
                 if protocol_name != "MQTT" {
                     return Err(Error::new(
                         std::io::ErrorKind::Other,
-                        "Invalid protocol name",
+                        "Nombre de protocolo inválido",
                     ));
                 }
                 //protocol version
@@ -258,7 +258,7 @@ impl ClientMessage {
                 if protocol_version != PROTOCOL_VERSION {
                     return Err(Error::new(
                         std::io::ErrorKind::Other,
-                        "Invalid protocol version",
+                        "Version de protocol inválido",
                     ));
                 }
 

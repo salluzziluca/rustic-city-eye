@@ -103,7 +103,7 @@ impl BrokerMessage {
     pub fn read_from(stream: &mut dyn Read) -> Result<BrokerMessage, Error> {
         let mut header = [0u8; 1];
         stream.read_exact(&mut header)?;
-        let header = u8::from_le_bytes(header); //BUG:
+        let header = u8::from_le_bytes(header);
 
         match header {
             0x00 => {
@@ -144,10 +144,7 @@ impl BrokerMessage {
             } => {
                 let bytes = packet_id.to_be_bytes();
 
-                if bytes[0] == *packet_id_msb && bytes[1] == *packet_id_lsb {
-                    return true;
-                }
-                false
+                bytes[0] == *packet_id_msb && bytes[1] == *packet_id_lsb
             }
             BrokerMessage::Suback {
                 packet_id_msb,
@@ -156,10 +153,7 @@ impl BrokerMessage {
             } => {
                 let bytes = packet_id.to_be_bytes();
 
-                if bytes[0] == *packet_id_msb && bytes[1] == *packet_id_lsb {
-                    return true;
-                }
-                false
+                bytes[0] == *packet_id_msb && bytes[1] == *packet_id_lsb
             }
             BrokerMessage::PublishDelivery { payload: _ } => true,
         }

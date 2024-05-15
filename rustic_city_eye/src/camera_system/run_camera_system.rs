@@ -10,9 +10,9 @@ use rustic_city_eye::{
 fn main() -> Result<(), ProtocolError> {
     let argv = args().collect::<Vec<String>>();
 
-    let mut camera_system = CameraSystem::new(argv)?;
-    let stream: Box<dyn Read + Send> = Box::new(stdin());
+    let mut _camera_system = CameraSystem::new(argv)?;
+    let _stream: Box<dyn Read + Send> = Box::new(stdin());
 
-   // let _ = camera_system.app_run(stream);
+    // let _ = camera_system.app_run(stream);
     Ok(())
 }
