@@ -87,7 +87,6 @@ impl BrokerMessage {
             }
             BrokerMessage::PublishDelivery { payload } => {
                 write_string(&mut writer, &payload)?;
-                
                 writer.flush()?;
 
                 Ok(())

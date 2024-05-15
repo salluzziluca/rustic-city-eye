@@ -173,8 +173,6 @@ impl Client {
         let stream_clone_one = self.stream.try_clone().unwrap();
         let stream_clone_two = self.stream.try_clone().unwrap();
         let stream_clone_three = self.stream.try_clone().unwrap();
-
-        
         
         let write_messages = std::thread::spawn(move || {
             loop {
@@ -217,7 +215,7 @@ impl Client {
                         Some(message)
                     } else {
                         None
-                    } 
+                    }
                 };
 
                 if let Some(message) = ack_message {

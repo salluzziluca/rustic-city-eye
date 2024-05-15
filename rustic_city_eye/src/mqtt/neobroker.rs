@@ -1,7 +1,7 @@
-use std::{collections::HashMap, net::{TcpListener, TcpStream}, sync::{Arc, RwLock}};
+use std::{collections::HashMap, net::{TcpListener, TcpStream}, sync::{Arc, Mutex}};
 
 use crate::mqtt::{
-    broker_message::BrokerMessage, protocol_error::ProtocolError, topic::Topic, client_message::ClientMessage
+    broker_message::BrokerMessage, protocol_error::ProtocolError, client_message::ClientMessage
 
 };
 
@@ -10,7 +10,7 @@ static SERVER_ARGS: usize = 2;
 #[derive(Clone)]
 pub struct Broker {
     address: String,
-    topics: Arc<RwLock<HashMap<String, Topic>>>
+    topics: Arc<Mutex<HashMap<String, Vec<TcpStream>>>>
 }
 
 impl Broker {
@@ -24,11 +24,11 @@ impl Broker {
 
         let address = "127.0.0.1:".to_owned() + &args[1];
         let mut topics = HashMap::new();
-        topics.insert("accidente".to_string(), Topic::new());
+        topics.insert("accidente".to_string(), Vec::new());
 
         Ok(Broker { 
             address,
-            topics: Arc::new(RwLock::new(topics))
+            topics: Arc::new(Mutex::new(topics))
          })
     }
 
@@ -41,10 +41,9 @@ impl Broker {
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
-                    let mut self_clone = self.clone(); // Clone the `self` reference
                     let topics_clone = self.topics.clone();
                     std::thread::spawn(move || {
-                        let _ = self_clone.handle_client(stream, topics_clone); // Use the cloned reference
+                        let _ = Broker::handle_client(stream, topics_clone); // Use the cloned reference
                     });
                 }
                 Err(err) => return Err(err),
@@ -54,7 +53,7 @@ impl Broker {
     }
 
     ///Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
-    pub fn handle_client(&mut self, mut stream: TcpStream, topics: Arc<RwLock<HashMap<String, Topic>>>) -> std::io::Result<()> {
+    pub fn handle_client(mut stream: TcpStream, topics: Arc<Mutex<HashMap<String, Vec<TcpStream>>>>) -> std::io::Result<()> {
         while let Ok(message) = ClientMessage::read_from(&mut stream) {
             match message {
                 ClientMessage::Connect {
@@ -90,13 +89,7 @@ impl Broker {
                 } => {
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-                    let mut lock = topics.try_write().unwrap();
-
-                    let delivery_message = BrokerMessage::PublishDelivery { payload };
-
-                    if let Some(topic) = lock.get_mut("accidente") {
-                            let _ = topic.send_message(delivery_message);
-                    }
+                    Broker::handle_publish(payload, topics.clone());
 
                     let puback = BrokerMessage::Puback {
                         packet_id_msb: packet_id_bytes[0],
@@ -104,7 +97,6 @@ impl Broker {
                         reason_code: 1,
                     };
                     puback.write_to(&mut stream)?;
-
                 },
                 ClientMessage::Subscribe { packet_id: _, topic_name: _, properties: _ } => {
                     let suback = BrokerMessage::Suback {
@@ -113,11 +105,8 @@ impl Broker {
                         reason_code: 0,
                     };
                     let stream_for_topic = stream.try_clone().unwrap();
-                    let mut lock = topics.try_write().unwrap();
 
-                    if let Some(topic) = lock.get_mut("accidente") {
-                            topic.add_subscriber(stream_for_topic);
-                    }
+                    Broker::handle_subscribe(stream_for_topic, topics.clone());
 
                     println!("Sending suback: {:?}", suback);
                     match suback.write_to(&mut stream){
@@ -129,6 +118,25 @@ impl Broker {
         }
 
         Ok(())
+    }
+
+    fn handle_subscribe(stream: TcpStream, topics: Arc<Mutex<HashMap<String, Vec<TcpStream>>>>) {
+        let mut lock = topics.lock().unwrap();
+        if let Some(topic) = lock.get_mut("accidente") {
+            topic.push(stream);
+        }
+    }
+
+    fn handle_publish(payload: String, topics: Arc<Mutex<HashMap<String, Vec<TcpStream>>>>) {
+        let mut lock = topics.lock().unwrap();
+
+        if let Some(topic) = lock.get_mut("accidente") {
+            let delivery_message = BrokerMessage::PublishDelivery { payload };
+
+            for subscriber in topic {
+                let _ = delivery_message.write_to(subscriber);
+            }
+        }
     }
 
 }
