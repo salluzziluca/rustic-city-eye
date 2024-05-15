@@ -13,7 +13,7 @@ const USER_PROPERTY_ID: u8 = 0x26;
 const SUBSCRIPTION_IDENTIFIER_ID: u8 = 0x0B;
 const CONTENT_TYPE_ID: u8 = 0x03;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct PublishProperties {
     payload_format_indicator: u8,
     message_expiry_interval: u32,
@@ -24,7 +24,7 @@ pub struct PublishProperties {
     content_type: String,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TopicProperties {
     pub(crate) topic_alias: u16,
     pub(crate) response_topic: String,

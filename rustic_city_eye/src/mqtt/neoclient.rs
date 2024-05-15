@@ -207,6 +207,7 @@ impl Client {
 
             loop {
                 if let Ok(pending_message) = receiver.recv() {
+                    println!("recibi el packet {:?}", pending_message);
                     pending_messages.push(pending_message);
                 }
 

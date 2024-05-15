@@ -14,7 +14,7 @@ const RESPONSE_TOPIC_ID: u8 = 0x08;
 const CORRELATION_DATA_ID: u8 = 0x09;
 const USER_PROPERTIES_ID: u8 = 0x26;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 /// last_will_delay_interval especifica el tiempo en segundos que el broker debe esperar antes de publicar el will message.
 ///
 /// payload_format_indicator indica si el payload esta encodado en utf-8 o no.

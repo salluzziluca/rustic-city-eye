@@ -1,4 +1,6 @@
-use std::{collections::HashMap, net::{TcpListener, TcpStream}, sync::{Arc, Mutex, RwLock}};
+use std::{collections::HashMap, net::{TcpListener, TcpStream}, sync::{Arc, RwLock}};
+
+use rand::Rng;
 
 use crate::mqtt::{
     broker_message::BrokerMessage, protocol_error::ProtocolError, client_message::ClientMessage
@@ -10,7 +12,11 @@ static SERVER_ARGS: usize = 2;
 #[derive(Clone)]
 pub struct Broker {
     address: String,
-    topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>
+    topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>,
+
+    /// El u16 corresponde al packet_id del package, y dentro
+    /// de esa clave se guarda el package.
+    packets: Arc<RwLock<HashMap<u16, ClientMessage>>> 
 }
 
 impl Broker {
@@ -24,11 +30,14 @@ impl Broker {
 
         let address = "127.0.0.1:".to_owned() + &args[1];
         let mut topics = HashMap::new();
+        let packets = HashMap::new();
+
         topics.insert("accidente".to_string(), Vec::new());
 
         Ok(Broker { 
             address,
-            topics: Arc::new(RwLock::new(topics))
+            topics: Arc::new(RwLock::new(topics)),
+            packets: Arc::new(RwLock::new(packets))
          })
     }
 
@@ -42,8 +51,10 @@ impl Broker {
             match stream {
                 Ok(stream) => {
                     let topics_clone = self.topics.clone();
+                    let packets_clone = self.packets.clone();
+
                     std::thread::spawn(move || {
-                        let _ = Broker::handle_client(stream, topics_clone); // Use the cloned reference
+                        let _ = Broker::handle_client(stream, topics_clone, packets_clone); // Use the cloned reference
                     });
                 }
                 Err(err) => return Err(err),
@@ -53,7 +64,7 @@ impl Broker {
     }
 
     ///Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
-    pub fn handle_client(mut stream: TcpStream, topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>) -> std::io::Result<()> {
+    pub fn handle_client(mut stream: TcpStream, topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>, packets: Arc<RwLock<HashMap<u16, ClientMessage>>>) -> std::io::Result<()> {
         while let Ok(message) = ClientMessage::read_from(&mut stream) {
             match message {
                 ClientMessage::Connect {
@@ -87,6 +98,7 @@ impl Broker {
                     dup_flag: _,
                     properties: _,
                 } => {
+                    let packet_id = Broker::assign_packet_id(packets.clone());
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
                     Broker::handle_publish(payload, topics.clone());
@@ -99,9 +111,12 @@ impl Broker {
                     puback.write_to(&mut stream)?;
                 },
                 ClientMessage::Subscribe { packet_id: _, topic_name: _, properties: _ } => {
+                    let packet_id = Broker::assign_packet_id(packets.clone());
+                    let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
+
                     let suback = BrokerMessage::Suback {
-                        packet_id_msb: 0,
-                        packet_id_lsb: 1,
+                        packet_id_msb: packet_id_bytes[0],
+                        packet_id_lsb: packet_id_bytes[1],
                         reason_code: 0,
                     };
                     let stream_for_topic = stream.try_clone().unwrap();
@@ -136,6 +151,23 @@ impl Broker {
                 let _ = delivery_message.write_to(&mut subscriber);
             }
         }
+    }
+
+    ///Asigna un id al packet que ingresa como parametro.
+    ///Guarda el packet en el hashmap de paquetes.
+    fn assign_packet_id(packets: Arc<RwLock<HashMap<u16, ClientMessage>>>) -> u16 {
+        let mut rng = rand::thread_rng();
+
+        let mut packet_id: u16;
+        let lock = packets.read().unwrap();
+        loop {
+            packet_id = rng.gen();
+            if packet_id != 0 && !lock.contains_key(&packet_id) {
+                break;
+            }
+        }
+        println!("new packet: {:?}", packet_id);
+        packet_id
     }
 
 }

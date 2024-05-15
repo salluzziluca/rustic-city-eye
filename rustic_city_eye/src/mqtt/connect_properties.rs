@@ -2,7 +2,7 @@ use crate::mqtt::reader::*;
 use crate::mqtt::writer::*;
 use std::io::{BufReader, BufWriter, Error, ErrorKind, Read, Write};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ConnectProperties {
     pub session_expiry_interval: u32,
     pub receive_maximum: u16,
