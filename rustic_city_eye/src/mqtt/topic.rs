@@ -1,18 +1,18 @@
-use std::net::TcpStream;
 use std::fmt::Debug;
+use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
 
-use super::broker_message::BrokerMessage;
+// use super::broker_message::BrokerMessage;
 
 #[derive(Debug)]
 pub struct Topic {
-    subscribers: Arc<Mutex<Vec<TcpStream>>>
+    subscribers: Arc<Mutex<Vec<TcpStream>>>,
 }
 
 impl Topic {
     pub fn new() -> Self {
         Self {
-            subscribers: Arc::new(Mutex::new(Vec::new()))
+            subscribers: Arc::new(Mutex::new(Vec::new())),
         }
     }
 

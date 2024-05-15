@@ -104,7 +104,10 @@ impl PublishProperties {
         let _response_topic_id = read_u8(stream)?;
         let response_topic = read_string(stream)?;
 
-        let topic_properties = TopicProperties { topic_alias, response_topic };
+        let topic_properties = TopicProperties {
+            topic_alias,
+            response_topic,
+        };
 
         //correlation data
         let _correlation_data_id = read_u8(stream)?;
@@ -143,12 +146,12 @@ mod tests {
     #[test]
     fn test_01_publish_properties_ok() {
         let mut buffer = Cursor::new(Vec::new());
-        
+
         let topic_properties = TopicProperties {
             topic_alias: 10,
             response_topic: "String".to_string(),
         };
-        
+
         let properties = PublishProperties::new(
             1,
             10,
@@ -163,7 +166,6 @@ mod tests {
         buffer.set_position(0);
 
         let publish_properties_read = properties.read_properties(&mut buffer).unwrap();
-        println!("{:?}", publish_properties_read);
         assert_eq!(properties, publish_properties_read);
     }
 }

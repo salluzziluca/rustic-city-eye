@@ -1,27 +1,24 @@
 use std::{
-    net::TcpStream, sync::{
-        mpsc::{self},
-        Arc, Mutex,
-    },
+    net::TcpStream,
+    sync::mpsc::{self},
 };
 
 use crate::mqtt::{
-    broker_message::BrokerMessage, 
-    client_message::ClientMessage, 
-    connect_properties::ConnectProperties, 
-    protocol_error::ProtocolError, 
-    publish_properties::{PublishProperties, TopicProperties}, 
-    subscribe_properties::SubscribeProperties, 
-    will_properties::WillProperties
+    broker_message::BrokerMessage,
+    client_message::ClientMessage,
+    connect_properties::ConnectProperties,
+    protocol_error::ProtocolError,
+    publish_properties::{PublishProperties, TopicProperties},
+    subscribe_properties::SubscribeProperties,
+    will_properties::WillProperties,
 };
 
 static CLIENT_ARGS: usize = 3;
 
-// #[derive(Clone)]
 pub struct Client {
-    pub(crate) stream: Arc<Mutex<TcpStream>>,
+    stream: TcpStream,
 }
-#[allow(dead_code)]
+
 impl Client {
     pub fn new(
         args: Vec<String>,
@@ -51,10 +48,6 @@ impl Client {
             Err(_) => return Err(ProtocolError::ConectionError),
         };
 
-        let will_properties = will_properties;
-
-        let properties = connect_properties;
-
         let connect = ClientMessage::Connect {
             clean_start,
             last_will_flag,
@@ -63,14 +56,14 @@ impl Client {
             username,
             password,
             keep_alive,
-            properties,
+            properties: connect_properties,
             client_id,
             will_properties,
             last_will_topic,
             last_will_message,
         };
 
-        println!("Sending connect message to broker");
+        println!("Enviando connect message to broker");
         connect.write_to(&mut stream).unwrap();
 
         if let Ok(message) = BrokerMessage::read_from(&mut stream) {
@@ -79,28 +72,26 @@ impl Client {
                    //session_present,
                     //return_code,
                 } => {
-                    println!("Recibí un connack: {:?}", message);
+                    println!("Recibí un Connack");
                 },
-                _ => println!("no recibi un connack :("),
+                _ => println!("no recibi un Connack :("),
 
             }
         } else {
             println!("soy el client y no pude leer el mensaje");
         };
 
-        Ok(Client {
-            stream: Arc::new(Mutex::new(stream)),
-        })
+        Ok(Client { stream })
     }
 
-    pub fn publish_message(message: &str, stream: Arc<Mutex<TcpStream>>) -> Result<u16, ()> {
+    pub fn publish_message(message: &str, mut stream: TcpStream) -> Result<u16, ()> {
         let splitted_message: Vec<&str> = message.split(' ').collect();
 
         //message interface(temp): dup:1 qos:2 retain:1 topic_name:sometopic
-    //    let mut dup_flag = false;
-        let mut qos = 0;
-  //      let mut retain_flag = false;
-//        let mut packet_id = 0x00;
+        //    let mut dup_flag = false;
+        let qos = 1;
+        //      let mut retain_flag = false;
+        //        let mut packet_id = 0x00;
 
         // if splitted_message[0] == "dup:1" {
         //     dup_flag = true;
@@ -117,8 +108,6 @@ impl Client {
         //     retain_flag = true;
         // }
 
-        qos = 1;
-
         let topic_properties = TopicProperties {
             topic_alias: 10,
             response_topic: "String".to_string(),
@@ -134,8 +123,10 @@ impl Client {
             "a".to_string(),
         );
 
+        let packet_id: u16 = 0x20FF;
+
         let publish = ClientMessage::Publish {
-            packet_id: 0x20FF,
+            packet_id,
             topic_name: splitted_message[0].to_string(),
             qos,
             retain_flag: true,
@@ -143,14 +134,11 @@ impl Client {
             dup_flag: false,
             properties,
         };
-        let _ = message;
-        let mut stream = stream.lock().unwrap();
-        
-        match publish.write_to(&mut *stream) {
-            Ok(()) => Ok(0x20FF),
+
+        match publish.write_to(&mut stream) {
+            Ok(()) => Ok(packet_id),
             Err(_) => Err(()),
         }
-
     }
 
     /// Suscribe al cliente a un topic
@@ -160,7 +148,7 @@ impl Client {
     /// Esperará un mensaje de confirmación de suscripción
     /// Si recibe un mensaje de confirmación, lo imprimirá
     ///
-    pub fn subscribe(topic: &str, stream: Arc<Mutex<TcpStream>>) -> Result<u16, ()> {
+    pub fn subscribe(topic: &str, mut stream: TcpStream) -> Result<u16, ()> {
         let packet_id = 1;
 
         let subscribe = ClientMessage::Subscribe {
@@ -173,12 +161,10 @@ impl Client {
             ),
         };
 
-        let mut stream = stream.lock().unwrap();
-        
-        match subscribe.write_to(&mut *stream) {
+        match subscribe.write_to(&mut stream) {
             Ok(()) => Ok(packet_id),
             Err(_) => Err(()),
-        }        
+        }
     }
 
     /// Se encarga de que el cliente este funcionando correctamente.
@@ -186,39 +172,39 @@ impl Client {
     /// mensajes ack como puede ser un Connack, Puback, etc, como tambien espera por pubs que vienen
     /// de los topics al que este subscrito). Su segunda tarea es enviar mensajes: puede enviar mensajes
     /// como Publish, Suscribe, etc.
-    /// 
+    ///
     /// Las dos tareas del Client se deben ejecutar concurrentemente, por eso declaramos dos threads(uno de
     /// lectura y otro de escritura), por lo que ambos threads deben compartir el recurso del TcpStream.
     pub fn client_run(&mut self, rx: mpsc::Receiver<String>) -> Result<(), ProtocolError> {
-        let stream_reference_one = Arc::clone(&self.stream);
-        let stream_reference_two = Arc::clone(&self.stream);
-        let stream_reference_three = Arc::clone(&self.stream);
-        let (sender, receiver) = mpsc::channel();
+        let (sender, _) = mpsc::channel();
 
+        let stream_clone_one = self.stream.try_clone().unwrap();
+        let stream_clone_two = self.stream.try_clone().unwrap();
+        let stream_clone_three = self.stream.try_clone().unwrap();
 
-        let write_messages = std::thread::spawn(move || {
+        let _ = std::thread::spawn(move || {
             loop {
-                let _stream_reference = Arc::clone(&stream_reference_one);
-                
                 if let Ok(line) = rx.recv() {
                     if line.starts_with("publish:") {
                         let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
                         let message = post_colon.trim(); // remove leading/trailing whitespace
                         println!("Publishing message: {}", message);
-                        let _ = match Client::publish_message(message, Arc::clone(&stream_reference_one)) {
-                            Ok(packet_id) => sender.send(packet_id),
-                            Err(_) => todo!(),
-                        };
-                        
+
+                        if let Ok(packet_id) =
+                            Client::publish_message(message, stream_clone_one.try_clone().unwrap())
+                        {
+                            let _ = sender.send(packet_id);
+                        }
                     } else if line.starts_with("subscribe:") {
                         let (_, post_colon) = line.split_at(10); // "subscribe:" is 10 characters
                         let topic = post_colon.trim(); // remove leading/trailing whitespace
                         println!("Subscribing to topic: {}", topic);
 
-                        let _ = match Client::subscribe(topic, Arc::clone(&stream_reference_one)) {
-                            Ok(packet_id) => sender.send(packet_id),
-                            Err(_) => todo!(),
-                        };
+                        if let Ok(packet_id) =
+                            Client::subscribe(topic, stream_clone_two.try_clone().unwrap())
+                        {
+                            let _ = sender.send(packet_id);
+                        }
                     } else {
                         println!("Comando no reconocido: {}", line);
                     }
@@ -226,65 +212,54 @@ impl Client {
             }
         });
 
-        let read_ack_messages = std::thread::spawn(move || {
-            let mut pending_messages: Vec<u16> = Vec::new();
-            loop{
-                if let Ok(pending_message) = receiver.recv() {
-                    pending_messages.push(pending_message);
-                }
-                println!("pending: {:?}", pending_messages);
+        let _read_messages = std::thread::spawn(move || {
+            //let mut pending_messages = Vec::new();
 
-                let ack_message = {
-                    let stream_reference = Arc::clone(&stream_reference_two);
-                    let mut stream = match stream_reference.lock() {
-                        Ok(stream) => stream,
-                        Err(e) => {print!("Error: {:?}", e); continue},
-                    };
-                
-                    if let Ok(message) = BrokerMessage::read_from(&mut *stream) {
-                        Some(message)
-                    } else {
-                        None
-                    } 
-                };
+            loop {
+                // for received in &receiver {
+                //     println!("recibi el packet {:?}", received);
+                //     pending_messages.push(received);
+                // }
 
-                if let Some(message) = ack_message {
-                    for pending_message in &pending_messages {
-                        if message.analize_packet_id(*pending_message) {
-                            println!("mensaje {:?}", message);
+                if let Ok(message) =
+                    BrokerMessage::read_from(&mut stream_clone_three.try_clone().unwrap())
+                {
+                    match message {
+                        BrokerMessage::Connack {} => todo!(),
+                        BrokerMessage::Puback {
+                            packet_id_msb: _,
+                            packet_id_lsb: _,
+                            reason_code: _,
+                        } => {
+                            //  for pending_message in &pending_messages {
+                            //   if message.analize_packet_id(*pending_message) {
+                            println!("Recibi un mensaje {:?}", message);
 
-                            // pending_message.
+                            //pending_messages.remove(pending_message.)
+                            //     }
+                            // }
+                        }
+                        BrokerMessage::Suback {
+                            packet_id_msb: _,
+                            packet_id_lsb: _,
+                            reason_code: _,
+                        } => {
+                            // for pending_message in &pending_messages {
+                            //  if message.analize_packet_id(*pending_message) {
+                            println!("Recibi un mensaje {:?}", message);
+
+                            //pending_messages.remove(pending_message.)
+                            // }
+                            // }
+                        }
+                        BrokerMessage::PublishDelivery { payload: _ } => {
+                            println!("Recibi un mensaje {:?}", message)
                         }
                     }
-                } 
+                }
             }
         });
 
-        // let read_delivery_messages = std::thread::spawn(move || {
-        //     loop {
-        //         let del_message = {
-        //             let stream_reference = Arc::clone(&stream_reference_three);
-        //             let mut stream = stream_reference.lock().unwrap();
-        //             let _ = stream.set_nonblocking(true);
-                
-        //             //let stream_reference = Arc::clone(&stream_reference_three);
-        //             //let mut stream = match stream_reference.lock() {
-        //             //     Ok(stream) => stream,
-        //             //     Err(e) => {print!("Error: {:?}", e); return Err(e)},
-        //             // };
-        //             if let Ok(del_message) = ClientMessage::read_from(&mut *stream) {
-        //                 Some(del_message)
-        //             } else {
-        //                 None //aca deberiamos intentar levantar el mensaje del topic!
-        //             } 
-        //         };
-          
-    
-        //         if let Some(message) = del_message {
-        //            println!("recibi del topic el mensaje {:?}", message);
-        //         } 
-        //     }
-        // });
         Ok(())
     }
 }

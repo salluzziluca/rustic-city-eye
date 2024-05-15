@@ -1,6 +1,9 @@
 use std::io::{BufWriter, Error, Read, Write};
 
-use super::{reader::{read_string, read_u8}, writer::{write_string, write_u8}};
+use super::{
+    reader::{read_string, read_u8},
+    writer::{write_string, write_u8},
+};
 
 #[derive(Debug, PartialEq)]
 pub enum BrokerMessage {
@@ -26,8 +29,8 @@ pub enum BrokerMessage {
         reason_code: u8,
     },
     PublishDelivery {
-        payload: String
-    }
+        payload: String,
+    },
 }
 #[allow(dead_code)]
 impl BrokerMessage {
@@ -66,7 +69,6 @@ impl BrokerMessage {
                 packet_id_lsb,
                 reason_code: _,
             } => {
-                println!("Subacking...");
                 //fixed header
                 let byte_1: u8 = 0x90_u8.to_le(); //10010000
 
@@ -87,14 +89,14 @@ impl BrokerMessage {
             }
             BrokerMessage::PublishDelivery { payload } => {
                 //fixed header -> es uno de juguete, hay que pensarlo mejor
-                let byte_1: u8 = 0x00_u8.to_le(); 
+                let byte_1: u8 = 0x00_u8.to_le();
                 writer.write_all(&[byte_1])?;
 
                 write_string(&mut writer, &payload)?;
                 writer.flush()?;
 
                 Ok(())
-            },
+            }
         }
     }
 
@@ -134,16 +136,12 @@ impl BrokerMessage {
 
     pub fn analize_packet_id(&self, packet_id: u16) -> bool {
         match self {
-            BrokerMessage::Connack {  } => true,
-            BrokerMessage::Puback { packet_id_msb, packet_id_lsb, reason_code: _ } => {
-                let bytes = packet_id.to_be_bytes();
-
-                if bytes[0] == *packet_id_msb && bytes[1] == *packet_id_lsb {
-                    return true;
-                }
-                false
-            },
-            BrokerMessage::Suback { packet_id_msb, packet_id_lsb, reason_code: _ } => {
+            BrokerMessage::Connack {} => true,
+            BrokerMessage::Puback {
+                packet_id_msb,
+                packet_id_lsb,
+                reason_code: _,
+            } => {
                 let bytes = packet_id.to_be_bytes();
 
                 if bytes[0] == *packet_id_msb && bytes[1] == *packet_id_lsb {
@@ -151,7 +149,19 @@ impl BrokerMessage {
                 }
                 false
             }
-            BrokerMessage::PublishDelivery { payload } => true,
+            BrokerMessage::Suback {
+                packet_id_msb,
+                packet_id_lsb,
+                reason_code: _,
+            } => {
+                let bytes = packet_id.to_be_bytes();
+
+                if bytes[0] == *packet_id_msb && bytes[1] == *packet_id_lsb {
+                    return true;
+                }
+                false
+            }
+            BrokerMessage::PublishDelivery { payload: _ } => true,
         }
     }
 }
@@ -178,17 +188,20 @@ mod tests {
     }
 
     #[test]
-    fn test_02_analizing_packet_ids_ok () {
+    fn test_02_analizing_packet_ids_ok() {
         let suback = BrokerMessage::Suback {
             reason_code: 1,
             packet_id_msb: 2,
             packet_id_lsb: 1,
         };
 
-        let puback = BrokerMessage::Puback { packet_id_msb: 1, packet_id_lsb: 5, reason_code: 1 };
+        let puback = BrokerMessage::Puback {
+            packet_id_msb: 1,
+            packet_id_lsb: 5,
+            reason_code: 1,
+        };
 
         assert!(suback.analize_packet_id(513));
         assert!(puback.analize_packet_id(261));
-
     }
 }

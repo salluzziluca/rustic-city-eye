@@ -271,14 +271,11 @@ impl ClientMessage {
 
                 //keep alive
                 let keep_alive = read_u16(stream)?;
-                println!("keep alive: {:?}", keep_alive);
                 //properties
                 //payload
                 //client ID
                 let client_id = read_string(stream)?;
-                println!("client_id: {:?}", client_id);
                 let will_properties = WillProperties::read_from(stream)?;
-                println!("will properties: {:?}", will_properties);
 
                 let mut last_will_topic = String::new();
                 let mut will_message = String::new();
@@ -286,7 +283,6 @@ impl ClientMessage {
                     last_will_topic = read_string(stream)?;
                     will_message = read_string(stream)?;
                 }
-                print!("last will topic: {:?}", last_will_topic);
 
                 let hay_user = (connect_flags & (1 << 7)) != 0;
                 let mut user = String::new();

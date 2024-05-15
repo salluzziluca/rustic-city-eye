@@ -1,5 +1,7 @@
 pub mod client;
 
+pub mod broker;
+
 pub mod broker_message;
 
 pub mod client_message;

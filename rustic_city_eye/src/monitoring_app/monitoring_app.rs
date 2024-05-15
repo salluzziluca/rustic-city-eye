@@ -2,16 +2,19 @@
 //! Lee lineas desde stdin y las manda mediante el socket.
 
 //use crate::camera_system::camera_system::CameraSystem;
-use crate::mqtt::neoclient::Client;
+use crate::mqtt::client::Client;
 use crate::mqtt::connect_properties;
 use crate::mqtt::protocol_error::ProtocolError;
 use crate::mqtt::will_properties;
 
-use std::{io::{stdin, BufRead, Error}, sync::mpsc};
+use std::{
+    io::{stdin, BufRead, Error},
+    sync::mpsc,
+};
 
 pub struct MonitoringApp {
     monitoring_app_client: Client,
-   // camera_system: CameraSystem,
+    // camera_system: CameraSystem,
 }
 
 #[allow(dead_code)]
@@ -45,7 +48,7 @@ impl MonitoringApp {
         //let camera_system = CameraSystem::new(args.clone())?;
 
         let monitoring_app = MonitoringApp {
-           // camera_system,
+            // camera_system,
             monitoring_app_client: match Client::new(
                 args,
                 will_properties,
@@ -71,7 +74,6 @@ impl MonitoringApp {
     /// En este momento la app de monitoreo ya tiene todos los clientes conectados y funcionales
     /// Aca es donde se gestiona la interaccion entre los diferentes clientes
     pub fn app_run(&mut self) -> Result<(), Error> {
-        
         let (tx, rx) = mpsc::channel();
         let _ = self.monitoring_app_client.client_run(rx);
 

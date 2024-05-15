@@ -1,23 +1,25 @@
 use std::{
-    collections::HashMap, net::{TcpListener, TcpStream}, sync::{Arc, Mutex}
+    collections::HashMap,
+    net::{TcpListener, TcpStream},
+    sync::{Arc, RwLock},
 };
 
+use rand::Rng;
+
 use crate::mqtt::{
-    broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError, topic::{self, Topic}
+    broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError,
 };
 
 static SERVER_ARGS: usize = 2;
 
-/// El broker puede ser considerado un servidor.
-/// Bindea a un puerto dado y comienza a correr.
-/// Contiene la info de los mensajes que están siendo enviados y del cliente
-/// Es un mediador entra los diferentes clientes, enviendo los ACKs correspondientes a los publishers. Esto permite implementar un tipo de comunicación asincronica.
 #[derive(Clone)]
 pub struct Broker {
     address: String,
-    packet_ids: Vec<u16>,
-    subscribers: Arc<Mutex<Vec<TcpStream>>>,
-    topics: HashMap<String, Topic>
+    topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>,
+
+    /// El u16 corresponde al packet_id del package, y dentro
+    /// de esa clave se guarda el package.
+    packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
 }
 
 impl Broker {
@@ -29,17 +31,16 @@ impl Broker {
             return Err(ProtocolError::InvalidNumberOfArguments);
         }
 
-        let packet_ids = Vec::new();
         let address = "127.0.0.1:".to_owned() + &args[1];
         let mut topics = HashMap::new();
+        let packets = HashMap::new();
 
-        topics.insert("accidente".to_string(), Topic::new());
+        topics.insert("accidente".to_string(), Vec::new());
 
         Ok(Broker {
             address,
-            packet_ids,
-            subscribers: Arc::new(Mutex::new(Vec::new())),
-            topics
+            topics: Arc::new(RwLock::new(topics)),
+            packets: Arc::new(RwLock::new(packets)),
         })
     }
 
@@ -52,10 +53,12 @@ impl Broker {
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
-                    let mut self_clone = self.clone(); // Clone the `self` reference
+                    let topics_clone = self.topics.clone();
+                    let packets_clone = self.packets.clone();
+
                     std::thread::spawn(move || {
-                        let stream = Arc::new(Mutex::new(stream));
-                        let _ = self_clone.handle_client(stream); // Use the cloned reference
+                        let _ = Broker::handle_client(stream, topics_clone, packets_clone);
+                        // Use the cloned reference
                     });
                 }
                 Err(err) => return Err(err),
@@ -66,13 +69,11 @@ impl Broker {
 
     ///Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
     pub fn handle_client(
-        &mut self,
-        stream: Arc<Mutex<TcpStream>>,
+        mut stream: TcpStream,
+        topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>,
+        _packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
     ) -> std::io::Result<()> {
-        let stream_reference = Arc::clone(&stream);
-        let mut stream = stream.lock().unwrap();
-
-        while let Ok(message) = ClientMessage::read_from(&mut *stream) {
+        while let Ok(message) = ClientMessage::read_from(&mut stream) {
             match message {
                 ClientMessage::Connect {
                     clean_start: _,
@@ -88,131 +89,107 @@ impl Broker {
                     last_will_topic: _,
                     last_will_message: _,
                 } => {
-                    println!("Recibí un connect: {:?}", message);
+                    println!("Recibí un Connect");
                     let connack = BrokerMessage::Connack {
                         //session_present: true,
                         //return_code: 0,
                     };
-                    println!("Sending connack: {:?}", connack);
-                    connack.write_to(&mut *stream).unwrap();
+                    println!("Envio un Connack");
+                    match connack.write_to(&mut stream) {
+                        Ok(_) => println!("Connack enviado"),
+                        Err(err) => println!("Error al enviar Connack: {:?}", err),
+                    }
                 }
                 ClientMessage::Publish {
                     packet_id,
-                    topic_name: ref topic,
+                    topic_name: ref _topic,
                     qos: _,
                     retain_flag: _,
-                    payload: _,
+                    payload,
                     dup_flag: _,
                     properties: _,
                 } => {
-              //      println!("topic {:?}", topic);
+                    println!("Recibí un Publish");
+                    // let packet_id = Broker::assign_packet_id(packets.clone());
+
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
-                    // ...
-                    if topic == "accidente" {
-                       // let delivery_message = message;
 
-                        //delivery_message.write_to(&mut *stream)?;
-                        //if let Some(topic) = self.topics.get_mut("accidente") {
-                            // println!("mandando mensajes a mis subs");
-                            // <topic::Topic as Clone>::clone(&topic).send_message(message)?;
-                       // }
-                      //  let subscribers = self.subscribers.lock().unwrap();
+                    Broker::handle_publish(payload, topics.clone());
 
-                        //for mut subscriber in self.subscribers.iter() {
-                       //  println!("message {:?}", message);
-                     //       let _ = message.write_to(&mut subscriber);
-                            // println!("Sending message to subscriber");
-                            // // Write the message to the subscriber's stream.
-                            // // You would replace this with your actual message sending code.
-                            // let mensaje = "accidente";
-                            // let lenght = mensaje.len();
-                            // let lenght_bytes = lenght.to_be_bytes();
-                            // let mensaje_bytes = mensaje.as_bytes();
-                            // subscriber.write_all(&lenght_bytes)?;
-
-                            // subscriber.write_all(mensaje_bytes)?;
-                        //}
-                        let puback = BrokerMessage::Puback {
-                            packet_id_msb: packet_id_bytes[0],
-                            packet_id_lsb: packet_id_bytes[1],
-                            reason_code: 1,
-                        };
-                        puback.write_to(&mut *stream)?;
+                    let puback = BrokerMessage::Puback {
+                        packet_id_msb: packet_id_bytes[0],
+                        packet_id_lsb: packet_id_bytes[1],
+                        reason_code: 1,
+                    };
+                    println!("Envio un Puback");
+                    match puback.write_to(&mut stream) {
+                        Ok(_) => println!("Puback enviado"),
+                        Err(err) => println!("Error al enviar Puback: {:?}", err),
                     }
                 }
                 ClientMessage::Subscribe {
-                    packet_id: _,
-                    topic_name: ref topic,
+                    packet_id,
+                    topic_name: _,
                     properties: _,
                 } => {
-                    //habria que agarrar el packet id y partirlo(porque el suback usa el mismo ;) ) 
+                    println!("Recibi un Subscribe");
 
-                    println!("Recibí un subscribe: {:?}", message);
-                    if topic == "accidente" {
-                        // if let Some(topic) = self.topics.get_mut("accidente") {
-                        //     topic.add_subscriber(stream_reference.clone());
-                        // }
-                        // let subs = self.subscribers.lock().unwrap();
-                        // subs.push(stream);
-                        println!("topic subs: {:?}", self.subscribers);
-                        // let stream_reference = Arc::new(stream);
-                        // let stream_clone = Arc::clone(&stream_reference);
+                    //  let packet_id = Broker::assign_packet_id(packets.clone());
+                    let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
+                    let suback = BrokerMessage::Suback {
+                        packet_id_msb: packet_id_bytes[0],
+                        packet_id_lsb: packet_id_bytes[1],
+                        reason_code: 0,
+                    };
+                    let stream_for_topic = stream.try_clone().unwrap();
 
-                        
-                      //  let subs_reference = Arc::clone(&self.subscribers);
-                        //let mut subscribers = subs_reference.lock().unwrap();
-                        
-                        // match stream.try_clone(){
-                        //     Ok(stream) => subscribers.push(stream),
-                        //     Err(err) => println!("Error al clonar el stream: {:?}", err)
-                        // };
-                        
-                     //   subscribers.push(stream.try_clone().unwrap());
-                        // self.subscribers.push(stream.try_clone().unwrap());
-                        // println!("subs del broker: {:?}", self.subscribers);
-
-                       // println!("subs: {:?}", subscribers);
-                        let suback = BrokerMessage::Suback {
-                            packet_id_msb: 0,
-                            packet_id_lsb: 1,
-                            reason_code: 0,
-                        };
-                        println!("Sending suback: {:?}", suback);
-                        match suback.write_to(&mut *stream){
-                            Ok(_) => println!("suback enviado"),
-                            Err(err) => println!("Error al enviar suback: {:?}", err)
-                        }
+                    Broker::handle_subscribe(stream_for_topic, Arc::clone(&topics));
+                    println!("Envio un Suback");
+                    match suback.write_to(&mut stream) {
+                        Ok(_) => println!("Suback enviado"),
+                        Err(err) => println!("Error al enviar suback: {:?}", err),
                     }
                 }
             }
         }
+
         Ok(())
     }
 
-    pub fn assign_new_packet_id(&mut self) -> u16 {
-        let mut new_id = rand::random::<u16>();
-
-        while new_id == 0x00 || self.packet_ids.contains(&new_id) {
-            new_id = rand::random::<u16>();
+    fn handle_subscribe(stream: TcpStream, topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>) {
+        let mut lock = topics.write().unwrap();
+        if let Some(topic) = lock.get_mut("accidente") {
+            topic.push(stream);
         }
-
-        self.packet_ids.push(new_id);
-        new_id
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+    fn handle_publish(payload: String, topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>) {
+        let lock = topics.read().unwrap();
 
-    #[test]
-    fn test_01_invalid_number_of_arguments_err() -> std::io::Result<()> {
-        let mut args = Vec::new();
-        args.push("target/debug/broker".to_string());
+        if let Some(topic) = lock.get("accidente") {
+            let delivery_message = BrokerMessage::PublishDelivery { payload };
 
-        let _ = Broker::new(args);
+            for mut subscriber in topic {
+                let _ = delivery_message.write_to(&mut subscriber);
+            }
+        }
+    }
 
-        Ok(())
+    ///Asigna un id al packet que ingresa como parametro.
+    ///Guarda el packet en el hashmap de paquetes.
+    fn assign_packet_id(packets: Arc<RwLock<HashMap<u16, ClientMessage>>>) -> u16 {
+        let mut rng = rand::thread_rng();
+
+        let mut packet_id: u16;
+        let lock = packets.read().unwrap();
+        loop {
+            packet_id = rng.gen();
+            if packet_id != 0 && !lock.contains_key(&packet_id) {
+                break;
+            }
+        }
+        println!("new packet: {:?}", packet_id);
+        packet_id
     }
 }
