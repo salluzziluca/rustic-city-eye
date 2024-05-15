@@ -186,6 +186,7 @@ impl ConnectProperties {
     }
 }
 
+#[derive(Default)]
 pub struct ConnectPropertiesBuilder {
     session_expiry_interval: Option<u32>,
     receive_maximum: Option<u16>,
@@ -198,24 +199,8 @@ pub struct ConnectPropertiesBuilder {
     authentication_data: Option<Vec<u8>>,
 }
 
-impl Default for ConnectPropertiesBuilder {
-    fn default() -> Self {
-        ConnectPropertiesBuilder {
-            session_expiry_interval: None,
-            receive_maximum: None,
-            maximum_packet_size: None,
-            topic_alias_maximum: None,
-            request_response_information: None,
-            request_problem_information: None,
-            user_properties: None,
-            authentication_method: None,
-            authentication_data: None,
-        }
-    }
-}
-
 impl ConnectPropertiesBuilder {
-    pub fn new(self) -> Result<ConnectProperties, Error> {
+    pub fn create(self) -> Result<ConnectProperties, Error> {
         Ok(ConnectProperties {
             session_expiry_interval: self.session_expiry_interval.unwrap_or_default(),
             receive_maximum: self.receive_maximum.unwrap_or_default(),

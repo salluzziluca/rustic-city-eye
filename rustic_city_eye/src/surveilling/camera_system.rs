@@ -1,5 +1,5 @@
 use crate::{
-    camera_system::camera::Camera,
+    surveilling::camera::Camera,
     mqtt::{client::Client, connect_properties, protocol_error::ProtocolError, will_properties},
 };
 #[allow(dead_code)]

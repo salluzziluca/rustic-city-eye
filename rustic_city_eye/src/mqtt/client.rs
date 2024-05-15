@@ -1,9 +1,11 @@
+
 use std::{
     net::TcpStream,
     sync::mpsc::{self},
 };
 
 use crate::mqtt::{
+    error::ClientError,
     broker_message::BrokerMessage,
     client_message::ClientMessage,
     connect_properties::ConnectProperties,
@@ -86,8 +88,7 @@ impl Client {
 
         Ok(Client { stream })
     }
-
-    pub fn publish_message(message: &str, mut stream: TcpStream) -> Result<u16, ()> {
+    pub fn publish_message(message: &str, mut stream: TcpStream) -> Result<u16, ClientError> {
         let splitted_message: Vec<&str> = message.split(' ').collect();
 
         //message interface(temp): dup:1 qos:2 retain:1 topic_name:sometopic
@@ -140,7 +141,7 @@ impl Client {
 
         match publish.write_to(&mut stream) {
             Ok(()) => Ok(packet_id),
-            Err(_) => Err(()),
+            Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
 
@@ -151,7 +152,7 @@ impl Client {
     /// Esperará un mensaje de confirmación de suscripción
     /// Si recibe un mensaje de confirmación, lo imprimirá
     ///
-    pub fn subscribe(topic: &str, mut stream: TcpStream) -> Result<u16, ()> {
+    pub fn subscribe(topic: &str, mut stream: TcpStream) -> Result<u16, ClientError> {
         let packet_id = 1;
 
         let subscribe = ClientMessage::Subscribe {
@@ -166,7 +167,7 @@ impl Client {
 
         match subscribe.write_to(&mut stream) {
             Ok(()) => Ok(packet_id),
-            Err(_) => Err(()),
+            Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
 

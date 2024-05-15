@@ -92,7 +92,7 @@ impl BrokerMessage {
                 let byte_1: u8 = 0x00_u8.to_le();
                 writer.write_all(&[byte_1])?;
 
-                write_string(&mut writer, &payload)?;
+                write_string(&mut writer, payload)?;
                 writer.flush()?;
 
                 Ok(())

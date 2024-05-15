@@ -10,7 +10,14 @@ pub struct Topic {
     subscribers: Arc<Mutex<Vec<TcpStream>>>,
 }
 
+impl Default for Topic {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Topic {
+    
     pub fn new() -> Self {
         Self {
             subscribers: Arc::new(Mutex::new(Vec::new())),
