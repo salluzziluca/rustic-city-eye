@@ -1,21 +1,18 @@
-
 use std::{
     net::TcpStream,
     sync::mpsc::{self},
 };
 
 use crate::mqtt::{
-    error::ClientError,
     broker_message::BrokerMessage,
     client_message::ClientMessage,
     connect_properties::ConnectProperties,
+    error::ClientError,
     protocol_error::ProtocolError,
     publish_properties::{PublishProperties, TopicProperties},
     subscribe_properties::SubscribeProperties,
     will_properties::WillProperties,
 };
-
-static CLIENT_ARGS: usize = 3;
 
 pub struct Client {
     stream: TcpStream,
@@ -23,7 +20,7 @@ pub struct Client {
 
 impl Client {
     pub fn new(
-        args: Vec<String>,
+        address: String,
         will_properties: WillProperties,
         connect_properties: ConnectProperties,
         clean_start: bool,
@@ -37,14 +34,6 @@ impl Client {
         last_will_topic: String,
         last_will_message: String,
     ) -> Result<Client, ProtocolError> {
-        if args.len() != CLIENT_ARGS {
-            let app_name = &args[0];
-            println!("Usage:\n{:?} <host> <puerto>", app_name);
-            return Err(ProtocolError::InvalidNumberOfArguments);
-        }
-
-        let address = args[1].clone() + ":" + &args[2];
-
         let mut stream = match TcpStream::connect(address) {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::ConectionError),

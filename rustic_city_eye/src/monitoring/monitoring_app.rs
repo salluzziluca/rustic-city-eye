@@ -11,6 +11,7 @@ use std::{
     io::{stdin, BufRead, Error, ErrorKind},
     sync::mpsc,
 };
+static CLIENT_ARGS: usize = 3;
 
 pub struct MonitoringApp {
     monitoring_app_client: Client,
@@ -44,13 +45,19 @@ impl MonitoringApp {
             "auth".to_string(),
             vec![1, 2, 3],
         );
+        if args.len() != CLIENT_ARGS {
+            let app_name = &args[0];
+            println!("Usage:\n{:?} <host> <puerto>", app_name);
+            return Err(ProtocolError::InvalidNumberOfArguments);
+        }
 
+        let address = args[1].clone() + ":" + &args[2];
         //let camera_system = CameraSystem::new(args.clone())?;
 
         let monitoring_app = MonitoringApp {
             // camera_system,
             monitoring_app_client: match Client::new(
-                args,
+                address,
                 will_properties,
                 connect_properties,
                 true,
