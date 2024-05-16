@@ -15,7 +15,12 @@ const CONTENT_TYPE_ID: u8 = 0x03;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct PublishProperties {
+    /// Si vale 0, indica que el payload tiene bytes unspecified -> es equivalente a no enviar un payload format indicator.
+    /// Si vale 1 indica que el payload esta encodeado en UTF-8
     payload_format_indicator: u8,
+
+    ///Indica el lifetime del application message en segundos.
+    ///Si este intervalo expira y el servidor no ha hecho el delivery, se debe eliminar la copia del mensaje para ese subscriptor.
     message_expiry_interval: u32,
     topic_properties: TopicProperties,
     correlation_data: Vec<u8>,

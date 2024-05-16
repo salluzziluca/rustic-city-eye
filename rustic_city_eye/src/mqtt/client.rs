@@ -77,7 +77,7 @@ impl Client {
 
         Ok(Client { stream })
     }
-    pub fn publish_message(message: &str, mut stream: TcpStream) -> Result<u16, ClientError> {
+    pub fn publish_message(message: &str, mut stream: TcpStream) -> Result<(), ClientError> {
         let splitted_message: Vec<&str> = message.split(' ').collect();
 
         //message interface(temp): dup:1 qos:2 retain:1 topic_name:sometopic
@@ -116,20 +116,17 @@ impl Client {
             "a".to_string(),
         );
 
-        let packet_id: u16 = 0x20FF;
-
         let publish = ClientMessage::Publish {
-            packet_id,
             topic_name: splitted_message[0].to_string(),
             qos,
-            retain_flag: true,
+            retain_flag: 1,
             payload: "buendia".to_string(),
-            dup_flag: false,
+            dup_flag: 0,
             properties,
         };
 
         match publish.write_to(&mut stream) {
-            Ok(()) => Ok(packet_id),
+            Ok(()) => Ok(()),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
@@ -203,10 +200,8 @@ impl Client {
 
                         match stream_clone_one.try_clone() {
                             Ok(stream_clone) => {
-                                if let Ok(packet_id) =
-                                    Client::publish_message(message, stream_clone)
-                                {
-                                    match sender.send(packet_id) {
+                                if Client::publish_message(message, stream_clone).is_ok() {
+                                    match sender.send(1) {
                                         Ok(_) => continue,
                                         Err(_) => {
                                             println!(

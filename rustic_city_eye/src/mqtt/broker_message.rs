@@ -11,6 +11,8 @@ pub enum BrokerMessage {
         //session_present: bool,
         //return_code: u32
     },
+
+    /// Puback es la respuesta a un Publish packet con QoS 1.
     Puback {
         packet_id_msb: u8,
         packet_id_lsb: u8,
@@ -48,7 +50,7 @@ impl BrokerMessage {
             BrokerMessage::Puback {
                 packet_id_msb,
                 packet_id_lsb,
-                reason_code: _,
+                reason_code,
             } => {
                 //fixed header
                 let byte_1: u8 = 0x40_u8.to_le(); //01000000
@@ -59,6 +61,9 @@ impl BrokerMessage {
                 //packet_id
                 write_u8(&mut writer, packet_id_msb)?;
                 write_u8(&mut writer, packet_id_lsb)?;
+
+                //reason code
+                write_u8(&mut writer, reason_code)?;
 
                 writer.flush()?;
 
@@ -115,10 +120,12 @@ impl BrokerMessage {
             0x40 => {
                 let packet_id_msb = read_u8(stream)?;
                 let packet_id_lsb = read_u8(stream)?;
+                let reason_code = read_u8(stream)?;
+
                 Ok(BrokerMessage::Puback {
                     packet_id_msb,
                     packet_id_lsb,
-                    reason_code: 1,
+                    reason_code,
                 })
             }
             0x90 => {

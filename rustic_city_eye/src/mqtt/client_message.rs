@@ -37,13 +37,29 @@ pub enum ClientMessage {
         username: String,
         password: String,
     },
+
+    /// El paquete Publish es enviado desde un cliente al servidor, o desde un servidor al cliente para transportar un mensaje de aplicacion.
     Publish {
-        packet_id: u16,
+        ///Identifica el canal de informacion por el cual el Payload data se va a publicar.
         topic_name: String,
+
+        ///Indica el nivel de garantia de delivery de un application message.
         qos: usize,
-        retain_flag: bool,
+
+        /// Si vale 1, el server debe reemplazar cualquier retained message para ese topic
+        /// y guardar este application message.
+        retain_flag: usize,
+
+        ///Es el application message que se esta publicando.
+        ///El contenido y formato de la data es especificado por la aplicacion.
         payload: String,
-        dup_flag: bool,
+
+        ///Dup flag indica si fue la primera ocasion que el client o el servidor intento enviar este packete.
+        /// Debe ser 0 para todos los mensajes con QoS 0.
+        /// Debe valer 1 para indicar que es el segundo intento de envio del packete.
+        dup_flag: usize,
+
+        /// Una property es un identificador que define el uso y tipos de data, seguido de un valor.
         properties: PublishProperties,
     },
     /// El Subscribe Message se utiliza para suscribirse a uno o más topics. El cliente puede enviar un mensaje de subscribe con un packet id y una lista de topics a los que se quiere suscribir. El broker responde con un mensaje de suback con el mismo packet id y una lista de return codes que indican si la suscripcion fue exitosa o no.
@@ -148,7 +164,6 @@ impl ClientMessage {
                 Ok(())
             }
             ClientMessage::Publish {
-                packet_id,
                 topic_name,
                 qos,
                 retain_flag,
@@ -159,21 +174,21 @@ impl ClientMessage {
                 //fixed header
                 let mut byte_1 = 0x30_u8;
 
-                if *retain_flag {
+                if *retain_flag == 1 {
                     //we must replace any existing retained message for this topic and store
                     //the app message.
                     byte_1 |= 1 << 0;
                 }
 
-                if *qos == 0x01 {
+                if *qos == 1 {
                     byte_1 |= 1 << 1;
                     byte_1 |= 0 << 2;
                 } else if *qos != 0x00 && *qos != 0x01 {
-                    //we should throw a DISCONNECT with reason code 0x9B(QoS not supported).
+                    //we should throw a DISCONNECT with reason code 0x81(Malformed packet).
                     println!("Qos inválido");
                 }
 
-                if *dup_flag {
+                if *dup_flag == 1 {
                     byte_1 |= 1 << 3;
                 }
 
@@ -186,9 +201,6 @@ impl ClientMessage {
 
                 //Remaining Length
                 write_string(&mut writer, topic_name)?;
-
-                //packet_id
-                write_u16(&mut writer, packet_id)?;
 
                 //Properties
                 properties.write_properties(&mut writer)?;
@@ -220,7 +232,7 @@ impl ClientMessage {
         stream.read_exact(&mut header)?;
 
         let mut header = u8::from_le_bytes(header);
-        let (mut dup_flag, mut qos, mut retain_flag) = (false, 0, false);
+        let (mut dup_flag, mut qos, mut retain_flag) = (0, 0, 0);
 
         let first_header_digits = header >> 4;
         if first_header_digits == 0x3 {
@@ -230,13 +242,13 @@ impl ClientMessage {
             header = 0x30_u8.to_le();
 
             if last_header_digits & 0b00000001 == 0b00000001 {
-                retain_flag = true;
+                retain_flag = 1;
             }
             if last_header_digits & 0b00000010 == 0b00000010 {
                 qos = 1;
             }
             if (last_header_digits >> 3) == 1 {
-                dup_flag = true;
+                dup_flag = 1;
             }
         }
 
@@ -328,11 +340,9 @@ impl ClientMessage {
                     "a".to_string(),
                 );
                 let topic_name = read_string(stream)?;
-                let packet_id = read_u16(stream)?;
                 properties.read_properties(stream)?;
                 let message = read_string(stream)?;
                 Ok(ClientMessage::Publish {
-                    packet_id,
                     topic_name,
                     qos,
                     retain_flag,
@@ -512,12 +522,11 @@ mod tests {
         );
 
         let publish = ClientMessage::Publish {
-            packet_id: 1,
             topic_name: "mensajes para juan".to_string(),
             qos: 1,
-            retain_flag: true,
+            retain_flag: 1,
             payload: "hola soy juan".to_string(),
-            dup_flag: true,
+            dup_flag: 1,
             properties,
         };
 

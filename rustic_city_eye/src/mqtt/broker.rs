@@ -1,8 +1,11 @@
 use std::{
     collections::HashMap,
+    io::Error,
     net::{TcpListener, TcpStream},
     sync::{Arc, RwLock},
 };
+
+use rand::Rng;
 
 use crate::mqtt::{
     broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError,
@@ -69,7 +72,7 @@ impl Broker {
     pub fn handle_client(
         mut stream: TcpStream,
         topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>,
-        _packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
+        packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
     ) -> std::io::Result<()> {
         while let Ok(message) = ClientMessage::read_from(&mut stream) {
             match message {
@@ -99,30 +102,31 @@ impl Broker {
                     }
                 }
                 ClientMessage::Publish {
-                    packet_id,
                     topic_name: ref _topic,
-                    qos: _,
+                    qos,
                     retain_flag: _,
                     payload,
                     dup_flag: _,
                     properties: _,
                 } => {
                     println!("Recibí un Publish");
-                    // let packet_id = Broker::assign_packet_id(packets.clone());
+                    let packet_id = Broker::assign_packet_id(packets.clone());
 
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-                    Broker::handle_publish(payload, topics.clone());
+                    let reason_code = Broker::handle_publish(payload, topics.clone())?;
 
-                    let puback = BrokerMessage::Puback {
-                        packet_id_msb: packet_id_bytes[0],
-                        packet_id_lsb: packet_id_bytes[1],
-                        reason_code: 1,
-                    };
-                    println!("Enviando un Puback");
-                    match puback.write_to(&mut stream) {
-                        Ok(_) => println!("Puback enviado"),
-                        Err(err) => println!("Error al enviar Puback: {:?}", err),
+                    if qos == 1 {
+                        let puback = BrokerMessage::Puback {
+                            packet_id_msb: packet_id_bytes[0],
+                            packet_id_lsb: packet_id_bytes[1],
+                            reason_code,
+                        };
+                        println!("Enviando un Puback");
+                        match puback.write_to(&mut stream) {
+                            Ok(_) => println!("Puback enviado"),
+                            Err(err) => println!("Error al enviar Puback: {:?}", err),
+                        }
                     }
                 }
                 ClientMessage::Subscribe {
@@ -175,11 +179,20 @@ impl Broker {
         }
     }
 
-    fn handle_publish(payload: String, topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>) {
+    fn handle_publish(
+        payload: String,
+        topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>,
+    ) -> Result<u8, Error> {
         let lock = topics.read().unwrap();
+        let mut puback_reason_code: u8 = 0x00;
 
         if let Some(topic) = lock.get("accidente") {
             let delivery_message = BrokerMessage::PublishDelivery { payload };
+
+            if topic.is_empty() {
+                puback_reason_code = 0x10_u8;
+                return Ok(puback_reason_code);
+            }
 
             for mut subscriber in topic {
                 println!("Enviando un PublishDelivery");
@@ -189,22 +202,23 @@ impl Broker {
                 }
             }
         }
+        Ok(puback_reason_code)
     }
 
-    // ///Asigna un id al packet que ingresa como parametro.
-    // ///Guarda el packet en el hashmap de paquetes.
-    // fn assign_packet_id(packets: Arc<RwLock<HashMap<u16, ClientMessage>>>) -> u16 {
-    //     let mut rng = rand::thread_rng();
+    ///Asigna un id al packet que ingresa como parametro.
+    ///Guarda el packet en el hashmap de paquetes.
+    fn assign_packet_id(packets: Arc<RwLock<HashMap<u16, ClientMessage>>>) -> u16 {
+        let mut rng = rand::thread_rng();
 
-    //     let mut packet_id: u16;
-    //     let lock = packets.read().unwrap();
-    //     loop {
-    //         packet_id = rng.gen();
-    //         if packet_id != 0 && !lock.contains_key(&packet_id) {
-    //             break;
-    //         }
-    //     }
-    //     println!("new packet: {:?}", packet_id);
-    //     packet_id
-    // }
+        let mut packet_id: u16;
+        let lock = packets.read().unwrap();
+        loop {
+            packet_id = rng.gen();
+            if packet_id != 0 && !lock.contains_key(&packet_id) {
+                break;
+            }
+        }
+        println!("new packet: {:?}", packet_id);
+        packet_id
+    }
 }
