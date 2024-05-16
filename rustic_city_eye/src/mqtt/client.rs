@@ -160,6 +160,44 @@ impl Client {
         }
     }
 
+    ///recibe un string que indica la razón de la desconexión y un stream y envia un disconnect message al broker
+    /// segun el str reason recibido, modifica el reason_code y el reason_string del mensaje
+    ///
+    /// devuelve el packet_id del mensaje enviado o un ClientError en caso de error
+    pub fn disconnect(reason: &str, mut stream: TcpStream) -> Result<u16, ClientError> {
+        let packet_id = 1;
+        let reason_code: u8;
+        let reason_string: String;
+        match reason {
+            "normal" => {
+                reason_code = 0x00;
+                reason_string =
+                    "Close the connection normally. Do not send the Will Message.".to_string();
+            }
+            "with_will" => {
+                reason_code = 0x04;
+                reason_string = "The Client wishes to disconnect but requires that the Server also publishes its Will Message"
+                    .to_string();
+            }
+            _ => {
+                reason_code = 0x80;
+                reason_string = "The Connection is closed but the sender either does not wish to reveal reason or none of the other Reason Codes apply. "
+                    .to_string();
+            }
+        }
+        let disconnect = ClientMessage::Disconnect {
+            reason_code,
+            session_expiry_interval: 0,
+            reason_string,
+            user_properties: vec![("propiedad".to_string(), "valor".to_string())],
+        };
+
+        match disconnect.write_to(&mut stream) {
+            Ok(()) => Ok(packet_id),
+            Err(_) => Err(ClientError::new("Error al enviar mensaje")),
+        }
+    }
+
     /// Se encarga de que el cliente este funcionando correctamente.
     /// El Client debe encargarse de dos tareas: leer mensajes que le lleguen del Broker.
     /// Estos mensajes pueden ser tanto acks (Connack, Puback, etc.)
@@ -189,6 +227,10 @@ impl Client {
             Err(_) => return Err(ProtocolError::StreamError),
         };
         let stream_clone_three = match self.stream.try_clone() {
+            Ok(stream) => stream,
+            Err(_) => return Err(ProtocolError::StreamError),
+        };
+        let stream_clone_four = match self.stream.try_clone() {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
         };
@@ -236,6 +278,29 @@ impl Client {
                                             )
                                         }
                                     }
+                                }
+                            }
+                            Err(_) => {
+                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                            }
+                        }
+                    } else if line.starts_with("disconnect") {
+                        let (_, post_colon) = line.split_at(11); // "disconnect" is 11 characters
+                        let reason = post_colon.trim(); // remove leading/trailing whitespace
+                        println!("Desconectandome: {}", reason);
+                        match stream_clone_four.try_clone() {
+                            Ok(stream_clone) => {
+                                if let Ok(packet_id) = Client::disconnect(reason, stream_clone) {
+                                    match sender.send(packet_id) {
+                                        Ok(_) => continue,
+                                        Err(_) => {
+                                            println!(
+                                                "Error al enviar packet_id de puback al receiver"
+                                            )
+                                        }
+                                    }
+                                    println!("Desconectandome");
+                                    //TODO: close the tcp connection
                                 }
                             }
                             Err(_) => {
