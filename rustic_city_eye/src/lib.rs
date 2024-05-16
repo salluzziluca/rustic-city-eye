@@ -1,9 +1,9 @@
-#[doc = include_str!("doc/informe.md")]
-#[doc = include_str!("doc/marco_teorico.md")]
-pub mod surveilling;
 pub mod doc;
 pub mod drone_system;
 pub mod monitoring;
+#[doc = include_str!("doc/informe.md")]
+#[doc = include_str!("doc/marco_teorico.md")]
+pub mod surveilling;
 
 pub mod mqtt {
     pub mod client;

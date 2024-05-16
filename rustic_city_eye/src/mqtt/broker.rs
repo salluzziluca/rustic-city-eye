@@ -92,7 +92,7 @@ impl Broker {
                         //session_present: true,
                         //return_code: 0,
                     };
-                    println!("Envio un Connack");
+                    println!("Enviando un Connack");
                     match connack.write_to(&mut stream) {
                         Ok(_) => println!("Connack enviado"),
                         Err(err) => println!("Error al enviar Connack: {:?}", err),
@@ -119,7 +119,7 @@ impl Broker {
                         packet_id_lsb: packet_id_bytes[1],
                         reason_code: 1,
                     };
-                    println!("Envio un Puback");
+                    println!("Enviando un Puback");
                     match puback.write_to(&mut stream) {
                         Ok(_) => println!("Puback enviado"),
                         Err(err) => println!("Error al enviar Puback: {:?}", err),
@@ -176,19 +176,17 @@ impl Broker {
     }
 
     fn handle_publish(payload: String, topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>) {
-        let lock = match topics.read() {
-            Ok(guard) => guard,
-            Err(err) => {
-                println!("Error al obtener el lock: {:?}", err);
-                return;
-            }
-        };
+        let lock = topics.read().unwrap();
 
         if let Some(topic) = lock.get("accidente") {
             let delivery_message = BrokerMessage::PublishDelivery { payload };
 
             for mut subscriber in topic {
-                let _ = delivery_message.write_to(&mut subscriber);
+                println!("Enviando un PublishDelivery");
+                match delivery_message.write_to(&mut subscriber) {
+                    Ok(_) => println!("PublishDelivery enviado"),
+                    Err(err) => println!("Error al enviar PublishDelivery: {:?}", err),
+                }
             }
         }
     }
