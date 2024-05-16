@@ -3,7 +3,7 @@ use std::io::{Error, Read, Write};
 use crate::mqtt::reader::*;
 use crate::mqtt::writer::*;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct SubscribeProperties {
     subscription_identifier: u32,
     user_properties: Vec<(String, String)>,

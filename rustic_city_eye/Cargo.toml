@@ -7,15 +7,16 @@ edition = "2021"
 
 
 [dependencies]
-
+rand = "0.8.5"
+mockall = "0.12.1"
 [[bin]]
 name = "broker"
-path = "src/mqtt/broker.rs"
+path = "src/mqtt/run_broker.rs"
 
 [[bin]]
-name = "monitoring_client"
-path = "src/monitoring_app/monitoring_client.rs"
+name = "monitoring_app"
+path = "src/monitoring/run_monitoring.rs"
 
 [[bin]]
-name = "camera_system_client"
-path = "src/camera_system/camera_system_client.rs"
+name = "camera_system"
+path = "src/surveilling/run_camera_system.rs"

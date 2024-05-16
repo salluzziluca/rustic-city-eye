@@ -1,10 +1,14 @@
 pub mod client;
 
+pub mod broker;
+
 pub mod broker_message;
 
 pub mod client_message;
 
 pub mod publish_properties;
+
+pub mod puback_reason_code;
 
 pub mod protocol_error;
 
@@ -20,3 +24,6 @@ pub mod writer;
 pub mod will_properties;
 
 pub mod connack_properties;
+pub mod topic;
+
+pub mod error;

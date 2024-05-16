@@ -1,19 +1,16 @@
 use crate::mqtt::subscribe_properties::SubscribeProperties;
 use std::io::{BufWriter, Error, Read, Write};
 
-use crate::mqtt::connack_properties::ConnackProperties;
 use crate::mqtt::connect_properties::ConnectProperties;
-use crate::mqtt::publish_properties::PublishProperties;
+use crate::mqtt::publish_properties::{PublishProperties, TopicProperties};
 use crate::mqtt::reader::*;
 use crate::mqtt::will_properties::*;
 use crate::mqtt::writer::*;
 
-use super::publish_properties::TopicProperties;
-
 //use self::quality_of_service::QualityOfService;
 const PROTOCOL_VERSION: u8 = 5;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ClientMessage {
     ///El Connect Message es el primer menasje que el cliente envia cuando se conecta al broker. Este contiene toda la informacion necesaria para que el broker identifique al cliente y pueda establecer una sesion con los parametros establecidos.
     ///
@@ -62,13 +59,6 @@ pub enum ClientMessage {
         topic_name: String,
         /// properties es un struct que contiene las propiedades del mensaje de subscribe.
         properties: SubscribeProperties,
-    },
-
-    // EL connack el paquete de respuesta que el broker envia al cliente despues de recibir un connect message.
-    Connack {
-        session_present: bool,
-        reason_code: u8,
-        properties: ConnackProperties,
     },
 }
 
@@ -180,7 +170,7 @@ impl ClientMessage {
                     byte_1 |= 0 << 2;
                 } else if *qos != 0x00 && *qos != 0x01 {
                     //we should throw a DISCONNECT with reason code 0x9B(QoS not supported).
-                    println!("invalid qos");
+                    println!("Qos inválido");
                 }
 
                 if *dup_flag {
@@ -222,20 +212,6 @@ impl ClientMessage {
                 writer.flush()?;
                 Ok(())
             }
-            ClientMessage::Connack {
-                session_present,
-                reason_code,
-                properties,
-            } => {
-                let byte_1: u8 = 0x20_u8; //00100000
-                writer.write_all(&[byte_1])?;
-                println!("session present: {:?}", session_present);
-                writer.write_all(&[if *session_present { 1u8 } else { 0u8 }])?;
-                writer.write_all(&[*reason_code])?;
-                properties.write_to(&mut writer)?;
-                writer.flush()?;
-                Ok(())
-            }
         }
     }
 
@@ -273,7 +249,7 @@ impl ClientMessage {
                 if protocol_name != "MQTT" {
                     return Err(Error::new(
                         std::io::ErrorKind::Other,
-                        "Invalid protocol name",
+                        "Nombre de protocolo inválido",
                     ));
                 }
                 //protocol version
@@ -282,7 +258,7 @@ impl ClientMessage {
                 if protocol_version != PROTOCOL_VERSION {
                     return Err(Error::new(
                         std::io::ErrorKind::Other,
-                        "Invalid protocol version",
+                        "Version de protocol inválido",
                     ));
                 }
 
@@ -295,14 +271,11 @@ impl ClientMessage {
 
                 //keep alive
                 let keep_alive = read_u16(stream)?;
-                println!("keep alive: {:?}", keep_alive);
                 //properties
                 //payload
                 //client ID
                 let client_id = read_string(stream)?;
-                println!("client_id: {:?}", client_id);
                 let will_properties = WillProperties::read_from(stream)?;
-                println!("will properties: {:?}", will_properties);
 
                 let mut last_will_topic = String::new();
                 let mut will_message = String::new();
@@ -310,7 +283,6 @@ impl ClientMessage {
                     last_will_topic = read_string(stream)?;
                     will_message = read_string(stream)?;
                 }
-                print!("last will topic: {:?}", last_will_topic);
 
                 let hay_user = (connect_flags & (1 << 7)) != 0;
                 let mut user = String::new();
@@ -345,6 +317,7 @@ impl ClientMessage {
                     topic_alias: 10,
                     response_topic: "String".to_string(),
                 };
+
                 let properties = PublishProperties::new(
                     1,
                     10,
@@ -378,72 +351,37 @@ impl ClientMessage {
                     properties,
                 })
             }
-            0x20 => {
-                let session_present = read_u8(stream)? == 1;
-                let reason_code = read_u8(stream)?;
-                let properties = ConnackProperties::read_from(stream)?;
-                Ok(ClientMessage::Connack {
-                    session_present,
-                    reason_code,
-                    properties,
-                })
-            }
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
+
+    // pub fn analize_packet_id(&self, packet: u16) -> bool {
+    //     match self {
+    //         ClientMessage::Connect { clean_start, last_will_flag, last_will_qos, last_will_retain, keep_alive, properties, client_id, will_properties, last_will_topic, last_will_message, username, password } => todo!(),
+    //         ClientMessage::Publish { packet_id, topic_name, qos, retain_flag, payload, dup_flag, properties } => {
+    //             if *packet_id == packet {
+    //                 return true;
+    //             }
+    //             false
+    //         },
+    //         ClientMessage::Subscribe { packet_id, topic_name, properties } => {
+    //             if *packet_id == packet {
+    //                 return true;
+    //             }
+    //             false
+    //         },
+    //     }
+    // }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::mqtt::broker_message::BrokerMessage;
-    use crate::mqtt::connack_properties::ConnackPropertiesBuilder;
     use std::io::Cursor;
 
     use super::*;
 
     #[test]
-    fn test_publish_message_ok() {
-        let topic_properties = TopicProperties {
-            topic_alias: 10,
-            response_topic: "String".to_string(),
-        };
-
-        let properties = PublishProperties::new(
-            1,
-            10,
-            topic_properties,
-            [1, 2, 3].to_vec(),
-            "a".to_string(),
-            1,
-            "a".to_string(),
-        );
-
-        let publish = ClientMessage::Publish {
-            packet_id: 1,
-            topic_name: "mensajes para juan".to_string(),
-            qos: 1,
-            retain_flag: true,
-            payload: "hola soy juan".to_string(),
-            dup_flag: true,
-            properties,
-        };
-
-        let mut cursor = Cursor::new(Vec::<u8>::new());
-        publish.write_to(&mut cursor).unwrap();
-        cursor.set_position(0);
-
-        match ClientMessage::read_from(&mut cursor) {
-            Ok(read_publish) => {
-                assert_eq!(publish, read_publish);
-            }
-            Err(e) => {
-                panic!("no se pudo leer del cursor {:?}", e);
-            }
-        }
-    }
-
-    #[test]
-    fn test_client_message() {
+    fn test_01_connect_message_ok() {
         let connect_propierties = ConnectProperties {
             session_expiry_interval: 1,
             receive_maximum: 2,
@@ -482,7 +420,13 @@ mod tests {
             password: "".to_string(),
         };
         let mut cursor = Cursor::new(Vec::<u8>::new());
-        connect.write_to(&mut cursor).unwrap();
+        match connect.write_to(&mut cursor) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("no se pudo escribir en el cursor {:?}", e);
+            }
+        }
+
         cursor.set_position(0);
 
         match ClientMessage::read_from(&mut cursor) {
@@ -496,7 +440,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sin_props() {
+    fn test_02_connect_without_props_err() {
         let connect_properties = ConnectProperties {
             session_expiry_interval: 0,
             receive_maximum: 0,
@@ -532,7 +476,12 @@ mod tests {
             password: "".to_string(),
         };
         let mut cursor = Cursor::new(Vec::<u8>::new());
-        connect.write_to(&mut cursor).unwrap();
+        match connect.write_to(&mut cursor) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("no se pudo escribir en el cursor {:?}", e);
+            }
+        }
         cursor.set_position(0);
 
         match ClientMessage::read_from(&mut cursor) {
@@ -546,51 +495,54 @@ mod tests {
     }
 
     #[test]
-    fn test_connack() {
-        let properties = ConnackPropertiesBuilder::new()
-            .session_expiry_interval(100)
-            .receive_maximum(10)
-            .maximum_qos(true)
-            .retain_available(true)
-            .maximum_packet_size(100)
-            .assigned_client_identifier("client_id".to_owned())
-            .topic_alias_maximum(10)
-            .reason_string("reason".to_owned())
-            .user_properties(vec![("property".to_string(), "value".to_string())])
-            .wildcard_subscription_available(true)
-            .subscription_identifier_available(true)
-            .shared_subscription_available(true)
-            .server_keep_alive(10)
-            .response_information("Testing".to_owned())
-            .server_reference("server".to_owned())
-            .authentication_method("auth".to_owned())
-            .authentication_data("data".to_owned().as_bytes().to_vec()) // Convert string to Vec<u8>
-            .build()
-            .unwrap();
+    fn test_03_publish_message_ok() {
+        let topic_properties = TopicProperties {
+            topic_alias: 10,
+            response_topic: "String".to_string(),
+        };
 
-        println!("{:?}", properties);
-        let connack = ClientMessage::Connack {
-            session_present: true,
-            reason_code: 0,
+        let properties = PublishProperties::new(
+            1,
+            10,
+            topic_properties,
+            [1, 2, 3].to_vec(),
+            "a".to_string(),
+            1,
+            "a".to_string(),
+        );
+
+        let publish = ClientMessage::Publish {
+            packet_id: 1,
+            topic_name: "mensajes para juan".to_string(),
+            qos: 1,
+            retain_flag: true,
+            payload: "hola soy juan".to_string(),
+            dup_flag: true,
             properties,
         };
 
         let mut cursor = Cursor::new(Vec::<u8>::new());
-        connack.write_to(&mut cursor).unwrap();
+        match publish.write_to(&mut cursor) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("no se pudo escribir en el cursor {:?}", e);
+            }
+        }
         cursor.set_position(0);
 
         match ClientMessage::read_from(&mut cursor) {
-            Ok(read_connack) => {
-                assert_eq!(connack, read_connack);
+            Ok(read_publish) => {
+                println!("{:?}", read_publish);
+                assert_eq!(publish, read_publish);
             }
             Err(e) => {
-                panic!("Failed to read from cursor: {:?}", e);
+                panic!("no se pudo leer del cursor {:?}", e);
             }
         }
     }
 
     #[test]
-    fn test_sub() {
+    fn test_04_subscribe_ok() {
         let sub = ClientMessage::Subscribe {
             packet_id: 1,
             topic_name: "topico".to_string(),
@@ -602,24 +554,19 @@ mod tests {
         };
 
         let mut cursor = Cursor::new(Vec::<u8>::new());
-        sub.write_to(&mut cursor).unwrap();
+        match sub.write_to(&mut cursor) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("no se pudo escribir en el cursor {:?}", e);
+            }
+        }
         cursor.set_position(0);
-        let read_sub = ClientMessage::read_from(&mut cursor).unwrap();
-        assert_eq!(sub, read_sub);
-    }
-
-    #[test]
-    fn test_suback() {
-        let suback = BrokerMessage::Suback {
-            reason_code: 1,
-            packet_id_msb: 1,
-            packet_id_lsb: 1,
+        let read_sub = match ClientMessage::read_from(&mut cursor) {
+            Ok(sub) => sub,
+            Err(e) => {
+                panic!("no se pudo leer del cursor {:?}", e);
+            }
         };
-
-        let mut cursor = Cursor::new(Vec::<u8>::new());
-        suback.write_to(&mut cursor).unwrap();
-        cursor.set_position(0);
-        let read_suback = BrokerMessage::read_from(&mut cursor).unwrap();
-        assert_eq!(suback, read_suback);
+        assert_eq!(sub, read_sub);
     }
 }

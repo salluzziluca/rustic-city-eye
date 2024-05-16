@@ -2,7 +2,7 @@ use crate::mqtt::reader::*;
 use crate::mqtt::writer::*;
 use std::io::{BufReader, BufWriter, Error, ErrorKind, Read, Write};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ConnectProperties {
     pub session_expiry_interval: u32,
     pub receive_maximum: u16,
@@ -16,60 +16,69 @@ pub struct ConnectProperties {
 }
 
 impl ConnectProperties {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        session_expiry_interval: u32,
+        receive_maximum: u16,
+        maximum_packet_size: u32,
+        topic_alias_maximum: u16,
+        request_response_information: bool,
+        request_problem_information: bool,
+        user_properties: Vec<(String, String)>,
+        authentication_method: String,
+        authentication_data: Vec<u8>,
+    ) -> ConnectProperties {
+        ConnectProperties {
+            session_expiry_interval,
+            receive_maximum,
+            maximum_packet_size,
+            topic_alias_maximum,
+            request_response_information,
+            request_problem_information,
+            user_properties,
+            authentication_method,
+            authentication_data,
+        }
+    }
+
     pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), Error> {
         let mut writer = BufWriter::new(stream);
 
         let session_expiry_interval_id: u8 = 0x11_u8;
-        print!(
-            "session_expiry_interval_id: {:?}",
-            session_expiry_interval_id
-        );
+
         writer.write_all(&[session_expiry_interval_id])?;
         write_u32(&mut writer, &self.session_expiry_interval)?;
 
         let authentication_method_id: u8 = 0x15_u8;
-        print!("authentication_method_id: {:?}", authentication_method_id);
         writer.write_all(&[authentication_method_id])?;
         write_string(&mut writer, &self.authentication_method)?;
 
         let authentication_data_id: u8 = 0x16_u8;
-        println!("authentication_data_id: {:?}", authentication_data_id);
         writer.write_all(&[authentication_data_id])?;
         write_bin_vec(&mut writer, &self.authentication_data)?;
 
         let request_problem_information_id: u8 = 0x17_u8;
-        println!(
-            "request_problem_information_id: {:?}",
-            request_problem_information_id
-        );
         writer.write_all(&[request_problem_information_id])?;
         write_bool(&mut writer, &self.request_problem_information)?;
 
         let request_response_information_id: u8 = 0x19_u8; // 25
-        println!(
-            "request_response_information_id: {:?}",
-            request_response_information_id
-        );
+
         writer.write_all(&[request_response_information_id])?;
         write_bool(&mut writer, &self.request_response_information)?;
 
         let receive_maximum_id: u8 = 0x21_u8; // 33
-        println!("receive_maximum_id: {:?}", receive_maximum_id);
         writer.write_all(&[receive_maximum_id])?;
         write_u16(&mut writer, &self.receive_maximum)?;
 
         let topic_alias_maximum_id: u8 = 0x22_u8; // 34
-        println!("topic_alias_maximum_id: {:?}", topic_alias_maximum_id);
         writer.write_all(&[topic_alias_maximum_id])?;
         write_u16(&mut writer, &self.topic_alias_maximum)?;
 
         let user_properties_id: u8 = 0x26_u8; // 38
-        println!("user_properties_id: {:?}", user_properties_id);
         writer.write_all(&[user_properties_id])?;
         write_tuple_vec(&mut writer, &self.user_properties)?;
 
         let maximum_packet_size_id: u8 = 0x27_u8; // 39
-        println!("maximum_packet_size_id: {:?}", maximum_packet_size_id);
         writer.write_all(&[maximum_packet_size_id])?;
         write_u32(&mut writer, &self.maximum_packet_size)?;
 
@@ -124,12 +133,11 @@ impl ConnectProperties {
                     user_properties = Some(value);
                 }
                 0x27 => {
-                    println!("Redfrom entra acá 0x27");
                     let value = read_u32(&mut reader)?;
                     maximum_packet_size = Some(value);
                 }
                 _ => {
-                    return Err(Error::new(ErrorKind::InvalidData, "Invalid property id"));
+                    return Err(Error::new(ErrorKind::InvalidData, "Property ID inválido"));
                 }
             }
             count += 1;
@@ -179,6 +187,7 @@ impl ConnectProperties {
     }
 }
 
+#[derive(Default)]
 pub struct ConnectPropertiesBuilder {
     session_expiry_interval: Option<u32>,
     receive_maximum: Option<u16>,
@@ -191,25 +200,46 @@ pub struct ConnectPropertiesBuilder {
     authentication_data: Option<Vec<u8>>,
 }
 
-impl Default for ConnectPropertiesBuilder {
-    fn default() -> Self {
-        ConnectPropertiesBuilder::new()
-    }
-}
-
 impl ConnectPropertiesBuilder {
-    pub fn new() -> ConnectPropertiesBuilder {
-        ConnectPropertiesBuilder {
-            session_expiry_interval: None,
-            receive_maximum: None,
-            maximum_packet_size: None,
-            topic_alias_maximum: None,
-            request_response_information: None,
-            request_problem_information: None,
-            user_properties: None,
-            authentication_method: None,
-            authentication_data: None,
-        }
+    pub fn create(self) -> Result<ConnectProperties, Error> {
+        Ok(ConnectProperties {
+            session_expiry_interval: self.session_expiry_interval.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing session_expiry_interval property",
+            ))?,
+            receive_maximum: self.receive_maximum.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing receive_maximum property",
+            ))?,
+            maximum_packet_size: self.maximum_packet_size.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing maximum_packet_size property",
+            ))?,
+            topic_alias_maximum: self.topic_alias_maximum.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing topic_alias_maximum property",
+            ))?,
+            request_response_information: self.request_response_information.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing request_response_information property",
+            ))?,
+            request_problem_information: self.request_problem_information.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing request_problem_information property",
+            ))?,
+            user_properties: self.user_properties.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing user_properties property",
+            ))?,
+            authentication_method: self.authentication_method.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing authentication_method property",
+            ))?,
+            authentication_data: self.authentication_data.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing authentication_data property",
+            ))?,
+        })
     }
 
     pub fn session_expiry_interval(mut self, value: u32) -> Self {
@@ -256,18 +286,50 @@ impl ConnectPropertiesBuilder {
         self.authentication_data = Some(value);
         self
     }
+}
 
-    pub fn build(self) -> Result<ConnectProperties, Error> {
-        Ok(ConnectProperties {
-            session_expiry_interval: self.session_expiry_interval.unwrap_or_default(),
-            receive_maximum: self.receive_maximum.unwrap_or_default(),
-            maximum_packet_size: self.maximum_packet_size.unwrap_or_default(),
-            topic_alias_maximum: self.topic_alias_maximum.unwrap_or_default(),
-            request_response_information: self.request_response_information.unwrap_or_default(),
-            request_problem_information: self.request_problem_information.unwrap_or_default(),
-            user_properties: self.user_properties.unwrap_or_default(),
-            authentication_method: self.authentication_method.unwrap_or_default(),
-            authentication_data: self.authentication_data.unwrap_or_default(),
-        })
+#[cfg(test)]
+mod tests {
+    use core::panic;
+    use std::io::Cursor;
+
+    use super::*;
+
+    #[test]
+    fn test_01_connect_properties_ok() {
+        let mut buffer = Cursor::new(Vec::new());
+        let connect_properties = ConnectProperties {
+            session_expiry_interval: 1,
+            receive_maximum: 2,
+            maximum_packet_size: 10,
+            topic_alias_maximum: 99,
+            request_response_information: true,
+            request_problem_information: false,
+            user_properties: vec![
+                ("Hola".to_string(), "Mundo".to_string()),
+                ("Chau".to_string(), "Mundo".to_string()),
+            ],
+            authentication_method: "test".to_string(),
+            authentication_data: vec![1_u8, 2_u8, 3_u8, 4_u8, 5_u8],
+        };
+
+        match connect_properties.write_to(&mut buffer) {
+            Ok(_) => {}
+            Err(e) => {
+                println!("Error: {:?}", e);
+                panic!();
+            }
+        }
+        buffer.set_position(0);
+
+        let connect_properties_read = match ConnectProperties::read_from(&mut buffer) {
+            Ok(properties) => properties,
+            Err(e) => {
+                println!("Error: {:?}", e);
+
+                panic!();
+            }
+        };
+        assert_eq!(connect_properties, connect_properties_read);
     }
 }

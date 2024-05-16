@@ -5,13 +5,19 @@ use std::fmt;
 pub enum ProtocolError {
     ConectionError,
     InvalidQOS,
+    InvalidNumberOfArguments,
+    StreamError,
 }
 
 impl fmt::Display for ProtocolError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            ProtocolError::ConectionError => write!(f, "Error while connecting to broker."),
-            ProtocolError::InvalidQOS => write!(f, "Error: Invalid QoS value. It must be 0 or 1."),
+            ProtocolError::ConectionError => write!(f, "Error al conectar al broker."),
+            ProtocolError::InvalidQOS => write!(f, "Error: Valor de QoS inválido. Debe ser 0 o 1."),
+            ProtocolError::InvalidNumberOfArguments => {
+                write!(f, "Error: número de argumentos inválido")
+            }
+            ProtocolError::StreamError => write!(f, "Error: Error en la creación de un stream."),
         }
     }
 }

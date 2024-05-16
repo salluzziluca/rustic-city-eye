@@ -8,24 +8,23 @@ const PAYLOAD_FORMAT_INDICATOR_ID: u8 = 0x01;
 const MESSAGE_EXPIRY_INTERVAL_ID: u8 = 0x02;
 const TOPIC_ALIAS_ID: u8 = 0x23;
 const RESPONSE_TOPIC_ID: u8 = 0x08;
+const CORRELATION_DATA_ID: u8 = 0x09;
 const USER_PROPERTY_ID: u8 = 0x26;
 const SUBSCRIPTION_IDENTIFIER_ID: u8 = 0x0B;
 const CONTENT_TYPE_ID: u8 = 0x03;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct PublishProperties {
     payload_format_indicator: u8,
     message_expiry_interval: u32,
     topic_properties: TopicProperties,
-    // topic_alias: u16,
-    // response_topic: String,
     correlation_data: Vec<u8>,
     user_property: String,
     subscription_identifier: u32,
     content_type: String,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TopicProperties {
     pub(crate) topic_alias: u16,
     pub(crate) response_topic: String,
@@ -70,11 +69,8 @@ impl PublishProperties {
         write_string(stream, &self.topic_properties.response_topic)?;
 
         //correlation data
-        // write_u8(stream, &self.correlation_data_id)?;
-
-        // for byte in &self.correlation_data {
-        //     write_u8(stream, byte)?;
-        // }
+        write_u8(stream, &CORRELATION_DATA_ID)?;
+        write_bin_vec(stream, &self.correlation_data)?;
 
         //user property
         write_u8(stream, &USER_PROPERTY_ID)?;
@@ -114,10 +110,8 @@ impl PublishProperties {
         };
 
         //correlation data
-        //let correlation_data_id = read_u8(stream)?;
-
-        // let correlation_data_len = read_u16(stream)?;
-        // let correlation_data: Vec<u8> = vec![0; correlation_data_len as usize];
+        let _correlation_data_id = read_u8(stream)?;
+        let correlation_data = read_bin_vec(stream)?;
 
         //user property
         let _user_property_id = read_u8(stream)?;
@@ -135,10 +129,49 @@ impl PublishProperties {
             payload_format_indicator,
             message_expiry_interval,
             topic_properties,
-            correlation_data: [1, 1, 1].to_vec(),
+            correlation_data,
             user_property,
             subscription_identifier,
             content_type,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use super::*;
+
+    #[test]
+    fn test_01_publish_properties_ok() {
+        let mut buffer = Cursor::new(Vec::new());
+
+        let topic_properties = TopicProperties {
+            topic_alias: 10,
+            response_topic: "String".to_string(),
+        };
+
+        let properties = PublishProperties::new(
+            1,
+            10,
+            topic_properties,
+            [1, 2, 3].to_vec(),
+            "a".to_string(),
+            1,
+            "a".to_string(),
+        );
+
+        match properties.write_properties(&mut buffer) {
+            Ok(_) => (),
+            Err(err) => panic!("Error writing properties: {:?}", err),
+        }
+        buffer.set_position(0);
+
+        let publish_properties_read = match properties.read_properties(&mut buffer) {
+            Ok(properties) => properties,
+            Err(err) => panic!("Error reading properties: {:?}", err),
+        };
+        assert_eq!(properties, publish_properties_read);
     }
 }
