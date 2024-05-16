@@ -16,6 +16,7 @@ pub struct ConnectProperties {
 }
 
 impl ConnectProperties {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         session_expiry_interval: u32,
         receive_maximum: u16,

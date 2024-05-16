@@ -17,8 +17,8 @@ use crate::mqtt::{
 pub struct Client {
     stream: TcpStream,
 }
-
 impl Client {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         address: String,
         will_properties: WillProperties,
