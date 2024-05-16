@@ -60,6 +60,7 @@ pub enum ClientMessage {
         /// properties es un struct que contiene las propiedades del mensaje de subscribe.
         properties: SubscribeProperties,
     },
+    Pingreq,
 }
 
 #[allow(dead_code)]
@@ -212,6 +213,12 @@ impl ClientMessage {
                 writer.flush()?;
                 Ok(())
             }
+            ClientMessage::Pingreq => {
+                let byte_1: u8 = 0xC0_u8;
+                writer.write_all(&[byte_1])?;
+                writer.flush()?;
+                Ok(())
+            }
         }
     }
 
@@ -351,6 +358,7 @@ impl ClientMessage {
                     properties,
                 })
             }
+            0xC0 => Ok(ClientMessage::Pingreq),
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
