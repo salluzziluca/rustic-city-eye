@@ -8,7 +8,7 @@ use crate::mqtt::protocol_error::ProtocolError;
 use crate::mqtt::will_properties;
 
 use std::{
-    io::{stdin, BufRead, Error},
+    io::{stdin, BufRead, Error, ErrorKind},
     sync::mpsc,
 };
 
@@ -80,7 +80,11 @@ impl MonitoringApp {
         let stdin = stdin();
         for line in stdin.lock().lines() {
             match line {
-                Ok(line) => tx.send(line).unwrap(),
+                Ok(line) => {
+                    tx.send(line).map_err(|err| {
+                        Error::new(ErrorKind::Other, format!("Failed to send line: {}", err))
+                    })?;
+                }
                 Err(_) => println!("error in line"),
             }
         }

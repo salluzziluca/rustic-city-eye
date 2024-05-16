@@ -420,7 +420,13 @@ mod tests {
             password: "".to_string(),
         };
         let mut cursor = Cursor::new(Vec::<u8>::new());
-        connect.write_to(&mut cursor).unwrap();
+        match connect.write_to(&mut cursor) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("no se pudo escribir en el cursor {:?}", e);
+            }
+        }
+
         cursor.set_position(0);
 
         match ClientMessage::read_from(&mut cursor) {
@@ -470,7 +476,12 @@ mod tests {
             password: "".to_string(),
         };
         let mut cursor = Cursor::new(Vec::<u8>::new());
-        connect.write_to(&mut cursor).unwrap();
+        match connect.write_to(&mut cursor) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("no se pudo escribir en el cursor {:?}", e);
+            }
+        }
         cursor.set_position(0);
 
         match ClientMessage::read_from(&mut cursor) {
@@ -511,7 +522,12 @@ mod tests {
         };
 
         let mut cursor = Cursor::new(Vec::<u8>::new());
-        publish.write_to(&mut cursor).unwrap();
+        match publish.write_to(&mut cursor) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("no se pudo escribir en el cursor {:?}", e);
+            }
+        }
         cursor.set_position(0);
 
         match ClientMessage::read_from(&mut cursor) {
@@ -538,9 +554,19 @@ mod tests {
         };
 
         let mut cursor = Cursor::new(Vec::<u8>::new());
-        sub.write_to(&mut cursor).unwrap();
+        match sub.write_to(&mut cursor) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("no se pudo escribir en el cursor {:?}", e);
+            }
+        }
         cursor.set_position(0);
-        let read_sub = ClientMessage::read_from(&mut cursor).unwrap();
+        let read_sub = match ClientMessage::read_from(&mut cursor) {
+            Ok(sub) => sub,
+            Err(e) => {
+                panic!("no se pudo leer del cursor {:?}", e);
+            }
+        };
         assert_eq!(sub, read_sub);
     }
 }

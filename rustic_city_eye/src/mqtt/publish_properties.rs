@@ -162,10 +162,16 @@ mod tests {
             "a".to_string(),
         );
 
-        properties.write_properties(&mut buffer).unwrap();
+        match properties.write_properties(&mut buffer) {
+            Ok(_) => (),
+            Err(err) => panic!("Error writing properties: {:?}", err),
+        }
         buffer.set_position(0);
 
-        let publish_properties_read = properties.read_properties(&mut buffer).unwrap();
+        let publish_properties_read = match properties.read_properties(&mut buffer) {
+            Ok(properties) => properties,
+            Err(err) => panic!("Error reading properties: {:?}", err),
+        };
         assert_eq!(properties, publish_properties_read);
     }
 }

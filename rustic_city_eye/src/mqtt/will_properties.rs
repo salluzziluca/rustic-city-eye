@@ -199,10 +199,16 @@ mod tests {
             vec![("propiedad".to_string(), "valor".to_string())],
         );
         let mut cursor = Cursor::new(Vec::<u8>::new());
-        will_properties.write_to(&mut cursor).unwrap();
+        match will_properties.write_to(&mut cursor) {
+            Ok(_) => (),
+            Err(err) => panic!("Error writing will properties: {:?}", err),
+        };
         cursor.set_position(0);
 
-        let read_will_properties = WillProperties::read_from(&mut cursor).unwrap();
+        let read_will_properties = match WillProperties::read_from(&mut cursor) {
+            Ok(properties) => properties,
+            Err(err) => panic!("Error reading will properties: {:?}", err),
+        };
 
         assert_eq!(will_properties, read_will_properties);
     }

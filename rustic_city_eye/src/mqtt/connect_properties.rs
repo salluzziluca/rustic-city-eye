@@ -202,15 +202,42 @@ pub struct ConnectPropertiesBuilder {
 impl ConnectPropertiesBuilder {
     pub fn create(self) -> Result<ConnectProperties, Error> {
         Ok(ConnectProperties {
-            session_expiry_interval: self.session_expiry_interval.unwrap_or_default(),
-            receive_maximum: self.receive_maximum.unwrap_or_default(),
-            maximum_packet_size: self.maximum_packet_size.unwrap_or_default(),
-            topic_alias_maximum: self.topic_alias_maximum.unwrap_or_default(),
-            request_response_information: self.request_response_information.unwrap_or_default(),
-            request_problem_information: self.request_problem_information.unwrap_or_default(),
-            user_properties: self.user_properties.unwrap_or_default(),
-            authentication_method: self.authentication_method.unwrap_or_default(),
-            authentication_data: self.authentication_data.unwrap_or_default(),
+            session_expiry_interval: self.session_expiry_interval.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing session_expiry_interval property",
+            ))?,
+            receive_maximum: self.receive_maximum.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing receive_maximum property",
+            ))?,
+            maximum_packet_size: self.maximum_packet_size.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing maximum_packet_size property",
+            ))?,
+            topic_alias_maximum: self.topic_alias_maximum.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing topic_alias_maximum property",
+            ))?,
+            request_response_information: self.request_response_information.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing request_response_information property",
+            ))?,
+            request_problem_information: self.request_problem_information.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing request_problem_information property",
+            ))?,
+            user_properties: self.user_properties.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing user_properties property",
+            ))?,
+            authentication_method: self.authentication_method.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing authentication_method property",
+            ))?,
+            authentication_data: self.authentication_data.ok_or(Error::new(
+                ErrorKind::InvalidData,
+                "Missing authentication_data property",
+            ))?,
         })
     }
 
@@ -284,10 +311,23 @@ mod tests {
             authentication_data: vec![1_u8, 2_u8, 3_u8, 4_u8, 5_u8],
         };
 
-        connect_properties.write_to(&mut buffer).unwrap();
+        match connect_properties.write_to(&mut buffer) {
+            Ok(_) => {}
+            Err(e) => {
+                println!("Error: {:?}", e);
+                assert!(false);
+            }
+        }
         buffer.set_position(0);
 
-        let connect_properties_read = ConnectProperties::read_from(&mut buffer).unwrap();
+        let connect_properties_read = match ConnectProperties::read_from(&mut buffer) {
+            Ok(properties) => properties,
+            Err(e) => {
+                println!("Error: {:?}", e);
+                assert!(false);
+                return;
+            }
+        };
         assert_eq!(connect_properties, connect_properties_read);
     }
 }

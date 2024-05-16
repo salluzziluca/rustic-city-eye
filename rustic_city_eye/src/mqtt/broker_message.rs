@@ -175,9 +175,23 @@ mod tests {
         };
 
         let mut cursor = Cursor::new(Vec::<u8>::new());
-        suback.write_to(&mut cursor).unwrap();
+        match suback.write_to(&mut cursor)
+        {
+            Ok(_) => {}
+            Err(err) => {
+                println!("Error: {:?}", err);
+                assert!(false);
+            }
+        }
         cursor.set_position(0);
-        let read_suback = BrokerMessage::read_from(&mut cursor).unwrap();
+        let read_suback = match BrokerMessage::read_from(&mut cursor) {
+            Ok(suback) => suback,
+            Err(err) => {
+                println!("Error: {:?}", err);
+                assert!(false);
+                return;
+            }
+        };
         assert_eq!(suback, read_suback);
     }
 

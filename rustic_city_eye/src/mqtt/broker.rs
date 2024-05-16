@@ -176,7 +176,13 @@ impl Broker {
     }
 
     fn handle_publish(payload: String, topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>) {
-        let lock = topics.read().unwrap();
+        let lock = match topics.read() {
+            Ok(guard) => guard,
+            Err(err) => {
+                println!("Error al obtener el lock: {:?}", err);
+                return;
+            }
+        };
 
         if let Some(topic) = lock.get("accidente") {
             let delivery_message = BrokerMessage::PublishDelivery { payload };
