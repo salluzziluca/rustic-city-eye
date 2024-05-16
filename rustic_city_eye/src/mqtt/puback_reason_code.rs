@@ -20,22 +20,31 @@ pub enum PubackReasonCode {
     TopicNameInvalid { reason_code: u8 },
     PacketIdentifierInUse { reason_code: u8 },
     QuotaExceeded { reason_code: u8 },
-    PayloadFormatInvalid { reason_code: u8 }
+    PayloadFormatInvalid { reason_code: u8 },
 }
 
 impl PubackReasonCode {
     pub fn new(&self, reason_code: u8) -> Result<PubackReasonCode, Error> {
         match reason_code {
             SUCCESS_HEX => Ok(PubackReasonCode::Success { reason_code }),
-            NO_MATCHING_SUBSCRIBERS_HEX => Ok(PubackReasonCode::NoMatchingSubscribers { reason_code }),
+            NO_MATCHING_SUBSCRIBERS_HEX => {
+                Ok(PubackReasonCode::NoMatchingSubscribers { reason_code })
+            }
             UNSPECIFIED_ERROR_HEX => Ok(PubackReasonCode::UnspecifiedError { reason_code }),
-            IMPLEMENTATION_SPECIFIC_ERROR_HEX => Ok(PubackReasonCode::ImplementationSpecificError { reason_code }),
+            IMPLEMENTATION_SPECIFIC_ERROR_HEX => {
+                Ok(PubackReasonCode::ImplementationSpecificError { reason_code })
+            }
             NOT_AUTHORIZED_HEX => Ok(PubackReasonCode::NotAuthorized { reason_code }),
             TOPIC_NAME_INVALID_HEX => Ok(PubackReasonCode::TopicNameInvalid { reason_code }),
             PACKET_ID_IN_USE_HEX => Ok(PubackReasonCode::PacketIdentifierInUse { reason_code }),
             QUOTA_EXCEEDED_HEX => Ok(PubackReasonCode::QuotaExceeded { reason_code }),
-            PAYLOAD_FORMAT_INVALID_HEX => Ok(PubackReasonCode::PayloadFormatInvalid { reason_code }),
-            _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid puback reason code"))
+            PAYLOAD_FORMAT_INVALID_HEX => {
+                Ok(PubackReasonCode::PayloadFormatInvalid { reason_code })
+            }
+            _ => Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Reason code de Puback inválido",
+            )),
         }
     }
 }

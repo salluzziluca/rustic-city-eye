@@ -14,7 +14,7 @@ const RESPONSE_TOPIC_ID: u8 = 0x08;
 const CORRELATION_DATA_ID: u8 = 0x09;
 const USER_PROPERTIES_ID: u8 = 0x26;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 /// last_will_delay_interval especifica el tiempo en segundos que el broker debe esperar antes de publicar el will message.
 ///
 /// payload_format_indicator indica si el payload esta encodado en utf-8 o no.
@@ -199,10 +199,16 @@ mod tests {
             vec![("propiedad".to_string(), "valor".to_string())],
         );
         let mut cursor = Cursor::new(Vec::<u8>::new());
-        will_properties.write_to(&mut cursor).unwrap();
+        match will_properties.write_to(&mut cursor) {
+            Ok(_) => (),
+            Err(err) => panic!("Error writing will properties: {:?}", err),
+        };
         cursor.set_position(0);
 
-        let read_will_properties = WillProperties::read_from(&mut cursor).unwrap();
+        let read_will_properties = match WillProperties::read_from(&mut cursor) {
+            Ok(properties) => properties,
+            Err(err) => panic!("Error reading will properties: {:?}", err),
+        };
 
         assert_eq!(will_properties, read_will_properties);
     }

@@ -10,7 +10,7 @@ use crate::mqtt::writer::*;
 //use self::quality_of_service::QualityOfService;
 const PROTOCOL_VERSION: u8 = 5;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ClientMessage {
     ///El Connect Message es el primer menasje que el cliente envia cuando se conecta al broker. Este contiene toda la informacion necesaria para que el broker identifique al cliente y pueda establecer una sesion con los parametros establecidos.
     ///
@@ -170,7 +170,7 @@ impl ClientMessage {
                     byte_1 |= 0 << 2;
                 } else if *qos != 0x00 && *qos != 0x01 {
                     //we should throw a DISCONNECT with reason code 0x9B(QoS not supported).
-                    println!("invalid qos");
+                    println!("Qos inválido");
                 }
 
                 if *dup_flag {
@@ -249,7 +249,7 @@ impl ClientMessage {
                 if protocol_name != "MQTT" {
                     return Err(Error::new(
                         std::io::ErrorKind::Other,
-                        "Invalid protocol name",
+                        "Nombre de protocolo inválido",
                     ));
                 }
                 //protocol version
@@ -258,7 +258,7 @@ impl ClientMessage {
                 if protocol_version != PROTOCOL_VERSION {
                     return Err(Error::new(
                         std::io::ErrorKind::Other,
-                        "Invalid protocol version",
+                        "Version de protocol inválido",
                     ));
                 }
 
@@ -271,14 +271,11 @@ impl ClientMessage {
 
                 //keep alive
                 let keep_alive = read_u16(stream)?;
-                println!("keep alive: {:?}", keep_alive);
                 //properties
                 //payload
                 //client ID
                 let client_id = read_string(stream)?;
-                println!("client_id: {:?}", client_id);
                 let will_properties = WillProperties::read_from(stream)?;
-                println!("will properties: {:?}", will_properties);
 
                 let mut last_will_topic = String::new();
                 let mut will_message = String::new();
@@ -286,7 +283,6 @@ impl ClientMessage {
                     last_will_topic = read_string(stream)?;
                     will_message = read_string(stream)?;
                 }
-                print!("last will topic: {:?}", last_will_topic);
 
                 let hay_user = (connect_flags & (1 << 7)) != 0;
                 let mut user = String::new();
@@ -321,6 +317,7 @@ impl ClientMessage {
                     topic_alias: 10,
                     response_topic: "String".to_string(),
                 };
+
                 let properties = PublishProperties::new(
                     1,
                     10,
@@ -357,6 +354,24 @@ impl ClientMessage {
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
+
+    // pub fn analize_packet_id(&self, packet: u16) -> bool {
+    //     match self {
+    //         ClientMessage::Connect { clean_start, last_will_flag, last_will_qos, last_will_retain, keep_alive, properties, client_id, will_properties, last_will_topic, last_will_message, username, password } => todo!(),
+    //         ClientMessage::Publish { packet_id, topic_name, qos, retain_flag, payload, dup_flag, properties } => {
+    //             if *packet_id == packet {
+    //                 return true;
+    //             }
+    //             false
+    //         },
+    //         ClientMessage::Subscribe { packet_id, topic_name, properties } => {
+    //             if *packet_id == packet {
+    //                 return true;
+    //             }
+    //             false
+    //         },
+    //     }
+    // }
 }
 
 #[cfg(test)]
@@ -405,7 +420,13 @@ mod tests {
             password: "".to_string(),
         };
         let mut cursor = Cursor::new(Vec::<u8>::new());
-        connect.write_to(&mut cursor).unwrap();
+        match connect.write_to(&mut cursor) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("no se pudo escribir en el cursor {:?}", e);
+            }
+        }
+
         cursor.set_position(0);
 
         match ClientMessage::read_from(&mut cursor) {
@@ -455,7 +476,12 @@ mod tests {
             password: "".to_string(),
         };
         let mut cursor = Cursor::new(Vec::<u8>::new());
-        connect.write_to(&mut cursor).unwrap();
+        match connect.write_to(&mut cursor) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("no se pudo escribir en el cursor {:?}", e);
+            }
+        }
         cursor.set_position(0);
 
         match ClientMessage::read_from(&mut cursor) {
@@ -496,11 +522,17 @@ mod tests {
         };
 
         let mut cursor = Cursor::new(Vec::<u8>::new());
-        publish.write_to(&mut cursor).unwrap();
+        match publish.write_to(&mut cursor) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("no se pudo escribir en el cursor {:?}", e);
+            }
+        }
         cursor.set_position(0);
 
         match ClientMessage::read_from(&mut cursor) {
             Ok(read_publish) => {
+                println!("{:?}", read_publish);
                 assert_eq!(publish, read_publish);
             }
             Err(e) => {
@@ -522,9 +554,19 @@ mod tests {
         };
 
         let mut cursor = Cursor::new(Vec::<u8>::new());
-        sub.write_to(&mut cursor).unwrap();
+        match sub.write_to(&mut cursor) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("no se pudo escribir en el cursor {:?}", e);
+            }
+        }
         cursor.set_position(0);
-        let read_sub = ClientMessage::read_from(&mut cursor).unwrap();
+        let read_sub = match ClientMessage::read_from(&mut cursor) {
+            Ok(sub) => sub,
+            Err(e) => {
+                panic!("no se pudo leer del cursor {:?}", e);
+            }
+        };
         assert_eq!(sub, read_sub);
     }
 }
