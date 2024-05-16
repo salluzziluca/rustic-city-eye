@@ -175,12 +175,11 @@ mod tests {
         };
 
         let mut cursor = Cursor::new(Vec::<u8>::new());
-        match suback.write_to(&mut cursor)
-        {
+        match suback.write_to(&mut cursor) {
             Ok(_) => {}
             Err(err) => {
                 println!("Error: {:?}", err);
-                assert!(false);
+                panic!();
             }
         }
         cursor.set_position(0);
@@ -188,8 +187,8 @@ mod tests {
             Ok(suback) => suback,
             Err(err) => {
                 println!("Error: {:?}", err);
-                assert!(false);
-                return;
+
+                panic!()
             }
         };
         assert_eq!(suback, read_suback);

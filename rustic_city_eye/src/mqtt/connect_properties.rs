@@ -290,6 +290,7 @@ impl ConnectPropertiesBuilder {
 
 #[cfg(test)]
 mod tests {
+    use core::panic;
     use std::io::Cursor;
 
     use super::*;
@@ -316,7 +317,7 @@ mod tests {
             Ok(_) => {}
             Err(e) => {
                 println!("Error: {:?}", e);
-                assert!(false);
+                panic!();
             }
         }
         buffer.set_position(0);
@@ -325,8 +326,8 @@ mod tests {
             Ok(properties) => properties,
             Err(e) => {
                 println!("Error: {:?}", e);
-                assert!(false);
-                return;
+
+                panic!();
             }
         };
         assert_eq!(connect_properties, connect_properties_read);
