@@ -1,16 +1,16 @@
+use rand::Rng;
+
 use std::{
-    collections::HashMap,
-    io::Error,
-    net::{TcpListener, TcpStream},
-    sync::{Arc, RwLock},
+    collections::HashMap, io::Error, net::{TcpListener, TcpStream}, sync::{Arc, RwLock}
 };
 
-use rand::Rng;
 
 use crate::mqtt::{
     broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError,
     topic::Topic,
 };
+
+use super::broker_config::BrokerConfig;
 
 static SERVER_ARGS: usize = 2;
 
@@ -37,10 +37,12 @@ impl Broker {
         }
 
         let address = "127.0.0.1:".to_owned() + &args[1];
-        let mut topics = HashMap::new();
-        let packets = HashMap::new();
 
-        topics.insert("accidente".to_string(), Topic::new());
+        let broker_config = BrokerConfig::new(address)?;
+
+        let (address, topics) = broker_config.get_broker_config();
+
+        let packets = HashMap::new();
 
         Ok(Broker {
             address,
@@ -76,7 +78,6 @@ impl Broker {
     pub fn handle_client(
         mut stream: TcpStream,
         topics: HashMap<String, Topic>,
-        //topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>,
         packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
     ) -> std::io::Result<()> {
         while let Ok(message) = ClientMessage::read_from(&mut stream) {
@@ -171,6 +172,8 @@ impl Broker {
     fn handle_subscribe(stream: TcpStream, mut topics: HashMap<String, Topic>, topic_name: String) {
         if let Some(topic) = topics.get_mut(&topic_name) {
             topic.add_subscriber(stream);
+        } else {
+            println!("no existe este topic");
         }
     }
 
