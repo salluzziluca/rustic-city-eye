@@ -76,6 +76,11 @@ pub enum ClientMessage {
         /// properties es un struct que contiene las propiedades del mensaje de subscribe.
         properties: SubscribeProperties,
     },
+    Unsubscribe {
+        packet_id: u16,
+        topic_name: String,
+        properties: SubscribeProperties,
+    },
 }
 
 #[allow(dead_code)]
@@ -224,6 +229,15 @@ impl ClientMessage {
                 writer.flush()?;
                 Ok(())
             }
+            ClientMessage::Unsubscribe { packet_id, topic_name, properties } => {
+                let byte_1: u8 = 0xA2_u8;
+                writer.write_all(&[byte_1])?;
+                write_u16(&mut writer, packet_id)?;
+                write_string(&mut writer, topic_name)?;
+                properties.write_properties(&mut writer)?;
+                writer.flush()?;
+                Ok(())
+            }
         }
     }
 
@@ -356,6 +370,16 @@ impl ClientMessage {
                 let topic = read_string(stream)?;
                 let properties = SubscribeProperties::read_properties(stream)?;
                 Ok(ClientMessage::Subscribe {
+                    packet_id,
+                    topic_name: topic,
+                    properties,
+                })
+            }
+            0xA2 => {
+                let packet_id = read_u16(stream)?;
+                let topic = read_string(stream)?;
+                let properties = SubscribeProperties::read_properties(stream)?;
+                Ok(ClientMessage::Unsubscribe {
                     packet_id,
                     topic_name: topic,
                     properties,

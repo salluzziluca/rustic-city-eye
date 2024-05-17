@@ -162,6 +162,11 @@ impl Broker {
                         Err(err) => println!("Error al enviar suback: {:?}", err),
                     }
                 }
+                ClientMessage::Unsubscribe { packet_id, topic_name, properties } => {
+                    println!("Recibí un Unsubscribe");
+                    
+                
+                }
             }
         }
 
