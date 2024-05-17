@@ -213,7 +213,13 @@ impl Client {
     ///
     /// El thread de lectura (read_messages) se encarga de leer los mensajes que le llegan del broker.
     pub fn client_run(&mut self, rx: mpsc::Receiver<String>) -> Result<(), ProtocolError> {
+        let mut desconectar = false;
         let (sender, _) = mpsc::channel();
+
+        //check if the stream is connected
+        if !is_connected(self.stream.try_clone().unwrap()) {
+            println!("No estas conectado, para conectarte utilizá un connect")
+        }
 
         let stream_clone_one = match self.stream.try_clone() {
             Ok(stream) => stream,
@@ -231,16 +237,8 @@ impl Client {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
         };
-        let mut desconectar = false;
         let _write_messages = std::thread::spawn(move || {
             while !desconectar {
-                if let Ok(stream_clone_one) = stream_clone_one.try_clone() {
-                    if !is_connected(stream_clone_one) {
-                        println!("estas desconectado, para conectarte utilizá un connect")
-                    } else {
-                        println!("AAAA");
-                    }
-                }
                 if let Ok(line) = rx.recv() {
                     if line.starts_with("publish:") {
                         let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
@@ -305,6 +303,8 @@ impl Client {
                                     }
                                     println!("Desconectandome");
                                     desconectar = true;
+
+                                    break;
                                 }
                             }
                             Err(_) => {
@@ -323,7 +323,7 @@ impl Client {
         let _read_messages = std::thread::spawn(move || {
             //let mut pending_messages = Vec::new();
 
-            loop {
+            while !desconectar {
                 if let Ok(mut stream_clone) = stream_clone_three.try_clone() {
                     if let Ok(message) = BrokerMessage::read_from(&mut stream_clone) {
                         match message {
@@ -367,6 +367,9 @@ impl Client {
                 }
             }
         });
+        if desconectar {
+            self.cerrar_conexion();
+        }
 
         Ok(())
     }
