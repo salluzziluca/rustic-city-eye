@@ -1,7 +1,4 @@
-use std::{
-    net::TcpStream,
-    sync::mpsc::{self},
-};
+use std::{io::Write, net::TcpStream, sync::mpsc};
 
 use crate::mqtt::{
     broker_message::BrokerMessage,
@@ -234,9 +231,16 @@ impl Client {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
         };
-
+        let mut desconectar = false;
         let _write_messages = std::thread::spawn(move || {
-            loop {
+            while !desconectar {
+                if let Ok(stream_clone_one) = stream_clone_one.try_clone() {
+                    if !is_connected(stream_clone_one) {
+                        println!("estas desconectado, para conectarte utilizá un connect")
+                    } else {
+                        println!("AAAA");
+                    }
+                }
                 if let Ok(line) = rx.recv() {
                     if line.starts_with("publish:") {
                         let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
@@ -300,7 +304,7 @@ impl Client {
                                         }
                                     }
                                     println!("Desconectandome");
-                                    //TODO: close the tcp connection
+                                    desconectar = true;
                                 }
                             }
                             Err(_) => {
@@ -312,17 +316,14 @@ impl Client {
                     }
                 }
             }
+
+            Ok(())
         });
 
         let _read_messages = std::thread::spawn(move || {
             //let mut pending_messages = Vec::new();
 
             loop {
-                // for received in &receiver {
-                //     println!("recibi el packet {:?}", received);
-                //     pending_messages.push(received);
-                // }s
-
                 if let Ok(mut stream_clone) = stream_clone_three.try_clone() {
                     if let Ok(message) = BrokerMessage::read_from(&mut stream_clone) {
                         match message {
@@ -358,7 +359,8 @@ impl Client {
                             }
                         }
                     } else {
-                        println!("Failed to read message from broker");
+                        println!("No hay conexion con el broker");
+                        break;
                     }
                 } else {
                     println!("Failed to clone stream");
@@ -367,5 +369,16 @@ impl Client {
         });
 
         Ok(())
+    }
+
+    fn cerrar_conexion(&mut self) {
+        self.stream.shutdown(std::net::Shutdown::Both).unwrap();
+    }
+}
+
+fn is_connected(mut stream: TcpStream) -> bool {
+    match stream.write_all(b"") {
+        Ok(_) => true,
+        Err(_) => false,
     }
 }
