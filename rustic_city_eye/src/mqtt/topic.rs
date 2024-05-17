@@ -1,13 +1,13 @@
 use std::fmt::Debug;
+use std::io::Error;
 use std::net::TcpStream;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
-// use super::broker_message::BrokerMessage;
+use crate::mqtt::broker_message::BrokerMessage;
 
-#[derive(Debug)]
-#[allow(dead_code)]
+#[derive(Debug, Clone)]
 pub struct Topic {
-    subscribers: Arc<Mutex<Vec<TcpStream>>>,
+    subscribers: Arc<RwLock<Vec<TcpStream>>>,
 }
 
 impl Default for Topic {
@@ -19,26 +19,43 @@ impl Default for Topic {
 impl Topic {
     pub fn new() -> Self {
         Self {
-            subscribers: Arc::new(Mutex::new(Vec::new())),
+            subscribers: Arc::new(RwLock::new(Vec::new())),
         }
     }
 
-    // pub fn add_subscriber(&mut self, subscriber_stream: TcpStream) {
-    //     self.subscribers.push(subscriber_stream);
-    //     println!("mis subs son: {:?}", self.subscribers);
-    // }
+    pub fn add_subscriber(&mut self, stream: TcpStream) {
+        let mut lock = match self.subscribers.write() {
+            Ok(guard) => guard,
+            Err(err) => {
+                println!("Error al obtener el lock: {:?}", err);
+                return;
+            }
+        };
 
-    // pub fn send_message(&mut self, message: BrokerMessage) -> Result<(), std::io::Error> {
-    //     for mut sub in &self.subscribers {
-    //         let _ = message.write_to(&mut sub);
-    //     }
+        lock.push(stream);
+    }
 
-    //     Ok(())
-    // }
+    pub fn deliver_message(&self, payload: String) -> Result<u8, Error> {
+        let lock = self.subscribers.read().unwrap();
+        let mut puback_reason_code: u8 = 0x00;
 
-    // pub fn get_subscribers(&self) -> Arc<Mutex<Vec<TcpStream>>> {
-    //     self.subscribers
-    // }
+        let delivery_message = BrokerMessage::PublishDelivery { payload };
+
+        if lock.is_empty() {
+            puback_reason_code = 0x10_u8;
+            return Ok(puback_reason_code);
+        }
+
+        for mut subscriber in lock.iter() {
+            println!("Enviando un PublishDelivery");
+            match delivery_message.write_to(&mut subscriber) {
+                Ok(_) => println!("PublishDelivery enviado"),
+                Err(err) => println!("Error al enviar PublishDelivery: {:?}", err),
+            }
+        }
+
+        Ok(puback_reason_code)
+    }
 }
 
 #[cfg(test)]

@@ -9,6 +9,7 @@ use rand::Rng;
 
 use crate::mqtt::{
     broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError,
+    topic::Topic,
 };
 
 static SERVER_ARGS: usize = 2;
@@ -16,7 +17,10 @@ static SERVER_ARGS: usize = 2;
 #[derive(Clone)]
 pub struct Broker {
     address: String,
-    topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>,
+
+    ///Contiene a todos los Topics.
+    /// Se identifican con un topic_name unico para cada topic.
+    topics: HashMap<String, Topic>,
 
     /// El u16 corresponde al packet_id del package, y dentro
     /// de esa clave se guarda el package.
@@ -36,11 +40,11 @@ impl Broker {
         let mut topics = HashMap::new();
         let packets = HashMap::new();
 
-        topics.insert("accidente".to_string(), Vec::new());
+        topics.insert("accidente".to_string(), Topic::new());
 
         Ok(Broker {
             address,
-            topics: Arc::new(RwLock::new(topics)),
+            topics,
             packets: Arc::new(RwLock::new(packets)),
         })
     }
@@ -71,7 +75,8 @@ impl Broker {
     ///Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
     pub fn handle_client(
         mut stream: TcpStream,
-        topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>,
+        topics: HashMap<String, Topic>,
+        //topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>,
         packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
     ) -> std::io::Result<()> {
         while let Ok(message) = ClientMessage::read_from(&mut stream) {
@@ -102,7 +107,7 @@ impl Broker {
                     }
                 }
                 ClientMessage::Publish {
-                    topic_name: ref _topic,
+                    topic_name,
                     qos,
                     retain_flag: _,
                     payload,
@@ -114,7 +119,7 @@ impl Broker {
 
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-                    let reason_code = Broker::handle_publish(payload, topics.clone())?;
+                    let reason_code = Broker::handle_publish(payload, topics.clone(), topic_name)?;
 
                     if qos == 1 {
                         let puback = BrokerMessage::Puback {
@@ -131,12 +136,10 @@ impl Broker {
                 }
                 ClientMessage::Subscribe {
                     packet_id,
-                    topic_name: _,
+                    topic_name,
                     properties: _,
                 } => {
                     println!("Recibi un Subscribe");
-
-                    //  let packet_id = Broker::assign_packet_id(packets.clone());
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
                     let suback = BrokerMessage::Suback {
@@ -144,7 +147,6 @@ impl Broker {
                         packet_id_lsb: packet_id_bytes[1],
                         reason_code: 0,
                     };
-                    //let stream_for_topic = stream.try_clone().unwrap();
                     let stream_for_topic = match stream.try_clone() {
                         Ok(stream) => stream,
                         Err(err) => {
@@ -153,7 +155,7 @@ impl Broker {
                         }
                     };
 
-                    Broker::handle_subscribe(stream_for_topic, Arc::clone(&topics));
+                    Broker::handle_subscribe(stream_for_topic, topics.clone(), topic_name);
                     println!("Envío un Suback");
                     match suback.write_to(&mut stream) {
                         Ok(_) => println!("Suback enviado"),
@@ -166,43 +168,25 @@ impl Broker {
         Ok(())
     }
 
-    fn handle_subscribe(stream: TcpStream, topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>) {
-        let mut lock = match topics.write() {
-            Ok(guard) => guard,
-            Err(err) => {
-                println!("Error al obtener el lock: {:?}", err);
-                return;
-            }
-        };
-        if let Some(topic) = lock.get_mut("accidente") {
-            topic.push(stream);
+    fn handle_subscribe(stream: TcpStream, mut topics: HashMap<String, Topic>, topic_name: String) {
+        if let Some(topic) = topics.get_mut(&topic_name) {
+            topic.add_subscriber(stream);
         }
     }
 
     fn handle_publish(
         payload: String,
-        topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>,
+        mut topics: HashMap<String, Topic>,
+        topic_name: String,
     ) -> Result<u8, Error> {
-        let lock = topics.read().unwrap();
-        let mut puback_reason_code: u8 = 0x00;
-
-        if let Some(topic) = lock.get("accidente") {
-            let delivery_message = BrokerMessage::PublishDelivery { payload };
-
-            if topic.is_empty() {
-                puback_reason_code = 0x10_u8;
-                return Ok(puback_reason_code);
-            }
-
-            for mut subscriber in topic {
-                println!("Enviando un PublishDelivery");
-                match delivery_message.write_to(&mut subscriber) {
-                    Ok(_) => println!("PublishDelivery enviado"),
-                    Err(err) => println!("Error al enviar PublishDelivery: {:?}", err),
-                }
-            }
+        if let Some(topic) = topics.get_mut(&topic_name) {
+            match topic.deliver_message(payload) {
+                Ok(reason_code) => return Ok(reason_code),
+                Err(e) => return Err(e),
+            };
         }
-        Ok(puback_reason_code)
+
+        Ok(0x80_u8) //Unspecified Error reason code
     }
 
     ///Asigna un id al packet que ingresa como parametro.
@@ -218,7 +202,6 @@ impl Broker {
                 break;
             }
         }
-        println!("new packet: {:?}", packet_id);
         packet_id
     }
 }
