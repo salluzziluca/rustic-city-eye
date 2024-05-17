@@ -157,6 +157,25 @@ impl Client {
         }
     }
 
+    pub fn unsubscribe(topic: &str, mut stream: TcpStream) -> Result<u16, ClientError> {
+        let packet_id = 1;
+
+        let unsubscribe = ClientMessage::Unsubscribe {
+            packet_id,
+            topic_name: topic.to_string(),
+            properties: SubscribeProperties::new(
+                1,
+                vec![("propiedad".to_string(), "valor".to_string())],
+                vec![0, 1, 2, 3],
+            ),
+        };
+
+        match unsubscribe.write_to(&mut stream) {
+            Ok(()) => Ok(packet_id),
+            Err(_) => Err(ClientError::new("Error al enviar mensaje")),
+        }
+    }
+
     /// Se encarga de que el cliente este funcionando correctamente.
     /// El Client debe encargarse de dos tareas: leer mensajes que le lleguen del Broker.
     /// Estos mensajes pueden ser tanto acks (Connack, Puback, etc.)
@@ -186,6 +205,10 @@ impl Client {
             Err(_) => return Err(ProtocolError::StreamError),
         };
         let stream_clone_three = match self.stream.try_clone() {
+            Ok(stream) => stream,
+            Err(_) => return Err(ProtocolError::StreamError),
+        };
+        let stream_clone_five = match self.stream.try_clone() {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
         };
@@ -227,7 +250,29 @@ impl Client {
                                         Ok(_) => continue,
                                         Err(_) => {
                                             println!(
-                                                "Error al enviar packet_id de puback al receiver"
+                                                "Error al enviar el packet_id del suback al receiver"
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                            }
+                        }
+                    }else if line.starts_with("unsubscribe:") {
+                        let (_, post_colon) = line.split_at(12); // "unsubscribe:" is 12 characters
+                        let topic = post_colon.trim(); // remove leading/trailing whitespace
+                        println!("Desubscribiendome del topic: {}", topic);
+
+                        match stream_clone_five.try_clone() {
+                            Ok(stream_clone) => {
+                                if let Ok(packet_id) = Client::unsubscribe(topic, stream_clone) {
+                                    match sender.send(packet_id) {
+                                        Ok(_) => continue,
+                                        Err(_) => {
+                                            println!(
+                                                "Error al enviar packet_id del unsuback al receiver"
                                             )
                                         }
                                     }
@@ -286,12 +331,19 @@ impl Client {
                             BrokerMessage::PublishDelivery { payload: _ } => {
                                 println!("Recibi un mensaje {:?}", message)
                             }
+                            BrokerMessage::Unsuback { packet_id_msb, packet_id_lsb } => {
+                                // for pending_message in &pending_messages {
+                                //  if message.analize_packet_id(*pending_message) {
+                                println!("Recibi un mensaje {:?}", message);
+
+                                
+                            }
                         }
                     } else {
-                        println!("Failed to read message from broker");
+                        println!("Error al leer mensaje del broker"); 
                     }
                 } else {
-                    println!("Failed to clone stream");
+                    println!("Error al clonar el stream");
                 }
             }
         });

@@ -33,6 +33,10 @@ pub enum BrokerMessage {
     PublishDelivery {
         payload: String,
     },
+    Unsuback {
+        packet_id_msb: u8,
+        packet_id_lsb: u8,
+    },
     
 }
 #[allow(dead_code)]
@@ -103,6 +107,24 @@ impl BrokerMessage {
 
                 Ok(())
             }
+            BrokerMessage::Unsuback {
+                packet_id_msb,
+                packet_id_lsb,
+            } => {
+                //fixed header
+                let byte_1: u8 = 0xB0_u8.to_le(); //10110000
+
+                writer.write_all(&[byte_1])?;
+
+                //variable header
+                //packet_id
+                write_u8(&mut writer, packet_id_msb)?;
+                write_u8(&mut writer, packet_id_lsb)?;
+
+                writer.flush()?;
+
+                Ok(())
+            }
         }
     }
 
@@ -138,6 +160,15 @@ impl BrokerMessage {
                     reason_code: 1,
                 })
             }
+            0xB0 => {
+                let packet_id_msb = read_u8(stream)?;
+                let packet_id_lsb = read_u8(stream)?;
+
+                Ok(BrokerMessage::Unsuback {
+                    packet_id_msb,
+                    packet_id_lsb,
+                })
+            }
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
@@ -164,6 +195,14 @@ impl BrokerMessage {
                 bytes[0] == *packet_id_msb && bytes[1] == *packet_id_lsb
             }
             BrokerMessage::PublishDelivery { payload: _ } => true,
+            BrokerMessage::Unsuback {
+                packet_id_msb,
+                packet_id_lsb,
+            } => {
+                let bytes = packet_id.to_be_bytes();
+
+                bytes[0] == *packet_id_msb && bytes[1] == *packet_id_lsb
+            }
         }
     }
 }
