@@ -31,6 +31,7 @@ pub enum BrokerMessage {
     PublishDelivery {
         payload: String,
     },
+    Pingresp,
 }
 #[allow(dead_code)]
 impl BrokerMessage {
@@ -97,6 +98,13 @@ impl BrokerMessage {
 
                 Ok(())
             }
+            BrokerMessage::Pingresp => {
+                let byte_1: u8 = 0xD0_u8.to_le();
+                writer.write_all(&[byte_1])?;
+                writer.flush()?;
+
+                Ok(())
+            }
         }
     }
 
@@ -130,6 +138,7 @@ impl BrokerMessage {
                     reason_code: 1,
                 })
             }
+            0xD0 => Ok(BrokerMessage::Pingresp),
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
@@ -156,6 +165,7 @@ impl BrokerMessage {
                 bytes[0] == *packet_id_msb && bytes[1] == *packet_id_lsb
             }
             BrokerMessage::PublishDelivery { payload: _ } => true,
+            BrokerMessage::Pingresp => true,
         }
     }
 }

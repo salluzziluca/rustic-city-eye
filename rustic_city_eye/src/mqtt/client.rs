@@ -192,6 +192,10 @@ impl Client {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
         };
+        let stream_clone_four = match self.stream.try_clone(){
+            Ok(stream) => stream,
+            Err(_) => return Err(ProtocolError::StreamError),
+        };
 
         let _write_messages = std::thread::spawn(move || {
             loop {
@@ -236,6 +240,20 @@ impl Client {
                                             )
                                         }
                                     }
+                                }
+                            }
+                            Err(_) => {
+                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                            }
+                        }
+                    }else if line.starts_with("pingreq"){
+                        println!("Enviando pingreq");
+                        match stream_clone_four.try_clone(){
+                            Ok(mut stream_clone) => {
+                                let pingreq = ClientMessage::Pingreq;
+                                match pingreq.write_to(&mut stream_clone){ //chequear esto
+                                    Ok(()) => println!("Pingreq enviado"),
+                                    Err(_) => println!("Error al enviar pingreq")
                                 }
                             }
                             Err(_) => {
@@ -289,6 +307,9 @@ impl Client {
                                 // }
                             }
                             BrokerMessage::PublishDelivery { payload: _ } => {
+                                println!("Recibi un mensaje {:?}", message)
+                            }
+                            BrokerMessage::Pingresp => {
                                 println!("Recibi un mensaje {:?}", message)
                             }
                         }
