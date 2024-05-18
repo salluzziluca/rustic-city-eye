@@ -234,6 +234,11 @@ impl Client {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
         };
+        let stream_clone_five = match self.stream.try_clone() {
+            Ok(stream) => stream,
+            Err(_) => return Err(ProtocolError::StreamError),
+        };
+
         let _write_messages = std::thread::spawn(move || {
             while !desconectar {
                 if let Ok(line) = rx.recv() {
@@ -283,6 +288,21 @@ impl Client {
                                 return Err::<(), ProtocolError>(ProtocolError::StreamError);
                             }
                         }
+                    } else if line.starts_with("pingreq") {
+                        println!("Enviando pingreq");
+                        match stream_clone_four.try_clone() {
+                            Ok(mut stream_clone) => {
+                                let pingreq = ClientMessage::Pingreq;
+                                match pingreq.write_to(&mut stream_clone) {
+                                    //chequear esto
+                                    Ok(()) => println!("Pingreq enviado"),
+                                    Err(_) => println!("Error al enviar pingreq"),
+                                }
+                            }
+                            Err(_) => {
+                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                            }
+                        }
                     } else if line.starts_with("disconnect") {
                         let (_, post_colon) = line.split_at(11); // "disconnect" is 11 characters
                         let reason = post_colon.trim(); // remove leading/trailing whitespace
@@ -290,7 +310,7 @@ impl Client {
                             "Desconectandome: {}\nPresione Enter para cerrar finalizar el programa",
                             reason
                         );
-                        match stream_clone_four.try_clone() {
+                        match stream_clone_five.try_clone() {
                             Ok(stream_clone) => {
                                 if let Ok(packet_id) = Client::disconnect(reason, stream_clone) {
                                     match sender.send(packet_id) {
@@ -353,6 +373,9 @@ impl Client {
                                 // }
                             }
                             BrokerMessage::PublishDelivery { payload: _ } => {
+                                println!("Recibi un mensaje {:?}", message)
+                            }
+                            BrokerMessage::Pingresp => {
                                 println!("Recibi un mensaje {:?}", message)
                             }
                         }

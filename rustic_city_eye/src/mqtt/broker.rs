@@ -167,6 +167,15 @@ impl Broker {
                         reason_string
                     );
                 }
+                ClientMessage::Pingreq => {
+                    println!("Recibí un Pingreq");
+                    let pingresp = BrokerMessage::Pingresp;
+                    println!("Enviando un Pingresp");
+                    match pingresp.write_to(&mut stream) {
+                        Ok(_) => println!("Pingresp enviado"),
+                        Err(err) => println!("Error al enviar Pingresp: {:?}", err),
+                    }
+                }
             }
         }
 

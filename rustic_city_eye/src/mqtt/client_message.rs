@@ -74,6 +74,7 @@ pub enum ClientMessage {
         reason_string: String,
         user_properties: Vec<(String, String)>,
     },
+    Pingreq,
 }
 
 #[allow(dead_code)]
@@ -246,7 +247,14 @@ impl ClientMessage {
 
                 write_u8(&mut writer, &USER_PROPERTY_ID)?;
                 write_string_pairs(&mut writer, user_properties)?;
+                writer.flush()?;
+                Ok(())
+            }
 
+            ClientMessage::Pingreq => {
+                let byte_1: u8 = 0xC0_u8;
+                writer.write_all(&[byte_1])?;
+                writer.flush()?;
                 Ok(())
             }
         }
@@ -424,6 +432,7 @@ impl ClientMessage {
                     user_properties,
                 })
             }
+            0xC0 => Ok(ClientMessage::Pingreq),
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
