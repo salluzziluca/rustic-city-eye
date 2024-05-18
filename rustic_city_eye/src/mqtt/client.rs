@@ -212,6 +212,8 @@ impl Client {
     /// Si logra enviar los mensajes correctamente, envia el pacjet id mediante el channel
     ///
     /// El thread de lectura (read_messages) se encarga de leer los mensajes que le llegan del broker.
+    ///
+    /// Si se recibe un mensaje del tipo Disconnect: se finalizan ambos hilos y se finaliza la conexión con el broker y  la sesion del cliente.
     pub fn client_run(&mut self, rx: mpsc::Receiver<String>) -> Result<(), ProtocolError> {
         let mut desconectar = false;
         let (sender, _) = mpsc::channel();
