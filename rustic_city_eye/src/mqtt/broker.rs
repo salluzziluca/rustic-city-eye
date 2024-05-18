@@ -64,8 +64,8 @@ impl Broker {
                     let packets_clone = self.packets.clone();
 
                     std::thread::spawn(move || {
-                        let _ = Broker::handle_client(stream, topics_clone, packets_clone);
                         // Use the cloned reference
+                        let _ = Broker::handle_client(stream, topics_clone, packets_clone);
                     });
                 }
                 Err(err) => return Err(err),
@@ -136,11 +136,12 @@ impl Broker {
                     }
                 }
                 ClientMessage::Subscribe {
-                    packet_id,
                     topic_name,
                     properties: _,
                 } => {
                     println!("Recibi un Subscribe");
+                    let packet_id = Broker::assign_packet_id(packets.clone());
+
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
                     let suback = BrokerMessage::Suback {
