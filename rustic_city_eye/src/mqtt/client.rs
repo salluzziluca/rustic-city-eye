@@ -216,11 +216,6 @@ impl Client {
         let mut desconectar = false;
         let (sender, _) = mpsc::channel();
 
-        //check if the stream is connected
-        if !is_connected(self.stream.try_clone().unwrap()) {
-            println!("No estas conectado, para conectarte utilizá un connect")
-        }
-
         let stream_clone_one = match self.stream.try_clone() {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
@@ -289,7 +284,10 @@ impl Client {
                     } else if line.starts_with("disconnect") {
                         let (_, post_colon) = line.split_at(11); // "disconnect" is 11 characters
                         let reason = post_colon.trim(); // remove leading/trailing whitespace
-                        println!("Desconectandome: {}", reason);
+                        println!(
+                            "Desconectandome: {}\nPresione Enter para cerrar finalizar el programa",
+                            reason
+                        );
                         match stream_clone_four.try_clone() {
                             Ok(stream_clone) => {
                                 if let Ok(packet_id) = Client::disconnect(reason, stream_clone) {
@@ -301,10 +299,8 @@ impl Client {
                                             )
                                         }
                                     }
-                                    println!("Desconectandome");
-                                    desconectar = true;
 
-                                    break;
+                                    desconectar = true;
                                 }
                             }
                             Err(_) => {
@@ -367,21 +363,7 @@ impl Client {
                 }
             }
         });
-        if desconectar {
-            self.cerrar_conexion();
-        }
 
         Ok(())
-    }
-
-    fn cerrar_conexion(&mut self) {
-        self.stream.shutdown(std::net::Shutdown::Both).unwrap();
-    }
-}
-
-fn is_connected(mut stream: TcpStream) -> bool {
-    match stream.write_all(b"") {
-        Ok(_) => true,
-        Err(_) => false,
     }
 }
