@@ -258,4 +258,31 @@ mod tests {
         assert!(suback.analize_packet_id(513));
         assert!(puback.analize_packet_id(261));
     }
+
+    #[test]
+    fn test_03_unsuback_ok(){
+        let unsuback = BrokerMessage::Unsuback {
+            packet_id_msb: 1,
+            packet_id_lsb: 1,
+        };
+
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+        match unsuback.write_to(&mut cursor) {
+            Ok(_) => {}
+            Err(err) => {
+                println!("Error: {:?}", err);
+                panic!();
+            }
+        }
+        cursor.set_position(0);
+        let read_unsuback = match BrokerMessage::read_from(&mut cursor) {
+            Ok(unsuback) => unsuback,
+            Err(err) => {
+                println!("Error: {:?}", err);
+
+                panic!()
+            }
+        };
+        assert_eq!(unsuback, read_unsuback);
+    }
 }
