@@ -156,6 +156,17 @@ impl Broker {
                         Err(err) => println!("Error al enviar suback: {:?}", err),
                     }
                 }
+                ClientMessage::Disconnect {
+                    reason_code: _,
+                    session_expiry_interval: _,
+                    reason_string,
+                    user_properties: _,
+                } => {
+                    println!(
+                        "Recibí un Disconnect, razon de desconexión: {:?}",
+                        reason_string
+                    );
+                }
                 ClientMessage::Pingreq => {
                     println!("Recibí un Pingreq");
                     let pingresp = BrokerMessage::Pingresp;

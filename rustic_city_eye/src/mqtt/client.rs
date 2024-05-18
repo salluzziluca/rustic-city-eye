@@ -1,7 +1,4 @@
-use std::{
-    net::TcpStream,
-    sync::mpsc::{self},
-};
+use std::{net::TcpStream, sync::mpsc};
 
 use crate::mqtt::{
     broker_message::BrokerMessage,
@@ -160,6 +157,44 @@ impl Client {
         }
     }
 
+    ///recibe un string que indica la razón de la desconexión y un stream y envia un disconnect message al broker
+    /// segun el str reason recibido, modifica el reason_code y el reason_string del mensaje
+    ///
+    /// devuelve el packet_id del mensaje enviado o un ClientError en caso de error
+    pub fn disconnect(reason: &str, mut stream: TcpStream) -> Result<u16, ClientError> {
+        let packet_id = 1;
+        let reason_code: u8;
+        let reason_string: String;
+        match reason {
+            "normal" => {
+                reason_code = 0x00;
+                reason_string =
+                    "Close the connection normally. Do not send the Will Message.".to_string();
+            }
+            "with_will" => {
+                reason_code = 0x04;
+                reason_string = "The Client wishes to disconnect but requires that the Server also publishes its Will Message"
+                    .to_string();
+            }
+            _ => {
+                reason_code = 0x80;
+                reason_string = "The Connection is closed but the sender either does not wish to reveal reason or none of the other Reason Codes apply. "
+                    .to_string();
+            }
+        }
+        let disconnect = ClientMessage::Disconnect {
+            reason_code,
+            session_expiry_interval: 0,
+            reason_string,
+            user_properties: vec![("propiedad".to_string(), "valor".to_string())],
+        };
+
+        match disconnect.write_to(&mut stream) {
+            Ok(()) => Ok(packet_id),
+            Err(_) => Err(ClientError::new("Error al enviar mensaje")),
+        }
+    }
+
     /// Se encarga de que el cliente este funcionando correctamente.
     /// El Client debe encargarse de dos tareas: leer mensajes que le lleguen del Broker.
     /// Estos mensajes pueden ser tanto acks (Connack, Puback, etc.)
@@ -177,7 +212,10 @@ impl Client {
     /// Si logra enviar los mensajes correctamente, envia el pacjet id mediante el channel
     ///
     /// El thread de lectura (read_messages) se encarga de leer los mensajes que le llegan del broker.
+    ///
+    /// Si se recibe un mensaje del tipo Disconnect: se finalizan ambos hilos y se finaliza la conexión con el broker y  la sesion del cliente.
     pub fn client_run(&mut self, rx: mpsc::Receiver<String>) -> Result<(), ProtocolError> {
+        let mut desconectar = false;
         let (sender, _) = mpsc::channel();
 
         let stream_clone_one = match self.stream.try_clone() {
@@ -192,13 +230,17 @@ impl Client {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
         };
-        let stream_clone_four = match self.stream.try_clone(){
+        let stream_clone_four = match self.stream.try_clone() {
+            Ok(stream) => stream,
+            Err(_) => return Err(ProtocolError::StreamError),
+        };
+        let stream_clone_five = match self.stream.try_clone() {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
         };
 
         let _write_messages = std::thread::spawn(move || {
-            loop {
+            while !desconectar {
                 if let Ok(line) = rx.recv() {
                     if line.starts_with("publish:") {
                         let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
@@ -246,14 +288,41 @@ impl Client {
                                 return Err::<(), ProtocolError>(ProtocolError::StreamError);
                             }
                         }
-                    }else if line.starts_with("pingreq"){
+                    } else if line.starts_with("pingreq") {
                         println!("Enviando pingreq");
-                        match stream_clone_four.try_clone(){
+                        match stream_clone_four.try_clone() {
                             Ok(mut stream_clone) => {
                                 let pingreq = ClientMessage::Pingreq;
-                                match pingreq.write_to(&mut stream_clone){ //chequear esto
+                                match pingreq.write_to(&mut stream_clone) {
+                                    //chequear esto
                                     Ok(()) => println!("Pingreq enviado"),
-                                    Err(_) => println!("Error al enviar pingreq")
+                                    Err(_) => println!("Error al enviar pingreq"),
+                                }
+                            }
+                            Err(_) => {
+                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                            }
+                        }
+                    } else if line.starts_with("disconnect") {
+                        let (_, post_colon) = line.split_at(11); // "disconnect" is 11 characters
+                        let reason = post_colon.trim(); // remove leading/trailing whitespace
+                        println!(
+                            "Desconectandome: {}\nPresione Enter para cerrar finalizar el programa",
+                            reason
+                        );
+                        match stream_clone_five.try_clone() {
+                            Ok(stream_clone) => {
+                                if let Ok(packet_id) = Client::disconnect(reason, stream_clone) {
+                                    match sender.send(packet_id) {
+                                        Ok(_) => continue,
+                                        Err(_) => {
+                                            println!(
+                                                "Error al enviar packet_id de puback al receiver"
+                                            )
+                                        }
+                                    }
+
+                                    desconectar = true;
                                 }
                             }
                             Err(_) => {
@@ -265,59 +334,59 @@ impl Client {
                     }
                 }
             }
+
+            Ok(())
         });
 
         let _read_messages = std::thread::spawn(move || {
             //let mut pending_messages = Vec::new();
 
-            loop {
-                // for received in &receiver {
-                //     println!("recibi el packet {:?}", received);
-                //     pending_messages.push(received);
-                // }s
+            if !desconectar {
+                loop {
+                    if let Ok(mut stream_clone) = stream_clone_three.try_clone() {
+                        if let Ok(message) = BrokerMessage::read_from(&mut stream_clone) {
+                            match message {
+                                BrokerMessage::Connack {} => todo!(),
+                                BrokerMessage::Puback {
+                                    packet_id_msb: _,
+                                    packet_id_lsb: _,
+                                    reason_code: _,
+                                } => {
+                                    //  for pending_message in &pending_messages {
+                                    //   if message.analize_packet_id(*pending_message) {
+                                    println!("Recibi un mensaje {:?}", message);
 
-                if let Ok(mut stream_clone) = stream_clone_three.try_clone() {
-                    if let Ok(message) = BrokerMessage::read_from(&mut stream_clone) {
-                        match message {
-                            BrokerMessage::Connack {} => todo!(),
-                            BrokerMessage::Puback {
-                                packet_id_msb: _,
-                                packet_id_lsb: _,
-                                reason_code: _,
-                            } => {
-                                //  for pending_message in &pending_messages {
-                                //   if message.analize_packet_id(*pending_message) {
-                                println!("Recibi un mensaje {:?}", message);
+                                    //pending_messages.remove(pending_message.)
+                                    //     }
+                                    // }
+                                }
+                                BrokerMessage::Suback {
+                                    packet_id_msb: _,
+                                    packet_id_lsb: _,
+                                    reason_code: _,
+                                } => {
+                                    // for pending_message in &pending_messages {
+                                    //  if message.analize_packet_id(*pending_message) {
+                                    println!("Recibi un mensaje {:?}", message);
 
-                                //pending_messages.remove(pending_message.)
-                                //     }
-                                // }
+                                    //pending_messages.remove(pending_message.)
+                                    // }
+                                    // }
+                                }
+                                BrokerMessage::PublishDelivery { payload: _ } => {
+                                    println!("Recibi un mensaje {:?}", message)
+                                }
+                                BrokerMessage::Pingresp => {
+                                    println!("Recibi un mensaje {:?}", message)
+                                }
                             }
-                            BrokerMessage::Suback {
-                                packet_id_msb: _,
-                                packet_id_lsb: _,
-                                reason_code: _,
-                            } => {
-                                // for pending_message in &pending_messages {
-                                //  if message.analize_packet_id(*pending_message) {
-                                println!("Recibi un mensaje {:?}", message);
-
-                                //pending_messages.remove(pending_message.)
-                                // }
-                                // }
-                            }
-                            BrokerMessage::PublishDelivery { payload: _ } => {
-                                println!("Recibi un mensaje {:?}", message)
-                            }
-                            BrokerMessage::Pingresp => {
-                                println!("Recibi un mensaje {:?}", message)
-                            }
+                        } else {
+                            println!("No hay conexion con el broker");
+                            break;
                         }
                     } else {
-                        println!("Failed to read message from broker");
+                        println!("Failed to clone stream");
                     }
-                } else {
-                    println!("Failed to clone stream");
                 }
             }
         });
