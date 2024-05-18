@@ -243,7 +243,7 @@ impl ClientMessage {
                 write_u32(&mut writer, session_expiry_interval)?;
 
                 write_u8(&mut writer, &REASON_STRING_ID)?;
-                write_string(&mut writer, &reason_string)?;
+                write_string(&mut writer, reason_string)?;
 
                 write_u8(&mut writer, &USER_PROPERTY_ID)?;
                 write_string_pairs(&mut writer, user_properties)?;

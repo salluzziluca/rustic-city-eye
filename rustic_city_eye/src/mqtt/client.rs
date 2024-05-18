@@ -1,4 +1,4 @@
-use std::{io::Write, net::TcpStream, sync::mpsc};
+use std::{net::TcpStream, sync::mpsc};
 
 use crate::mqtt::{
     broker_message::BrokerMessage,
@@ -341,50 +341,52 @@ impl Client {
         let _read_messages = std::thread::spawn(move || {
             //let mut pending_messages = Vec::new();
 
-            while !desconectar {
-                if let Ok(mut stream_clone) = stream_clone_three.try_clone() {
-                    if let Ok(message) = BrokerMessage::read_from(&mut stream_clone) {
-                        match message {
-                            BrokerMessage::Connack {} => todo!(),
-                            BrokerMessage::Puback {
-                                packet_id_msb: _,
-                                packet_id_lsb: _,
-                                reason_code: _,
-                            } => {
-                                //  for pending_message in &pending_messages {
-                                //   if message.analize_packet_id(*pending_message) {
-                                println!("Recibi un mensaje {:?}", message);
+            if !desconectar {
+                loop {
+                    if let Ok(mut stream_clone) = stream_clone_three.try_clone() {
+                        if let Ok(message) = BrokerMessage::read_from(&mut stream_clone) {
+                            match message {
+                                BrokerMessage::Connack {} => todo!(),
+                                BrokerMessage::Puback {
+                                    packet_id_msb: _,
+                                    packet_id_lsb: _,
+                                    reason_code: _,
+                                } => {
+                                    //  for pending_message in &pending_messages {
+                                    //   if message.analize_packet_id(*pending_message) {
+                                    println!("Recibi un mensaje {:?}", message);
 
-                                //pending_messages.remove(pending_message.)
-                                //     }
-                                // }
-                            }
-                            BrokerMessage::Suback {
-                                packet_id_msb: _,
-                                packet_id_lsb: _,
-                                reason_code: _,
-                            } => {
-                                // for pending_message in &pending_messages {
-                                //  if message.analize_packet_id(*pending_message) {
-                                println!("Recibi un mensaje {:?}", message);
+                                    //pending_messages.remove(pending_message.)
+                                    //     }
+                                    // }
+                                }
+                                BrokerMessage::Suback {
+                                    packet_id_msb: _,
+                                    packet_id_lsb: _,
+                                    reason_code: _,
+                                } => {
+                                    // for pending_message in &pending_messages {
+                                    //  if message.analize_packet_id(*pending_message) {
+                                    println!("Recibi un mensaje {:?}", message);
 
-                                //pending_messages.remove(pending_message.)
-                                // }
-                                // }
+                                    //pending_messages.remove(pending_message.)
+                                    // }
+                                    // }
+                                }
+                                BrokerMessage::PublishDelivery { payload: _ } => {
+                                    println!("Recibi un mensaje {:?}", message)
+                                }
+                                BrokerMessage::Pingresp => {
+                                    println!("Recibi un mensaje {:?}", message)
+                                }
                             }
-                            BrokerMessage::PublishDelivery { payload: _ } => {
-                                println!("Recibi un mensaje {:?}", message)
-                            }
-                            BrokerMessage::Pingresp => {
-                                println!("Recibi un mensaje {:?}", message)
-                            }
+                        } else {
+                            println!("No hay conexion con el broker");
+                            break;
                         }
                     } else {
-                        println!("No hay conexion con el broker");
-                        break;
+                        println!("Failed to clone stream");
                     }
-                } else {
-                    println!("Failed to clone stream");
                 }
             }
         });
