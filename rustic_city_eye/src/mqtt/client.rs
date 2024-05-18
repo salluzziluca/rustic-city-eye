@@ -126,7 +126,11 @@ impl Client {
         };
 
         match publish.write_to(&mut stream) {
-            Ok(()) => Ok(()),
+            Ok(()) => {
+             //   let packet_id = read_u16(&mut stream).expect("error in packet id");
+               // println!("packet id {:?}", packet_id);
+                Ok(())
+            },
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
@@ -150,7 +154,9 @@ impl Client {
         };
 
         match subscribe.write_to(&mut stream) {
-            Ok(()) => Ok(()),
+            Ok(()) => {
+                Ok(())
+            },
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
