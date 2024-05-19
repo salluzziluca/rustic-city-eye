@@ -159,10 +159,7 @@ impl Client {
     }
 
     pub fn unsubscribe(topic: &str, mut stream: TcpStream) -> Result<(), ClientError> {
-        //let packet_id = 1;
-
         let unsubscribe = ClientMessage::Unsubscribe {
-           // packet_id,
             topic_name: topic.to_string(),
             properties: SubscribeProperties::new(
                 1,
