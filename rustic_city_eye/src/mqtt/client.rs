@@ -1,3 +1,5 @@
+use rand::Rng;
+
 use std::{
     net::TcpStream,
     sync::mpsc::{self},
@@ -16,6 +18,8 @@ use crate::mqtt::{
 
 pub struct Client {
     stream: TcpStream,
+
+    pending_messages: Vec<u16>,
 }
 impl Client {
     #[allow(clippy::too_many_arguments)]
@@ -75,9 +79,16 @@ impl Client {
             println!("soy el client y no pude leer el mensaje");
         };
 
-        Ok(Client { stream })
+        Ok(Client {
+            stream,
+            pending_messages: Vec::new(),
+        })
     }
-    pub fn publish_message(message: &str, mut stream: TcpStream) -> Result<(), ClientError> {
+    pub fn publish_message(
+        message: &str,
+        mut stream: TcpStream,
+        pending_messages: Vec<u16>,
+    ) -> Result<u16, ClientError> {
         let splitted_message: Vec<&str> = message.split(' ').collect();
 
         //message interface(temp): dup:1 qos:2 retain:1 topic_name:sometopic
@@ -106,6 +117,8 @@ impl Client {
             response_topic: "String".to_string(),
         };
 
+        let packet_id = Client::assign_packet_id(pending_messages);
+
         let properties = PublishProperties::new(
             1,
             10,
@@ -117,6 +130,7 @@ impl Client {
         );
 
         let publish = ClientMessage::Publish {
+            packet_id,
             topic_name: splitted_message[0].to_string(),
             qos,
             retain_flag: 1,
@@ -126,11 +140,7 @@ impl Client {
         };
 
         match publish.write_to(&mut stream) {
-            Ok(()) => {
-                //   let packet_id = read_u16(&mut stream).expect("error in packet id");
-                // println!("packet id {:?}", packet_id);
-                Ok(())
-            }
+            Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
@@ -142,8 +152,15 @@ impl Client {
     /// Esperará un mensaje de confirmación de suscripción
     /// Si recibe un mensaje de confirmación, lo imprimirá
     ///
-    pub fn subscribe(topic: &str, mut stream: TcpStream) -> Result<(), ClientError> {
+    pub fn subscribe(
+        topic: &str,
+        mut stream: TcpStream,
+        pending_messages: Vec<u16>,
+    ) -> Result<u16, ClientError> {
+        let packet_id = Client::assign_packet_id(pending_messages);
+
         let subscribe = ClientMessage::Subscribe {
+            packet_id,
             topic_name: topic.to_string(),
             properties: SubscribeProperties::new(
                 1,
@@ -153,13 +170,20 @@ impl Client {
         };
 
         match subscribe.write_to(&mut stream) {
-            Ok(()) => Ok(()),
+            Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
 
-    pub fn unsubscribe(topic: &str, mut stream: TcpStream) -> Result<(), ClientError> {
+    pub fn unsubscribe(
+        topic: &str,
+        mut stream: TcpStream,
+        pending_messages: Vec<u16>,
+    ) -> Result<u16, ClientError> {
+        let packet_id = Client::assign_packet_id(pending_messages);
+
         let unsubscribe = ClientMessage::Unsubscribe {
+            packet_id,
             topic_name: topic.to_string(),
             properties: SubscribeProperties::new(
                 1,
@@ -169,7 +193,7 @@ impl Client {
         };
 
         match unsubscribe.write_to(&mut stream) {
-            Ok(()) => Ok(()),
+            Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
@@ -192,7 +216,11 @@ impl Client {
     ///
     /// El thread de lectura (read_messages) se encarga de leer los mensajes que le llegan del broker.
     pub fn client_run(&mut self, rx: mpsc::Receiver<String>) -> Result<(), ProtocolError> {
-        let (sender, _) = mpsc::channel();
+        let (sender, receiver) = mpsc::channel();
+
+        let pending_messages_clone_one = self.pending_messages.clone();
+        let pending_messages_clone_two = self.pending_messages.clone();
+        let pending_messages_clone_three = self.pending_messages.clone();
 
         let stream_clone_one = match self.stream.try_clone() {
             Ok(stream) => stream,
@@ -221,8 +249,12 @@ impl Client {
 
                         match stream_clone_one.try_clone() {
                             Ok(stream_clone) => {
-                                if Client::publish_message(message, stream_clone).is_ok() {
-                                    match sender.send(1) {
+                                if let Ok(packet_id) = Client::publish_message(
+                                    message,
+                                    stream_clone,
+                                    pending_messages_clone_one.clone(),
+                                ) {
+                                    match sender.send(packet_id) {
                                         Ok(_) => continue,
                                         Err(_) => {
                                             println!(
@@ -243,8 +275,12 @@ impl Client {
 
                         match stream_clone_two.try_clone() {
                             Ok(stream_clone) => {
-                                if Client::subscribe(topic, stream_clone).is_ok() {
-                                    match sender.send(1) {
+                                if let Ok(packet_id) = Client::subscribe(
+                                    topic,
+                                    stream_clone,
+                                    pending_messages_clone_two.clone(),
+                                ) {
+                                    match sender.send(packet_id) {
                                         Ok(_) => continue,
                                         Err(_) => {
                                             println!(
@@ -265,8 +301,12 @@ impl Client {
 
                         match stream_clone_five.try_clone() {
                             Ok(stream_clone) => {
-                                if Client::unsubscribe(topic, stream_clone).is_ok() {
-                                    match sender.send(1) {
+                                if let Ok(packet_id) = Client::unsubscribe(
+                                    topic,
+                                    stream_clone,
+                                    pending_messages_clone_three.clone(),
+                                ) {
+                                    match sender.send(packet_id) {
                                         Ok(_) => continue,
                                         Err(_) => {
                                             println!(
@@ -288,58 +328,75 @@ impl Client {
         });
 
         let _read_messages = std::thread::spawn(move || {
-            //let mut pending_messages = Vec::new();
+            let mut pending_messages = Vec::new();
 
             loop {
-                // for received in &receiver {
-                //     println!("recibi el packet {:?}", received);
-                //     pending_messages.push(received);
-                // }s
+                if let Ok(packet) = receiver.recv() {
+                    pending_messages.push(packet);
+                    println!("pending messages {:?}", pending_messages);
+                }
 
                 if let Ok(mut stream_clone) = stream_clone_three.try_clone() {
                     if let Ok(message) = BrokerMessage::read_from(&mut stream_clone) {
                         match message {
                             BrokerMessage::Connack {} => todo!(),
                             BrokerMessage::Puback {
-                                packet_id_msb: _,
-                                packet_id_lsb: _,
+                                packet_id_msb,
+                                packet_id_lsb,
                                 reason_code: _,
                             } => {
-                                //  for pending_message in &pending_messages {
-                                //   if message.analize_packet_id(*pending_message) {
+                                for pending_message in &pending_messages {
+                                    let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
+                                    if packet_id_bytes[0] == packet_id_msb
+                                        && packet_id_bytes[1] == packet_id_lsb
+                                    {
+                                        println!(
+                                            "puback con id {} {} recibido",
+                                            packet_id_msb, packet_id_lsb
+                                        );
+                                    }
+                                }
                                 println!("Recibi un mensaje {:?}", message);
-
-                                //pending_messages.remove(pending_message.)
-                                //     }
-                                // }
                             }
                             BrokerMessage::Suback {
-                                packet_id_msb: _,
-                                packet_id_lsb: _,
+                                packet_id_msb,
+                                packet_id_lsb,
                                 reason_code: _,
                             } => {
-                                // for pending_message in &pending_messages {
-                                //  if message.analize_packet_id(*pending_message) {
+                                for pending_message in &pending_messages {
+                                    let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
+                                    if packet_id_bytes[0] == packet_id_msb
+                                        && packet_id_bytes[1] == packet_id_lsb
+                                    {
+                                        println!(
+                                            "suback con id {} {} recibido",
+                                            packet_id_msb, packet_id_lsb
+                                        );
+                                    }
+                                }
                                 println!("Recibi un mensaje {:?}", message);
-
-                                //pending_messages.remove(pending_message.)
-                                // }
-                                // }
                             }
                             BrokerMessage::PublishDelivery { payload: _ } => {
                                 println!("Recibi un mensaje {:?}", message)
                             }
                             BrokerMessage::Unsuback {
-                                packet_id_msb: _,
-                                packet_id_lsb: _,
+                                packet_id_msb,
+                                packet_id_lsb,
                             } => {
-                                // for pending_message in &pending_messages {
-                                //  if message.analize_packet_id(*pending_message) {
+                                for pending_message in &pending_messages {
+                                    let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
+                                    if packet_id_bytes[0] == packet_id_msb
+                                        && packet_id_bytes[1] == packet_id_lsb
+                                    {
+                                        println!(
+                                            "unsuback con id {} {} recibido",
+                                            packet_id_msb, packet_id_lsb
+                                        );
+                                    }
+                                }
                                 println!("Recibi un mensaje {:?}", message);
                             }
                         }
-                    } else {
-                        println!("Error al leer mensaje del broker");
                     }
                 } else {
                     println!("Error al clonar el stream");
@@ -348,5 +405,20 @@ impl Client {
         });
 
         Ok(())
+    }
+
+    ///Asigna un id al packet que ingresa como parametro.
+    ///Guarda el packet en el hashmap de paquetes.
+    fn assign_packet_id(packets: Vec<u16>) -> u16 {
+        let mut rng = rand::thread_rng();
+
+        let mut packet_id: u16;
+        loop {
+            packet_id = rng.gen();
+            if packet_id != 0 && !packets.contains(&packet_id) {
+                break;
+            }
+        }
+        packet_id
     }
 }

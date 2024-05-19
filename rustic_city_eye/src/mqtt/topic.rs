@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io::Error;
 use std::net::TcpStream;
@@ -9,7 +10,7 @@ use super::protocol_error::ProtocolError;
 
 #[derive(Debug, Clone)]
 pub struct Topic {
-    subscribers: Arc<RwLock<Vec<TcpStream>>>,
+    subscribers: Arc<RwLock<HashMap<u32, TcpStream>>>,
 }
 
 impl Default for Topic {
@@ -21,19 +22,31 @@ impl Default for Topic {
 impl Topic {
     pub fn new() -> Self {
         Self {
-            subscribers: Arc::new(RwLock::new(Vec::new())),
+            subscribers: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    pub fn add_subscriber(&mut self, stream: TcpStream) -> Result<(), ProtocolError>{
+    pub fn add_subscriber(&mut self, stream: TcpStream, sub_id: u32) -> Result<(), ProtocolError> {
         let mut lock = match self.subscribers.write() {
             Ok(guard) => guard,
-            Err(_) => return Err(ProtocolError::LockError)
+            Err(_) => return Err(ProtocolError::LockError),
         };
 
-        lock.push(stream);
+        lock.insert(sub_id, stream);
         Ok(())
     }
+
+    // pub fn remove_subscriber(&mut self, stream: TcpStream) -> Result<(), ProtocolError> {
+    //     let mut lock = match self.subscribers.write() {
+    //         Ok(guard) => guard,
+    //         Err(_) => return Err(ProtocolError::LockError)
+    //     };
+
+    //     //let sub_index = lock.iter().position(|&r| r == stream).unwrap();
+    //     //println!("Encontre el sub en la pos {}", sub_index);
+
+    //     Ok(())
+    // }
 
     pub fn deliver_message(&self, payload: String) -> Result<u8, Error> {
         let lock = self.subscribers.read().unwrap();
@@ -48,7 +61,7 @@ impl Topic {
 
         for mut subscriber in lock.iter() {
             println!("Enviando un PublishDelivery");
-            match delivery_message.write_to(&mut subscriber) {
+            match delivery_message.write_to(&mut subscriber.1) {
                 Ok(_) => println!("PublishDelivery enviado"),
                 Err(err) => println!("Error al enviar PublishDelivery: {:?}", err),
             }

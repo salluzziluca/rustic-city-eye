@@ -11,7 +11,7 @@ pub enum ProtocolError {
     LockError,
     PublishError,
     SubscribeError,
-    UnsubscribeError
+    UnsubscribeError,
 }
 
 impl fmt::Display for ProtocolError {

@@ -40,6 +40,8 @@ pub enum ClientMessage {
 
     /// El paquete Publish es enviado desde un cliente al servidor, o desde un servidor al cliente para transportar un mensaje de aplicacion.
     Publish {
+        packet_id: u16,
+
         ///Identifica el canal de informacion por el cual el Payload data se va a publicar.
         topic_name: String,
 
@@ -65,12 +67,15 @@ pub enum ClientMessage {
 
     /// El Subscribe Message se utiliza para suscribirse a uno o más topics. El cliente puede enviar un mensaje de subscribe con un packet id y una lista de topics a los que se quiere suscribir. El broker responde con un mensaje de suback con el mismo packet id y una lista de return codes que indican si la suscripcion fue exitosa o no.
     Subscribe {
+        packet_id: u16,
+
         /// topic_name es el nombre del topic al que se quiere suscribir.
         topic_name: String,
         /// properties es un struct que contiene las propiedades del mensaje de subscribe.
         properties: SubscribeProperties,
     },
     Unsubscribe {
+        packet_id: u16,
         topic_name: String,
         properties: SubscribeProperties,
     },
@@ -162,6 +167,7 @@ impl ClientMessage {
                 Ok(())
             }
             ClientMessage::Publish {
+                packet_id,
                 topic_name,
                 qos,
                 retain_flag,
@@ -200,6 +206,8 @@ impl ClientMessage {
                 //Remaining Length
                 write_string(&mut writer, topic_name)?;
 
+                write_u16(&mut writer, packet_id)?;
+
                 //Properties
                 properties.write_properties(&mut writer)?;
 
@@ -210,22 +218,26 @@ impl ClientMessage {
                 Ok(())
             }
             ClientMessage::Subscribe {
+                packet_id,
                 topic_name,
                 properties,
             } => {
                 let byte_1: u8 = 0x82_u8;
                 writer.write_all(&[byte_1])?;
+                write_u16(&mut writer, packet_id)?;
                 write_string(&mut writer, topic_name)?;
                 properties.write_properties(&mut writer)?;
                 writer.flush()?;
                 Ok(())
             }
             ClientMessage::Unsubscribe {
+                packet_id,
                 topic_name,
                 properties,
             } => {
                 let byte_1: u8 = 0xA2_u8;
                 writer.write_all(&[byte_1])?;
+                write_u16(&mut writer, packet_id)?;
                 write_string(&mut writer, topic_name)?;
                 properties.write_properties(&mut writer)?;
                 writer.flush()?;
@@ -347,9 +359,11 @@ impl ClientMessage {
                     "a".to_string(),
                 );
                 let topic_name = read_string(stream)?;
+                let packet_id = read_u16(stream)?;
                 properties.read_properties(stream)?;
                 let message = read_string(stream)?;
                 Ok(ClientMessage::Publish {
+                    packet_id,
                     topic_name,
                     qos,
                     retain_flag,
@@ -359,17 +373,21 @@ impl ClientMessage {
                 })
             }
             0x82 => {
+                let packet_id = read_u16(stream)?;
                 let topic = read_string(stream)?;
                 let properties = SubscribeProperties::read_properties(stream)?;
                 Ok(ClientMessage::Subscribe {
+                    packet_id,
                     topic_name: topic,
                     properties,
                 })
             }
             0xA2 => {
+                let packet_id = read_u16(stream)?;
                 let topic = read_string(stream)?;
                 let properties = SubscribeProperties::read_properties(stream)?;
                 Ok(ClientMessage::Unsubscribe {
+                    packet_id,
                     topic_name: topic,
                     properties,
                 })
@@ -535,6 +553,7 @@ mod tests {
         );
 
         let publish = ClientMessage::Publish {
+            packet_id: 1,
             topic_name: "mensajes para juan".to_string(),
             qos: 1,
             retain_flag: 1,
@@ -566,6 +585,7 @@ mod tests {
     #[test]
     fn test_04_subscribe_ok() {
         let sub = ClientMessage::Subscribe {
+            packet_id: 1,
             topic_name: "topico".to_string(),
             properties: SubscribeProperties::new(
                 1,
@@ -594,7 +614,7 @@ mod tests {
     #[test]
     fn test_05_unsubscribe_ok() {
         let unsub = ClientMessage::Unsubscribe {
-            //packet_id: 1,
+            packet_id: 1,
             topic_name: "topico".to_string(),
             properties: SubscribeProperties::new(
                 1,
