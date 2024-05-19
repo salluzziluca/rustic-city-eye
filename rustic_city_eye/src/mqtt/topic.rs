@@ -5,6 +5,8 @@ use std::sync::{Arc, RwLock};
 
 use crate::mqtt::broker_message::BrokerMessage;
 
+use super::protocol_error::ProtocolError;
+
 #[derive(Debug, Clone)]
 pub struct Topic {
     subscribers: Arc<RwLock<Vec<TcpStream>>>,
@@ -23,16 +25,14 @@ impl Topic {
         }
     }
 
-    pub fn add_subscriber(&mut self, stream: TcpStream) {
+    pub fn add_subscriber(&mut self, stream: TcpStream) -> Result<(), ProtocolError>{
         let mut lock = match self.subscribers.write() {
             Ok(guard) => guard,
-            Err(err) => {
-                println!("Error al obtener el lock: {:?}", err);
-                return;
-            }
+            Err(_) => return Err(ProtocolError::LockError)
         };
 
         lock.push(stream);
+        Ok(())
     }
 
     pub fn deliver_message(&self, payload: String) -> Result<u8, Error> {

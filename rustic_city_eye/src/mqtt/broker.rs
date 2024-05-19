@@ -2,7 +2,6 @@ use rand::Rng;
 
 use std::{
     collections::HashMap,
-    io::Error,
     net::{TcpListener, TcpStream},
     sync::{Arc, RwLock},
 };
@@ -81,7 +80,7 @@ impl Broker {
         mut stream: TcpStream,
         topics: HashMap<String, Topic>,
         packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
-    ) -> std::io::Result<()> {
+    ) -> Result<(), ProtocolError> {
         while let Ok(message) = ClientMessage::read_from(&mut stream) {
             match message {
                 ClientMessage::Connect {
@@ -167,15 +166,12 @@ impl Broker {
                     };
                     let stream_for_topic = match stream.try_clone() {
                         Ok(stream) => stream,
-                        Err(err) => {
-                            println!("Error al clonar el stream: {:?}", err);
-                            return Err(err);
-                        }
+                        Err(_) => return Err(ProtocolError::StreamError)
                     };
 
                     //  write_u16(&mut stream, &packet_id)?;
 
-                    Broker::handle_subscribe(stream_for_topic, topics.clone(), topic_name);
+                    Broker::handle_subscribe(stream_for_topic, topics.clone(), topic_name)?;
                     println!("Envío un Suback");
                     match suback.write_to(&mut stream) {
                         Ok(_) => println!("Suback enviado"),
@@ -206,23 +202,25 @@ impl Broker {
         Ok(())
     }
 
-    fn handle_subscribe(stream: TcpStream, mut topics: HashMap<String, Topic>, topic_name: String) {
+    fn handle_subscribe(stream: TcpStream, mut topics: HashMap<String, Topic>, topic_name: String) -> Result<(), ProtocolError> {
         if let Some(topic) = topics.get_mut(&topic_name) {
-            topic.add_subscriber(stream);
+            topic.add_subscriber(stream)?;
         } else {
             println!("no existe este topic");
         }
+
+        Ok(())
     }
 
     fn handle_publish(
         payload: String,
         mut topics: HashMap<String, Topic>,
         topic_name: String,
-    ) -> Result<u8, Error> {
+    ) -> Result<u8, ProtocolError> {
         if let Some(topic) = topics.get_mut(&topic_name) {
             match topic.deliver_message(payload) {
                 Ok(reason_code) => return Ok(reason_code),
-                Err(e) => return Err(e),
+                Err(_) => return Err(ProtocolError::PublishError),
             };
         }
 
