@@ -170,6 +170,21 @@ impl Broker {
                         Err(err) => println!("Error al enviar suback: {:?}", err),
                     }
                 }
+                ClientMessage::Unsubscribe { packet_id, topic_name, properties } => {
+                    println!("Recibí un Unsubscribe");
+                    let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
+
+                    let unsuback = BrokerMessage::Unsuback {
+                        packet_id_msb: packet_id_bytes[0],
+                        packet_id_lsb: packet_id_bytes[1],
+                    };
+                    println!("Envío un Unsuback");
+                    match unsuback.write_to(&mut stream) {
+                        Ok(_) => println!("Unsuback enviado"),
+                        Err(err) => println!("Error al enviar Unsuback: {:?}", err),
+                    }
+                
+                }
             }
         }
 
