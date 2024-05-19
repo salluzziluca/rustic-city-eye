@@ -1,13 +1,17 @@
-use std::{collections::HashMap, fs::File, io::{BufRead, BufReader}};
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{BufRead, BufReader},
+};
 
 use crate::mqtt::{protocol_error::ProtocolError, topic::Topic};
 
-/// Contiene la configuracion del Broker: 
-/// Lee el archivo de topics que el usuario quiera manejar, y 
+/// Contiene la configuracion del Broker:
+/// Lee el archivo de topics que el usuario quiera manejar, y
 /// guarda el address que usa.
 pub struct BrokerConfig {
     address: String,
-    topics: HashMap<String, Topic>
+    topics: HashMap<String, Topic>,
 }
 
 impl BrokerConfig {
@@ -20,12 +24,9 @@ impl BrokerConfig {
 
         for topic in readings {
             topics.insert(topic, Topic::new());
-        } 
+        }
 
-        Ok(BrokerConfig {
-            address,
-            topics
-        })
+        Ok(BrokerConfig { address, topics })
     }
 
     /// La idea es que Broker llame a esta funcion y que pueda acceder a su configuracion

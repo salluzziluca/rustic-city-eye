@@ -1,13 +1,15 @@
 use rand::Rng;
 
 use std::{
-    collections::HashMap, io::Error, net::{TcpListener, TcpStream}, sync::{Arc, RwLock}
+    collections::HashMap,
+    io::Error,
+    net::{TcpListener, TcpStream},
+    sync::{Arc, RwLock},
 };
-
 
 use crate::mqtt::{
     broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError,
-    topic::Topic
+    topic::Topic,
 };
 
 use super::broker_config::BrokerConfig;
@@ -116,7 +118,14 @@ impl Broker {
                     properties,
                 } => {
                     println!("Recibí un Publish");
-                    let msg = ClientMessage::Publish { topic_name: topic_name.clone(), qos, retain_flag, payload: payload.clone(), dup_flag, properties};
+                    let msg = ClientMessage::Publish {
+                        topic_name: topic_name.clone(),
+                        qos,
+                        retain_flag,
+                        payload: payload.clone(),
+                        dup_flag,
+                        properties,
+                    };
                     let packet_id = Broker::assign_packet_id(packets.clone());
                     Broker::save_packet(packets.clone(), msg, packet_id);
 
@@ -142,7 +151,10 @@ impl Broker {
                     properties,
                 } => {
                     println!("Recibi un Subscribe");
-                    let msg = ClientMessage::Subscribe { topic_name: topic_name.clone(), properties: properties.clone() };
+                    let msg = ClientMessage::Subscribe {
+                        topic_name: topic_name.clone(),
+                        properties: properties.clone(),
+                    };
                     let packet_id = Broker::assign_packet_id(packets.clone());
                     Broker::save_packet(packets.clone(), msg, packet_id);
 
@@ -161,7 +173,7 @@ impl Broker {
                         }
                     };
 
-                  //  write_u16(&mut stream, &packet_id)?;
+                    //  write_u16(&mut stream, &packet_id)?;
 
                     Broker::handle_subscribe(stream_for_topic, topics.clone(), topic_name);
                     println!("Envío un Suback");
@@ -170,8 +182,12 @@ impl Broker {
                         Err(err) => println!("Error al enviar suback: {:?}", err),
                     }
                 }
-                ClientMessage::Unsubscribe { packet_id, topic_name, properties } => {
+                ClientMessage::Unsubscribe {
+                    topic_name: _,
+                    properties: _,
+                } => {
                     println!("Recibí un Unsubscribe");
+                    let packet_id = Broker::assign_packet_id(packets.clone());
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
                     let unsuback = BrokerMessage::Unsuback {
@@ -183,7 +199,6 @@ impl Broker {
                         Ok(_) => println!("Unsuback enviado"),
                         Err(err) => println!("Error al enviar Unsuback: {:?}", err),
                     }
-                
                 }
             }
         }
@@ -231,7 +246,11 @@ impl Broker {
     }
 
     ///Se toma un packet con su respectivo ID y se lo guarda en el hashmap de mensajes que tiene el Broker.
-    fn save_packet(packets: Arc<RwLock<HashMap<u16, ClientMessage>>>, message: ClientMessage, packet_id: u16) {
+    fn save_packet(
+        packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
+        message: ClientMessage,
+        packet_id: u16,
+    ) {
         let mut lock = packets.write().unwrap();
 
         lock.insert(packet_id, message);

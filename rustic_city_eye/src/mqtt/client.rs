@@ -127,10 +127,10 @@ impl Client {
 
         match publish.write_to(&mut stream) {
             Ok(()) => {
-             //   let packet_id = read_u16(&mut stream).expect("error in packet id");
-               // println!("packet id {:?}", packet_id);
+                //   let packet_id = read_u16(&mut stream).expect("error in packet id");
+                // println!("packet id {:?}", packet_id);
                 Ok(())
-            },
+            }
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
@@ -143,7 +143,6 @@ impl Client {
     /// Si recibe un mensaje de confirmación, lo imprimirá
     ///
     pub fn subscribe(topic: &str, mut stream: TcpStream) -> Result<(), ClientError> {
-
         let subscribe = ClientMessage::Subscribe {
             topic_name: topic.to_string(),
             properties: SubscribeProperties::new(
@@ -154,18 +153,16 @@ impl Client {
         };
 
         match subscribe.write_to(&mut stream) {
-            Ok(()) => {
-                Ok(())
-            },
+            Ok(()) => Ok(()),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
 
-    pub fn unsubscribe(topic: &str, mut stream: TcpStream) -> Result<u16, ClientError> {
-        let packet_id = 1;
+    pub fn unsubscribe(topic: &str, mut stream: TcpStream) -> Result<(), ClientError> {
+        //let packet_id = 1;
 
         let unsubscribe = ClientMessage::Unsubscribe {
-            packet_id,
+           // packet_id,
             topic_name: topic.to_string(),
             properties: SubscribeProperties::new(
                 1,
@@ -175,7 +172,7 @@ impl Client {
         };
 
         match unsubscribe.write_to(&mut stream) {
-            Ok(()) => Ok(packet_id),
+            Ok(()) => Ok(()),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
@@ -264,19 +261,19 @@ impl Client {
                                 return Err::<(), ProtocolError>(ProtocolError::StreamError);
                             }
                         }
-                    }else if line.starts_with("unsubscribe:") {
+                    } else if line.starts_with("unsubscribe:") {
                         let (_, post_colon) = line.split_at(12); // "unsubscribe:" is 12 characters
                         let topic = post_colon.trim(); // remove leading/trailing whitespace
                         println!("Desubscribiendome del topic: {}", topic);
 
                         match stream_clone_five.try_clone() {
                             Ok(stream_clone) => {
-                                if let Ok(packet_id) = Client::unsubscribe(topic, stream_clone) {
-                                    match sender.send(packet_id) {
+                                if Client::unsubscribe(topic, stream_clone).is_ok() {
+                                    match sender.send(1) {
                                         Ok(_) => continue,
                                         Err(_) => {
                                             println!(
-                                                "Error al enviar packet_id del unsuback al receiver"
+                                                "Error al enviar el packet_id del unsuback al receiver"
                                             )
                                         }
                                     }
@@ -335,16 +332,17 @@ impl Client {
                             BrokerMessage::PublishDelivery { payload: _ } => {
                                 println!("Recibi un mensaje {:?}", message)
                             }
-                            BrokerMessage::Unsuback { packet_id_msb, packet_id_lsb } => {
+                            BrokerMessage::Unsuback {
+                                packet_id_msb: _,
+                                packet_id_lsb: _,
+                            } => {
                                 // for pending_message in &pending_messages {
                                 //  if message.analize_packet_id(*pending_message) {
                                 println!("Recibi un mensaje {:?}", message);
-
-                                
                             }
                         }
                     } else {
-                        println!("Error al leer mensaje del broker"); 
+                        println!("Error al leer mensaje del broker");
                     }
                 } else {
                     println!("Error al clonar el stream");

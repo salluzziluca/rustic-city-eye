@@ -6,8 +6,8 @@ pub mod monitoring;
 pub mod surveilling;
 
 pub mod mqtt {
-    pub mod client;
     pub mod broker_message;
+    pub mod client;
     pub mod client_message;
     pub mod connect_properties;
     pub mod protocol_error;

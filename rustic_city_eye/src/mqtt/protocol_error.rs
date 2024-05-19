@@ -7,7 +7,7 @@ pub enum ProtocolError {
     InvalidQOS,
     InvalidNumberOfArguments,
     StreamError,
-    ReadingTopicConfigFileError
+    ReadingTopicConfigFileError,
 }
 
 impl fmt::Display for ProtocolError {
@@ -19,8 +19,9 @@ impl fmt::Display for ProtocolError {
                 write!(f, "Error: número de argumentos inválido")
             }
             ProtocolError::StreamError => write!(f, "Error: Error en la creación de un stream."),
-            ProtocolError::ReadingTopicConfigFileError => write!(f, "Error al leer el archivo de configuración de tópicos"),
-
+            ProtocolError::ReadingTopicConfigFileError => {
+                write!(f, "Error al leer el archivo de configuración de tópicos")
+            }
         }
     }
 }

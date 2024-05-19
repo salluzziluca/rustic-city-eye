@@ -62,7 +62,7 @@ pub enum ClientMessage {
         /// Una property es un identificador que define el uso y tipos de data, seguido de un valor.
         properties: PublishProperties,
     },
-    
+
     /// El Subscribe Message se utiliza para suscribirse a uno o más topics. El cliente puede enviar un mensaje de subscribe con un packet id y una lista de topics a los que se quiere suscribir. El broker responde con un mensaje de suback con el mismo packet id y una lista de return codes que indican si la suscripcion fue exitosa o no.
     Subscribe {
         /// topic_name es el nombre del topic al que se quiere suscribir.
@@ -71,7 +71,6 @@ pub enum ClientMessage {
         properties: SubscribeProperties,
     },
     Unsubscribe {
-        packet_id: u16,
         topic_name: String,
         properties: SubscribeProperties,
     },
@@ -221,10 +220,12 @@ impl ClientMessage {
                 writer.flush()?;
                 Ok(())
             }
-            ClientMessage::Unsubscribe { packet_id, topic_name, properties } => {
+            ClientMessage::Unsubscribe {
+                topic_name,
+                properties,
+            } => {
                 let byte_1: u8 = 0xA2_u8;
                 writer.write_all(&[byte_1])?;
-                write_u16(&mut writer, packet_id)?;
                 write_string(&mut writer, topic_name)?;
                 properties.write_properties(&mut writer)?;
                 writer.flush()?;
@@ -366,11 +367,9 @@ impl ClientMessage {
                 })
             }
             0xA2 => {
-                let packet_id = read_u16(stream)?;
                 let topic = read_string(stream)?;
                 let properties = SubscribeProperties::read_properties(stream)?;
                 Ok(ClientMessage::Unsubscribe {
-                    packet_id,
                     topic_name: topic,
                     properties,
                 })
@@ -595,7 +594,7 @@ mod tests {
     #[test]
     fn test_05_unsubscribe_ok() {
         let unsub = ClientMessage::Unsubscribe {
-            packet_id: 1,
+            //packet_id: 1,
             topic_name: "topico".to_string(),
             properties: SubscribeProperties::new(
                 1,

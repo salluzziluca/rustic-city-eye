@@ -37,7 +37,6 @@ pub enum BrokerMessage {
         packet_id_msb: u8,
         packet_id_lsb: u8,
     },
-    
 }
 #[allow(dead_code)]
 impl BrokerMessage {
@@ -260,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn test_03_unsuback_ok(){
+    fn test_03_unsuback_ok() {
         let unsuback = BrokerMessage::Unsuback {
             packet_id_msb: 1,
             packet_id_lsb: 1,
