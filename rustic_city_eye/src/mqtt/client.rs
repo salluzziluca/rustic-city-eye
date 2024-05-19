@@ -1,4 +1,4 @@
-use std::{net::TcpStream, sync::mpsc};
+use std::{io::{stdin, BufRead}, net::TcpStream, sync::mpsc};
 
 use crate::mqtt::{
     broker_message::BrokerMessage,
@@ -50,6 +50,17 @@ impl Client {
             last_will_topic,
             last_will_message,
         };
+
+        let stdin = stdin();
+        for line in stdin.lock().lines() {
+            match line {
+                Ok(line) if line == "connect".to_owned() =>{
+                    break;
+                }
+                Ok(_) => println!("Not a connect"),
+                Err(_) => println!("Error in line"),
+            }
+        }
 
         println!("Enviando connect message to broker");
         match connect.write_to(&mut stream) {

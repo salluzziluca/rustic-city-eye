@@ -71,7 +71,14 @@ impl Broker {
         topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>,
         _packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
     ) -> std::io::Result<()> {
+        let mut connected = false;
+        let start_time = std::time::Instant::now();
+
         while let Ok(message) = ClientMessage::read_from(&mut stream) {
+            if !connected && start_time.elapsed().as_secs() > 10 {
+                println!("Tiempo de espera excedido");
+                break;
+            }
             match message {
                 ClientMessage::Connect {
                     clean_start: _,
@@ -87,6 +94,7 @@ impl Broker {
                     last_will_topic: _,
                     last_will_message: _,
                 } => {
+                    connected = true;
                     println!("Recibí un Connect");
                     let connack = BrokerMessage::Connack {
                         //session_present: true,
