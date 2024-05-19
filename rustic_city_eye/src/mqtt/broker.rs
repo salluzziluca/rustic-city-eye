@@ -18,6 +18,8 @@ pub struct Broker {
     /// El u16 corresponde al packet_id del package, y dentro
     /// de esa clave se guarda el package.
     packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
+
+    clients: Vec<String>,
 }
 
 impl Broker {
@@ -39,6 +41,7 @@ impl Broker {
             address,
             topics: Arc::new(RwLock::new(topics)),
             packets: Arc::new(RwLock::new(packets)),
+            clients: Vec::new(),
         })
     }
 
@@ -67,122 +70,138 @@ impl Broker {
 
     ///Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
     pub fn handle_client(
+        &mut self,
         mut stream: TcpStream,
         topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>,
         _packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
     ) -> std::io::Result<()> {
         let mut connected = false;
         let start_time = std::time::Instant::now();
-
-        while let Ok(message) = ClientMessage::read_from(&mut stream) {
-            if !connected && start_time.elapsed().as_secs() > 10 {
-                println!("Tiempo de espera excedido");
-                break;
-            }
-            match message {
-                ClientMessage::Connect {
-                    clean_start: _,
-                    last_will_flag: _,
-                    last_will_qos: _,
-                    last_will_retain: _,
-                    username: _,
-                    password: _,
-                    keep_alive: _,
-                    properties: _,
-                    client_id: _,
-                    will_properties: _,
-                    last_will_topic: _,
-                    last_will_message: _,
-                } => {
-                    connected = true;
-                    println!("Recibí un Connect");
-                    let connack = BrokerMessage::Connack {
-                        //session_present: true,
-                        //return_code: 0,
-                    };
-                    println!("Enviando un Connack");
-                    match connack.write_to(&mut stream) {
-                        Ok(_) => println!("Connack enviado"),
-                        Err(err) => println!("Error al enviar Connack: {:?}", err),
+        loop {
+            match ClientMessage::read_from(&mut stream) {
+                Ok(message) => {
+                    if !connected && start_time.elapsed().as_secs() > 10 {
+                        println!("Tiempo de espera excedido");
+                        break;
                     }
-                }
-                ClientMessage::Publish {
-                    packet_id,
-                    topic_name: ref _topic,
-                    qos: _,
-                    retain_flag: _,
-                    payload,
-                    dup_flag: _,
-                    properties: _,
-                } => {
-                    println!("Recibí un Publish");
-                    // let packet_id = Broker::assign_packet_id(packets.clone());
+                    match message {
+                        ClientMessage::Connect {
+                            clean_start: _,
+                            last_will_flag: _,
+                            last_will_qos: _,
+                            last_will_retain: _,
+                            username: _,
+                            password: _,
+                            keep_alive: _,
+                            properties: _,
+                            client_id,
+                            will_properties: _,
+                            last_will_topic: _,
+                            last_will_message: _,
+                        } => {
+                            connected = true;
+                            //add client id to clients
+                            if self.clients.contains(&client_id) {
+                                println!("El cliente ya está conectado");
+                                //TODO: enviar un Disconnect
+                                break;
+                            }
+                            self.clients.push(client_id);
 
-                    let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
-
-                    Broker::handle_publish(payload, topics.clone());
-
-                    let puback = BrokerMessage::Puback {
-                        packet_id_msb: packet_id_bytes[0],
-                        packet_id_lsb: packet_id_bytes[1],
-                        reason_code: 1,
-                    };
-                    println!("Enviando un Puback");
-                    match puback.write_to(&mut stream) {
-                        Ok(_) => println!("Puback enviado"),
-                        Err(err) => println!("Error al enviar Puback: {:?}", err),
-                    }
-                }
-                ClientMessage::Subscribe {
-                    packet_id,
-                    topic_name: _,
-                    properties: _,
-                } => {
-                    println!("Recibi un Subscribe");
-
-                    //  let packet_id = Broker::assign_packet_id(packets.clone());
-                    let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
-
-                    let suback = BrokerMessage::Suback {
-                        packet_id_msb: packet_id_bytes[0],
-                        packet_id_lsb: packet_id_bytes[1],
-                        reason_code: 0,
-                    };
-                    //let stream_for_topic = stream.try_clone().unwrap();
-                    let stream_for_topic = match stream.try_clone() {
-                        Ok(stream) => stream,
-                        Err(err) => {
-                            println!("Error al clonar el stream: {:?}", err);
-                            return Err(err);
+                            println!("Recibí un Connect");
+                            let connack = BrokerMessage::Connack {
+                                //session_present: true,
+                                //return_code: 0,
+                            };
+                            println!("Enviando un Connack");
+                            match connack.write_to(&mut stream) {
+                                Ok(_) => println!("Connack enviado"),
+                                Err(err) => println!("Error al enviar Connack: {:?}", err),
+                            }
                         }
-                    };
+                        ClientMessage::Publish {
+                            packet_id,
+                            topic_name: ref _topic,
+                            qos: _,
+                            retain_flag: _,
+                            payload,
+                            dup_flag: _,
+                            properties: _,
+                        } => {
+                            println!("Recibí un Publish");
+                            // let packet_id = Broker::assign_packet_id(packets.clone());
 
-                    Broker::handle_subscribe(stream_for_topic, Arc::clone(&topics));
-                    println!("Envío un Suback");
-                    match suback.write_to(&mut stream) {
-                        Ok(_) => println!("Suback enviado"),
-                        Err(err) => println!("Error al enviar suback: {:?}", err),
+                            let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
+
+                            Broker::handle_publish(payload, topics.clone());
+
+                            let puback = BrokerMessage::Puback {
+                                packet_id_msb: packet_id_bytes[0],
+                                packet_id_lsb: packet_id_bytes[1],
+                                reason_code: 1,
+                            };
+                            println!("Enviando un Puback");
+                            match puback.write_to(&mut stream) {
+                                Ok(_) => println!("Puback enviado"),
+                                Err(err) => println!("Error al enviar Puback: {:?}", err),
+                            }
+                        }
+                        ClientMessage::Subscribe {
+                            packet_id,
+                            topic_name: _,
+                            properties: _,
+                        } => {
+                            println!("Recibi un Subscribe");
+
+                            //  let packet_id = Broker::assign_packet_id(packets.clone());
+                            let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
+
+                            let suback = BrokerMessage::Suback {
+                                packet_id_msb: packet_id_bytes[0],
+                                packet_id_lsb: packet_id_bytes[1],
+                                reason_code: 0,
+                            };
+                            //let stream_for_topic = stream.try_clone().unwrap();
+                            let stream_for_topic = match stream.try_clone() {
+                                Ok(stream) => stream,
+                                Err(err) => {
+                                    println!("Error al clonar el stream: {:?}", err);
+                                    return Err(err);
+                                }
+                            };
+
+                            Broker::handle_subscribe(stream_for_topic, Arc::clone(&topics));
+                            println!("Envío un Suback");
+                            match suback.write_to(&mut stream) {
+                                Ok(_) => println!("Suback enviado"),
+                                Err(err) => println!("Error al enviar suback: {:?}", err),
+                            }
+                        }
+                        ClientMessage::Disconnect {
+                            reason_code: _,
+                            session_expiry_interval: _,
+                            reason_string,
+                            user_properties: _,
+                        } => {
+                            println!(
+                                "Recibí un Disconnect, razon de desconexión: {:?}",
+                                reason_string
+                            );
+                        }
+                        ClientMessage::Pingreq => {
+                            println!("Recibí un Pingreq");
+                            let pingresp = BrokerMessage::Pingresp;
+                            println!("Enviando un Pingresp");
+                            match pingresp.write_to(&mut stream) {
+                                Ok(_) => println!("Pingresp enviado"),
+                                Err(err) => println!("Error al enviar Pingresp: {:?}", err),
+                            }
+                        }
                     }
                 }
-                ClientMessage::Disconnect {
-                    reason_code: _,
-                    session_expiry_interval: _,
-                    reason_string,
-                    user_properties: _,
-                } => {
-                    println!(
-                        "Recibí un Disconnect, razon de desconexión: {:?}",
-                        reason_string
-                    );
-                }
-                ClientMessage::Pingreq => {
-                    println!("Recibí un Pingreq");
-                    let pingresp = BrokerMessage::Pingresp;
-                    println!("Enviando un Pingresp");
-                    match pingresp.write_to(&mut stream) {
-                        Ok(_) => println!("Pingresp enviado"),
-                        Err(err) => println!("Error al enviar Pingresp: {:?}", err),
-                    }
+                Err(err) => {
+                    println!("Malformed Package: {:?}", err);
+                    break;
                 }
             }
         }
