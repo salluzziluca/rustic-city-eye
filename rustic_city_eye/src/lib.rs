@@ -7,7 +7,6 @@ pub mod surveilling;
 
 pub mod mqtt {
     pub mod client;
-    // pub mod broker;
     pub mod broker_message;
     pub mod client_message;
     pub mod connect_properties;
@@ -20,5 +19,7 @@ pub mod mqtt {
     pub mod writer;
 
     pub mod broker;
+    pub mod broker_config;
+
     pub mod error;
 }

@@ -126,7 +126,11 @@ impl Client {
         };
 
         match publish.write_to(&mut stream) {
-            Ok(()) => Ok(()),
+            Ok(()) => {
+             //   let packet_id = read_u16(&mut stream).expect("error in packet id");
+               // println!("packet id {:?}", packet_id);
+                Ok(())
+            },
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
@@ -138,11 +142,9 @@ impl Client {
     /// Esperará un mensaje de confirmación de suscripción
     /// Si recibe un mensaje de confirmación, lo imprimirá
     ///
-    pub fn subscribe(topic: &str, mut stream: TcpStream) -> Result<u16, ClientError> {
-        let packet_id = 1;
+    pub fn subscribe(topic: &str, mut stream: TcpStream) -> Result<(), ClientError> {
 
         let subscribe = ClientMessage::Subscribe {
-            packet_id,
             topic_name: topic.to_string(),
             properties: SubscribeProperties::new(
                 1,
@@ -152,7 +154,9 @@ impl Client {
         };
 
         match subscribe.write_to(&mut stream) {
-            Ok(()) => Ok(packet_id),
+            Ok(()) => {
+                Ok(())
+            },
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
@@ -245,8 +249,8 @@ impl Client {
 
                         match stream_clone_two.try_clone() {
                             Ok(stream_clone) => {
-                                if let Ok(packet_id) = Client::subscribe(topic, stream_clone) {
-                                    match sender.send(packet_id) {
+                                if Client::subscribe(topic, stream_clone).is_ok() {
+                                    match sender.send(1) {
                                         Ok(_) => continue,
                                         Err(_) => {
                                             println!(

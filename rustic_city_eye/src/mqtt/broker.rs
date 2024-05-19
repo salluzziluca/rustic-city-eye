@@ -1,16 +1,16 @@
+use rand::Rng;
+
 use std::{
-    collections::HashMap,
-    io::Error,
-    net::{TcpListener, TcpStream},
-    sync::{Arc, RwLock},
+    collections::HashMap, io::Error, net::{TcpListener, TcpStream}, sync::{Arc, RwLock}
 };
 
-use rand::Rng;
 
 use crate::mqtt::{
     broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError,
-    topic::Topic,
+    topic::Topic
 };
+
+use super::broker_config::BrokerConfig;
 
 static SERVER_ARGS: usize = 2;
 
@@ -37,10 +37,12 @@ impl Broker {
         }
 
         let address = "127.0.0.1:".to_owned() + &args[1];
-        let mut topics = HashMap::new();
-        let packets = HashMap::new();
 
-        topics.insert("accidente".to_string(), Topic::new());
+        let broker_config = BrokerConfig::new(address)?;
+
+        let (address, topics) = broker_config.get_broker_config();
+
+        let packets = HashMap::new();
 
         Ok(Broker {
             address,
@@ -62,8 +64,8 @@ impl Broker {
                     let packets_clone = self.packets.clone();
 
                     std::thread::spawn(move || {
-                        let _ = Broker::handle_client(stream, topics_clone, packets_clone);
                         // Use the cloned reference
+                        let _ = Broker::handle_client(stream, topics_clone, packets_clone);
                     });
                 }
                 Err(err) => return Err(err),
@@ -76,7 +78,6 @@ impl Broker {
     pub fn handle_client(
         mut stream: TcpStream,
         topics: HashMap<String, Topic>,
-        //topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>,
         packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
     ) -> std::io::Result<()> {
         while let Ok(message) = ClientMessage::read_from(&mut stream) {
@@ -109,13 +110,15 @@ impl Broker {
                 ClientMessage::Publish {
                     topic_name,
                     qos,
-                    retain_flag: _,
+                    retain_flag,
                     payload,
-                    dup_flag: _,
-                    properties: _,
+                    dup_flag,
+                    properties,
                 } => {
                     println!("Recibí un Publish");
+                    let msg = ClientMessage::Publish { topic_name: topic_name.clone(), qos, retain_flag, payload: payload.clone(), dup_flag, properties};
                     let packet_id = Broker::assign_packet_id(packets.clone());
+                    Broker::save_packet(packets.clone(), msg, packet_id);
 
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
@@ -135,11 +138,14 @@ impl Broker {
                     }
                 }
                 ClientMessage::Subscribe {
-                    packet_id,
                     topic_name,
-                    properties: _,
+                    properties,
                 } => {
                     println!("Recibi un Subscribe");
+                    let msg = ClientMessage::Subscribe { topic_name: topic_name.clone(), properties: properties.clone() };
+                    let packet_id = Broker::assign_packet_id(packets.clone());
+                    Broker::save_packet(packets.clone(), msg, packet_id);
+
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
                     let suback = BrokerMessage::Suback {
@@ -154,6 +160,8 @@ impl Broker {
                             return Err(err);
                         }
                     };
+
+                  //  write_u16(&mut stream, &packet_id)?;
 
                     Broker::handle_subscribe(stream_for_topic, topics.clone(), topic_name);
                     println!("Envío un Suback");
@@ -186,6 +194,8 @@ impl Broker {
     fn handle_subscribe(stream: TcpStream, mut topics: HashMap<String, Topic>, topic_name: String) {
         if let Some(topic) = topics.get_mut(&topic_name) {
             topic.add_subscriber(stream);
+        } else {
+            println!("no existe este topic");
         }
     }
 
@@ -218,5 +228,12 @@ impl Broker {
             }
         }
         packet_id
+    }
+
+    ///Se toma un packet con su respectivo ID y se lo guarda en el hashmap de mensajes que tiene el Broker.
+    fn save_packet(packets: Arc<RwLock<HashMap<u16, ClientMessage>>>, message: ClientMessage, packet_id: u16) {
+        let mut lock = packets.write().unwrap();
+
+        lock.insert(packet_id, message);
     }
 }
