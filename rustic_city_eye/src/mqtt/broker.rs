@@ -19,7 +19,7 @@ pub struct Broker {
     /// de esa clave se guarda el package.
     packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
 
-    clients: Vec<String>,
+    clients: Arc<Vec<String>>,
 }
 
 impl Broker {
@@ -41,7 +41,7 @@ impl Broker {
             address,
             topics: Arc::new(RwLock::new(topics)),
             packets: Arc::new(RwLock::new(packets)),
-            clients: Vec::new(),
+            clients: Arc::new(Vec::new()),
         })
     }
 
@@ -49,31 +49,33 @@ impl Broker {
     /// Crea un enlace en la dirección del broker y, para
     /// cada conexión entrante, crea un hilo para manejar el nuevo cliente.
     pub fn server_run(&mut self) -> std::io::Result<()> {
-        let listener = TcpListener::bind(&self.address)?;
+            let listener = TcpListener::bind(&self.address)?;
 
-        for stream in listener.incoming() {
-            match stream {
-                Ok(stream) => {
-                    let topics_clone = self.topics.clone();
-                    let packets_clone = self.packets.clone();
+            for stream in listener.incoming() {
+                match stream {
+                    Ok(stream) => {
+                        let topics_clone = self.topics.clone();
+                        let packets_clone = self.packets.clone();
+                        let clients_clone = self.clients.clone();
 
-                    std::thread::spawn(move || {
-                        let _ = Broker::handle_client(stream, topics_clone, packets_clone);
-                        // Use the cloned reference
-                    });
+                        std::thread::spawn(move || {
+                            let _ = Broker::handle_client(stream, topics_clone, packets_clone, clients_clone);
+                            // Use the cloned reference
+                        });
+                    }
+                    Err(err) => return Err(err),
                 }
-                Err(err) => return Err(err),
             }
-        }
-        Ok(())
+
+            Ok(())
     }
 
     ///Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
     pub fn handle_client(
-        &mut self,
         mut stream: TcpStream,
         topics: Arc<RwLock<HashMap<String, Vec<TcpStream>>>>,
         _packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
+        mut clients: Arc<Vec<String>>,
     ) -> std::io::Result<()> {
         let mut connected = false;
         let start_time = std::time::Instant::now();
@@ -101,12 +103,19 @@ impl Broker {
                         } => {
                             connected = true;
                             //add client id to clients
-                            if self.clients.contains(&client_id) {
+                            if clients.contains(&client_id) {
                                 println!("El cliente ya está conectado");
+                                // let disconnect= BrokerMessage::Disconnect {
+                                //     reason_code: 0,
+                                //     session_expiry_interval: 0,
+                                //     reason_string: "El cliente ya está conectado".to_string(),
+                                //     user_properties: Vec::new(),
+                                // };
+
                                 //TODO: enviar un Disconnect
                                 break;
                             }
-                            self.clients.push(client_id);
+                            Arc::make_mut(&mut clients).push(client_id);
 
                             println!("Recibí un Connect");
                             let connack = BrokerMessage::Connack {
