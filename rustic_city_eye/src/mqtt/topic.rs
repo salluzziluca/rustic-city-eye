@@ -5,8 +5,10 @@ use std::net::TcpStream;
 use std::sync::{Arc, RwLock};
 
 use crate::mqtt::broker_message::BrokerMessage;
+use crate::mqtt::reason_code::ReasonCode;
 
 use super::protocol_error::ProtocolError;
+
 
 #[derive(Debug, Clone)]
 pub struct Topic {
@@ -27,6 +29,11 @@ impl Topic {
     }
 
     pub fn add_subscriber(&mut self, stream: TcpStream, sub_id: u32) -> Result<(), ProtocolError> {
+        let lock = self.subscribers.read().unwrap();
+        if lock.contains_key(&sub_id) {
+            return Ok(());
+        }
+
         let mut lock = match self.subscribers.write() {
             Ok(guard) => guard,
             Err(_) => return Err(ProtocolError::LockError),

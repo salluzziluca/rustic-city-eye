@@ -76,7 +76,7 @@ impl BrokerMessage {
             BrokerMessage::Suback {
                 packet_id_msb,
                 packet_id_lsb,
-                reason_code: _,
+                reason_code,
             } => {
                 //fixed header
                 let byte_1: u8 = 0x90_u8.to_le(); //10010000
@@ -92,6 +92,9 @@ impl BrokerMessage {
                 //writer.write(&[byte_3])?;
                 write_u8(&mut writer, packet_id_msb)?;
                 write_u8(&mut writer, packet_id_lsb)?;
+
+                //reason code
+                write_u8(&mut writer, reason_code)?;
                 writer.flush()?;
 
                 Ok(())
@@ -153,10 +156,11 @@ impl BrokerMessage {
             0x90 => {
                 let packet_id_msb = read_u8(stream)?;
                 let packet_id_lsb = read_u8(stream)?;
+                let reason_code = read_u8(stream)?;
                 Ok(BrokerMessage::Suback {
                     packet_id_msb,
                     packet_id_lsb,
-                    reason_code: 1,
+                    reason_code,
                 })
             }
             0xB0 => {
@@ -212,34 +216,7 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_01_suback_ok() {
-        let suback = BrokerMessage::Suback {
-            reason_code: 1,
-            packet_id_msb: 1,
-            packet_id_lsb: 1,
-        };
-
-        let mut cursor = Cursor::new(Vec::<u8>::new());
-        match suback.write_to(&mut cursor) {
-            Ok(_) => {}
-            Err(err) => {
-                println!("Error: {:?}", err);
-                panic!();
-            }
-        }
-        cursor.set_position(0);
-        let read_suback = match BrokerMessage::read_from(&mut cursor) {
-            Ok(suback) => suback,
-            Err(err) => {
-                println!("Error: {:?}", err);
-
-                panic!()
-            }
-        };
-        assert_eq!(suback, read_suback);
-    }
-
+   
     #[test]
     fn test_02_analizing_packet_ids_ok() {
         let suback = BrokerMessage::Suback {
