@@ -29,10 +29,6 @@ impl Topic {
     }
 
     pub fn add_subscriber(&mut self, stream: TcpStream, sub_id: u32) -> Result<(), ProtocolError> {
-        let lock = self.subscribers.read().unwrap();
-        if lock.contains_key(&sub_id) {
-            return Ok(());
-        }
 
         let mut lock = match self.subscribers.write() {
             Ok(guard) => guard,

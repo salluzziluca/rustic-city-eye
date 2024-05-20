@@ -300,3 +300,15 @@ impl Broker {
         lock.insert(packet_id, message);
     }
 }
+
+
+// tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_subscription(){
+        
+    }
+}
