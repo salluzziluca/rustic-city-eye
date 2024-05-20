@@ -90,7 +90,6 @@ impl Client {
         pending_messages: Vec<u16>,
     ) -> Result<u16, ClientError> {
         let splitted_message: Vec<&str> = message.split(' ').collect();
-
         //message interface(temp): dup:1 qos:2 retain:1 topic_name:sometopic
         //    let mut dup_flag = false;
         let qos = 1;
@@ -221,6 +220,8 @@ impl Client {
         let pending_messages_clone_one = self.pending_messages.clone();
         let pending_messages_clone_two = self.pending_messages.clone();
         let pending_messages_clone_three = self.pending_messages.clone();
+        let pending_messages_clone_four = self.pending_messages.clone();
+
 
         let stream_clone_one = match self.stream.try_clone() {
             Ok(stream) => stream,
@@ -240,6 +241,8 @@ impl Client {
         };
 
         let _write_messages = std::thread::spawn(move || {
+            let mut pending_messages = pending_messages_clone_one.clone();
+
             loop {
                 if let Ok(line) = rx.recv() {
                     if line.starts_with("publish:") {
@@ -254,6 +257,7 @@ impl Client {
                                     stream_clone,
                                     pending_messages_clone_one.clone(),
                                 ) {
+                                    pending_messages.push(packet_id);
                                     match sender.send(packet_id) {
                                         Ok(_) => continue,
                                         Err(_) => {
@@ -329,9 +333,11 @@ impl Client {
 
         let _read_messages = std::thread::spawn(move || {
             let mut pending_messages = Vec::new();
-
+            
             loop {
-                if let Ok(packet) = receiver.recv() {
+                let pending_messages_read = pending_messages_clone_four.clone();
+                println!("pending: {:?}", pending_messages_read);
+                if let Ok(packet) = receiver.try_recv() {
                     pending_messages.push(packet);
                     println!("pending messages {:?}", pending_messages);
                 }
@@ -365,6 +371,8 @@ impl Client {
                             } => {
                                 for pending_message in &pending_messages {
                                     let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
+                                    println!("subscribe scon id {} {} recibido",
+                                    packet_id_msb, packet_id_lsb);
                                     if packet_id_bytes[0] == packet_id_msb
                                         && packet_id_bytes[1] == packet_id_lsb
                                     {
