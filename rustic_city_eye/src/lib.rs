@@ -17,6 +17,7 @@ pub mod mqtt {
     pub mod topic;
     pub mod will_properties;
     pub mod writer;
+    pub mod reason_code;
 
     pub mod broker;
     pub mod broker_config;

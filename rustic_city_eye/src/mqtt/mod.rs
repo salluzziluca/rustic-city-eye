@@ -8,7 +8,7 @@ pub mod client_message;
 
 pub mod publish_properties;
 
-pub mod puback_reason_code;
+pub mod reason_code;
 
 pub mod protocol_error;
 
