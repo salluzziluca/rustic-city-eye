@@ -179,7 +179,7 @@ impl Broker {
                             let suback = BrokerMessage::Suback {
                                 packet_id_msb: packet_id_bytes[0],
                                 packet_id_lsb: packet_id_bytes[1],
-                                reason_code,
+                                reason_code: 0,
                             };
                             match suback.write_to(&mut stream) {
                                 Ok(_) => println!("Suback enviado"),
