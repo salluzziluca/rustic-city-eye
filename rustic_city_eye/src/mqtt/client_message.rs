@@ -101,8 +101,7 @@ impl ClientMessage {
                 password,
             } => {
                 //fixed header
-                let byte_1: u8 = 0x10_u8.to_le(); //00010000
-                writer.write_all(&[byte_1])?;
+                self.write_first_packet_byte(&mut writer)?;
 
                 //TODO: aca deberia ir el remaining lenght field
                 //protocol name
@@ -167,15 +166,80 @@ impl ClientMessage {
                 Ok(())
             }
             ClientMessage::Publish {
-                packet_id,
-                topic_name,
-                qos,
-                retain_flag,
+                packet_id: _,
+                topic_name: _,
+                qos: _,
+                retain_flag: _,
                 payload,
-                dup_flag,
-                properties,
+                dup_flag: _,
+                properties: _,
             } => {
                 //fixed header
+                self.write_first_packet_byte(&mut writer)?;
+
+                //Remaining Length
+                self.write_packet_properties(&mut writer)?;
+
+                //Payload
+                write_string(&mut writer, payload)?;
+
+                writer.flush()?;
+                Ok(())
+            }
+            ClientMessage::Subscribe {
+                packet_id: _,
+                topic_name: _,
+                properties: _,
+            } => {
+                self.write_first_packet_byte(&mut writer)?;
+                self.write_packet_properties(&mut writer)?;
+                writer.flush()?;
+                Ok(())
+            }
+            ClientMessage::Unsubscribe {
+                packet_id: _,
+                topic_name: _,
+                properties: _,
+            } => {
+                self.write_first_packet_byte(&mut writer)?;
+                self.write_packet_properties(&mut writer)?;
+                writer.flush()?;
+                Ok(())
+            }
+        }
+    }
+
+    fn write_first_packet_byte(
+        &self,
+        writer: &mut BufWriter<&mut dyn Write>,
+    ) -> std::io::Result<()> {
+        match self {
+            ClientMessage::Connect {
+                clean_start: _,
+                last_will_flag: _,
+                last_will_qos: _,
+                last_will_retain: _,
+                keep_alive: _,
+                properties: _,
+                client_id: _,
+                will_properties: _,
+                last_will_topic: _,
+                last_will_message: _,
+                username: _,
+                password: _,
+            } => {
+                let byte_1: u8 = 0x10_u8.to_le(); //00010000
+                writer.write_all(&[byte_1])?;
+            }
+            ClientMessage::Publish {
+                packet_id: _,
+                topic_name: _,
+                qos,
+                retain_flag,
+                payload: _,
+                dup_flag,
+                properties: _,
+            } => {
                 let mut byte_1 = 0x30_u8;
 
                 if *retain_flag == 1 {
@@ -202,48 +266,89 @@ impl ClientMessage {
                 }
 
                 writer.write_all(&[byte_1])?;
+            }
+            ClientMessage::Subscribe {
+                packet_id: _,
+                topic_name: _,
+                properties: _,
+            } => {
+                let byte_1: u8 = 0x82_u8;
+                writer.write_all(&[byte_1])?;
+            }
+            ClientMessage::Unsubscribe {
+                packet_id: _,
+                topic_name: _,
+                properties: _,
+            } => {
+                let byte_1: u8 = 0xA2_u8;
+                writer.write_all(&[byte_1])?;
+            }
+        }
+        Ok(())
+    }
 
-                //Remaining Length
-                write_string(&mut writer, topic_name)?;
+    fn write_packet_properties(
+        &self,
+        writer: &mut BufWriter<&mut dyn Write>,
+    ) -> std::io::Result<()> {
+        match self {
+            ClientMessage::Connect {
+                clean_start: _,
+                last_will_flag: _,
+                last_will_qos: _,
+                last_will_retain: _,
+                keep_alive: _,
+                properties: _,
+                client_id: _,
+                will_properties: _,
+                last_will_topic: _,
+                last_will_message: _,
+                username: _,
+                password: _,
+            } => todo!(),
+            ClientMessage::Publish {
+                packet_id,
+                topic_name,
+                qos: _,
+                retain_flag: _,
+                payload: _,
+                dup_flag: _,
+                properties,
+            } => {
+                write_u16(writer, packet_id)?;
 
-                write_u16(&mut writer, packet_id)?;
+                write_string(writer, topic_name)?;
 
                 //Properties
-                properties.write_properties(&mut writer)?;
-
-                //Payload
-                write_string(&mut writer, payload)?;
-
-                writer.flush()?;
-                Ok(())
-            }
+                properties.write_properties(writer)?;
+            },
             ClientMessage::Subscribe {
                 packet_id,
                 topic_name,
                 properties,
             } => {
-                let byte_1: u8 = 0x82_u8;
-                writer.write_all(&[byte_1])?;
-                write_u16(&mut writer, packet_id)?;
-                write_string(&mut writer, topic_name)?;
-                properties.write_properties(&mut writer)?;
-                writer.flush()?;
-                Ok(())
-            }
+                write_u16(writer, packet_id)?;
+
+                write_string(writer, topic_name)?;
+
+                //Properties
+                properties.write_properties(writer)?;
+            },
             ClientMessage::Unsubscribe {
                 packet_id,
                 topic_name,
                 properties,
             } => {
-                let byte_1: u8 = 0xA2_u8;
-                writer.write_all(&[byte_1])?;
-                write_u16(&mut writer, packet_id)?;
-                write_string(&mut writer, topic_name)?;
-                properties.write_properties(&mut writer)?;
-                writer.flush()?;
-                Ok(())
-            }
+                write_u16(writer, packet_id)?;
+
+                write_string(writer, topic_name)?;
+
+                //Properties
+                properties.write_properties(writer)?;
+            },
         }
+
+        Ok(())
     }
 
     pub fn read_from(stream: &mut dyn Read) -> Result<ClientMessage, Error> {
@@ -358,8 +463,8 @@ impl ClientMessage {
                     1,
                     "a".to_string(),
                 );
-                let topic_name = read_string(stream)?;
                 let packet_id = read_u16(stream)?;
+                let topic_name = read_string(stream)?;
                 properties.read_properties(stream)?;
                 let message = read_string(stream)?;
                 Ok(ClientMessage::Publish {
