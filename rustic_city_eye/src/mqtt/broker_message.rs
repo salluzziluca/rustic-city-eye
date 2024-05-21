@@ -1,9 +1,6 @@
 use std::io::{BufWriter, Error, Read, Write};
 
-use super::{
-    reader::*,
-    writer::*,
-};
+use super::{reader::*, writer::*};
 
 const SESSION_EXPIRY_INTERVAL_ID: u8 = 0x11;
 const REASON_STRING_ID: u8 = 0x1F;

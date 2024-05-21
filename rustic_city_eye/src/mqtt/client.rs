@@ -1,4 +1,8 @@
-use std::{io::{stdin, BufRead}, net::TcpStream, sync::mpsc};
+use std::{
+    io::{stdin, BufRead},
+    net::TcpStream,
+    sync::mpsc,
+};
 
 use crate::mqtt::{
     broker_message::BrokerMessage,
@@ -54,7 +58,7 @@ impl Client {
         let stdin = stdin();
         for line in stdin.lock().lines() {
             match line {
-                Ok(line) if line == "connect".to_owned() =>{
+                Ok(line) if line == *"connect" => {
                     break;
                 }
                 Ok(_) => println!("Not a connect"),
@@ -389,14 +393,19 @@ impl Client {
                                 }
                                 BrokerMessage::Pingresp => {
                                     println!("Recibi un mensaje {:?}", message)
-                                }       
-                                BrokerMessage::Disconnect { reason_code: _, session_expiry_interval: _, reason_string, user_properties: _ } => {
+                                }
+                                BrokerMessage::Disconnect {
+                                    reason_code: _,
+                                    session_expiry_interval: _,
+                                    reason_string,
+                                    user_properties: _,
+                                } => {
                                     println!(
                                         "Recibí un Disconnect, razon de desconexión: {:?}",
                                         reason_string
                                     );
                                     break;
-                                },
+                                }
                             }
                         } else {
                             println!("No hay conexion con el broker");

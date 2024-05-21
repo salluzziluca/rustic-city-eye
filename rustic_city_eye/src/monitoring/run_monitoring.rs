@@ -1,8 +1,7 @@
 use std::env::args;
 
 use rustic_city_eye::{
-    monitoring::monitoring_app::MonitoringApp,
-    mqtt::protocol_error::ProtocolError,
+    monitoring::monitoring_app::MonitoringApp, mqtt::protocol_error::ProtocolError,
 };
 
 fn main() -> Result<(), ProtocolError> {

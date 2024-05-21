@@ -49,25 +49,30 @@ impl Broker {
     /// Crea un enlace en la dirección del broker y, para
     /// cada conexión entrante, crea un hilo para manejar el nuevo cliente.
     pub fn server_run(&mut self) -> std::io::Result<()> {
-            let listener = TcpListener::bind(&self.address)?;
+        let listener = TcpListener::bind(&self.address)?;
 
-            for stream in listener.incoming() {
-                match stream {
-                    Ok(stream) => {
-                        let topics_clone = self.topics.clone();
-                        let packets_clone = self.packets.clone();
-                        let clients_clone = self.clients.clone();
+        for stream in listener.incoming() {
+            match stream {
+                Ok(stream) => {
+                    let topics_clone = self.topics.clone();
+                    let packets_clone = self.packets.clone();
+                    let clients_clone = self.clients.clone();
 
-                        std::thread::spawn(move || {
-                            let _ = Broker::handle_client(stream, topics_clone, packets_clone, clients_clone);
-                            // Use the cloned reference
-                        });
-                    }
-                    Err(err) => return Err(err),
+                    std::thread::spawn(move || {
+                        let _ = Broker::handle_client(
+                            stream,
+                            topics_clone,
+                            packets_clone,
+                            clients_clone,
+                        );
+                        // Use the cloned reference
+                    });
                 }
+                Err(err) => return Err(err),
             }
+        }
 
-            Ok(())
+        Ok(())
     }
 
     ///Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.

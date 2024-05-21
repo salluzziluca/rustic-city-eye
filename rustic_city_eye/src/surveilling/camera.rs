@@ -16,7 +16,7 @@ impl Default for Camera {
 
 impl Camera {
     pub fn new() -> Camera {
-        Self {  }
+        Self {}
     }
 }
 

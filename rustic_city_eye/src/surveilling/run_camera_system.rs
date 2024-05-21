@@ -4,7 +4,7 @@ use std::{
 };
 
 use rustic_city_eye::{
-    surveilling::camera_system::CameraSystem, mqtt::protocol_error::ProtocolError,
+    mqtt::protocol_error::ProtocolError, surveilling::camera_system::CameraSystem,
 };
 
 fn main() -> Result<(), ProtocolError> {

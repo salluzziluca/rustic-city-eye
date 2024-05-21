@@ -17,7 +17,6 @@ impl Default for Topic {
 }
 
 impl Topic {
-    
     pub fn new() -> Self {
         Self {
             subscribers: Arc::new(Mutex::new(Vec::new())),
