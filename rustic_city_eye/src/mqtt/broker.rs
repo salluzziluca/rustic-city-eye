@@ -11,7 +11,7 @@ use crate::mqtt::{
     topic::Topic,
 };
 
-use super::{broker_config::BrokerConfig, reason_code};
+use super::broker_config::BrokerConfig;
 
 static SERVER_ARGS: usize = 2;
 
