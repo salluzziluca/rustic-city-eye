@@ -389,7 +389,14 @@ impl Client {
                                 }
                                 BrokerMessage::Pingresp => {
                                     println!("Recibi un mensaje {:?}", message)
-                                }
+                                }       
+                                BrokerMessage::Disconnect { reason_code: _, session_expiry_interval: _, reason_string, user_properties: _ } => {
+                                    println!(
+                                        "Recibí un Disconnect, razon de desconexión: {:?}",
+                                        reason_string
+                                    );
+                                    break;
+                                },
                             }
                         } else {
                             println!("No hay conexion con el broker");

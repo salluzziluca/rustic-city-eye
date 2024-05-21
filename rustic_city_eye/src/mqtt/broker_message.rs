@@ -1,9 +1,13 @@
 use std::io::{BufWriter, Error, Read, Write};
 
 use super::{
-    reader::{read_string, read_u8},
-    writer::{write_string, write_u8},
+    reader::*,
+    writer::*,
 };
+
+const SESSION_EXPIRY_INTERVAL_ID: u8 = 0x11;
+const REASON_STRING_ID: u8 = 0x1F;
+const USER_PROPERTY_ID: u8 = 0x26;
 
 #[derive(Debug, PartialEq)]
 pub enum BrokerMessage {
@@ -30,6 +34,12 @@ pub enum BrokerMessage {
     },
     PublishDelivery {
         payload: String,
+    },
+    Disconnect {
+        reason_code: u8,
+        session_expiry_interval: u32,
+        reason_string: String,
+        user_properties: Vec<(String, String)>,
     },
     Pingresp,
 }
@@ -98,6 +108,29 @@ impl BrokerMessage {
 
                 Ok(())
             }
+            BrokerMessage::Disconnect {
+                reason_code,
+                session_expiry_interval,
+                reason_string,
+                user_properties,
+            } => {
+                //fixed header
+                let header: u8 = 0xE0_u8.to_le(); //11100000
+                write_u8(&mut writer, &header)?;
+                //variable_header
+                write_u8(&mut writer, reason_code)?;
+
+                write_u8(&mut writer, &SESSION_EXPIRY_INTERVAL_ID)?;
+                write_u32(&mut writer, session_expiry_interval)?;
+
+                write_u8(&mut writer, &REASON_STRING_ID)?;
+                write_string(&mut writer, reason_string)?;
+
+                write_u8(&mut writer, &USER_PROPERTY_ID)?;
+                write_string_pairs(&mut writer, user_properties)?;
+                writer.flush()?;
+                Ok(())
+            }
             BrokerMessage::Pingresp => {
                 let byte_1: u8 = 0xD0_u8.to_le();
                 writer.write_all(&[byte_1])?;
@@ -138,6 +171,42 @@ impl BrokerMessage {
                     reason_code: 1,
                 })
             }
+            0xE0 => {
+                let reason_code = read_u8(stream)?;
+                let session_expiry_interval_id = read_u8(stream)?;
+                if session_expiry_interval_id != SESSION_EXPIRY_INTERVAL_ID {
+                    return Err(Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid session expiry interval id",
+                    ));
+                }
+                let session_expiry_interval = read_u32(stream)?;
+
+                let reason_string_id = read_u8(stream)?;
+                if reason_string_id != REASON_STRING_ID {
+                    return Err(Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid reason string id",
+                    ));
+                }
+                let reason_string = read_string(stream)?;
+
+                let user_property_id = read_u8(stream)?;
+                if user_property_id != USER_PROPERTY_ID {
+                    return Err(Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid user property id",
+                    ));
+                }
+                let user_properties = read_string_pairs(stream)?;
+
+                Ok(BrokerMessage::Disconnect {
+                    reason_code,
+                    session_expiry_interval,
+                    reason_string,
+                    user_properties,
+                })
+            }
             0xD0 => Ok(BrokerMessage::Pingresp),
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
@@ -166,6 +235,12 @@ impl BrokerMessage {
             }
             BrokerMessage::PublishDelivery { payload: _ } => true,
             BrokerMessage::Pingresp => true,
+            BrokerMessage::Disconnect {
+                reason_code: _,
+                session_expiry_interval: _,
+                reason_string: _,
+                user_properties: _,
+            } => true,
         }
     }
 }
