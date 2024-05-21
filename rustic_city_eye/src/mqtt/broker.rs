@@ -11,7 +11,7 @@ use crate::mqtt::{
     topic::Topic,
 };
 
-use super::{broker_config::BrokerConfig, reason_code};
+use super::broker_config::BrokerConfig;
 
 static SERVER_ARGS: usize = 2;
 
@@ -172,7 +172,7 @@ impl Broker {
                         Err(_) => return Err(ProtocolError::StreamError),
                     };
 
-                    let reason_code = Broker::handle_subscribe( stream_for_topic, topics.clone(), topic_name, subs.clone())?;
+                    let reason_code = Broker::handle_subscribe( stream_for_topic, topics.clone(), topic_name,  properties.sub_id.clone())?;
                     match reason_code {
                         0 => {
                             println!("Enviando un Suback");
@@ -213,11 +213,7 @@ impl Broker {
                         packet_id_msb: packet_id_bytes[0],
                         packet_id_lsb: packet_id_bytes[1],
                     };
-                    println!("Envío un Unsuback");
-                    match unsuback.write_to(&mut stream) {
-                        Ok(_) => println!("Unsuback enviado"),
-                        Err(err) => println!("Error al enviar Unsuback: {:?}", err),
-                    }
+                    
                 }
             }
         }
@@ -229,13 +225,25 @@ impl Broker {
         stream: TcpStream,
         mut topics: HashMap<String, Topic>,
         topic_name: String,
-        subs: Vec<u32>,
+        sub_id: u32,
     ) -> Result<u8, ProtocolError> {
         let reason_code ;
         if let Some(topic) = topics.get_mut(&topic_name) {
-            let sub_id = Broker::assign_subscription_id(subs);
-            topic.add_subscriber(stream, sub_id)?;
-            reason_code = 0;
+            match topic.add_subscriber(stream, sub_id) {
+                0 => {
+                    println!("Subscripcion exitosa");
+                    return Ok(0);
+                }
+                0x92 => {
+                    println!("SubId duplicado");
+                    return Ok(0x92);
+                }
+                _ => {
+                    println!("Error no especificado");
+                    return Ok(0x80);
+                }
+            }
+            
         } else {
             reason_code = 1;
         }

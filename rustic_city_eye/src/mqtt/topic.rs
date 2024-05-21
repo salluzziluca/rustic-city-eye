@@ -8,10 +8,13 @@ use crate::mqtt::broker_message::BrokerMessage;
 use crate::mqtt::reason_code::ReasonCode;
 
 use super::protocol_error::ProtocolError;
+use super::reason_code;
 
 
 #[derive(Debug, Clone)]
 pub struct Topic {
+    /// Hashmap de subscriptores.
+    /// El u32 representa el sub_id, y el valor es el stream del subscriptor.
     subscribers: Arc<RwLock<HashMap<u32, TcpStream>>>,
 }
 
@@ -28,15 +31,19 @@ impl Topic {
         }
     }
 
-    pub fn add_subscriber(&mut self, stream: TcpStream, sub_id: u32) -> Result<(), ProtocolError> {
+    pub fn add_subscriber(&mut self, stream: TcpStream, sub_id: u32) -> u8 {
+        //verificar si el sub_id ya existe en topic subscribers
+        if self.subscribers.read().unwrap().contains_key(&sub_id) {
+            return reason_code::SUB_ID_DUP_HEX;
+        }
 
         let mut lock = match self.subscribers.write() {
             Ok(guard) => guard,
-            Err(_) => return Err(ProtocolError::LockError),
+            Err(_) => return reason_code::UNSPECIFIED_ERROR_HEX,
         };
 
         lock.insert(sub_id, stream);
-        Ok(())
+        reason_code::SUCCESS_HEX
     }
 
     // pub fn remove_subscriber(&mut self, stream: TcpStream) -> Result<(), ProtocolError> {

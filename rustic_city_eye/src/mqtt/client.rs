@@ -18,7 +18,8 @@ use crate::mqtt::{
 
 pub struct Client {
     stream: TcpStream,
-
+    // las subscriptions son un hashmap de topic y sub_id
+    subscriptions: Vec<(String, u32)>,
     pending_messages: Vec<u16>,
 }
 impl Client {
@@ -81,6 +82,7 @@ impl Client {
 
         Ok(Client {
             stream,
+            subscriptions: Vec::new(),
             pending_messages: Vec::new(),
         })
     }
@@ -157,12 +159,12 @@ impl Client {
         pending_messages: Vec<u16>,
     ) -> Result<u16, ClientError> {
         let packet_id = Client::assign_packet_id(pending_messages);
-
+        let sub_id = Client::assign_subscription_id();
         let subscribe = ClientMessage::Subscribe {
             packet_id,
             topic_name: topic.to_string(),
             properties: SubscribeProperties::new(
-                1,
+                sub_id,
                 vec![("propiedad".to_string(), "valor".to_string())],
                 vec![0, 1, 2, 3],
             ),
@@ -174,8 +176,17 @@ impl Client {
         }
     }
 
+    fn assign_subscription_id() -> u32 {
+        let mut rng = rand::thread_rng();
+
+        let sub_id: u32 = rng.gen();
+
+        sub_id
+    }
+
     pub fn unsubscribe(
         topic: &str,
+        sub_id: u32,
         mut stream: TcpStream,
         pending_messages: Vec<u16>,
     ) -> Result<u16, ClientError> {
@@ -300,13 +311,19 @@ impl Client {
                         }
                     } else if line.starts_with("unsubscribe:") {
                         let (_, post_colon) = line.split_at(12); // "unsubscribe:" is 12 characters
-                        let topic = post_colon.trim(); // remove leading/trailing whitespace
-                        println!("Desubscribiendome del topic: {}", topic);
+                        
+                        // me quedo con el topic y luego viene el subs id "unsubscribe:topic sub_id"
+                        let topic = post_colon.split_whitespace().next().unwrap();
+                        let sub_id = post_colon.split_whitespace().last().unwrap();
+                        let sub_id = sub_id.parse::<u32>().unwrap();
+                        
+                        println!("Desubscribiendome del topic: {} de sub_id: {}", topic, sub_id);
 
                         match stream_clone_five.try_clone() {
                             Ok(stream_clone) => {
                                 if let Ok(packet_id) = Client::unsubscribe(
                                     topic,
+                                    sub_id,
                                     stream_clone,
                                     pending_messages_clone_three.clone(),
                                 ) {

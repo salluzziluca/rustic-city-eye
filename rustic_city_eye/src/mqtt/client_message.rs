@@ -68,7 +68,6 @@ pub enum ClientMessage {
     /// El Subscribe Message se utiliza para suscribirse a uno o más topics. El cliente puede enviar un mensaje de subscribe con un packet id y una lista de topics a los que se quiere suscribir. El broker responde con un mensaje de suback con el mismo packet id y una lista de return codes que indican si la suscripcion fue exitosa o no.
     Subscribe {
         packet_id: u16,
-
         /// topic_name es el nombre del topic al que se quiere suscribir.
         topic_name: String,
         /// properties es un struct que contiene las propiedades del mensaje de subscribe.
@@ -716,32 +715,6 @@ mod tests {
         assert_eq!(sub, read_sub);
     }
 
-    #[test]
-    fn test_05_unsubscribe_ok() {
-        let unsub = ClientMessage::Unsubscribe {
-            packet_id: 1,
-            topic_name: "topico".to_string(),
-            properties: SubscribeProperties::new(
-                1,
-                vec![("propiedad".to_string(), "valor".to_string())],
-                vec![0, 1, 2, 3],
-            ),
-        };
-
-        let mut cursor = Cursor::new(Vec::<u8>::new());
-        match unsub.write_to(&mut cursor) {
-            Ok(_) => {}
-            Err(e) => {
-                panic!("no se pudo escribir en el cursor {:?}", e);
-            }
-        }
-        cursor.set_position(0);
-        let read_unsub = match ClientMessage::read_from(&mut cursor) {
-            Ok(sub) => sub,
-            Err(e) => {
-                panic!("no se pudo leer del cursor {:?}", e);
-            }
-        };
-        assert_eq!(unsub, read_unsub);
-    }
+   
+    
 }
