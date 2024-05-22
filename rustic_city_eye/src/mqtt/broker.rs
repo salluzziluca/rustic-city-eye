@@ -11,7 +11,7 @@ use crate::mqtt::{
     topic::Topic,
 };
 
-use super::{broker_config::BrokerConfig, reason_code};
+use super::broker_config::BrokerConfig;
 
 static SERVER_ARGS: usize = 2;
 
@@ -133,11 +133,11 @@ impl Broker {
                         dup_flag,
                         properties,
                     };
-                    Broker::save_packet(packets.clone(), msg, packet_id);
+                    Broker::save_packet(packets.clone(), msg.clone(), packet_id);
 
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-                    let reason_code = Broker::handle_publish(payload, topics.clone(), topic_name)?;
+                    let reason_code = Broker::handle_publish(msg, topics.clone(), topic_name)?;
 
                     if qos == 1 {
                         let puback = BrokerMessage::Puback {
@@ -172,7 +172,12 @@ impl Broker {
                         Err(_) => return Err(ProtocolError::StreamError),
                     };
 
-                    let reason_code = Broker::handle_subscribe( stream_for_topic, topics.clone(), topic_name, subs.clone())?;
+                    let reason_code = Broker::handle_subscribe(
+                        stream_for_topic,
+                        topics.clone(),
+                        topic_name,
+                        subs.clone(),
+                    )?;
                     match reason_code {
                         0 => {
                             println!("Enviando un Suback");
@@ -231,7 +236,7 @@ impl Broker {
         topic_name: String,
         subs: Vec<u32>,
     ) -> Result<u8, ProtocolError> {
-        let reason_code ;
+        let reason_code;
         if let Some(topic) = topics.get_mut(&topic_name) {
             let sub_id = Broker::assign_subscription_id(subs);
             topic.add_subscriber(stream, sub_id)?;
@@ -244,12 +249,12 @@ impl Broker {
     }
 
     fn handle_publish(
-        payload: String,
+        message: ClientMessage,
         mut topics: HashMap<String, Topic>,
         topic_name: String,
     ) -> Result<u8, ProtocolError> {
         if let Some(topic) = topics.get_mut(&topic_name) {
-            match topic.deliver_message(payload) {
+            match topic.deliver_message(message) {
                 Ok(reason_code) => return Ok(reason_code),
                 Err(_) => return Err(ProtocolError::PublishError),
             };
@@ -301,14 +306,10 @@ impl Broker {
     }
 }
 
-
 // tests
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
-    fn test_subscription(){
-        
-    }
+    fn test_subscription() {}
 }

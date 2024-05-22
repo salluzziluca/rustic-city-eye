@@ -321,7 +321,7 @@ impl ClientMessage {
 
                 //Properties
                 properties.write_properties(writer)?;
-            },
+            }
             ClientMessage::Subscribe {
                 packet_id,
                 topic_name,
@@ -333,7 +333,7 @@ impl ClientMessage {
 
                 //Properties
                 properties.write_properties(writer)?;
-            },
+            }
             ClientMessage::Unsubscribe {
                 packet_id,
                 topic_name,
@@ -345,7 +345,7 @@ impl ClientMessage {
 
                 //Properties
                 properties.write_properties(writer)?;
-            },
+            }
         }
 
         Ok(())
@@ -465,7 +465,7 @@ impl ClientMessage {
                 );
                 let packet_id = read_u16(stream)?;
                 let topic_name = read_string(stream)?;
-                properties.read_properties(stream)?;
+                PublishProperties::read_from(stream)?;
                 let message = read_string(stream)?;
                 Ok(ClientMessage::Publish {
                     packet_id,
