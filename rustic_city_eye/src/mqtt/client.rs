@@ -336,6 +336,33 @@ impl Client {
                         let (_, post_colon) = line.split_at(12); // "unsubscribe:" is 12 characters
                         let topic = post_colon.trim(); // remove leading/trailing whitespace
                         
+                        println!("Desubscribiendome del topic: {}", topic);
+
+                        if !subscriptions_clone.lock().unwrap().contains(&topic.to_string()){
+                            println!("No estoy subscrito a este topic");
+                        } else {
+                            match stream_clone_five.try_clone() {
+                                Ok(stream_clone) => {
+                                    if let Ok(packet_id) = Client::unsubscribe(
+                                        topic,
+                                        stream_clone,
+                                        pending_messages_clone_three.clone(),
+                                    ) {
+                                        match sender.send(packet_id) {
+                                            Ok(_) => continue,
+                                            Err(_) => {
+                                                println!(
+                                                    "Error al enviar el packet_id del unsuback al receiver"
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(_) => {
+                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                                }
+                            }
+                        }
                        
                     } else {
                         println!("Comando no reconocido: {}", line);
@@ -410,7 +437,7 @@ impl Client {
                                         && packet_id_bytes[1] == packet_id_lsb
                                     {
                                         println!(
-                                            "unsuback con id {} {} recibido",
+                                            "Unsuback con id {} {} recibido",
                                             packet_id_msb, packet_id_lsb
                                         );
                                     }

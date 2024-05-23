@@ -44,17 +44,17 @@ impl Topic {
         reason_code::SUCCESS_HEX
     }
 
-    // pub fn remove_subscriber(&mut self, stream: TcpStream) -> Result<(), ProtocolError> {
-    //     let mut lock = match self.subscribers.write() {
-    //         Ok(guard) => guard,
-    //         Err(_) => return Err(ProtocolError::LockError)
-    //     };
+    pub fn remove_subscriber(&mut self, sub_id: u32) -> u8 {
+        let mut lock = match self.subscribers.write() {
+            Ok(guard) => guard,
+            Err(_) => return reason_code::UNSPECIFIED_ERROR_HEX,
+        };
 
-    //     //let sub_index = lock.iter().position(|&r| r == stream).unwrap();
-    //     //println!("Encontre el sub en la pos {}", sub_index);
-
-    //     Ok(())
-    // }
+        match lock.remove(&sub_id) {
+            Some(_) => reason_code::SUCCESS_HEX,
+            None => reason_code::NO_MATCHING_SUBSCRIBERS_HEX,
+        }
+    }
 
     pub fn deliver_message(&self, payload: String) -> Result<u8, Error> {
         let lock = self.subscribers.read().unwrap();

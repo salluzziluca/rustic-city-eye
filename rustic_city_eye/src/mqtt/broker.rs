@@ -7,10 +7,10 @@ use std::{
 };
 
 use crate::mqtt::{
-    broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError, reason_code::{SUB_ID_DUP_HEX, UNSPECIFIED_ERROR_HEX}, topic::Topic
+    broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError, reason_code::{self, SUB_ID_DUP_HEX, UNSPECIFIED_ERROR_HEX}, topic::Topic
 };
 
-use super::{broker_config::BrokerConfig, reason_code::{ReasonCode, SUCCESS_HEX, TOPIC_NAME_INVALID_HEX}};
+use super::{broker_config::BrokerConfig, reason_code::{ReasonCode, SUCCESS_HEX, TOPIC_NAME_INVALID_HEX}, topic};
 
 static SERVER_ARGS: usize = 2;
 
@@ -201,12 +201,19 @@ impl Broker {
                 }
                 ClientMessage::Unsubscribe {
                     packet_id,
-                    topic_name: _,
-                    properties: _,
+                    topic_name,
+                    properties,
                 } => {
                     println!("Recibí un Unsubscribe");
 
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
+
+                    let stream_for_topic = match stream.try_clone() {
+                        Ok(stream) => stream,
+                        Err(_) => return Err(ProtocolError::StreamError),
+                    };
+
+                    let reason_code = Broker::handle_unsubscribe(stream_for_topic, topics.clone(), topic_name, properties.sub_id.clone())?;
 
                     let unsuback = BrokerMessage::Unsuback {
                         packet_id_msb: packet_id_bytes[0],
@@ -266,6 +273,40 @@ impl Broker {
         }
 
         Ok(0x80_u8) //Unspecified Error reason code
+    }
+
+    fn handle_unsubscribe(
+        stream: TcpStream,
+        mut topics: HashMap<String, Topic>,
+        topic_name: String,
+        sub_id: u32,
+    ) -> Result<u8, ProtocolError> {
+        let mut reason_code;
+        if !topics.contains_key(&topic_name) {
+            reason_code = TOPIC_NAME_INVALID_HEX;
+        }
+
+        if let Some(topic) = topics.get_mut(&topic_name) {
+            match topic.remove_subscriber(sub_id) {
+                0 => {
+                    println!("Subscripcion exitosa");
+                    reason_code = SUCCESS_HEX;
+                }
+                0x92 => {
+                    println!("SubId duplicado");
+                    reason_code = SUB_ID_DUP_HEX;
+                }
+                _ => {
+                    println!("Error no especificado");
+                    reason_code = UNSPECIFIED_ERROR_HEX;
+                }
+            }
+            
+        } else {
+            reason_code = UNSPECIFIED_ERROR_HEX;
+        }
+
+        Ok(reason_code)
     }
 
     ///Asigna un id que no este dentro del vector de subs y lo guarda dentro de este.
