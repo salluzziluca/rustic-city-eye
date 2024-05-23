@@ -9,16 +9,24 @@ use gtk::{Application, Box, Button, Entry, Label, Orientation};
 use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
 use rustic_city_eye::mqtt::protocol_error::ProtocolError;
 use rustic_city_eye::surveilling::location::Location;
+use webkit2gtk::{WebView, WebViewExt};
 
 fn main() -> Result<(), ProtocolError> {
     let app = Application::builder()
         .application_id("com.example.RusticCityEye")
         .build();
 
+    // if gtk::init_with_args(std::env::args().collect(), &[]) {
+    //     println!("GTK initialization succeeded with WebKitGTK backend.");
+    // } else {
+    //     println!("GTK initialization failed.");
+    //     return ProtocolError::ConectionError;
+    // }
+
     app.connect_activate(|app| {
             let home_window = Window::new(WindowType::Toplevel);
             home_window.set_title("Rustic City Eye");
-            home_window.set_default_size(1000, 500);
+            home_window.set_default_size(2000, 1500);
 
             let vbox = Box::new(Orientation::Vertical, 5);
 
@@ -67,6 +75,16 @@ fn main() -> Result<(), ProtocolError> {
                             let (tx, rx) = mpsc::channel();
                             let _ = monitoring_app.run_client(rx);
                             //TODO: Aca deberiamos mostrar el mapa!!!
+                            let webview = WebView::new();
+
+                            // Carga el mapa de OpenStreetMap
+                            webview.load_uri("https://a.tile.openstreetmap.org/13/4308/2702.png");
+                            webview.set_size_request(800, 600);
+                            
+                            // Añade el WebView a la ventana
+                            elements_container.pack_start(&webview, false, false, 0);
+
+
                             let message = Entry::new();
                             message.set_placeholder_text(Some("Send message: "));
                             let send_btn = Button::with_label("Send");
