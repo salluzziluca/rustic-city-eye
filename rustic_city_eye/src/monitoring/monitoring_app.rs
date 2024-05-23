@@ -1,7 +1,7 @@
 //! Se conecta mediante TCP a la dirección asignada por argv.
 //! Lee lineas desde stdin y las manda mediante el socket.
 
-//use crate::camera_system::camera_system::CameraSystem;
+use crate::surveilling::camera_system::CameraSystem;
 use crate::mqtt::client::Client;
 use crate::mqtt::connect_properties;
 use crate::mqtt::protocol_error::ProtocolError;
@@ -11,12 +11,12 @@ use std::{
     io::{stdin, BufRead, Error, ErrorKind},
     sync::mpsc,
 };
-// static CLIENT_ARGS: usize = 3;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct MonitoringApp {
     monitoring_app_client: Client,
-    // camera_system: CameraSystem,
+    camera_system: CameraSystem,
 }
 
 #[allow(dead_code)]
@@ -53,10 +53,16 @@ impl MonitoringApp {
         // }
 
         let address = args[0].to_string() + ":" + &args[1].to_string();
-        //let camera_system = CameraSystem::new(args.clone())?;
+        let mut camera_system_args = Vec::new();
+        camera_system_args.push(args[0].clone());
+        camera_system_args.push(args[1].clone());
+        camera_system_args.push("camera_system".to_string());
+        camera_system_args.push("CamareandoCamaritas123".to_string());
+        
+        let camera_system = CameraSystem::new(camera_system_args)?;
 
         let monitoring_app = MonitoringApp {
-            // camera_system,
+            camera_system,
             monitoring_app_client: match Client::new(
                 address,
                 will_properties,
@@ -76,7 +82,6 @@ impl MonitoringApp {
                 Err(err) => return Err(err),
             },
         };
-        println!("{:?}", monitoring_app);
 
         Ok(monitoring_app)
     }

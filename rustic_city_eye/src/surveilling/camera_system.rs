@@ -2,7 +2,8 @@ use crate::{
     mqtt::{client::Client, connect_properties, protocol_error::ProtocolError, will_properties},
     surveilling::camera::Camera,
 };
-static CLIENT_ARGS: usize = 3;
+// static CLIENT_ARGS: usize = 3;
+#[derive(Debug)]
 #[allow(dead_code)]
 pub struct CameraSystem {
     // args: Vec<String>,
@@ -13,13 +14,13 @@ pub struct CameraSystem {
 impl CameraSystem {
     pub fn new(args: Vec<String>) -> Result<CameraSystem, ProtocolError> {
         let cameras = Vec::new();
-        if args.len() != CLIENT_ARGS {
-            let app_name = &args[0];
-            println!("Usage:\n{:?} <host> <puerto>", app_name);
-            return Err(ProtocolError::InvalidNumberOfArguments);
-        }
+        // if args.len() != CLIENT_ARGS {
+        //     let app_name = &args[0];
+        //     println!("Usage:\n{:?} <host> <puerto>", app_name);
+        //     return Err(ProtocolError::InvalidNumberOfArguments);
+        // }
 
-        let address = args[1].clone() + ":" + &args[2];
+        let address = args[0].clone() + ":" + &args[1];
         let will_properties = will_properties::WillProperties::new(
             1,
             1,
@@ -50,8 +51,8 @@ impl CameraSystem {
             true,
             1,
             true,
-            "prueba".to_string(),
-            "".to_string(),
+            args[2].clone(),
+            args[3].clone(),
             35,
             "kvtr33".to_string(),
             "camera_system".to_string(),
