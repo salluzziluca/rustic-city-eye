@@ -1,6 +1,6 @@
 use crate::{
     mqtt::{client::Client, connect_properties, protocol_error::ProtocolError, will_properties},
-    surveilling::{camera::Camera, location::Location}
+    surveilling::{camera::Camera, location::Location},
 };
 // static CLIENT_ARGS: usize = 3;
 #[derive(Debug)]

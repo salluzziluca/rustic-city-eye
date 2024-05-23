@@ -3,7 +3,6 @@ pub mod drone_system;
 #[doc = include_str!("doc/informe.md")]
 #[doc = include_str!("doc/marco_teorico.md")]
 
-
 pub mod mqtt {
     pub mod broker_message;
     pub mod client;
@@ -30,7 +29,7 @@ pub mod monitoring {
 }
 
 pub mod surveilling {
-    pub mod location;
     pub mod camera;
-    pub mod camera_system;   
+    pub mod camera_system;
+    pub mod location;
 }

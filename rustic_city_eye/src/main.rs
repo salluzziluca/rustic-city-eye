@@ -16,13 +16,6 @@ fn main() -> Result<(), ProtocolError> {
         .application_id("com.example.RusticCityEye")
         .build();
 
-    // if gtk::init_with_args(std::env::args().collect(), &[]) {
-    //     println!("GTK initialization succeeded with WebKitGTK backend.");
-    // } else {
-    //     println!("GTK initialization failed.");
-    //     return ProtocolError::ConectionError;
-    // }
-
     app.connect_activate(|app| {
             let home_window = Window::new(WindowType::Toplevel);
             home_window.set_title("Rustic City Eye");
@@ -80,7 +73,6 @@ fn main() -> Result<(), ProtocolError> {
                             // Carga el mapa de OpenStreetMap
                             webview.load_uri("https://a.tile.openstreetmap.org/13/4308/2702.png");
                             webview.set_size_request(800, 600);
-                            
                             // Añade el WebView a la ventana
                             elements_container.pack_start(&webview, false, false, 0);
 

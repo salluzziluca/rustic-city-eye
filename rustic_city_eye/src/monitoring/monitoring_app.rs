@@ -1,11 +1,11 @@
 //! Se conecta mediante TCP a la dirección asignada por argv.
 //! Lee lineas desde stdin y las manda mediante el socket.
 
-use crate::surveilling::{camera_system::CameraSystem, location::Location};
 use crate::mqtt::client::Client;
 use crate::mqtt::connect_properties;
 use crate::mqtt::protocol_error::ProtocolError;
 use crate::mqtt::will_properties;
+use crate::surveilling::{camera_system::CameraSystem, location::Location};
 
 use std::{
     io::{stdin, BufRead, Error, ErrorKind},
@@ -53,12 +53,13 @@ impl MonitoringApp {
         // }
 
         let address = args[0].to_string() + ":" + &args[1].to_string();
-        let mut camera_system_args = Vec::new();
-        camera_system_args.push(args[0].clone());
-        camera_system_args.push(args[1].clone());
-        camera_system_args.push("camera_system".to_string());
-        camera_system_args.push("CamareandoCamaritas123".to_string());
-        
+        let camera_system_args = vec![
+            args[0].clone(),
+            args[1].clone(),
+            "camera_system".to_string(),
+            "CamareandoCamaritas123".to_string(),
+        ];
+
         let camera_system = CameraSystem::new(camera_system_args)?;
 
         let monitoring_app = MonitoringApp {
