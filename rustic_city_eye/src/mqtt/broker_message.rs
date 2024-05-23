@@ -216,7 +216,6 @@ mod tests {
 
     use super::*;
 
-   
     #[test]
     fn test_02_analizing_packet_ids_ok() {
         let suback = BrokerMessage::Suback {

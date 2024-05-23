@@ -9,7 +9,6 @@ use crate::mqtt::broker_message::BrokerMessage;
 
 use super::protocol_error::ProtocolError;
 
-
 #[derive(Debug, Clone)]
 pub struct Topic {
     subscribers: Arc<RwLock<HashMap<u32, TcpStream>>>,
@@ -29,7 +28,6 @@ impl Topic {
     }
 
     pub fn add_subscriber(&mut self, stream: TcpStream, sub_id: u32) -> Result<(), ProtocolError> {
-
         let mut lock = match self.subscribers.write() {
             Ok(guard) => guard,
             Err(_) => return Err(ProtocolError::LockError),

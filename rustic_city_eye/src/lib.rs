@@ -12,18 +12,17 @@ pub mod mqtt {
     pub mod protocol_error;
     pub mod publish_properties;
     pub mod reader;
+    pub mod reason_code;
     pub mod subscribe_properties;
     pub mod topic;
     pub mod will_properties;
     pub mod writer;
-    pub mod reason_code;
 
     pub mod broker;
     pub mod broker_config;
 
     pub mod error;
 }
-
 
 pub mod monitoring {
     pub mod monitoring_app;

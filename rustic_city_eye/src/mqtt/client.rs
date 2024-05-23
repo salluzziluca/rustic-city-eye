@@ -16,6 +16,7 @@ use crate::mqtt::{
     will_properties::WillProperties,
 };
 
+#[derive(Debug)]
 pub struct Client {
     stream: TcpStream,
 
@@ -222,7 +223,6 @@ impl Client {
         let pending_messages_clone_three = self.pending_messages.clone();
         let pending_messages_clone_four = self.pending_messages.clone();
 
-
         let stream_clone_one = match self.stream.try_clone() {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
@@ -333,7 +333,7 @@ impl Client {
 
         let _read_messages = std::thread::spawn(move || {
             let mut pending_messages = Vec::new();
-            
+
             loop {
                 let pending_messages_read = pending_messages_clone_four.clone();
                 println!("pending: {:?}", pending_messages_read);
@@ -371,8 +371,10 @@ impl Client {
                             } => {
                                 for pending_message in &pending_messages {
                                     let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
-                                    println!("subscribe scon id {} {} recibido",
-                                    packet_id_msb, packet_id_lsb);
+                                    println!(
+                                        "subscribe scon id {} {} recibido",
+                                        packet_id_msb, packet_id_lsb
+                                    );
                                     if packet_id_bytes[0] == packet_id_msb
                                         && packet_id_bytes[1] == packet_id_lsb
                                     {

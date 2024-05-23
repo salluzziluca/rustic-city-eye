@@ -1,6 +1,9 @@
+use std::io::{Error, ErrorKind};
+use std::sync::mpsc;
+
 use gtk::glib::clone;
 use gtk::{glib, prelude::*, Window, WindowType};
-use gtk::{Application, Label, Box, Entry, Orientation, Button};
+use gtk::{Application, Box, Button, Entry, Label, Orientation};
 use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
 use rustic_city_eye::mqtt::protocol_error::ProtocolError;
 
@@ -9,19 +12,19 @@ fn main() -> Result<(), ProtocolError> {
         .application_id("com.example.RusticCityEye")
         .build();
 
-        app.connect_activate(|app| {
+    app.connect_activate(|app| {
             let home_window = Window::new(WindowType::Toplevel);
             home_window.set_title("Rustic City Eye");
-            home_window.set_default_size(300, 200);
+            home_window.set_default_size(1000, 500);
 
             let vbox = Box::new(Orientation::Vertical, 5);
-    
+
             let button = Button::with_label("Conectarse a un servidor");
             vbox.pack_start(&button, false, false, 0);
-    
+
             let elements_container = Box::new(Orientation::Vertical, 5);
             vbox.pack_start(&elements_container, true, true, 0);
-    
+
             button.connect_clicked(clone!(@weak button, @weak elements_container => move |_| {
                 button.hide();
 
@@ -44,31 +47,52 @@ fn main() -> Result<(), ProtocolError> {
                 elements_container.pack_start(&password, false, false, 0);
                 elements_container.pack_start(&connect_btn, false, false, 0);
 
-                connect_btn.connect_clicked(clone!(@weak host, @weak port, @weak user, @weak password => move |_| {
-                    let h = host.text().to_string();
-                    let po = port.text().to_string();
-                    let u = user.text();
-                    let p = password.text();
+                connect_btn.connect_clicked(clone!(@weak host, @weak port, @weak user, @weak password, @weak elements_container => move |_| {
+                    let host = host.text().to_string();
+                    let port = port.text().to_string();
+                    let username = user.text().to_string();
+                    let password = password.text().to_string();
                     let mut args = Vec::new();
-                    args.push(h);
-                    args.push(po);
-                    println!("user {} password {}", u, p);
+                    args.push(host);
+                    args.push(port);
+                    args.push(username);
+                    args.push(password);
 
-                    let _ = match MonitoringApp::new(args) {
-                        Ok(mut monitoring_app) => monitoring_app.app_run(),
+                    match MonitoringApp::new(args) {
+                        Ok(mut monitoring_app) => {
+                            elements_container.hide();
+                            let (tx, rx) = mpsc::channel();
+                            let _ = monitoring_app.run_client(rx);
+                            //TODO: Aca deberiamos mostrar el mapa!!!
+                            let message = Entry::new();
+                            message.set_placeholder_text(Some("Send message: "));
+                            let send_btn = Button::with_label("Send");
+                            elements_container.pack_start(&message, false, false, 0);
+                            elements_container.pack_start(&send_btn, false, false, 0);
+                            elements_container.show_all();
+
+                            send_btn.connect_clicked(clone!(@weak message => move |_| {
+                                let msg = message.text().to_string();
+                                message.set_text("");
+
+                                let _ = tx.send(msg).map_err(|err| {
+                                    Error::new(ErrorKind::Other, format!("Failed to send line: {}", err))
+                                });
+                            }));
+                        },
                         Err(_) => todo!(),
-                    };
+                    }
                 }));
 
                 elements_container.show_all();
             }));
-    
+
             // Agrega la caja a la ventana.
             home_window.add(&vbox);
-    
+
             // Muestra todos los widgets en la ventana.
             home_window.show_all();
-    
+
             // Configura la aplicación principal.
             home_window.set_application(Some(app));
         });

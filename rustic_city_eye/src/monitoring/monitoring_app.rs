@@ -13,6 +13,7 @@ use std::{
 };
 // static CLIENT_ARGS: usize = 3;
 
+#[derive(Debug)]
 pub struct MonitoringApp {
     monitoring_app_client: Client,
     // camera_system: CameraSystem,
@@ -51,7 +52,7 @@ impl MonitoringApp {
         //     return Err(ProtocolError::InvalidNumberOfArguments);
         // }
 
-        let address = args[0].clone() + ":" + &args[1];
+        let address = args[0].to_string() + ":" + &args[1].to_string();
         //let camera_system = CameraSystem::new(args.clone())?;
 
         let monitoring_app = MonitoringApp {
@@ -64,8 +65,8 @@ impl MonitoringApp {
                 true,
                 1,
                 true,
-                "prueba".to_string(),
-                "".to_string(),
+                args[2].clone(),
+                args[3].clone(),
                 35,
                 "kvtr33".to_string(),
                 "camera_system".to_string(),
@@ -75,6 +76,8 @@ impl MonitoringApp {
                 Err(err) => return Err(err),
             },
         };
+        println!("{:?}", monitoring_app);
+
         Ok(monitoring_app)
     }
 
@@ -96,6 +99,11 @@ impl MonitoringApp {
             }
         }
 
+        Ok(())
+    }
+
+    pub fn run_client(&mut self, rx: mpsc::Receiver<String>) -> Result<(), ProtocolError> {
+        self.monitoring_app_client.client_run(rx)?;
         Ok(())
     }
 

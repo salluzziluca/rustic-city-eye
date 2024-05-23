@@ -172,7 +172,12 @@ impl Broker {
                         Err(_) => return Err(ProtocolError::StreamError),
                     };
 
-                    let reason_code = Broker::handle_subscribe( stream_for_topic, topics.clone(), topic_name, subs.clone())?;
+                    let reason_code = Broker::handle_subscribe(
+                        stream_for_topic,
+                        topics.clone(),
+                        topic_name,
+                        subs.clone(),
+                    )?;
                     match reason_code {
                         0 => {
                             println!("Enviando un Suback");
@@ -231,7 +236,7 @@ impl Broker {
         topic_name: String,
         subs: Vec<u32>,
     ) -> Result<u8, ProtocolError> {
-        let reason_code ;
+        let reason_code;
         if let Some(topic) = topics.get_mut(&topic_name) {
             let sub_id = Broker::assign_subscription_id(subs);
             topic.add_subscriber(stream, sub_id)?;
@@ -301,7 +306,6 @@ impl Broker {
     }
 }
 
-
 // // tests
 // #[cfg(test)]
 // mod tests {
@@ -309,6 +313,6 @@ impl Broker {
 
 //     #[test]
 //     fn test_subscription(){
-        
+
 //     }
 // }

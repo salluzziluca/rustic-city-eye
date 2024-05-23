@@ -321,7 +321,7 @@ impl ClientMessage {
 
                 //Properties
                 properties.write_properties(writer)?;
-            },
+            }
             ClientMessage::Subscribe {
                 packet_id,
                 topic_name,
@@ -333,7 +333,7 @@ impl ClientMessage {
 
                 //Properties
                 properties.write_properties(writer)?;
-            },
+            }
             ClientMessage::Unsubscribe {
                 packet_id,
                 topic_name,
@@ -345,7 +345,7 @@ impl ClientMessage {
 
                 //Properties
                 properties.write_properties(writer)?;
-            },
+            }
         }
 
         Ok(())
