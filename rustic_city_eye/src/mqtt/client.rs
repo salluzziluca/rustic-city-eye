@@ -1,8 +1,7 @@
 use rand::Rng;
 
 use std::{
-    net::TcpStream,
-    sync::mpsc::{self},
+    collections::HashMap, net::TcpStream, sync::{mpsc, Arc, Mutex}
 };
 
 use crate::mqtt::{
@@ -17,12 +16,16 @@ use crate::mqtt::{
 };
 
 pub struct Client {
+    // stream es el socket que se conecta al broker
     stream: TcpStream,
     // las subscriptions son un hashmap de topic y sub_id
-    subscriptions: Vec<(String, u32)>,
+    pub subscriptions: Arc<Mutex<Vec<String>>>,
     pending_messages: Vec<u16>,
+    // user_id: u32,
 }
+
 impl Client {
+
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         address: String,
@@ -80,9 +83,11 @@ impl Client {
             println!("soy el client y no pude leer el mensaje");
         };
 
+        let user_id = Client::assign_user_id();
+
         Ok(Client {
             stream,
-            subscriptions: Vec::new(),
+            subscriptions: Arc::new(Mutex::new(Vec::new())),
             pending_messages: Vec::new(),
         })
     }
@@ -146,20 +151,20 @@ impl Client {
         }
     }
 
-    /// Suscribe al cliente a un topic
-    ///
-    /// Recibe el nombre del topic al que se quiere suscribir
-    /// Creará un mensaje de suscripción y lo enviará al broker
-    /// Esperará un mensaje de confirmación de suscripción
-    /// Si recibe un mensaje de confirmación, lo imprimirá
-    ///
     pub fn subscribe(
         topic: &str,
         mut stream: TcpStream,
+        subscriptions: Arc<Mutex<Vec<String>>>,
         pending_messages: Vec<u16>,
     ) -> Result<u16, ClientError> {
         let packet_id = Client::assign_packet_id(pending_messages);
         let sub_id = Client::assign_subscription_id();
+        let topic = topic.to_string();
+        
+        let subscriptions = subscriptions.clone();
+
+        subscriptions.lock().unwrap().push(topic.clone());
+      
         let subscribe = ClientMessage::Subscribe {
             packet_id,
             topic_name: topic.to_string(),
@@ -174,6 +179,8 @@ impl Client {
             Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
+
+        
     }
 
     fn assign_subscription_id() -> u32 {
@@ -184,9 +191,16 @@ impl Client {
         sub_id
     }
 
+    fn assign_user_id() -> u32 {
+        //let mut rng = rand::thread_rng();
+
+        //let user_id: u32 = rng.gen();
+
+        1111
+    }
+
     pub fn unsubscribe(
         topic: &str,
-        sub_id: u32,
         mut stream: TcpStream,
         pending_messages: Vec<u16>,
     ) -> Result<u16, ClientError> {
@@ -251,9 +265,11 @@ impl Client {
             Err(_) => return Err(ProtocolError::StreamError),
         };
 
+        let subscriptions_clone =  Arc::clone(&self.subscriptions);
+
         let _write_messages = std::thread::spawn(move || {
             let mut pending_messages = pending_messages_clone_one.clone();
-
+           
             loop {
                 if let Ok(line) = rx.recv() {
                     if line.starts_with("publish:") {
@@ -286,61 +302,41 @@ impl Client {
                     } else if line.starts_with("subscribe:") {
                         let (_, post_colon) = line.split_at(10); // "subscribe:" is 10 characters
                         let topic = post_colon.trim(); // remove leading/trailing whitespace
+                       
                         println!("Subscribiendome al topic: {}", topic);
-
-                        match stream_clone_two.try_clone() {
-                            Ok(stream_clone) => {
-                                if let Ok(packet_id) = Client::subscribe(
-                                    topic,
-                                    stream_clone,
-                                    pending_messages_clone_two.clone(),
-                                ) {
-                                    match sender.send(packet_id) {
-                                        Ok(_) => continue,
-                                        Err(_) => {
-                                            println!(
-                                                "Error al enviar el packet_id del suback al receiver"
-                                            )
+                        
+                        if subscriptions_clone.lock().unwrap().contains(&topic.to_string()){
+                            println!("Ya estoy subscrito a este topic");
+                        } else {
+                            match stream_clone_two.try_clone() {
+                                Ok(stream_clone) => {
+                                    if let Ok(packet_id) = Client::subscribe(
+                                        topic,
+                                        stream_clone,
+                                        subscriptions_clone.clone(),
+                                        pending_messages_clone_two.clone(),
+                                    ) {
+                                        match sender.send(packet_id) {
+                                            Ok(_) => continue,
+                                            Err(_) => {
+                                                println!(
+                                                    "Error al enviar el packet_id del suback al receiver"
+                                                )
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            Err(_) => {
-                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                                Err(_) => {
+                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                                }
                             }
                         }
+                        println!("Subscriptions: {:?}", subscriptions_clone);
                     } else if line.starts_with("unsubscribe:") {
                         let (_, post_colon) = line.split_at(12); // "unsubscribe:" is 12 characters
+                        let topic = post_colon.trim(); // remove leading/trailing whitespace
                         
-                        // me quedo con el topic y luego viene el subs id "unsubscribe:topic sub_id"
-                        let topic = post_colon.split_whitespace().next().unwrap();
-                        let sub_id = post_colon.split_whitespace().last().unwrap();
-                        let sub_id = sub_id.parse::<u32>().unwrap();
-                        
-                        println!("Desubscribiendome del topic: {} de sub_id: {}", topic, sub_id);
-
-                        match stream_clone_five.try_clone() {
-                            Ok(stream_clone) => {
-                                if let Ok(packet_id) = Client::unsubscribe(
-                                    topic,
-                                    sub_id,
-                                    stream_clone,
-                                    pending_messages_clone_three.clone(),
-                                ) {
-                                    match sender.send(packet_id) {
-                                        Ok(_) => continue,
-                                        Err(_) => {
-                                            println!(
-                                                "Error al enviar el packet_id del unsuback al receiver"
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            Err(_) => {
-                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
-                            }
-                        }
+                       
                     } else {
                         println!("Comando no reconocido: {}", line);
                     }

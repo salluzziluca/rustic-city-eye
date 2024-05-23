@@ -5,9 +5,7 @@ use std::net::TcpStream;
 use std::sync::{Arc, RwLock};
 
 use crate::mqtt::broker_message::BrokerMessage;
-use crate::mqtt::reason_code::ReasonCode;
 
-use super::protocol_error::ProtocolError;
 use super::reason_code;
 
 

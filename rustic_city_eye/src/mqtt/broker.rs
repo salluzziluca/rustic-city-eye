@@ -7,11 +7,10 @@ use std::{
 };
 
 use crate::mqtt::{
-    broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError,
-    topic::Topic,
+    broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError, reason_code::{SUB_ID_DUP_HEX, UNSPECIFIED_ERROR_HEX}, topic::Topic
 };
 
-use super::broker_config::BrokerConfig;
+use super::{broker_config::BrokerConfig, reason_code::{ReasonCode, SUCCESS_HEX, TOPIC_NAME_INVALID_HEX}};
 
 static SERVER_ARGS: usize = 2;
 
@@ -227,25 +226,28 @@ impl Broker {
         topic_name: String,
         sub_id: u32,
     ) -> Result<u8, ProtocolError> {
-        let reason_code ;
+        let mut reason_code ;
+        if !topics.contains_key(&topic_name) {
+            reason_code = TOPIC_NAME_INVALID_HEX;
+        }
         if let Some(topic) = topics.get_mut(&topic_name) {
             match topic.add_subscriber(stream, sub_id) {
                 0 => {
                     println!("Subscripcion exitosa");
-                    return Ok(0);
+                    reason_code = SUCCESS_HEX;
                 }
                 0x92 => {
                     println!("SubId duplicado");
-                    return Ok(0x92);
+                    reason_code = SUB_ID_DUP_HEX;
                 }
                 _ => {
                     println!("Error no especificado");
-                    return Ok(0x80);
+                    reason_code = UNSPECIFIED_ERROR_HEX;
                 }
             }
             
         } else {
-            reason_code = 1;
+            reason_code = UNSPECIFIED_ERROR_HEX;
         }
 
         Ok(reason_code)

@@ -5,6 +5,7 @@ use super::{
     writer::{write_string, write_u8},
 };
 
+
 #[derive(Debug, PartialEq)]
 pub enum BrokerMessage {
     Connack {
@@ -153,7 +154,7 @@ impl BrokerMessage {
                     reason_code,
                 })
             }
-            0x90 => {
+            0x90 => { 
                 let packet_id_msb = read_u8(stream)?;
                 let packet_id_lsb = read_u8(stream)?;
                 let reason_code = read_u8(stream)?;
