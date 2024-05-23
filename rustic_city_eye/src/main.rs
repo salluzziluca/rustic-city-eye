@@ -1,40 +1,79 @@
-use gtk::{glib, prelude::*};
-use gtk::{Application, ApplicationWindow, Label, Box, Entry, Orientation, Button};
+use gtk::glib::clone;
+use gtk::{glib, prelude::*, Window, WindowType};
+use gtk::{Application, Label, Box, Entry, Orientation, Button};
+use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
+use rustic_city_eye::mqtt::protocol_error::ProtocolError;
 
-fn main() {
+fn main() -> Result<(), ProtocolError> {
     let app = Application::builder()
-        .application_id("org.example.HelloWorld")
+        .application_id("com.example.RusticCityEye")
         .build();
 
-    app.connect_activate(|app| {
-        // We create the main window.
-        let win = ApplicationWindow::builder()
-            .application(app)
-            .default_width(320)
-            .default_height(200)
-            .title("Rustic City Eye")
-            .build();
-        let vbox = Box::new(Orientation::Vertical, 5);
-        let label = Label::new(Some("Hello, GTK!"));
-        let entry = Entry::new();
-        let button = Button::with_label("Submit");
+        app.connect_activate(|app| {
+            let home_window = Window::new(WindowType::Toplevel);
+            home_window.set_title("Rustic City Eye");
+            home_window.set_default_size(300, 200);
 
-        // Connect the button's "clicked" signal to a callback function
-        button.connect_clicked(glib::clone!(@weak entry => move |_| {
-            // Get the text from the entry widget
-            let text = entry.text();
-            // Print the text to the console
-            println!("Entry text: {}", text);
-        }));
+            let vbox = Box::new(Orientation::Vertical, 5);
+    
+            let button = Button::with_label("Conectarse a un servidor");
+            vbox.pack_start(&button, false, false, 0);
+    
+            let elements_container = Box::new(Orientation::Vertical, 5);
+            vbox.pack_start(&elements_container, true, true, 0);
+    
+            button.connect_clicked(clone!(@weak button, @weak elements_container => move |_| {
+                button.hide();
 
-        // Add the label and entry to the box
-        vbox.pack_start(&label, false, false, 0);
-        vbox.pack_start(&entry, false, false, 0);
-        vbox.pack_start(&button, false, false, 0);
-        // Don't forget to make all widgets visible.
-        win.add(&vbox);
-        win.show_all();
-    });
+                let label = Label::new(Some("Nuevo elemento"));
+                let host = Entry::new();
+                host.set_placeholder_text(Some("Host: "));
+
+                let port = Entry::new();
+                port.set_placeholder_text(Some("Port: "));
+                let user = Entry::new();
+                user.set_placeholder_text(Some("User: "));
+                let password = Entry::new();
+                password.set_placeholder_text(Some("Password: "));
+
+                let connect_btn = Button::with_label("Conectarse");
+                elements_container.pack_start(&label, false, false, 0);
+                elements_container.pack_start(&host, false, false, 0);
+                elements_container.pack_start(&port, false, false, 0);
+                elements_container.pack_start(&user, false, false, 0);
+                elements_container.pack_start(&password, false, false, 0);
+                elements_container.pack_start(&connect_btn, false, false, 0);
+
+                connect_btn.connect_clicked(clone!(@weak host, @weak port, @weak user, @weak password => move |_| {
+                    let h = host.text().to_string();
+                    let po = port.text().to_string();
+                    let u = user.text();
+                    let p = password.text();
+                    let mut args = Vec::new();
+                    args.push(h);
+                    args.push(po);
+                    println!("user {} password {}", u, p);
+
+                    let _ = match MonitoringApp::new(args) {
+                        Ok(mut monitoring_app) => monitoring_app.app_run(),
+                        Err(_) => todo!(),
+                    };
+                }));
+
+                elements_container.show_all();
+            }));
+    
+            // Agrega la caja a la ventana.
+            home_window.add(&vbox);
+    
+            // Muestra todos los widgets en la ventana.
+            home_window.show_all();
+    
+            // Configura la aplicación principal.
+            home_window.set_application(Some(app));
+        });
 
     app.run();
+
+    Ok(())
 }
