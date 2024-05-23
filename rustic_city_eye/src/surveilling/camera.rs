@@ -1,16 +1,17 @@
+use crate::surveilling::location::Location;
+
+
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Camera {
+    location: Location
     //camera_client: Client,
 }
 
-impl Default for Camera {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Camera {
-    pub fn new() -> Camera {
-        Self {}
+    pub fn new(location: Location) -> Camera {
+        Self {
+            location
+        }
     }
 }

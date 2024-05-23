@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::io::{Error, ErrorKind};
+use std::rc::Rc;
 use std::sync::mpsc;
 
 use gtk::glib::clone;
@@ -6,6 +8,7 @@ use gtk::{glib, prelude::*, Window, WindowType};
 use gtk::{Application, Box, Button, Entry, Label, Orientation};
 use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
 use rustic_city_eye::mqtt::protocol_error::ProtocolError;
+use rustic_city_eye::surveilling::location::Location;
 
 fn main() -> Result<(), ProtocolError> {
     let app = Application::builder()
@@ -69,15 +72,40 @@ fn main() -> Result<(), ProtocolError> {
                             let send_btn = Button::with_label("Send");
                             elements_container.pack_start(&message, false, false, 0);
                             elements_container.pack_start(&send_btn, false, false, 0);
+
+                            let latitude = Entry::new();
+                            let longitude = Entry::new();
+
+                            latitude.set_placeholder_text(Some("Enter camera lat: "));
+                            longitude.set_placeholder_text(Some("Enter camera lat: "));
+                            let add_camera_btn = Button::with_label("Add camera");
+                            elements_container.pack_start(&latitude, false, false, 0);
+                            elements_container.pack_start(&longitude, false, false, 0);
+
+                            elements_container.pack_start(&add_camera_btn, false, false, 0);
+
                             elements_container.show_all();
 
+                            let tx_clone = tx.clone();
                             send_btn.connect_clicked(clone!(@weak message => move |_| {
                                 let msg = message.text().to_string();
                                 message.set_text("");
 
-                                let _ = tx.send(msg).map_err(|err| {
+                                let _ = tx_clone.send(msg).map_err(|err| {
                                     Error::new(ErrorKind::Other, format!("Failed to send line: {}", err))
                                 });
+                            }));
+
+                            let monitoring_app_ref = Rc::new(RefCell::new(monitoring_app));
+                            add_camera_btn.connect_clicked(clone!(@weak latitude, @weak longitude, @strong monitoring_app_ref => move |_| {
+                                let lat = latitude.text().to_string();
+                                latitude.set_text("");
+                                let long = longitude.text().to_string();
+                                longitude.set_text("");
+
+                                let camera_location = Location::new(lat, long);
+
+                                monitoring_app_ref.borrow_mut().add_camera(camera_location);
                             }));
                         },
                         Err(_) => todo!(),

@@ -1,7 +1,7 @@
 //! Se conecta mediante TCP a la dirección asignada por argv.
 //! Lee lineas desde stdin y las manda mediante el socket.
 
-use crate::surveilling::camera_system::CameraSystem;
+use crate::surveilling::{camera_system::CameraSystem, location::Location};
 use crate::mqtt::client::Client;
 use crate::mqtt::connect_properties;
 use crate::mqtt::protocol_error::ProtocolError;
@@ -112,9 +112,7 @@ impl MonitoringApp {
         Ok(())
     }
 
-    // pub fn add_camera (&mut self) -> Result<(), ProtocolError> {
-    //     self.camera_system.add_camera()?;
-
-    //     Ok(())
-    // }
+    pub fn add_camera(&mut self, location: Location) {
+        self.camera_system.add_camera(location);
+    }
 }

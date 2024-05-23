@@ -1,6 +1,6 @@
 use crate::{
     mqtt::{client::Client, connect_properties, protocol_error::ProtocolError, will_properties},
-    surveilling::camera::Camera,
+    surveilling::{camera::Camera, location::Location}
 };
 // static CLIENT_ARGS: usize = 3;
 #[derive(Debug)]
@@ -13,7 +13,6 @@ pub struct CameraSystem {
 
 impl CameraSystem {
     pub fn new(args: Vec<String>) -> Result<CameraSystem, ProtocolError> {
-        let cameras = Vec::new();
         // if args.len() != CLIENT_ARGS {
         //     let app_name = &args[0];
         //     println!("Usage:\n{:?} <host> <puerto>", app_name);
@@ -65,22 +64,13 @@ impl CameraSystem {
         Ok(CameraSystem {
             // args,
             camera_system_client,
-            cameras,
+            cameras: Vec::new(),
         })
     }
 
-    //pub fn app_run(&mut self, stream: Box<dyn Read + Send>) -> Result<(), Error> {
-    //     let _ = self.camera_system_client.client_run(Box::new(stream));
-    //     Ok(())
-    // }
-
-    pub fn add_camera(&mut self) -> Result<(), ProtocolError> {
-        //let camera = Camera::new(self.args.clone())?;
-        let camera = Camera::new();
-
+    pub fn add_camera(&mut self, location: Location) {
+        let camera = Camera::new(location);
         self.cameras.push(camera);
-
-        Ok(())
     }
 
     pub fn get_cameras(&self) -> &Vec<Camera> {
