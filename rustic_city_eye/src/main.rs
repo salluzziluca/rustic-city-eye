@@ -1,15 +1,20 @@
+extern crate gtk;
+
 use std::cell::RefCell;
 use std::io::{Error, ErrorKind};
 use std::rc::Rc;
 use std::sync::mpsc;
 
+// use gtk::cairo::ImageSurface;
 use gtk::glib::clone;
-use gtk::{glib, prelude::*, Window, WindowType};
+use gtk::prelude::*;
+use gtk::{glib, Window, WindowType};
 use gtk::{Application, Box, Button, Entry, Label, Orientation};
 use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
 use rustic_city_eye::mqtt::protocol_error::ProtocolError;
 use rustic_city_eye::surveilling::location::Location;
 use webkit2gtk::{WebView, WebViewExt};
+use webkit2gtk::gio;
 
 fn main() -> Result<(), ProtocolError> {
     let app = Application::builder()
@@ -69,12 +74,44 @@ fn main() -> Result<(), ProtocolError> {
                             let _ = monitoring_app.run_client(rx);
                             //TODO: Aca deberiamos mostrar el mapa!!!
                             let webview = WebView::new();
+                            elements_container.pack_start(&webview, true, true, 0);
 
-                            // Carga el mapa de OpenStreetMap
-                            webview.load_uri("https://a.tile.openstreetmap.org/13/4308/2702.png");
-                            webview.set_size_request(800, 600);
-                            // Añade el WebView a la ventana
-                            elements_container.pack_start(&webview, false, false, 0);
+                            let add_camera_btn = Button::with_label("Add camera");
+                            elements_container.pack_start(&add_camera_btn, false, false, 0);
+
+
+                            // Load Leaflet map
+                            webview.load_uri("https://leafletjs.com/examples/quick-start/index.html");
+                    
+                            // Connect click event handler to get coordinates
+                            let webview_clone = webview.clone();
+                            let monitoring_app_ref = Rc::new(RefCell::new(monitoring_app));
+                            
+                            webview.connect_button_press_event(clone!(@strong monitoring_app_ref => move |_, event| {
+                                if event.button() == 1 {
+                                    let x = event.position().0;
+                                    let y = event.position().1;
+                                    
+                                    // let monitoring_app_ref = Rc::new(RefCell::new(monitoring_app_ref));
+                                    add_camera_btn.connect_clicked(clone!(@strong y, @strong x, @strong monitoring_app_ref => move |_| {
+                                        let lat = y.to_string();
+                                        let long = x.to_string();
+                                        
+                                        let camera_location = Location::new(lat, long);
+
+                                        monitoring_app_ref.borrow_mut().add_camera(camera_location);
+                                    }));
+
+                                    webview_clone.run_javascript(
+                                        &format!("window.map.setView(window.map.containerPointToLatLng([{}, {}]), window.map.getZoom());", x, y),
+                                        None::<&gio::Cancellable>,
+                                        |_result| (),
+                                    );
+                                }
+                                false.into()
+                            }));
+
+
 
 
                             let message = Entry::new();
@@ -83,16 +120,16 @@ fn main() -> Result<(), ProtocolError> {
                             elements_container.pack_start(&message, false, false, 0);
                             elements_container.pack_start(&send_btn, false, false, 0);
 
-                            let latitude = Entry::new();
-                            let longitude = Entry::new();
+                            // let latitude = Entry::new();
+                            // let longitude = Entry::new();
 
-                            latitude.set_placeholder_text(Some("Enter camera lat: "));
-                            longitude.set_placeholder_text(Some("Enter camera lat: "));
-                            let add_camera_btn = Button::with_label("Add camera");
-                            elements_container.pack_start(&latitude, false, false, 0);
-                            elements_container.pack_start(&longitude, false, false, 0);
-
-                            elements_container.pack_start(&add_camera_btn, false, false, 0);
+                            // latitude.set_placeholder_text(Some("Enter camera lat: "));
+                            // longitude.set_placeholder_text(Some("Enter camera lat: "));
+                            // elements_container.pack_start(&latitude, false, false, 0);
+                            // elements_container.pack_start(&longitude, false, false, 0);
+                            
+                            // let add_camera_btn = Button::with_label("Add camera");
+                            // elements_container.pack_start(&add_camera_btn, false, false, 0);
 
                             elements_container.show_all();
 
@@ -106,17 +143,17 @@ fn main() -> Result<(), ProtocolError> {
                                 });
                             }));
 
-                            let monitoring_app_ref = Rc::new(RefCell::new(monitoring_app));
-                            add_camera_btn.connect_clicked(clone!(@weak latitude, @weak longitude, @strong monitoring_app_ref => move |_| {
-                                let lat = latitude.text().to_string();
-                                latitude.set_text("");
-                                let long = longitude.text().to_string();
-                                longitude.set_text("");
+                            // let monitoring_app_ref = Rc::new(RefCell::new(monitoring_app));
+                            // add_camera_btn.connect_clicked(clone!(@weak latitude, @weak longitude, @strong monitoring_app_ref => move |_| {
+                            //     let lat = latitude.text().to_string();
+                            //     latitude.set_text("");
+                            //     let long = longitude.text().to_string();
+                            //     longitude.set_text("");
 
-                                let camera_location = Location::new(lat, long);
+                            //     let camera_location = Location::new(lat, long);
 
-                                monitoring_app_ref.borrow_mut().add_camera(camera_location);
-                            }));
+                            //     monitoring_app_ref.borrow_mut().add_camera(camera_location);
+                            // }));
                         },
                         Err(_) => todo!(),
                     }
@@ -139,3 +176,13 @@ fn main() -> Result<(), ProtocolError> {
 
     Ok(())
 }
+
+// fn download_tile(url: &str) -> Result<ImageSurface, reqwest::Error> {
+//     let response = reqwest::blocking::get(url)?;
+//     let bytes = response.bytes()?;
+//     let cursor = Cursor::new(bytes);
+
+//     ImageSurface::create_from_png(cursor).map_err(|e| {
+//         reqwest::Error::new(reqwest::StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+//     })
+// }

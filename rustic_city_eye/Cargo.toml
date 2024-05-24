@@ -12,6 +12,7 @@ mockall = "0.12.1"
 gtk = "0.18.1"
 walkers = "=0.8.0"
 webkit2gtk = "2.0.1"
+osmgpsmap = "0.2.16"
 [[bin]]
 name = "broker"
 path = "src/mqtt/run_broker.rs"
