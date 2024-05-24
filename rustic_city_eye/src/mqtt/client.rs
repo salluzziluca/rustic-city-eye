@@ -89,32 +89,39 @@ impl Client {
             pending_messages: Vec::new(),
         })
     }
+
+    /// Publica un mensaje en un topic
+    // Supongo que el comando sería publish: dup:1 qoS:1 retain:1 topic:topic_name payload: payload
+    // Los valores predeterminados son dup:0 qoS:0 retain:0, solo hace falta aclarar cuando son 1
     pub fn publish_message(
         message: &str,
         mut stream: TcpStream,
         pending_messages: Vec<u16>,
     ) -> Result<u16, ClientError> {
         let splitted_message: Vec<&str> = message.split(' ').collect();
-        //message interface(temp): dup:1 qos:2 retain:1 topic_name:sometopic
-        //    let mut dup_flag = false;
-        let qos = 1;
-        //      let mut retain_flag = false;
-        //        let mut packet_id = 0x00;
 
-        // if splitted_message[0] == "dup:1" {
-        //     dup_flag = true;
-        // }
+        let mut qos = 0;
+        let mut dup_flag = false;
+        let mut retain_flag = false;
 
-        // if splitted_message[1] == "qos:1" {
-        //     qos = 1;
-        //     packet_id = 0x20FF;
-        // } else {
-        //     dup_flag = false;
-        // }
+        let mut i = 0;
+        if splitted_message[i] == "dup:1" {
+            i += 1;
+            dup_flag = true;
+        }
+        if splitted_message[i] == "qos:1" {
+            i += 1;
+            qos = 1;
+        }
+        if splitted_message[i] == "retain:1" {
+            i += 1;
+            retain_flag = true;
+        }
 
-        // if splitted_message[2] == "retain:1" {
-        //     retain_flag = true;
-        // }
+        let topic_name: Vec<&str> = splitted_message[i].split(':').collect();
+        i+=1;
+
+        let payload = splitted_message[i..].join(" ").to_string();
 
         let topic_properties = TopicProperties {
             topic_alias: 10,
@@ -133,13 +140,15 @@ impl Client {
             "a".to_string(),
         );
 
+
+        // let payload_string = payload[1].to_string();
         let publish = ClientMessage::Publish {
             packet_id,
-            topic_name: splitted_message[0].to_string(),
+            topic_name: topic_name[1].to_string(),
             qos,
-            retain_flag: 1,
-            payload: "buendia".to_string(),
-            dup_flag: 0,
+            retain_flag: if retain_flag { 1 } else { 0 },
+            payload,
+            dup_flag: dup_flag as usize,
             properties,
         };
 

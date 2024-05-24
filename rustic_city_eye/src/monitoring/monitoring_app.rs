@@ -98,9 +98,9 @@ impl MonitoringApp {
 
     pub fn add_incident(&mut self, location: Location) {
         let incident = Incident::new(location);
-        self.incidents.push(incident);
+        self.incidents.push(incident.clone());
         println!("mis incidentes: {:?}", self.incidents);
-        let publish_incident = "publish: accidente".to_string();
+        let publish_incident = "publish: topic:accidente ".to_string() + &incident.to_string();
         let _ = self.send_to_client_channel.send(publish_incident);
     }
 }

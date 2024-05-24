@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct Location {
     longitude: f64,
@@ -14,5 +14,9 @@ impl Location {
             longitude,
             latitude,
         }
+    }
+
+    pub fn to_string(&self) -> String {
+        format!("({}, {})", self.latitude, self.longitude)
     }
 }
