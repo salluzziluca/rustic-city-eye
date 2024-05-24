@@ -137,7 +137,7 @@ impl Client {
             topic_name: topic_name[1].to_string(),
             qos,
             retain_flag: if retain_flag { 1 } else { 0 },
-            payload: payload,
+            payload,
             dup_flag: dup_flag as usize,
             properties,
         };
