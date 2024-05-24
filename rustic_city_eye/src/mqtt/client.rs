@@ -87,7 +87,7 @@ impl Client {
 
 
 
-    // Supongo que el comando sería publish: dup:1 1oS:1 retain:1 topic:topic_name payload:payload
+    // Supongo que el comando sería publish: dup:1 qoS:1 retain:1 topic:topic_name payload: payload
     pub fn publish_message(
         message: &str,
         mut stream: TcpStream,
@@ -110,7 +110,8 @@ impl Client {
         }
 
         let topic_name: Vec<&str> = splitted_message[3].split(':').collect();
-        let payload: Vec<&str> = splitted_message[4].split(':').collect();
+
+        let payload = splitted_message[5..].join(" ").to_string();
 
         let topic_properties = TopicProperties {
             topic_alias: 10,
@@ -129,12 +130,14 @@ impl Client {
             "a".to_string(),
         );
 
+
+        // let payload_string = payload[1].to_string();
         let publish = ClientMessage::Publish {
             packet_id,
             topic_name: topic_name[1].to_string(),
             qos,
             retain_flag: if retain_flag { 1 } else { 0 },
-            payload: payload[1].to_string(),
+            payload: payload,
             dup_flag: dup_flag as usize,
             properties,
         };

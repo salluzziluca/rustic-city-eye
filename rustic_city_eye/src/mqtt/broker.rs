@@ -124,6 +124,8 @@ impl Broker {
                     properties,
                 } => {
                     println!("Recibí un Publish");
+                    println!("Topic name: {}", topic_name);
+                    println!("Payload: {:?}", payload);
                     let msg = ClientMessage::Publish {
                         packet_id,
                         topic_name: topic_name.clone(),
