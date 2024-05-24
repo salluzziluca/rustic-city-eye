@@ -1,16 +1,12 @@
 //! Se conecta mediante TCP a la dirección asignada por argv.
 //! Lee lineas desde stdin y las manda mediante el socket.
+use std::sync::mpsc;
 
 use crate::monitoring::incident::Incident;
 use crate::mqtt::{
     client::Client, connect_properties, protocol_error::ProtocolError, will_properties,
 };
 use crate::surveilling::{camera_system::CameraSystem, location::Location};
-
-use std::{
-    io::{stdin, BufRead, Error, ErrorKind},
-    sync::mpsc,
-};
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -87,27 +83,6 @@ impl MonitoringApp {
         };
 
         Ok(monitoring_app)
-    }
-
-    /// En este momento la app de monitoreo ya tiene todos los clientes conectados y funcionales
-    /// Aca es donde se gestiona la interaccion entre los diferentes clientes
-    pub fn app_run(&mut self) -> Result<(), Error> {
-        let (tx, rx) = mpsc::channel();
-        let _ = self.monitoring_app_client.client_run(rx);
-
-        let stdin = stdin();
-        for line in stdin.lock().lines() {
-            match line {
-                Ok(line) => {
-                    tx.send(line).map_err(|err| {
-                        Error::new(ErrorKind::Other, format!("Failed to send line: {}", err))
-                    })?;
-                }
-                Err(_) => println!("error in line"),
-            }
-        }
-
-        Ok(())
     }
 
     pub fn run_client(&mut self, rx: mpsc::Receiver<String>) -> Result<(), ProtocolError> {
