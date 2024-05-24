@@ -12,8 +12,8 @@ use gtk::{Application, Box, Button, Entry, Label, Orientation};
 use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
 use rustic_city_eye::mqtt::protocol_error::ProtocolError;
 use rustic_city_eye::surveilling::location::Location;
-use webkit2gtk::{WebView, WebViewExt};
 use webkit2gtk::gio;
+use webkit2gtk::{WebView, WebViewExt};
 
 fn main() -> Result<(), ProtocolError> {
     let app = Application::builder()
@@ -63,7 +63,6 @@ fn main() -> Result<(), ProtocolError> {
                             elements_container.hide();
                             let (tx, rx) = mpsc::channel();
                             let _ = monitoring_app.run_client(rx);
-                            //TODO: Aca deberiamos mostrar el mapa!!!
                             let webview = WebView::new();
                             elements_container.pack_start(&webview, true, true, 0);
 
@@ -75,38 +74,30 @@ fn main() -> Result<(), ProtocolError> {
 
                             // Load Leaflet map
                             webview.load_uri("https://leafletjs.com/examples/quick-start/index.html");
-                    
-                            // Connect click event handler to get coordinates
                             let webview_clone = webview.clone();
                             let monitoring_app_ref = Rc::new(RefCell::new(monitoring_app));
-                            
-                            webview.connect_button_press_event(clone!(@strong monitoring_app_ref => move |_, event| {
+                            let x = Rc::new(RefCell::new(0.0));
+                            let y = Rc::new(RefCell::new(0.0));
+                            add_camera_btn.connect_clicked(clone!(@strong y, @strong x, @strong monitoring_app_ref => move |_| {
+                                let lat = y.borrow().to_string();
+                                let long = x.borrow().to_string();
+                                let camera_location = Location::new(lat, long);
+                                monitoring_app_ref.borrow_mut().add_camera(camera_location);
+                            }));
+                            add_incident_btn.connect_clicked(clone!(@strong y, @strong x, @strong monitoring_app_ref => move |_| {
+                                let lat = y.borrow().to_string();
+                                let long = x.borrow().to_string();
+                                let incident_location = Location::new(lat, long);
+                                monitoring_app_ref.borrow_mut().add_incident(incident_location);
+                            }));
+                            webview.connect_button_press_event(clone!(@strong x, @strong y, @strong monitoring_app_ref => move |_, event| {
                                 if event.button() == 1 {
-                                    let x = event.position().0;
-                                    let y = event.position().1;
-                                    
-                                    add_camera_btn.connect_clicked(clone!(@strong y, @strong x, @strong monitoring_app_ref => move |_| {
-                                        let lat = y.to_string();
-                                        let long = x.to_string();
-                                        
-                                        let camera_location = Location::new(lat, long);
-
-                                        monitoring_app_ref.borrow_mut().add_camera(camera_location);
-
-                                    }));
-
-                                    add_incident_btn.connect_clicked(clone!(@strong y, @strong x, @strong monitoring_app_ref => move |_| {
-                                        let lat = y.to_string();
-                                        let long = x.to_string();
-                                        
-                                        let incident_location = Location::new(lat, long);
-
-                                        monitoring_app_ref.borrow_mut().add_incident(incident_location);
-
-                                    }));
-
+                                    let pos_x = event.position().0;
+                                    let pos_y = event.position().1;
+                                    *x.borrow_mut() = pos_x;
+                                    *y.borrow_mut() = pos_y;
                                     webview_clone.run_javascript(
-                                        &format!("window.map.setView(window.map.containerPointToLatLng([{}, {}]), window.map.getZoom());", x, y),
+                                        &format!("window.map.setView(window.map.containerPointToLatLng([{}, {}]), window.map.getZoom());", pos_x, pos_y),
                                         None::<&gio::Cancellable>,
                                         |_result| (),
                                     );

@@ -1,14 +1,11 @@
 //! Se conecta mediante TCP a la dirección asignada por argv.
 //! Lee lineas desde stdin y las manda mediante el socket.
 
+use crate::monitoring::incident::Incident;
 use crate::mqtt::{
-    client::Client,
-    connect_properties,
-    protocol_error::ProtocolError,
-    will_properties
+    client::Client, connect_properties, protocol_error::ProtocolError, will_properties,
 };
 use crate::surveilling::{camera_system::CameraSystem, location::Location};
-use crate::monitoring::incident::Incident;
 
 use std::{
     io::{stdin, BufRead, Error, ErrorKind},
@@ -20,7 +17,7 @@ use std::{
 pub struct MonitoringApp {
     monitoring_app_client: Client,
     camera_system: CameraSystem,
-    incidents: Vec<Incident>
+    incidents: Vec<Incident>,
 }
 
 #[allow(dead_code)]
@@ -127,6 +124,4 @@ impl MonitoringApp {
         self.incidents.push(incident);
         println!("mis incidentes: {:?}", self.incidents);
     }
-
 }
-

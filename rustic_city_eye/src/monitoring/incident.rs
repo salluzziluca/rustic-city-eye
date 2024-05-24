@@ -3,7 +3,7 @@ use crate::surveilling::location::Location;
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct Incident {
-    location: Location
+    location: Location,
 }
 
 impl Incident {
