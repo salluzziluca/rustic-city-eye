@@ -71,6 +71,7 @@ impl CameraSystem {
     pub fn add_camera(&mut self, location: Location) {
         let camera = Camera::new(location);
         self.cameras.push(camera);
+        println!("mis camaritas: {:?}", self.cameras);
     }
 
     pub fn get_cameras(&self) -> &Vec<Camera> {

@@ -5,7 +5,6 @@ use std::io::{Error, ErrorKind};
 use std::rc::Rc;
 use std::sync::mpsc;
 
-// use gtk::cairo::ImageSurface;
 use gtk::glib::clone;
 use gtk::prelude::*;
 use gtk::{glib, Window, WindowType};
@@ -37,14 +36,14 @@ fn main() -> Result<(), ProtocolError> {
             button.connect_clicked(clone!(@weak button, @weak elements_container => move |_| {
                 button.hide();
 
-                let label = Label::new(Some("Nuevo elemento"));
+                let label = Label::new(Some("Ingrese datos del servidor"));
                 let host = Entry::new();
                 host.set_placeholder_text(Some("Host: "));
 
                 let port = Entry::new();
                 port.set_placeholder_text(Some("Port: "));
                 let user = Entry::new();
-                user.set_placeholder_text(Some("User: "));
+                user.set_placeholder_text(Some("Username: "));
                 let password = Entry::new();
                 password.set_placeholder_text(Some("Password: "));
 
@@ -57,15 +56,7 @@ fn main() -> Result<(), ProtocolError> {
                 elements_container.pack_start(&connect_btn, false, false, 0);
 
                 connect_btn.connect_clicked(clone!(@weak host, @weak port, @weak user, @weak password, @weak elements_container => move |_| {
-                    let host = host.text().to_string();
-                    let port = port.text().to_string();
-                    let username = user.text().to_string();
-                    let password = password.text().to_string();
-                    let mut args = Vec::new();
-                    args.push(host);
-                    args.push(port);
-                    args.push(username);
-                    args.push(password);
+                    let args = vec![host.text().to_string(), port.text().to_string(), user.text().to_string(), password.text().to_string()];
 
                     match MonitoringApp::new(args) {
                         Ok(mut monitoring_app) => {
@@ -79,6 +70,8 @@ fn main() -> Result<(), ProtocolError> {
                             let add_camera_btn = Button::with_label("Add camera");
                             elements_container.pack_start(&add_camera_btn, false, false, 0);
 
+                            let add_incident_btn = Button::with_label("Add incident");
+                            elements_container.pack_start(&add_incident_btn, false, false, 0);
 
                             // Load Leaflet map
                             webview.load_uri("https://leafletjs.com/examples/quick-start/index.html");
@@ -92,7 +85,6 @@ fn main() -> Result<(), ProtocolError> {
                                     let x = event.position().0;
                                     let y = event.position().1;
                                     
-                                    // let monitoring_app_ref = Rc::new(RefCell::new(monitoring_app_ref));
                                     add_camera_btn.connect_clicked(clone!(@strong y, @strong x, @strong monitoring_app_ref => move |_| {
                                         let lat = y.to_string();
                                         let long = x.to_string();
@@ -100,6 +92,17 @@ fn main() -> Result<(), ProtocolError> {
                                         let camera_location = Location::new(lat, long);
 
                                         monitoring_app_ref.borrow_mut().add_camera(camera_location);
+
+                                    }));
+
+                                    add_incident_btn.connect_clicked(clone!(@strong y, @strong x, @strong monitoring_app_ref => move |_| {
+                                        let lat = y.to_string();
+                                        let long = x.to_string();
+                                        
+                                        let incident_location = Location::new(lat, long);
+
+                                        monitoring_app_ref.borrow_mut().add_incident(incident_location);
+
                                     }));
 
                                     webview_clone.run_javascript(
@@ -111,25 +114,11 @@ fn main() -> Result<(), ProtocolError> {
                                 false.into()
                             }));
 
-
-
-
                             let message = Entry::new();
                             message.set_placeholder_text(Some("Send message: "));
                             let send_btn = Button::with_label("Send");
                             elements_container.pack_start(&message, false, false, 0);
                             elements_container.pack_start(&send_btn, false, false, 0);
-
-                            // let latitude = Entry::new();
-                            // let longitude = Entry::new();
-
-                            // latitude.set_placeholder_text(Some("Enter camera lat: "));
-                            // longitude.set_placeholder_text(Some("Enter camera lat: "));
-                            // elements_container.pack_start(&latitude, false, false, 0);
-                            // elements_container.pack_start(&longitude, false, false, 0);
-                            
-                            // let add_camera_btn = Button::with_label("Add camera");
-                            // elements_container.pack_start(&add_camera_btn, false, false, 0);
 
                             elements_container.show_all();
 
@@ -142,18 +131,6 @@ fn main() -> Result<(), ProtocolError> {
                                     Error::new(ErrorKind::Other, format!("Failed to send line: {}", err))
                                 });
                             }));
-
-                            // let monitoring_app_ref = Rc::new(RefCell::new(monitoring_app));
-                            // add_camera_btn.connect_clicked(clone!(@weak latitude, @weak longitude, @strong monitoring_app_ref => move |_| {
-                            //     let lat = latitude.text().to_string();
-                            //     latitude.set_text("");
-                            //     let long = longitude.text().to_string();
-                            //     longitude.set_text("");
-
-                            //     let camera_location = Location::new(lat, long);
-
-                            //     monitoring_app_ref.borrow_mut().add_camera(camera_location);
-                            // }));
                         },
                         Err(_) => todo!(),
                     }
@@ -176,13 +153,3 @@ fn main() -> Result<(), ProtocolError> {
 
     Ok(())
 }
-
-// fn download_tile(url: &str) -> Result<ImageSurface, reqwest::Error> {
-//     let response = reqwest::blocking::get(url)?;
-//     let bytes = response.bytes()?;
-//     let cursor = Cursor::new(bytes);
-
-//     ImageSurface::create_from_png(cursor).map_err(|e| {
-//         reqwest::Error::new(reqwest::StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
-//     })
-// }

@@ -2,12 +2,12 @@ use crate::surveilling::location::Location;
 
 #[derive(Debug)]
 #[allow(dead_code)]
-pub struct Camera {
-    location: Location,
+pub struct Incident {
+    location: Location
 }
 
-impl Camera {
-    pub fn new(location: Location) -> Camera {
+impl Incident {
+    pub fn new(location: Location) -> Incident {
         Self { location }
     }
 }

@@ -26,6 +26,7 @@ pub mod mqtt {
 pub mod monitoring {
     pub mod monitoring_app;
     pub mod monitoring_config;
+    pub mod incident;
 }
 
 pub mod surveilling {
