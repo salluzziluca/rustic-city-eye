@@ -171,6 +171,7 @@ impl Broker {
                         Err(_) => return Err(ProtocolError::StreamError),
                     };
 
+
                     let reason_code = Broker::handle_subscribe( stream_for_topic, topics.clone(), topic_name,  properties.sub_id.clone())?;
                     match reason_code {
                         0 => {
@@ -179,6 +180,7 @@ impl Broker {
                                 packet_id_msb: packet_id_bytes[0],
                                 packet_id_lsb: packet_id_bytes[1],
                                 reason_code: 0,
+                                sub_id: properties.sub_id.clone(),
                             };
                             match suback.write_to(&mut stream) {
                                 Ok(_) => println!("Suback enviado"),
@@ -190,6 +192,7 @@ impl Broker {
                                 packet_id_msb: packet_id_bytes[0],
                                 packet_id_lsb: packet_id_bytes[1],
                                 reason_code: 0x80,
+                                sub_id: properties.sub_id.clone(),
                             };
                             println!("Enviando un Suback");
                             match suback.write_to(&mut stream) {
@@ -213,12 +216,18 @@ impl Broker {
                         Err(_) => return Err(ProtocolError::StreamError),
                     };
 
-                    let reason_code = Broker::handle_unsubscribe(stream_for_topic, topics.clone(), topic_name, properties.sub_id.clone())?;
+                    let reason_code = Broker::handle_unsubscribe(stream_for_topic, topics.clone(), topic_name, properties.sub_id.clone().into())?;
 
                     let unsuback = BrokerMessage::Unsuback {
                         packet_id_msb: packet_id_bytes[0],
                         packet_id_lsb: packet_id_bytes[1],
                     };
+
+                    println!("Enviando un Unsuback");
+                    match unsuback.write_to(&mut stream) {
+                        Ok(_) => println!("Unsuback enviado"),
+                        Err(err) => println!("Error al enviar Unsuback: {:?}", err),
+                    }
                     
                 }
             }
@@ -231,7 +240,7 @@ impl Broker {
         stream: TcpStream,
         mut topics: HashMap<String, Topic>,
         topic_name: String,
-        sub_id: u32,
+        sub_id: u8,
     ) -> Result<u8, ProtocolError> {
         let mut reason_code ;
         if !topics.contains_key(&topic_name) {
@@ -279,7 +288,7 @@ impl Broker {
         stream: TcpStream,
         mut topics: HashMap<String, Topic>,
         topic_name: String,
-        sub_id: u32,
+        sub_id: u8,
     ) -> Result<u8, ProtocolError> {
         let mut reason_code;
         if !topics.contains_key(&topic_name) {

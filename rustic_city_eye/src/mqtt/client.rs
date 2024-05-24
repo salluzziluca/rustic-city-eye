@@ -1,7 +1,7 @@
 use rand::Rng;
 
 use std::{
-    collections::HashMap, net::TcpStream, sync::{mpsc, Arc, Mutex}
+    collections::HashMap, hash::Hash, net::TcpStream, sync::{mpsc, Arc, Mutex}
 };
 
 use crate::mqtt::{
@@ -15,11 +15,12 @@ use crate::mqtt::{
     will_properties::WillProperties,
 };
 
+
 pub struct Client {
     // stream es el socket que se conecta al broker
     stream: TcpStream,
     // las subscriptions son un hashmap de topic y sub_id
-    pub subscriptions: Arc<Mutex<Vec<String>>>,
+    pub subscriptions: Arc::<Mutex<HashMap<String, u8>>>,
     pending_messages: Vec<u16>,
     // user_id: u32,
 }
@@ -87,7 +88,7 @@ impl Client {
 
         Ok(Client {
             stream,
-            subscriptions: Arc::new(Mutex::new(Vec::new())),
+            subscriptions: Arc::new(Mutex::new(HashMap::new())),
             pending_messages: Vec::new(),
         })
     }
@@ -154,16 +155,16 @@ impl Client {
     pub fn subscribe(
         topic: &str,
         mut stream: TcpStream,
-        subscriptions: Arc<Mutex<Vec<String>>>,
+        subscriptions: Arc<Mutex<HashMap<String, u8>>>,
         pending_messages: Vec<u16>,
     ) -> Result<u16, ClientError> {
         let packet_id = Client::assign_packet_id(pending_messages);
         let sub_id = Client::assign_subscription_id();
         let topic = topic.to_string();
         
-        let subscriptions = subscriptions.clone();
+        let mut subscriptions = subscriptions.clone();
 
-        subscriptions.lock().unwrap().push(topic.clone());
+        subscriptions.lock().unwrap().insert(topic.clone(), sub_id);
       
         let subscribe = ClientMessage::Subscribe {
             packet_id,
@@ -183,10 +184,10 @@ impl Client {
         
     }
 
-    fn assign_subscription_id() -> u32 {
+    fn assign_subscription_id() -> u8 {
         let mut rng = rand::thread_rng();
 
-        let sub_id: u32 = rng.gen();
+        let sub_id: u8 = rng.gen();
 
         sub_id
     }
@@ -265,7 +266,7 @@ impl Client {
             Err(_) => return Err(ProtocolError::StreamError),
         };
 
-        let subscriptions_clone =  Arc::clone(&self.subscriptions);
+        let subscriptions_clone = self.subscriptions.clone();
 
         let _write_messages = std::thread::spawn(move || {
             let mut pending_messages = pending_messages_clone_one.clone();
@@ -305,32 +306,37 @@ impl Client {
                        
                         println!("Subscribiendome al topic: {}", topic);
                         
-                        if subscriptions_clone.lock().unwrap().contains(&topic.to_string()){
+                        if subscriptions_clone.lock().unwrap().contains_key(&topic.to_string()){
                             println!("Ya estoy subscrito a este topic");
-                        } else {
-                            match stream_clone_two.try_clone() {
-                                Ok(stream_clone) => {
-                                    if let Ok(packet_id) = Client::subscribe(
-                                        topic,
-                                        stream_clone,
-                                        subscriptions_clone.clone(),
-                                        pending_messages_clone_two.clone(),
-                                    ) {
-                                        match sender.send(packet_id) {
-                                            Ok(_) => continue,
-                                            Err(_) => {
-                                                println!(
-                                                    "Error al enviar el packet_id del suback al receiver"
-                                                )
-                                            }
+                        }
+                        
+                        match stream_clone_two.try_clone() {
+                            Ok(stream_clone) => {
+                                if let Ok(packet_id) = Client::subscribe(
+                                    topic,
+                                    stream_clone,
+                                    subscriptions_clone.clone(),
+                                    pending_messages_clone_two.clone(),
+                                ) {
+                                    match sender.send(packet_id) {
+                                        Ok(_) => {
+                                            let provitional_sub_id = 1;
+                                            let topic_new = topic.to_string();
+                                            subscriptions_clone.lock().unwrap().insert(topic_new, provitional_sub_id);
+                                        },
+                                        Err(_) => {
+                                            println!(
+                                                "Error al enviar el packet_id del suback al receiver"
+                                            )
                                         }
                                     }
                                 }
-                                Err(_) => {
-                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
-                                }
+                            }
+                            Err(_) => {
+                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
                             }
                         }
+                        
                         println!("Subscriptions: {:?}", subscriptions_clone);
                     } else if line.starts_with("unsubscribe:") {
                         let (_, post_colon) = line.split_at(12); // "unsubscribe:" is 12 characters
@@ -338,7 +344,7 @@ impl Client {
                         
                         println!("Desubscribiendome del topic: {}", topic);
 
-                        if !subscriptions_clone.lock().unwrap().contains(&topic.to_string()){
+                        if !subscriptions_clone.lock().unwrap().contains_key(&topic.to_string()){
                             println!("No estoy subscrito a este topic");
                         } else {
                             match stream_clone_five.try_clone() {
@@ -371,12 +377,12 @@ impl Client {
             }
         });
 
-        let _read_messages = std::thread::spawn(move || {
+        let mut subscriptions_clone = self.subscriptions.clone();
+        let _read_messages = std::thread::spawn(move ||{
             let mut pending_messages = Vec::new();
-            
             loop {
-                let pending_messages_read = pending_messages_clone_four.clone();
-                println!("pending: {:?}", pending_messages_read);
+                //let pending_messages_read = pending_messages_clone_four.clone();
+                println!("pending: {:?}", pending_messages);
                 if let Ok(packet) = receiver.try_recv() {
                     pending_messages.push(packet);
                     println!("pending messages {:?}", pending_messages);
@@ -389,7 +395,7 @@ impl Client {
                             BrokerMessage::Puback {
                                 packet_id_msb,
                                 packet_id_lsb,
-                                reason_code: _,
+                                reason_code,
                             } => {
                                 for pending_message in &pending_messages {
                                     let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
@@ -397,8 +403,8 @@ impl Client {
                                         && packet_id_bytes[1] == packet_id_lsb
                                     {
                                         println!(
-                                            "puback con id {} {} recibido",
-                                            packet_id_msb, packet_id_lsb
+                                            "puback con id {} {} {} recibido",
+                                            packet_id_msb, packet_id_lsb, reason_code
                                         );
                                     }
                                 }
@@ -407,12 +413,14 @@ impl Client {
                             BrokerMessage::Suback {
                                 packet_id_msb,
                                 packet_id_lsb,
-                                reason_code: _,
+                                reason_code,
+                                sub_id,
                             } => {
+                                
                                 for pending_message in &pending_messages {
                                     let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
-                                    println!("subscribe scon id {} {} recibido",
-                                    packet_id_msb, packet_id_lsb);
+                                    println!("subscribe con id {} {}  {} recibido",
+                                    packet_id_msb, packet_id_lsb, reason_code);
                                     if packet_id_bytes[0] == packet_id_msb
                                         && packet_id_bytes[1] == packet_id_lsb
                                     {
@@ -420,6 +428,17 @@ impl Client {
                                             "suback con id {} {} recibido",
                                             packet_id_msb, packet_id_lsb
                                         );
+                                    }
+                                    //busca el sub_id 1 en el hash de subscriptions
+                                    //si lo encuentra, lo reemplaza por el sub_id que llega en el mensaje
+                                    let mut to_update = Vec::new();
+                                    for (key, value) in subscriptions_clone.lock().unwrap().iter() {
+                                        if *value == 1 {
+                                            to_update.push(key.clone());
+                                        }
+                                    }
+                                    for key in to_update {
+                                        subscriptions_clone.lock().unwrap().remove(&key);
                                     }
                                 }
                                 println!("Recibi un mensaje {:?}", message);
@@ -450,6 +469,7 @@ impl Client {
                     println!("Error al clonar el stream");
                 }
             }
+        
         });
 
         Ok(())

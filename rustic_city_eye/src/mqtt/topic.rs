@@ -13,7 +13,7 @@ use super::reason_code;
 pub struct Topic {
     /// Hashmap de subscriptores.
     /// El u32 representa el sub_id, y el valor es el stream del subscriptor.
-    subscribers: Arc<RwLock<HashMap<u32, TcpStream>>>,
+    subscribers: Arc<RwLock<HashMap<u8, TcpStream>>>,
 }
 
 impl Default for Topic {
@@ -29,7 +29,7 @@ impl Topic {
         }
     }
 
-    pub fn add_subscriber(&mut self, stream: TcpStream, sub_id: u32) -> u8 {
+    pub fn add_subscriber(&mut self, stream: TcpStream, sub_id: u8) -> u8 {
         //verificar si el sub_id ya existe en topic subscribers
         if self.subscribers.read().unwrap().contains_key(&sub_id) {
             return reason_code::SUB_ID_DUP_HEX;
@@ -44,7 +44,7 @@ impl Topic {
         reason_code::SUCCESS_HEX
     }
 
-    pub fn remove_subscriber(&mut self, sub_id: u32) -> u8 {
+    pub fn remove_subscriber(&mut self, sub_id: u8) -> u8 {
         let mut lock = match self.subscribers.write() {
             Ok(guard) => guard,
             Err(_) => return reason_code::UNSPECIFIED_ERROR_HEX,
