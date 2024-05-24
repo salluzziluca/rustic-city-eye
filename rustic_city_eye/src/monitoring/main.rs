@@ -138,7 +138,32 @@ fn handle_connection(elements_container: &gtk::Box) {
                 elements_container.pack_start(&add_incident_btn, false, false, 0);
 
                 // Load Leaflet map
-                webview.load_uri("https://leafletjs.com/examples/quick-start/index.html");
+                //webview.load_uri("https://leafletjs.com/examples/quick-start/index.html");
+                let html_content = format!(r#"
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Map</title>
+                        <meta charset="utf-8" />
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+                        <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+                    </head>
+                    <body>
+                        <div id="map" style="width: 100%; height: 100vh;"></div>
+                        <script>
+                            var lat = -34.615077;
+                            var lon = -58.368084;
+                            var map = L.map('map').setView([lat, lon], 16);
+                            L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
+                                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                            }}).addTo(map);
+                        </script>
+                    </body>
+                    </html>
+                "#);
+
+                webview.load_html(&html_content, None);
                 let webview_clone = webview.clone();
                 let monitoring_app_ref = Rc::new(RefCell::new(monitoring_app));
                 let x = Rc::new(RefCell::new(0.0));
