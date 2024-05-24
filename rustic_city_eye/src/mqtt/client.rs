@@ -2,7 +2,7 @@ use rand::Rng;
 
 use std::{
     net::TcpStream,
-    sync::mpsc::{self},
+    sync::{mpsc::{self, Receiver}, Arc, Mutex},
 };
 
 use crate::mqtt::{
@@ -18,6 +18,8 @@ use crate::mqtt::{
 
 #[derive(Debug)]
 pub struct Client {
+    receiver_channel: Arc<Mutex<Receiver<String>>>,
+
     stream: TcpStream,
 
     pending_messages: Vec<u16>,
@@ -25,6 +27,7 @@ pub struct Client {
 impl Client {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
+        receiver_channel: Receiver<String>,
         address: String,
         will_properties: WillProperties,
         connect_properties: ConnectProperties,
@@ -81,6 +84,7 @@ impl Client {
         };
 
         Ok(Client {
+            receiver_channel: Arc::new(Mutex::new(receiver_channel)),
             stream,
             pending_messages: Vec::new(),
         })
@@ -215,8 +219,9 @@ impl Client {
     /// Si logra enviar los mensajes correctamente, envia el pacjet id mediante el channel
     ///
     /// El thread de lectura (read_messages) se encarga de leer los mensajes que le llegan del broker.
-    pub fn client_run(&mut self, rx: mpsc::Receiver<String>) -> Result<(), ProtocolError> {
+    pub fn client_run(&mut self) -> Result<(), ProtocolError> {
         let (sender, receiver) = mpsc::channel();
+        let receiver_channel = self.receiver_channel.clone();
 
         let pending_messages_clone_one = self.pending_messages.clone();
         let pending_messages_clone_two = self.pending_messages.clone();
@@ -244,7 +249,8 @@ impl Client {
             let mut pending_messages = pending_messages_clone_one.clone();
 
             loop {
-                if let Ok(line) = rx.recv() {
+                let lock = receiver_channel.lock().unwrap();
+                if let Ok(line) = lock.recv() {
                     if line.starts_with("publish:") {
                         let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
                         let message = post_colon.trim(); // remove leading/trailing whitespace

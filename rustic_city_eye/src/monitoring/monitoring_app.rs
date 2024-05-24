@@ -1,6 +1,7 @@
 //! Se conecta mediante TCP a la dirección asignada por argv.
 //! Lee lineas desde stdin y las manda mediante el socket.
-use std::sync::mpsc;
+
+use std::sync::mpsc::{self, Sender};
 
 use crate::monitoring::incident::Incident;
 use crate::mqtt::{
@@ -11,6 +12,7 @@ use crate::surveilling::{camera_system::CameraSystem, location::Location};
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct MonitoringApp {
+    send_to_client_channel: Sender<String>,
     monitoring_app_client: Client,
     camera_system: CameraSystem,
     incidents: Vec<Incident>,
@@ -43,11 +45,6 @@ impl MonitoringApp {
             "auth".to_string(),
             vec![1, 2, 3],
         );
-        // if args.len() != CLIENT_ARGS {
-        //     let app_name = &args[0];
-        //     println!("Usage:\n{:?} <host> <puerto>", app_name);
-        //     return Err(ProtocolError::InvalidNumberOfArguments);
-        // }
 
         let address = args[0].to_string() + ":" + &args[1].to_string();
         let camera_system_args = vec![
@@ -59,10 +56,14 @@ impl MonitoringApp {
 
         let camera_system = CameraSystem::new(camera_system_args)?;
 
+        let (tx, rx) = mpsc::channel();
+
         let monitoring_app = MonitoringApp {
+            send_to_client_channel: tx,
             incidents: Vec::new(),
             camera_system,
             monitoring_app_client: match Client::new(
+                rx,
                 address,
                 will_properties,
                 connect_properties,
@@ -85,8 +86,9 @@ impl MonitoringApp {
         Ok(monitoring_app)
     }
 
-    pub fn run_client(&mut self, rx: mpsc::Receiver<String>) -> Result<(), ProtocolError> {
-        self.monitoring_app_client.client_run(rx)?;
+    pub fn run_client(&mut self) -> Result<(), ProtocolError> {
+        self.monitoring_app_client.client_run()?;
+        self.camera_system.run_client()?;
         Ok(())
     }
 
@@ -98,5 +100,7 @@ impl MonitoringApp {
         let incident = Incident::new(location);
         self.incidents.push(incident);
         println!("mis incidentes: {:?}", self.incidents);
+        let publish_incident = "publish: accidente".to_string();
+        let _ = self.send_to_client_channel.send(publish_incident);
     }
 }

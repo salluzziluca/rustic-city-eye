@@ -1,19 +1,18 @@
 extern crate gtk;
 
-use std::cell::RefCell;
-use std::io::{Error, ErrorKind};
-use std::rc::Rc;
-use std::sync::mpsc;
-
 use gtk::glib::clone;
 use gtk::prelude::*;
 use gtk::{glib, Window, WindowType};
 use gtk::{Application, Box, Button, Entry, Label, Orientation};
+use webkit2gtk::gio;
+use webkit2gtk::{WebView, WebViewExt};
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
 use rustic_city_eye::mqtt::protocol_error::ProtocolError;
 use rustic_city_eye::surveilling::location::Location;
-use webkit2gtk::gio;
-use webkit2gtk::{WebView, WebViewExt};
 
 fn main() -> Result<(), ProtocolError> {
     let app = Application::builder()
@@ -61,8 +60,8 @@ fn main() -> Result<(), ProtocolError> {
                     match MonitoringApp::new(args) {
                         Ok(mut monitoring_app) => {
                             elements_container.hide();
-                            let (tx, rx) = mpsc::channel();
-                            let _ = monitoring_app.run_client(rx);
+
+                            let _ = monitoring_app.run_client();
                             let webview = WebView::new();
                             elements_container.pack_start(&webview, true, true, 0);
 
@@ -104,24 +103,7 @@ fn main() -> Result<(), ProtocolError> {
                                 }
                                 false.into()
                             }));
-
-                            let message = Entry::new();
-                            message.set_placeholder_text(Some("Send message: "));
-                            let send_btn = Button::with_label("Send");
-                            elements_container.pack_start(&message, false, false, 0);
-                            elements_container.pack_start(&send_btn, false, false, 0);
-
                             elements_container.show_all();
-
-                            let tx_clone = tx.clone();
-                            send_btn.connect_clicked(clone!(@weak message => move |_| {
-                                let msg = message.text().to_string();
-                                message.set_text("");
-
-                                let _ = tx_clone.send(msg).map_err(|err| {
-                                    Error::new(ErrorKind::Other, format!("Failed to send line: {}", err))
-                                });
-                            }));
                         },
                         Err(_) => todo!(),
                     }

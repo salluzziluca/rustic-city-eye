@@ -1,12 +1,14 @@
+use std::sync::mpsc::{self, Sender};
+
 use crate::{
     mqtt::{client::Client, connect_properties, protocol_error::ProtocolError, will_properties},
     surveilling::{camera::Camera, location::Location},
 };
-// static CLIENT_ARGS: usize = 3;
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct CameraSystem {
     // args: Vec<String>,
+    send_to_client_channel: Sender<String>,
     camera_system_client: Client,
     cameras: Vec<Camera>,
 }
@@ -42,7 +44,10 @@ impl CameraSystem {
             vec![1, 2, 3],
         );
 
+        let (tx, rx) = mpsc::channel();
+
         let camera_system_client = match Client::new(
+            rx,
             address,
             will_properties,
             connect_properties,
@@ -62,6 +67,7 @@ impl CameraSystem {
         };
 
         Ok(CameraSystem {
+            send_to_client_channel: tx,
             // args,
             camera_system_client,
             cameras: Vec::new(),
@@ -72,9 +78,17 @@ impl CameraSystem {
         let camera = Camera::new(location);
         self.cameras.push(camera);
         println!("mis camaritas: {:?}", self.cameras);
+
+        let sub_msg = "subscribe: accidente".to_string();
+        let _ = self.send_to_client_channel.send(sub_msg);
     }
 
     pub fn get_cameras(&self) -> &Vec<Camera> {
         &self.cameras
+    }
+
+    pub fn run_client(&mut self) -> Result<(), ProtocolError> {
+        self.camera_system_client.client_run()?;
+        Ok(())
     }
 }
