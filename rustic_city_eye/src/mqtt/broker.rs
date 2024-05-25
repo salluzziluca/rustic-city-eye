@@ -1,4 +1,4 @@
-use rand::Rng;
+
 
 use std::{
     collections::HashMap,
@@ -7,10 +7,10 @@ use std::{
 };
 
 use crate::mqtt::{
-    broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError, reason_code::{self, SUB_ID_DUP_HEX, UNSPECIFIED_ERROR_HEX}, topic::Topic
+    broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError, reason_code::{SUB_ID_DUP_HEX, UNSPECIFIED_ERROR_HEX}, topic::Topic
 };
 
-use super::{broker_config::BrokerConfig, reason_code::{ReasonCode, SUCCESS_HEX, TOPIC_NAME_INVALID_HEX}, topic};
+use super::{broker_config::BrokerConfig, reason_code::SUCCESS_HEX};
 
 static SERVER_ARGS: usize = 2;
 
@@ -84,7 +84,7 @@ impl Broker {
         mut stream: TcpStream,
         topics: HashMap<String, Topic>,
         packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
-        subs: Vec<u32>,
+        _subs: Vec<u32>,
     ) -> Result<(), ProtocolError> {
         while let Ok(message) = ClientMessage::read_from(&mut stream) {
             match message {
@@ -211,16 +211,14 @@ impl Broker {
 
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-                    let stream_for_topic = match stream.try_clone() {
-                        Ok(stream) => stream,
-                        Err(_) => return Err(ProtocolError::StreamError),
-                    };
+                
 
-                    let reason_code = Broker::handle_unsubscribe(stream_for_topic, topics.clone(), topic_name, properties.sub_id.clone().into())?;
+                    let reason_code = Broker::handle_unsubscribe(topics.clone(), topic_name, properties.sub_id.clone().into())?;
 
                     let unsuback = BrokerMessage::Unsuback {
                         packet_id_msb: packet_id_bytes[0],
                         packet_id_lsb: packet_id_bytes[1],
+                        reason_code: reason_code,
                     };
 
                     println!("Enviando un Unsuback");
@@ -242,10 +240,8 @@ impl Broker {
         topic_name: String,
         sub_id: u8,
     ) -> Result<u8, ProtocolError> {
-        let mut reason_code ;
-        if !topics.contains_key(&topic_name) {
-            reason_code = TOPIC_NAME_INVALID_HEX;
-        }
+        let reason_code ;
+        
         if let Some(topic) = topics.get_mut(&topic_name) {
             match topic.add_subscriber(stream, sub_id) {
                 0 => {
@@ -285,25 +281,18 @@ impl Broker {
     }
 
     fn handle_unsubscribe(
-        stream: TcpStream,
         mut topics: HashMap<String, Topic>,
         topic_name: String,
         sub_id: u8,
     ) -> Result<u8, ProtocolError> {
-        let mut reason_code;
-        if !topics.contains_key(&topic_name) {
-            reason_code = TOPIC_NAME_INVALID_HEX;
-        }
+        let reason_code;
+        
 
         if let Some(topic) = topics.get_mut(&topic_name) {
-            match topic.remove_subscriber(sub_id) {
+            match topic.remove_subscriber( sub_id) {
                 0 => {
-                    println!("Subscripcion exitosa");
+                    println!("Unsubscribe exitoso");
                     reason_code = SUCCESS_HEX;
-                }
-                0x92 => {
-                    println!("SubId duplicado");
-                    reason_code = SUB_ID_DUP_HEX;
                 }
                 _ => {
                     println!("Error no especificado");
@@ -312,25 +301,15 @@ impl Broker {
             }
             
         } else {
+            println!("Error no especificado");
             reason_code = UNSPECIFIED_ERROR_HEX;
         }
+        println!("reason code {:?}", reason_code);
 
         Ok(reason_code)
     }
 
-    ///Asigna un id que no este dentro del vector de subs y lo guarda dentro de este.
-    fn assign_subscription_id(subs: Vec<u32>) -> u32 {
-        let mut rng = rand::thread_rng();
 
-        let mut sub_id: u32;
-        loop {
-            sub_id = rng.gen();
-            if sub_id != 0 && !subs.contains(&sub_id) {
-                break;
-            }
-        }
-        sub_id
-    }
 
     // ///Asigna un id al packet que ingresa como parametro.
     // ///Guarda el packet en el hashmap de paquetes.
@@ -362,13 +341,4 @@ impl Broker {
 }
 
 
-// tests
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn test_subscription(){
-        
-    }
-}

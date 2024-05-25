@@ -45,15 +45,20 @@ impl Topic {
     }
 
     pub fn remove_subscriber(&mut self, sub_id: u8) -> u8 {
+
         let mut lock = match self.subscribers.write() {
-            Ok(guard) => guard,
+            Ok(guard) => {
+                guard},
             Err(_) => return reason_code::UNSPECIFIED_ERROR_HEX,
         };
 
-        match lock.remove(&sub_id) {
-            Some(_) => reason_code::SUCCESS_HEX,
-            None => reason_code::NO_MATCHING_SUBSCRIBERS_HEX,
+        if !lock.contains_key(&sub_id) {
+            println!("No se encontró el sub_id en los subscribers");
+            return reason_code::NO_MATCHING_SUBSCRIBERS_HEX;
         }
+
+        lock.remove(&sub_id);
+        reason_code::SUCCESS_HEX
     }
 
     pub fn deliver_message(&self, payload: String) -> Result<u8, Error> {

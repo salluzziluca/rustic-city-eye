@@ -38,6 +38,7 @@ pub enum BrokerMessage {
     Unsuback {
         packet_id_msb: u8,
         packet_id_lsb: u8,
+        reason_code: u8,
     },
 }
 #[allow(dead_code)]
@@ -118,6 +119,7 @@ impl BrokerMessage {
             BrokerMessage::Unsuback {
                 packet_id_msb,
                 packet_id_lsb,
+                reason_code,
             } => {
                 //fixed header
                 let byte_1: u8 = 0xB0_u8.to_le(); //10110000
@@ -128,6 +130,7 @@ impl BrokerMessage {
                 //packet_id
                 write_u8(&mut writer, packet_id_msb)?;
                 write_u8(&mut writer, packet_id_lsb)?;
+                write_u8(&mut writer, reason_code)?;
 
                 writer.flush()?;
 
@@ -174,10 +177,12 @@ impl BrokerMessage {
             0xB0 => {
                 let packet_id_msb = read_u8(stream)?;
                 let packet_id_lsb = read_u8(stream)?;
+                let reason_code = read_u8(stream)?;
 
                 Ok(BrokerMessage::Unsuback {
                     packet_id_msb,
                     packet_id_lsb,
+                    reason_code,
                 })
             }
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
@@ -199,8 +204,8 @@ impl BrokerMessage {
             BrokerMessage::Suback {
                 packet_id_msb,
                 packet_id_lsb,
-                reason_code,
-                sub_id,
+                reason_code:_,
+                sub_id:_,
             } => {
                 let bytes = packet_id.to_be_bytes();
 
@@ -210,6 +215,7 @@ impl BrokerMessage {
             BrokerMessage::Unsuback {
                 packet_id_msb,
                 packet_id_lsb,
+                reason_code:_,
             } => {
                 let bytes = packet_id.to_be_bytes();
 
@@ -250,6 +256,7 @@ mod tests {
         let unsuback = BrokerMessage::Unsuback {
             packet_id_msb: 1,
             packet_id_lsb: 1,
+            reason_code: 1,
         };
 
         let mut cursor = Cursor::new(Vec::<u8>::new());
