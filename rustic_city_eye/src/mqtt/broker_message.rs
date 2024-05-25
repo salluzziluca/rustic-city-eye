@@ -1,6 +1,7 @@
 use std::io::{BufWriter, Error, Read, Write};
 
 use super::{
+    publish_properties::PublishProperties,
     reader::{read_string, read_u8},
     writer::{write_string, write_u8},
 };
@@ -33,7 +34,13 @@ pub enum BrokerMessage {
         sub_id: u8,
     },
     PublishDelivery {
+        packet_id: u16,
+        topic_name: String,
+        qos: usize,
+        retain_flag: usize,
         payload: String,
+        dup_flag: usize,
+        properties: PublishProperties,
     },
     Unsuback {
         packet_id_msb: u8,
@@ -107,12 +114,69 @@ impl BrokerMessage {
 
                 Ok(())
             }
-            BrokerMessage::PublishDelivery { payload } => {
+            //     let mut byte_1 = 0x30_u8;
+
+            //     if *retain_flag == 1 {
+            //         //we must replace any existing retained message for this topic and store
+            //         //the app message.
+            //         byte_1 |= 1 << 0;
+            //     }
+
+            //     if *qos == 1 {
+            //         byte_1 |= 1 << 1;
+            //         byte_1 |= 0 << 2;
+            //     } else if *qos != 0x00 && *qos != 0x01 {
+            //         //we should throw a DISCONNECT with reason code 0x81(Malformed packet).
+            //         println!("Qos inválido");
+            //     }
+
+            //     if *dup_flag == 1 {
+            //         byte_1 |= 1 << 3;
+            //     }
+
+            //     //Dup flag must be set to 0 for all QoS 0 messages.
+            //     if *qos == 0x00 {
+            //         byte_1 |= 0 << 3;
+            //     }
+
+            //     writer.write_all(&[byte_1])?;
+            // }
+            BrokerMessage::PublishDelivery {
+                packet_id,
+                topic_name,
+                qos,
+                retain_flag,
+                payload,
+                dup_flag,
+                properties,
+            } => {
                 //fixed header -> es uno de juguete, hay que pensarlo mejor
                 let byte_1: u8 = 0x00_u8.to_le();
                 writer.write_all(&[byte_1])?;
 
+                //variable header
+                //packet_id
+                write_u8(&mut writer, &packet_id.to_be_bytes()[0])?;
+                write_u8(&mut writer, &packet_id.to_be_bytes()[1])?;
+
+                //topic_name
+                write_string(&mut writer, topic_name)?;
+
+                //qos
+                write_u8(&mut writer, &qos.to_be_bytes()[0])?;
+
+                //retain_flag
+                write_u8(&mut writer, &retain_flag.to_be_bytes()[0])?;
+
+                //payload
                 write_string(&mut writer, payload)?;
+
+                //dup_flag
+                write_u8(&mut writer, &dup_flag.to_be_bytes()[0])?;
+
+                //properties
+                properties.write_properties(&mut writer)?;
+
                 writer.flush()?;
 
                 Ok(())
@@ -154,9 +218,24 @@ impl BrokerMessage {
 
         match header {
             0x00 => {
+                let packet_id_msb = read_u8(stream)?;
+                let packet_id_lsb = read_u8(stream)?;
+                let topic_name = read_string(stream)?;
+                let qos = read_u8(stream)? as usize;
+                let retain_flag = read_u8(stream)? as usize;
                 let payload = read_string(stream)?;
+                let dup_flag = read_u8(stream)? as usize;
+                let properties = PublishProperties::read_from(stream)?;
 
-                Ok(BrokerMessage::PublishDelivery { payload })
+                Ok(BrokerMessage::PublishDelivery {
+                    packet_id: u16::from_be_bytes([packet_id_msb, packet_id_lsb]),
+                    topic_name,
+                    qos,
+                    retain_flag,
+                    payload,
+                    dup_flag,
+                    properties,
+                })
             }
             0x10 => Ok(BrokerMessage::Connack {}),
             0x40 => {
@@ -220,7 +299,15 @@ impl BrokerMessage {
 
                 bytes[0] == *packet_id_msb && bytes[1] == *packet_id_lsb
             }
-            BrokerMessage::PublishDelivery { payload: _ } => true,
+            BrokerMessage::PublishDelivery {
+                packet_id: _,
+                topic_name: _,
+                qos: _,
+                retain_flag: _,
+                dup_flag: _,
+                properties: _,
+                payload: _,
+            } => true,
             BrokerMessage::Unsuback {
                 packet_id_msb,
                 packet_id_lsb,
@@ -241,7 +328,6 @@ mod tests {
 
     use super::*;
 
-   
     #[test]
     fn test_02_analizing_packet_ids_ok() {
         let suback = BrokerMessage::Suback {

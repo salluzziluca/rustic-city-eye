@@ -95,32 +95,33 @@ impl Client {
         })
     }
 
+
+
+    // Supongo que el comando sería publish: dup:1 qoS:1 retain:1 topic:topic_name payload: payload
     pub fn publish_message(
         message: &str,
         mut stream: TcpStream,
         pending_messages: Vec<u16>,
     ) -> Result<u16, ClientError> {
         let splitted_message: Vec<&str> = message.split(' ').collect();
-        //message interface(temp): dup:1 qos:2 retain:1 topic_name:sometopic
-        //    let mut dup_flag = false;
-        let qos = 1;
-        //      let mut retain_flag = false;
-        //        let mut packet_id = 0x00;
 
-        // if splitted_message[0] == "dup:1" {
-        //     dup_flag = true;
-        // }
+        let mut qos = 0;
+        let mut dup_flag = false;
+        let mut retain_flag = false;
 
-        // if splitted_message[1] == "qos:1" {
-        //     qos = 1;
-        //     packet_id = 0x20FF;
-        // } else {
-        //     dup_flag = false;
-        // }
+        if splitted_message[0] == "dup:1" {
+            dup_flag = true;
+        }
+        if splitted_message[1] == "qos:1" {
+            qos = 1;
+        }
+        if splitted_message[2] == "retain:1" {
+            retain_flag = true;
+        }
 
-        // if splitted_message[2] == "retain:1" {
-        //     retain_flag = true;
-        // }
+        let topic_name: Vec<&str> = splitted_message[3].split(':').collect();
+
+        let payload = splitted_message[5..].join(" ").to_string();
 
         let topic_properties = TopicProperties {
             topic_alias: 10,
@@ -139,13 +140,15 @@ impl Client {
             "a".to_string(),
         );
 
+
+        // let payload_string = payload[1].to_string();
         let publish = ClientMessage::Publish {
             packet_id,
-            topic_name: splitted_message[0].to_string(),
+            topic_name: topic_name[1].to_string(),
             qos,
-            retain_flag: 1,
-            payload: "buendia".to_string(),
-            dup_flag: 0,
+            retain_flag: if retain_flag { 1 } else { 0 },
+            payload,
+            dup_flag: dup_flag as usize,
             properties,
         };
 
@@ -296,7 +299,6 @@ impl Client {
         let pending_messages_clone_two = self.pending_messages.clone();
         let pending_messages_clone_three = self.pending_messages.clone();
 
-
         let stream_clone_one = match self.stream.try_clone() {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
@@ -395,8 +397,7 @@ impl Client {
                             
                             println!("Desubscribiendome del topic: {}", topic);
 
-                            let sub_id = subscriptions_clone.lock().unwrap().get(topic).unwrap().clone();
-
+                            let sub_id = *subscriptions_clone.lock().unwrap().get(topic).unwrap();
                             match stream_clone_five.try_clone() {
                                 Ok(stream_clone) => {
                                     if let Ok(packet_id) = Client::unsubscribe(
@@ -516,6 +517,7 @@ impl Client {
                                 
                                 for pending_message in &pending_messages {
                                     let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
+                                    
                                     if packet_id_bytes[0] == packet_id_msb
                                         && packet_id_bytes[1] == packet_id_lsb
                                     {
@@ -532,7 +534,7 @@ impl Client {
                                 let mut topic = String::new();
                                 for (key, value) in subscriptions_clone.lock().unwrap().iter() {
                                     if *value == 1 {
-                                        topic = key.clone();
+                                        topic.clone_from(key);
                                     }
                                 }
                                 subscriptions_clone.lock().unwrap().remove(&topic);
@@ -540,8 +542,19 @@ impl Client {
                                     
                                 println!("Recibi un mensaje {:?}", message);
                             }
-                            BrokerMessage::PublishDelivery { payload: _ } => {
-                                println!("Recibi un mensaje {:?}", message)
+                            BrokerMessage::PublishDelivery {
+                                packet_id,
+                                topic_name: _,
+                                qos: _,
+                                retain_flag: _,
+                                dup_flag: _,
+                                properties: _,
+                                payload,
+                            } => {
+                                println!(
+                                    "PublishDelivery con id {} recibido, payload: {}",
+                                    packet_id, payload
+                                );
                             }
                             BrokerMessage::Unsuback {
                                 packet_id_msb,
