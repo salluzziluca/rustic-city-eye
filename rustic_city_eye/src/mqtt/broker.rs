@@ -226,7 +226,26 @@ impl Broker {
                         Ok(_) => println!("Unsuback enviado"),
                         Err(err) => println!("Error al enviar Unsuback: {:?}", err),
                     }
-                    
+                }
+                ClientMessage::Disconnect {
+                    reason_code: _,
+                    session_expiry_interval: _,
+                    reason_string,
+                    user_properties: _,
+                } => {
+                    println!(
+                        "Recibí un Disconnect, razon de desconexión: {:?}",
+                        reason_string
+                    );
+                }
+                ClientMessage::Pingreq => {
+                    println!("Recibí un Pingreq");
+                    let pingresp = BrokerMessage::Pingresp;
+                    println!("Enviando un Pingresp");
+                    match pingresp.write_to(&mut stream) {
+                        Ok(_) => println!("Pingresp enviado"),
+                        Err(err) => println!("Error al enviar Pingresp: {:?}", err),
+                    }
                 }
             }
         }

@@ -4,6 +4,7 @@ use std::{
     collections::HashMap, net::TcpStream, sync::{mpsc, Arc, Mutex}
 };
 
+
 use crate::mqtt::{
     broker_message::BrokerMessage,
     client_message::ClientMessage,
@@ -229,6 +230,44 @@ impl Client {
         }
     }
 
+    ///recibe un string que indica la razón de la desconexión y un stream y envia un disconnect message al broker
+    /// segun el str reason recibido, modifica el reason_code y el reason_string del mensaje
+    ///
+    /// devuelve el packet_id del mensaje enviado o un ClientError en caso de error
+    pub fn disconnect(reason: &str, mut stream: TcpStream) -> Result<u16, ClientError> {
+        let packet_id = 1;
+        let reason_code: u8;
+        let reason_string: String;
+        match reason {
+            "normal" => {
+                reason_code = 0x00;
+                reason_string =
+                    "Close the connection normally. Do not send the Will Message.".to_string();
+            }
+            "with_will" => {
+                reason_code = 0x04;
+                reason_string = "The Client wishes to disconnect but requires that the Server also publishes its Will Message"
+                    .to_string();
+            }
+            _ => {
+                reason_code = 0x80;
+                reason_string = "The Connection is closed but the sender either does not wish to reveal reason or none of the other Reason Codes apply. "
+                    .to_string();
+            }
+        }
+        let disconnect = ClientMessage::Disconnect {
+            reason_code,
+            session_expiry_interval: 0,
+            reason_string,
+            user_properties: vec![("propiedad".to_string(), "valor".to_string())],
+        };
+
+        match disconnect.write_to(&mut stream) {
+            Ok(()) => Ok(packet_id),
+            Err(_) => Err(ClientError::new("Error al enviar mensaje")),
+        }
+    }
+
     /// Se encarga de que el cliente este funcionando correctamente.
     /// El Client debe encargarse de dos tareas: leer mensajes que le lleguen del Broker.
     /// Estos mensajes pueden ser tanto acks (Connack, Puback, etc.)
@@ -246,9 +285,13 @@ impl Client {
     /// Si logra enviar los mensajes correctamente, envia el pacjet id mediante el channel
     ///
     /// El thread de lectura (read_messages) se encarga de leer los mensajes que le llegan del broker.
+    ///
+    /// Si se recibe un mensaje del tipo Disconnect: se finalizan ambos hilos y se finaliza la conexión con el broker y  la sesion del cliente.
     pub fn client_run(&mut self, rx: mpsc::Receiver<String>) -> Result<(), ProtocolError> {
         let (sender, receiver) = mpsc::channel();
 
+        let mut desconectar = false;
+        
         let pending_messages_clone_one = self.pending_messages.clone();
         let pending_messages_clone_two = self.pending_messages.clone();
         let pending_messages_clone_three = self.pending_messages.clone();
@@ -266,6 +309,10 @@ impl Client {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
         };
+        let stream_clone_four = match self.stream.try_clone() {
+            Ok(stream) => stream,
+            Err(_) => return Err(ProtocolError::StreamError),
+        };
         let stream_clone_five = match self.stream.try_clone() {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
@@ -275,113 +322,157 @@ impl Client {
 
         let _write_messages = std::thread::spawn(move || {
             let mut pending_messages = pending_messages_clone_one.clone();
-           
-            loop {
-                if let Ok(line) = rx.recv() {
-                    if line.starts_with("publish:") {
-                        let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
-                        let message = post_colon.trim(); // remove leading/trailing whitespace
-                        println!("Publicando mensaje: {}", message);
+            while !desconectar{
+                loop {
+                    if let Ok(line) = rx.recv() {
+                        if line.starts_with("publish:") {
+                            let (_, post_colon) = line.split_at(8); // "publish:" is 8 characters
+                            let message = post_colon.trim(); // remove leading/trailing whitespace
+                            println!("Publicando mensaje: {}", message);
 
-                        match stream_clone_one.try_clone() {
-                            Ok(stream_clone) => {
-                                if let Ok(packet_id) = Client::publish_message(
-                                    message,
-                                    stream_clone,
-                                    pending_messages_clone_one.clone(),
-                                ) {
-                                    pending_messages.push(packet_id);
-                                    match sender.send(packet_id) {
-                                        Ok(_) => continue,
-                                        Err(_) => {
-                                            println!(
-                                                "Error al enviar packet_id de puback al receiver"
-                                            )
+                            match stream_clone_one.try_clone() {
+                                Ok(stream_clone) => {
+                                    if let Ok(packet_id) = Client::publish_message(
+                                        message,
+                                        stream_clone,
+                                        pending_messages_clone_one.clone(),
+                                    ) {
+                                        pending_messages.push(packet_id);
+                                        match sender.send(packet_id) {
+                                            Ok(_) => continue,
+                                            Err(_) => {
+                                                println!(
+                                                    "Error al enviar packet_id de puback al receiver"
+                                                )
+                                            }
                                         }
                                     }
                                 }
+                                Err(_) => {
+                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                                }
                             }
-                            Err(_) => {
-                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                        } else if line.starts_with("subscribe:") {
+                            let (_, post_colon) = line.split_at(10); // "subscribe:" is 10 characters
+                            let topic = post_colon.trim(); // remove leading/trailing whitespace
+                        
+                            println!("Subscribiendome al topic: {}", topic);
+                            
+                            if subscriptions_clone.lock().unwrap().contains_key(&topic.to_string()){
+                                println!("Ya estoy subscrito a este topic");
                             }
-                        }
-                    } else if line.starts_with("subscribe:") {
-                        let (_, post_colon) = line.split_at(10); // "subscribe:" is 10 characters
-                        let topic = post_colon.trim(); // remove leading/trailing whitespace
-                       
-                        println!("Subscribiendome al topic: {}", topic);
-                        
-                        if subscriptions_clone.lock().unwrap().contains_key(&topic.to_string()){
-                            println!("Ya estoy subscrito a este topic");
-                        }
-                        
-                        match stream_clone_two.try_clone() {
-                            Ok(stream_clone) => {
-                                if let Ok(packet_id) = Client::subscribe(
-                                    topic,
-                                    stream_clone,
-                                    subscriptions_clone.clone(),
-                                    pending_messages_clone_two.clone(),
-                                ) {
-                                    match sender.send(packet_id) {
-                                        Ok(_) => {
-                                            let provitional_sub_id = 1;
-                                            let topic_new = topic.to_string();
-                                            subscriptions_clone.lock().unwrap().insert(topic_new, provitional_sub_id);
-                                        },
-                                        Err(_) => {
-                                            println!(
-                                                "Error al enviar el packet_id del suback al receiver"
-                                            )
+                            
+                            match stream_clone_two.try_clone() {
+                                Ok(stream_clone) => {
+                                    if let Ok(packet_id) = Client::subscribe(
+                                        topic,
+                                        stream_clone,
+                                        subscriptions_clone.clone(),
+                                        pending_messages_clone_two.clone(),
+                                    ) {
+                                        match sender.send(packet_id) {
+                                            Ok(_) => {
+                                                let provitional_sub_id = 1;
+                                                let topic_new = topic.to_string();
+                                                subscriptions_clone.lock().unwrap().insert(topic_new, provitional_sub_id);
+                                            },
+                                            Err(_) => {
+                                                println!(
+                                                    "Error al enviar el packet_id del suback al receiver"
+                                                )
+                                            }
                                         }
                                     }
                                 }
+                                Err(_) => {
+                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                                }
                             }
-                            Err(_) => {
-                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
-                            }
-                        }
-                        
-                    } else if line.starts_with("unsubscribe:") {
-                        let (_, post_colon) = line.split_at(12); // "unsubscribe:" is 12 characters
-                        let topic = post_colon.trim(); // remove leading/trailing whitespace
-                        
-                        println!("Desubscribiendome del topic: {}", topic);
+                            
+                        } else if line.starts_with("unsubscribe:") {
+                            let (_, post_colon) = line.split_at(12); // "unsubscribe:" is 12 characters
+                            let topic = post_colon.trim(); // remove leading/trailing whitespace
+                            
+                            println!("Desubscribiendome del topic: {}", topic);
 
-                        let sub_id = subscriptions_clone.lock().unwrap().get(topic).unwrap().clone();
+                            let sub_id = subscriptions_clone.lock().unwrap().get(topic).unwrap().clone();
 
-                        match stream_clone_five.try_clone() {
-                            Ok(stream_clone) => {
-                                if let Ok(packet_id) = Client::unsubscribe(
-                                    topic,
-                                    sub_id,
-                                    stream_clone,
-                                    pending_messages_clone_three.clone(),
-                                ) {
-                                    match sender.send(packet_id) {
-                                        Ok(_) => {
-                                            let topic_new = topic.to_string();
-                                            subscriptions_clone.lock().unwrap().remove(&topic_new);
-                                        },
-                                        Err(_) => {
-                                            println!(
-                                                "Error al enviar el packet_id del unsuback al receiver"
-                                            )
+                            match stream_clone_five.try_clone() {
+                                Ok(stream_clone) => {
+                                    if let Ok(packet_id) = Client::unsubscribe(
+                                        topic,
+                                        sub_id,
+                                        stream_clone,
+                                        pending_messages_clone_three.clone(),
+                                    ) {
+                                        match sender.send(packet_id) {
+                                            Ok(_) => {
+                                                let topic_new = topic.to_string();
+                                                subscriptions_clone.lock().unwrap().remove(&topic_new);
+                                            },
+                                            Err(_) => {
+                                                println!(
+                                                    "Error al enviar el packet_id del unsuback al receiver"
+                                                )
+                                            }
                                         }
                                     }
                                 }
+                                Err(_) => {
+                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                                }
                             }
-                            Err(_) => {
-                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
+
+                        } else if line.starts_with("pingreq") {
+                            println!("Enviando pingreq");
+                            match stream_clone_four.try_clone() {
+                                Ok(mut stream_clone) => {
+                                    let pingreq = ClientMessage::Pingreq;
+                                    match pingreq.write_to(&mut stream_clone) {
+                                        //chequear esto
+                                        Ok(()) => println!("Pingreq enviado"),
+                                        Err(_) => println!("Error al enviar pingreq"),
+                                    }
+                                }
+                                Err(_) => {
+                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                                }
                             }
-                        }
+                        } else if line.starts_with("disconnect") {
+                           
+                           
+                            println!("Desconectandome...\nPresione Enter para cerrar finalizar el programa");
+                            let reason = "normal";
+                            
+                            match stream_clone_five.try_clone() {
+                                Ok(stream_clone) => {
+                                    if let Ok(packet_id) = Client::disconnect(reason, stream_clone) {
+                                        match sender.send(packet_id) {
+                                            Ok(_) => continue,
+                                            Err(_) => {
+                                                println!(
+                                                    "Error al enviar packet_id de puback al receiver"
+                                                )
+                                            }
+                                        }
+
+                                        desconectar = true;
+                                        break;
+                                    }
+                                }
+                                Err(_) => {
+                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                                }
+                            }
+                            break;
                         
-                       
-                    } else {
-                        println!("Comando no reconocido: {}", line);
+                        } else {
+                            println!("Comando no reconocido: {}", line);
+                        }
                     }
                 }
             }
+            Ok(())
         });
 
         let subscriptions_clone = self.subscriptions.clone();
@@ -472,6 +563,9 @@ impl Client {
                                 }
 
                                 println!("Recibi un mensaje {:?}", message);
+                            }
+                            BrokerMessage::Pingresp => {
+                                println!("Recibi un mensaje {:?}", message)
                             }
                         }
                     }
