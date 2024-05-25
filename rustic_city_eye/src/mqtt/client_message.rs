@@ -40,27 +40,45 @@ pub enum ClientMessage {
         username: String,
         password: String,
     },
+
+    /// El paquete Publish es enviado desde un cliente al servidor, o desde un servidor al cliente para transportar un mensaje de aplicacion.
     Publish {
         packet_id: u16,
+
+        ///Identifica el canal de informacion por el cual el Payload data se va a publicar.
         topic_name: String,
+
+        ///Indica el nivel de garantia de delivery de un application message.
         qos: usize,
-        retain_flag: bool,
+
+        /// Si vale 1, el server debe reemplazar cualquier retained message para ese topic
+        /// y guardar este application message.
+        retain_flag: usize,
+
+        ///Es el application message que se esta publicando.
+        ///El contenido y formato de la data es especificado por la aplicacion.
         payload: String,
-        dup_flag: bool,
+
+        ///Dup flag indica si fue la primera ocasion que el client o el servidor intento enviar este packete.
+        /// Debe ser 0 para todos los mensajes con QoS 0.
+        /// Debe valer 1 para indicar que es el segundo intento de envio del packete.
+        dup_flag: usize,
+
+        /// Una property es un identificador que define el uso y tipos de data, seguido de un valor.
         properties: PublishProperties,
     },
+
     /// El Subscribe Message se utiliza para suscribirse a uno o más topics. El cliente puede enviar un mensaje de subscribe con un packet id y una lista de topics a los que se quiere suscribir. El broker responde con un mensaje de suback con el mismo packet id y una lista de return codes que indican si la suscripcion fue exitosa o no.
-    ///
-    /// packet_id es un identificador unico para el mensaje de subscribe.
-    /// topic_name es el nombre del topic al que se quiere suscribir.
-    /// properties es un struct que contiene las propiedades del mensaje de subscribe.
-    ///
     Subscribe {
-        /// packet_id es un identificador unico para el mensaje de subscribe.
         packet_id: u16,
         /// topic_name es el nombre del topic al que se quiere suscribir.
         topic_name: String,
         /// properties es un struct que contiene las propiedades del mensaje de subscribe.
+        properties: SubscribeProperties,
+    },
+    Unsubscribe {
+        packet_id: u16,
+        topic_name: String,
         properties: SubscribeProperties,
     },
     /// Es el ultimo mensaje que el cliente envia antes de desconectarse, este mensaje contiene informacion sobre la razon de la desconexión y propiedades adicionales.
@@ -97,8 +115,7 @@ impl ClientMessage {
                 password,
             } => {
                 //fixed header
-                let byte_1: u8 = 0x10_u8.to_le(); //00010000
-                writer.write_all(&[byte_1])?;
+                self.write_first_packet_byte(&mut writer)?;
 
                 //TODO: aca deberia ir el remaining lenght field
                 //protocol name
@@ -163,50 +180,19 @@ impl ClientMessage {
                 Ok(())
             }
             ClientMessage::Publish {
-                packet_id,
-                topic_name,
-                qos,
-                retain_flag,
+                packet_id: _,
+                topic_name: _,
+                qos: _,
+                retain_flag: _,
                 payload,
-                dup_flag,
-                properties,
+                dup_flag: _,
+                properties: _,
             } => {
                 //fixed header
-                let mut byte_1 = 0x30_u8;
-
-                if *retain_flag {
-                    //we must replace any existing retained message for this topic and store
-                    //the app message.
-                    byte_1 |= 1 << 0;
-                }
-
-                if *qos == 0x01 {
-                    byte_1 |= 1 << 1;
-                    byte_1 |= 0 << 2;
-                } else if *qos != 0x00 && *qos != 0x01 {
-                    //we should throw a DISCONNECT with reason code 0x9B(QoS not supported).
-                    println!("Qos inválido");
-                }
-
-                if *dup_flag {
-                    byte_1 |= 1 << 3;
-                }
-
-                //Dup flag must be set to 0 for all QoS 0 messages.
-                if *qos == 0x00 {
-                    byte_1 |= 0 << 3;
-                }
-
-                writer.write_all(&[byte_1])?;
+                self.write_first_packet_byte(&mut writer)?;
 
                 //Remaining Length
-                write_string(&mut writer, topic_name)?;
-
-                //packet_id
-                write_u16(&mut writer, packet_id)?;
-
-                //Properties
-                properties.write_properties(&mut writer)?;
+                self.write_packet_properties(&mut writer)?;
 
                 //Payload
                 write_string(&mut writer, payload)?;
@@ -215,15 +201,22 @@ impl ClientMessage {
                 Ok(())
             }
             ClientMessage::Subscribe {
-                packet_id,
-                topic_name,
-                properties,
+                packet_id: _,
+                topic_name: _,
+                properties: _,
             } => {
-                let byte_1: u8 = 0x82_u8;
-                writer.write_all(&[byte_1])?;
-                write_u16(&mut writer, packet_id)?;
-                write_string(&mut writer, topic_name)?;
-                properties.write_properties(&mut writer)?;
+                self.write_first_packet_byte(&mut writer)?;
+                self.write_packet_properties(&mut writer)?;
+                writer.flush()?;
+                Ok(())
+            }
+            ClientMessage::Unsubscribe {
+                packet_id: _,
+                topic_name: _,
+                properties: _,
+            } => {
+                self.write_first_packet_byte(&mut writer)?;
+                self.write_packet_properties(&mut writer)?;
                 writer.flush()?;
                 Ok(())
             }
@@ -236,6 +229,7 @@ impl ClientMessage {
                 //fixed header
                 let header: u8 = 0xE0_u8.to_le(); //11100000
                 write_u8(&mut writer, &header)?;
+
                 //variable_header
                 write_u8(&mut writer, reason_code)?;
 
@@ -247,10 +241,10 @@ impl ClientMessage {
 
                 write_u8(&mut writer, &USER_PROPERTY_ID)?;
                 write_string_pairs(&mut writer, user_properties)?;
+
                 writer.flush()?;
                 Ok(())
             }
-
             ClientMessage::Pingreq => {
                 let byte_1: u8 = 0xC0_u8;
                 writer.write_all(&[byte_1])?;
@@ -260,12 +254,197 @@ impl ClientMessage {
         }
     }
 
+    fn write_first_packet_byte(
+        &self,
+        writer: &mut BufWriter<&mut dyn Write>,
+    ) -> std::io::Result<()> {
+        match self {
+            ClientMessage::Connect {
+                clean_start: _,
+                last_will_flag: _,
+                last_will_qos: _,
+                last_will_retain: _,
+                keep_alive: _,
+                properties: _,
+                client_id: _,
+                will_properties: _,
+                last_will_topic: _,
+                last_will_message: _,
+                username: _,
+                password: _,
+            } => {
+                let byte_1: u8 = 0x10_u8.to_le(); //00010000
+                writer.write_all(&[byte_1])?;
+            }
+            ClientMessage::Publish {
+                packet_id: _,
+                topic_name: _,
+                qos,
+                retain_flag,
+                payload: _,
+                dup_flag,
+                properties: _,
+            } => {
+                let mut byte_1 = 0x30_u8;
+
+                if *retain_flag == 1 {
+                    //we must replace any existing retained message for this topic and store
+                    //the app message.
+                    byte_1 |= 1 << 0;
+                }
+
+                if *qos == 1 {
+                    byte_1 |= 1 << 1;
+                    byte_1 |= 0 << 2;
+                } else if *qos != 0x00 && *qos != 0x01 {
+                    //we should throw a DISCONNECT with reason code 0x81(Malformed packet).
+                    println!("Qos inválido");
+                }
+
+                if *dup_flag == 1 {
+                    byte_1 |= 1 << 3;
+                }
+
+                //Dup flag must be set to 0 for all QoS 0 messages.
+                if *qos == 0x00 {
+                    byte_1 |= 0 << 3;
+                }
+
+                writer.write_all(&[byte_1])?;
+            }
+            ClientMessage::Subscribe {
+                packet_id: _,
+                topic_name: _,
+                properties: _,
+            } => {
+                let byte_1: u8 = 0x82_u8;
+                writer.write_all(&[byte_1])?;
+            }
+            ClientMessage::Unsubscribe {
+                packet_id: _,
+                topic_name: _,
+                properties: _,
+            } => {
+                let byte_1: u8 = 0xA2_u8;
+                writer.write_all(&[byte_1])?;
+            }
+            ClientMessage::Disconnect {
+                reason_code: _,
+                session_expiry_interval: _,
+                reason_string: _,
+                user_properties: _,
+            } => {
+                let byte_1: u8 = 0xE0_u8;
+                writer.write_all(&[byte_1])?;
+            }
+            ClientMessage::Pingreq => {
+                let byte_1: u8 = 0xC0_u8;
+                writer.write_all(&[byte_1])?;
+            }
+        }
+        Ok(())
+    }
+
+    fn write_packet_properties(
+        &self,
+        writer: &mut BufWriter<&mut dyn Write>,
+    ) -> std::io::Result<()> {
+        match self {
+            ClientMessage::Connect {
+                clean_start: _,
+                last_will_flag: _,
+                last_will_qos: _,
+                last_will_retain: _,
+                keep_alive: _,
+                properties: _,
+                client_id: _,
+                will_properties: _,
+                last_will_topic: _,
+                last_will_message: _,
+                username: _,
+                password: _,
+            } => todo!(),
+            ClientMessage::Publish {
+                packet_id,
+                topic_name,
+                qos: _,
+                retain_flag: _,
+                payload: _,
+                dup_flag: _,
+                properties,
+            } => {
+                write_u16(writer, packet_id)?;
+
+                write_string(writer, topic_name)?;
+
+                //Properties
+                properties.write_properties(writer)?;
+            }
+            ClientMessage::Subscribe {
+                packet_id,
+                topic_name,
+                properties,
+            } => {
+                write_u16(writer, packet_id)?;
+
+                write_string(writer, topic_name)?;
+
+                //Properties
+                properties.write_properties(writer)?;
+            }
+            ClientMessage::Unsubscribe {
+                packet_id,
+                topic_name,
+                properties,
+            } => {
+                write_u16(writer, packet_id)?;
+
+                write_string(writer, topic_name)?;
+
+                //Properties
+                properties.write_properties(writer)?;
+            },
+           ClientMessage::Disconnect {
+                reason_code,
+                session_expiry_interval,
+                reason_string,
+                user_properties,
+            } => {
+                //fixed header
+                let header: u8 = 0xE0_u8.to_le(); //11100000
+                write_u8(writer, &header)?;
+                //variable_header
+                write_u8(writer, reason_code)?;
+
+                write_u8(writer, &SESSION_EXPIRY_INTERVAL_ID)?;
+                write_u32(writer, session_expiry_interval)?;
+
+                write_u8(writer, &REASON_STRING_ID)?;
+                write_string(writer, reason_string)?;
+
+                write_u8( writer, &USER_PROPERTY_ID)?;
+                write_string_pairs(writer, user_properties)?;
+                writer.flush()?;
+                
+            }
+
+            ClientMessage::Pingreq => {
+                let byte_1: u8 = 0xC0_u8;
+                writer.write_all(&[byte_1])?;
+                writer.flush()?;
+              
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn read_from(stream: &mut dyn Read) -> Result<ClientMessage, Error> {
         let mut header = [0u8; 1];
         stream.read_exact(&mut header)?;
 
         let mut header = u8::from_le_bytes(header);
-        let (mut dup_flag, mut qos, mut retain_flag) = (false, 0, false);
+        let (mut dup_flag, mut qos, mut retain_flag) = (0, 0, 0);
 
         let first_header_digits = header >> 4;
         if first_header_digits == 0x3 {
@@ -275,13 +454,13 @@ impl ClientMessage {
             header = 0x30_u8.to_le();
 
             if last_header_digits & 0b00000001 == 0b00000001 {
-                retain_flag = true;
+                retain_flag = 1;
             }
             if last_header_digits & 0b00000010 == 0b00000010 {
                 qos = 1;
             }
             if (last_header_digits >> 3) == 1 {
-                dup_flag = true;
+                dup_flag = 1;
             }
         }
 
@@ -372,9 +551,9 @@ impl ClientMessage {
                     1,
                     "a".to_string(),
                 );
-                let topic_name = read_string(stream)?;
                 let packet_id = read_u16(stream)?;
-                properties.read_properties(stream)?;
+                let topic_name = read_string(stream)?;
+                PublishProperties::read_from(stream)?;
                 let message = read_string(stream)?;
                 Ok(ClientMessage::Publish {
                     packet_id,
@@ -391,6 +570,16 @@ impl ClientMessage {
                 let topic = read_string(stream)?;
                 let properties = SubscribeProperties::read_properties(stream)?;
                 Ok(ClientMessage::Subscribe {
+                    packet_id,
+                    topic_name: topic,
+                    properties,
+                })
+            }
+            0xA2 => {
+                let packet_id = read_u16(stream)?;
+                let topic = read_string(stream)?;
+                let properties = SubscribeProperties::read_properties(stream)?;
+                Ok(ClientMessage::Unsubscribe {
                     packet_id,
                     topic_name: topic,
                     properties,
@@ -597,9 +786,9 @@ mod tests {
             packet_id: 1,
             topic_name: "mensajes para juan".to_string(),
             qos: 1,
-            retain_flag: true,
+            retain_flag: 1,
             payload: "hola soy juan".to_string(),
-            dup_flag: true,
+            dup_flag: 1,
             properties,
         };
 
@@ -651,7 +840,7 @@ mod tests {
         };
         assert_eq!(sub, read_sub);
     }
-
+    
     #[test]
     fn test_05_disconnect_ok() {
         let disconect = ClientMessage::Disconnect {

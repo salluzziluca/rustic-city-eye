@@ -15,13 +15,18 @@ const CONTENT_TYPE_ID: u8 = 0x03;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct PublishProperties {
-    payload_format_indicator: u8,
-    message_expiry_interval: u32,
-    topic_properties: TopicProperties,
-    correlation_data: Vec<u8>,
-    user_property: String,
-    subscription_identifier: u32,
-    content_type: String,
+    /// Si vale 0, indica que el payload tiene bytes unspecified -> es equivalente a no enviar un payload format indicator.
+    /// Si vale 1 indica que el payload esta encodeado en UTF-8
+    pub payload_format_indicator: u8,
+
+    ///Indica el lifetime del application message en segundos.
+    ///Si este intervalo expira y el servidor no ha hecho el delivery, se debe eliminar la copia del mensaje para ese subscriptor.
+    pub message_expiry_interval: u32,
+    pub topic_properties: TopicProperties,
+    pub correlation_data: Vec<u8>,
+    pub user_property: String,
+    pub subscription_identifier: u32,
+    pub content_type: String,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -87,7 +92,7 @@ impl PublishProperties {
         Ok(())
     }
     #[allow(dead_code)]
-    pub fn read_properties(&self, stream: &mut dyn Read) -> Result<PublishProperties, Error> {
+    pub fn read_from(stream: &mut dyn Read) -> Result<PublishProperties, Error> {
         //payload format indicator
         let _payload_format_indicator_id = read_u8(stream)?;
         let payload_format_indicator = read_u8(stream)?;
@@ -168,7 +173,7 @@ mod tests {
         }
         buffer.set_position(0);
 
-        let publish_properties_read = match properties.read_properties(&mut buffer) {
+        let publish_properties_read = match PublishProperties::read_from(&mut buffer) {
             Ok(properties) => properties,
             Err(err) => panic!("Error reading properties: {:?}", err),
         };
