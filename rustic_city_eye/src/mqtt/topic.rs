@@ -7,11 +7,14 @@ use std::sync::{Arc, RwLock};
 use crate::mqtt::broker_message::BrokerMessage;
 
 use super::client_message::ClientMessage;
-use super::protocol_error::ProtocolError;
+
+use super::reason_code;
 
 #[derive(Debug, Clone)]
 pub struct Topic {
-    subscribers: Arc<RwLock<HashMap<u32, TcpStream>>>,
+    /// Hashmap de subscriptores.
+    /// El u32 representa el sub_id, y el valor es el stream del subscriptor.
+    subscribers: Arc<RwLock<HashMap<u8, TcpStream>>>,
 }
 
 impl Default for Topic {
@@ -27,27 +30,37 @@ impl Topic {
         }
     }
 
-    pub fn add_subscriber(&mut self, stream: TcpStream, sub_id: u32) -> Result<(), ProtocolError> {
+    pub fn add_subscriber(&mut self, stream: TcpStream, sub_id: u8) -> u8 {
+        //verificar si el sub_id ya existe en topic subscribers
+        if self.subscribers.read().unwrap().contains_key(&sub_id) {
+            return reason_code::SUB_ID_DUP_HEX;
+        }
+
         let mut lock = match self.subscribers.write() {
             Ok(guard) => guard,
-            Err(_) => return Err(ProtocolError::LockError),
+            Err(_) => return reason_code::UNSPECIFIED_ERROR_HEX,
         };
 
         lock.insert(sub_id, stream);
-        Ok(())
+        reason_code::SUCCESS_HEX
     }
 
-    // pub fn remove_subscriber(&mut self, stream: TcpStream) -> Result<(), ProtocolError> {
-    //     let mut lock = match self.subscribers.write() {
-    //         Ok(guard) => guard,
-    //         Err(_) => return Err(ProtocolError::LockError)
-    //     };
+    pub fn remove_subscriber(&mut self, sub_id: u8) -> u8 {
 
-    //     //let sub_index = lock.iter().position(|&r| r == stream).unwrap();
-    //     //println!("Encontre el sub en la pos {}", sub_index);
+        let mut lock = match self.subscribers.write() {
+            Ok(guard) => {
+                guard},
+            Err(_) => return reason_code::UNSPECIFIED_ERROR_HEX,
+        };
 
-    //     Ok(())
-    // }
+        if !lock.contains_key(&sub_id) {
+            println!("No se encontró el sub_id en los subscribers");
+            return reason_code::NO_MATCHING_SUBSCRIBERS_HEX;
+        }
+
+        lock.remove(&sub_id);
+        reason_code::SUCCESS_HEX
+    }
 
     pub fn deliver_message(&self, message: ClientMessage) -> Result<u8, Error> {
         let lock = self.subscribers.read().unwrap();

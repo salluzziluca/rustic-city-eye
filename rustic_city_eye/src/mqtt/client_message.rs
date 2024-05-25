@@ -9,6 +9,9 @@ use crate::mqtt::writer::*;
 
 //use self::quality_of_service::QualityOfService;
 const PROTOCOL_VERSION: u8 = 5;
+const SESSION_EXPIRY_INTERVAL_ID: u8 = 0x11;
+const REASON_STRING_ID: u8 = 0x1F;
+const USER_PROPERTY_ID: u8 = 0x26;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ClientMessage {
@@ -68,7 +71,6 @@ pub enum ClientMessage {
     /// El Subscribe Message se utiliza para suscribirse a uno o más topics. El cliente puede enviar un mensaje de subscribe con un packet id y una lista de topics a los que se quiere suscribir. El broker responde con un mensaje de suback con el mismo packet id y una lista de return codes que indican si la suscripcion fue exitosa o no.
     Subscribe {
         packet_id: u16,
-
         /// topic_name es el nombre del topic al que se quiere suscribir.
         topic_name: String,
         /// properties es un struct que contiene las propiedades del mensaje de subscribe.
@@ -79,6 +81,18 @@ pub enum ClientMessage {
         topic_name: String,
         properties: SubscribeProperties,
     },
+    /// Es el ultimo mensaje que el cliente envia antes de desconectarse, este mensaje contiene informacion sobre la razon de la desconexión y propiedades adicionales.
+    /// reason_code es el codigo de la razon de la desconexión.
+    /// session_expiry_interval es el tiempo en segundos que el broker debe mantener la sesion del cliente activa despues de que este se desconecte.
+    /// reason_string es un mensaje de texto que describe la razon de la desconexión.
+    /// user_properties es un conjunto de propiedades adicionales que el cliente puede enviar.
+    Disconnect {
+        reason_code: u8,
+        session_expiry_interval: u32,
+        reason_string: String,
+        user_properties: Vec<(String, String)>,
+    },
+    Pingreq,
 }
 
 #[allow(dead_code)]
@@ -206,6 +220,37 @@ impl ClientMessage {
                 writer.flush()?;
                 Ok(())
             }
+            ClientMessage::Disconnect {
+                reason_code,
+                session_expiry_interval,
+                reason_string,
+                user_properties,
+            } => {
+                //fixed header
+                let header: u8 = 0xE0_u8.to_le(); //11100000
+                write_u8(&mut writer, &header)?;
+
+                //variable_header
+                write_u8(&mut writer, reason_code)?;
+
+                write_u8(&mut writer, &SESSION_EXPIRY_INTERVAL_ID)?;
+                write_u32(&mut writer, session_expiry_interval)?;
+
+                write_u8(&mut writer, &REASON_STRING_ID)?;
+                write_string(&mut writer, reason_string)?;
+
+                write_u8(&mut writer, &USER_PROPERTY_ID)?;
+                write_string_pairs(&mut writer, user_properties)?;
+
+                writer.flush()?;
+                Ok(())
+            }
+            ClientMessage::Pingreq => {
+                let byte_1: u8 = 0xC0_u8;
+                writer.write_all(&[byte_1])?;
+                writer.flush()?;
+                Ok(())
+            }
         }
     }
 
@@ -283,6 +328,19 @@ impl ClientMessage {
                 let byte_1: u8 = 0xA2_u8;
                 writer.write_all(&[byte_1])?;
             }
+            ClientMessage::Disconnect {
+                reason_code: _,
+                session_expiry_interval: _,
+                reason_string: _,
+                user_properties: _,
+            } => {
+                let byte_1: u8 = 0xE0_u8;
+                writer.write_all(&[byte_1])?;
+            }
+            ClientMessage::Pingreq => {
+                let byte_1: u8 = 0xC0_u8;
+                writer.write_all(&[byte_1])?;
+            }
         }
         Ok(())
     }
@@ -345,6 +403,36 @@ impl ClientMessage {
 
                 //Properties
                 properties.write_properties(writer)?;
+            },
+           ClientMessage::Disconnect {
+                reason_code,
+                session_expiry_interval,
+                reason_string,
+                user_properties,
+            } => {
+                //fixed header
+                let header: u8 = 0xE0_u8.to_le(); //11100000
+                write_u8(writer, &header)?;
+                //variable_header
+                write_u8(writer, reason_code)?;
+
+                write_u8(writer, &SESSION_EXPIRY_INTERVAL_ID)?;
+                write_u32(writer, session_expiry_interval)?;
+
+                write_u8(writer, &REASON_STRING_ID)?;
+                write_string(writer, reason_string)?;
+
+                write_u8( writer, &USER_PROPERTY_ID)?;
+                write_string_pairs(writer, user_properties)?;
+                writer.flush()?;
+                
+            }
+
+            ClientMessage::Pingreq => {
+                let byte_1: u8 = 0xC0_u8;
+                writer.write_all(&[byte_1])?;
+                writer.flush()?;
+              
             }
         }
 
@@ -497,6 +585,43 @@ impl ClientMessage {
                     properties,
                 })
             }
+            0xE0 => {
+                let reason_code = read_u8(stream)?;
+                let session_expiry_interval_id = read_u8(stream)?;
+                if session_expiry_interval_id != SESSION_EXPIRY_INTERVAL_ID {
+                    return Err(Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid session expiry interval id",
+                    ));
+                }
+                let session_expiry_interval = read_u32(stream)?;
+
+                let reason_string_id = read_u8(stream)?;
+                if reason_string_id != REASON_STRING_ID {
+                    return Err(Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid reason string id",
+                    ));
+                }
+                let reason_string = read_string(stream)?;
+
+                let user_property_id = read_u8(stream)?;
+                if user_property_id != USER_PROPERTY_ID {
+                    return Err(Error::new(
+                        std::io::ErrorKind::Other,
+                        "Invalid user property id",
+                    ));
+                }
+                let user_properties = read_string_pairs(stream)?;
+
+                Ok(ClientMessage::Disconnect {
+                    reason_code,
+                    session_expiry_interval,
+                    reason_string,
+                    user_properties,
+                })
+            }
+            0xC0 => Ok(ClientMessage::Pingreq),
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
@@ -715,33 +840,30 @@ mod tests {
         };
         assert_eq!(sub, read_sub);
     }
-
+    
     #[test]
-    fn test_05_unsubscribe_ok() {
-        let unsub = ClientMessage::Unsubscribe {
-            packet_id: 1,
-            topic_name: "topico".to_string(),
-            properties: SubscribeProperties::new(
-                1,
-                vec![("propiedad".to_string(), "valor".to_string())],
-                vec![0, 1, 2, 3],
-            ),
+    fn test_05_disconnect_ok() {
+        let disconect = ClientMessage::Disconnect {
+            reason_code: 1,
+            session_expiry_interval: 1,
+            reason_string: "hola".to_string(),
+            user_properties: vec![("hola".to_string(), "mundo".to_string())],
         };
 
         let mut cursor = Cursor::new(Vec::<u8>::new());
-        match unsub.write_to(&mut cursor) {
+        match disconect.write_to(&mut cursor) {
             Ok(_) => {}
             Err(e) => {
                 panic!("no se pudo escribir en el cursor {:?}", e);
             }
         }
         cursor.set_position(0);
-        let read_unsub = match ClientMessage::read_from(&mut cursor) {
-            Ok(sub) => sub,
+        let read_disconect = match ClientMessage::read_from(&mut cursor) {
+            Ok(disconect) => disconect,
             Err(e) => {
                 panic!("no se pudo leer del cursor {:?}", e);
             }
         };
-        assert_eq!(unsub, read_unsub);
+        assert_eq!(disconect, read_disconect);
     }
 }

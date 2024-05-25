@@ -6,6 +6,7 @@ use super::{
     writer::{write_string, write_u8},
 };
 
+
 #[derive(Debug, PartialEq)]
 pub enum BrokerMessage {
     Connack {
@@ -30,6 +31,7 @@ pub enum BrokerMessage {
         packet_id_lsb: u8,
         /// reason_code es el código de razón de la confirmación
         reason_code: u8,
+        sub_id: u8,
     },
     PublishDelivery {
         packet_id: u16,
@@ -43,7 +45,9 @@ pub enum BrokerMessage {
     Unsuback {
         packet_id_msb: u8,
         packet_id_lsb: u8,
+        reason_code: u8,
     },
+    Pingresp,
 }
 #[allow(dead_code)]
 impl BrokerMessage {
@@ -84,6 +88,7 @@ impl BrokerMessage {
                 packet_id_msb,
                 packet_id_lsb,
                 reason_code,
+                sub_id,
             } => {
                 //fixed header
                 let byte_1: u8 = 0x90_u8.to_le(); //10010000
@@ -102,6 +107,9 @@ impl BrokerMessage {
 
                 //reason code
                 write_u8(&mut writer, reason_code)?;
+
+                //sub_id
+                write_u8(&mut writer, sub_id)?;
                 writer.flush()?;
 
                 Ok(())
@@ -176,6 +184,7 @@ impl BrokerMessage {
             BrokerMessage::Unsuback {
                 packet_id_msb,
                 packet_id_lsb,
+                reason_code,
             } => {
                 //fixed header
                 let byte_1: u8 = 0xB0_u8.to_le(); //10110000
@@ -186,7 +195,15 @@ impl BrokerMessage {
                 //packet_id
                 write_u8(&mut writer, packet_id_msb)?;
                 write_u8(&mut writer, packet_id_lsb)?;
+                write_u8(&mut writer, reason_code)?;
 
+                writer.flush()?;
+
+                Ok(())
+            }
+            BrokerMessage::Pingresp => {
+                let byte_1: u8 = 0xD0_u8.to_le();
+                writer.write_all(&[byte_1])?;
                 writer.flush()?;
 
                 Ok(())
@@ -232,25 +249,30 @@ impl BrokerMessage {
                     reason_code,
                 })
             }
-            0x90 => {
+            0x90 => { 
                 let packet_id_msb = read_u8(stream)?;
                 let packet_id_lsb = read_u8(stream)?;
                 let reason_code = read_u8(stream)?;
+                let sub_id = read_u8(stream)?;
                 Ok(BrokerMessage::Suback {
                     packet_id_msb,
                     packet_id_lsb,
                     reason_code,
+                    sub_id,
                 })
             }
             0xB0 => {
                 let packet_id_msb = read_u8(stream)?;
                 let packet_id_lsb = read_u8(stream)?;
+                let reason_code = read_u8(stream)?;
 
                 Ok(BrokerMessage::Unsuback {
                     packet_id_msb,
                     packet_id_lsb,
+                    reason_code,
                 })
             }
+            0xD0 => Ok(BrokerMessage::Pingresp),
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
@@ -270,7 +292,8 @@ impl BrokerMessage {
             BrokerMessage::Suback {
                 packet_id_msb,
                 packet_id_lsb,
-                reason_code: _,
+                reason_code:_,
+                sub_id:_,
             } => {
                 let bytes = packet_id.to_be_bytes();
 
@@ -288,11 +311,13 @@ impl BrokerMessage {
             BrokerMessage::Unsuback {
                 packet_id_msb,
                 packet_id_lsb,
+                reason_code:_,
             } => {
                 let bytes = packet_id.to_be_bytes();
 
                 bytes[0] == *packet_id_msb && bytes[1] == *packet_id_lsb
             }
+            BrokerMessage::Pingresp => true,
         }
     }
 }
@@ -309,6 +334,7 @@ mod tests {
             reason_code: 1,
             packet_id_msb: 2,
             packet_id_lsb: 1,
+            sub_id: 1,
         };
 
         let puback = BrokerMessage::Puback {
@@ -326,6 +352,7 @@ mod tests {
         let unsuback = BrokerMessage::Unsuback {
             packet_id_msb: 1,
             packet_id_lsb: 1,
+            reason_code: 1,
         };
 
         let mut cursor = Cursor::new(Vec::<u8>::new());
