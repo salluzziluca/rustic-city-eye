@@ -534,7 +534,7 @@ impl Client {
                                 let mut topic = String::new();
                                 for (key, value) in subscriptions_clone.lock().unwrap().iter() {
                                     if *value == 1 {
-                                        topic = key.clone();
+                                        topic.clone_from(key);
                                     }
                                 }
                                 subscriptions_clone.lock().unwrap().remove(&topic);
