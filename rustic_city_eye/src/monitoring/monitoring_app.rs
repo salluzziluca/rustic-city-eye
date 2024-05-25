@@ -7,7 +7,8 @@ use crate::monitoring::incident::Incident;
 use crate::mqtt::{
     client::Client, connect_properties, protocol_error::ProtocolError, will_properties,
 };
-use crate::surveilling::{camera_system::CameraSystem, location::Location};
+use crate::surveilling::camera::Camera;
+use crate::surveilling::{camera_system::*, location::Location};
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -102,5 +103,9 @@ impl MonitoringApp {
         println!("mis incidentes: {:?}", self.incidents);
         let publish_incident = "publish: topic:accidente ".to_string() + &incident.to_string();
         let _ = self.send_to_client_channel.send(publish_incident);
+    }
+
+    pub fn get_cameras(&self) -> Vec<Camera> {
+        self.camera_system.get_cameras().clone()
     }
 }

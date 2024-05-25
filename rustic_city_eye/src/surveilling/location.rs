@@ -1,8 +1,8 @@
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct Location {
-    longitude: f64,
-    latitude: f64,
+    pub longitude: f64,
+    pub latitude: f64,
 }
 
 impl Location {

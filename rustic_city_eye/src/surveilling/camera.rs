@@ -1,6 +1,6 @@
 use crate::surveilling::location::Location;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct Camera {
     location: Location,
@@ -9,5 +9,9 @@ pub struct Camera {
 impl Camera {
     pub fn new(location: Location) -> Camera {
         Self { location }
+    }
+
+    pub fn get_location(&self) -> Location {
+        self.location.clone()
     }
 }
