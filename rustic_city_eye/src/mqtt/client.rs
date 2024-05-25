@@ -398,7 +398,6 @@ impl Client {
                             println!("Desubscribiendome del topic: {}", topic);
 
                             let sub_id = *subscriptions_clone.lock().unwrap().get(topic).unwrap();
-
                             match stream_clone_five.try_clone() {
                                 Ok(stream_clone) => {
                                     if let Ok(packet_id) = Client::unsubscribe(
@@ -480,7 +479,6 @@ impl Client {
         let subscriptions_clone = self.subscriptions.clone();
         let _read_messages = std::thread::spawn(move ||{
             let mut pending_messages = Vec::new();
-
             loop {
                 println!("pending: {:?}", pending_messages);
                 if let Ok(packet) = receiver.try_recv() {
