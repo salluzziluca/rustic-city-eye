@@ -1,15 +1,17 @@
 use std::io::Error;
 
 ///  reason codes in HEX
-const SUCCESS_HEX: u8 = 0x00;
-const NO_MATCHING_SUBSCRIBERS_HEX: u8 = 0x10;
-const UNSPECIFIED_ERROR_HEX: u8 = 0x80;
-const IMPLEMENTATION_SPECIFIC_ERROR_HEX: u8 = 0x83;
-const NOT_AUTHORIZED_HEX: u8 = 0x87;
-const TOPIC_NAME_INVALID_HEX: u8 = 0x90;
-const PACKET_ID_IN_USE_HEX: u8 = 0x91;
-const QUOTA_EXCEEDED_HEX: u8 = 0x97;
-const PAYLOAD_FORMAT_INVALID_HEX: u8 = 0x99;
+pub const SUCCESS_HEX: u8 = 0x00;
+pub const NO_MATCHING_SUBSCRIBERS_HEX: u8 = 0x10;
+pub const UNSPECIFIED_ERROR_HEX: u8 = 0x80;
+pub const IMPLEMENTATION_SPECIFIC_ERROR_HEX: u8 = 0x83;
+pub const NOT_AUTHORIZED_HEX: u8 = 0x87;
+pub const TOPIC_NAME_INVALID_HEX: u8 = 0x90;
+pub const PACKET_ID_IN_USE_HEX: u8 = 0x91;
+pub const QUOTA_EXCEEDED_HEX: u8 = 0x97;
+pub const PAYLOAD_FORMAT_INVALID_HEX: u8 = 0x99;
+pub const SUB_ID_DUP_HEX: u8 = 0x85;
+
 
 pub enum ReasonCode {
     Success { reason_code: u8 },
@@ -21,6 +23,8 @@ pub enum ReasonCode {
     PacketIdentifierInUse { reason_code: u8 },
     QuotaExceeded { reason_code: u8 },
     PayloadFormatInvalid { reason_code: u8 },
+    SubIdDup { reason_code: u8 },
+    
 }
 
 impl ReasonCode {
@@ -36,7 +40,10 @@ impl ReasonCode {
             TOPIC_NAME_INVALID_HEX => Ok(ReasonCode::TopicNameInvalid { reason_code }),
             PACKET_ID_IN_USE_HEX => Ok(ReasonCode::PacketIdentifierInUse { reason_code }),
             QUOTA_EXCEEDED_HEX => Ok(ReasonCode::QuotaExceeded { reason_code }),
-            PAYLOAD_FORMAT_INVALID_HEX => Ok(ReasonCode::PayloadFormatInvalid { reason_code }),
+            PAYLOAD_FORMAT_INVALID_HEX => {
+                Ok(ReasonCode::PayloadFormatInvalid { reason_code })
+            },
+            SUB_ID_DUP_HEX => Ok(ReasonCode::SubIdDup { reason_code }),
             _ => Err(Error::new(
                 std::io::ErrorKind::Other,
                 "Reason code inválido",

@@ -5,13 +5,16 @@ use std::net::TcpStream;
 use std::sync::{Arc, RwLock};
 
 use crate::mqtt::broker_message::BrokerMessage;
-// use crate::mqtt::reason_code::ReasonCode;
 
-use super::protocol_error::ProtocolError;
+use super::client_message::ClientMessage;
+
+use super::reason_code;
 
 #[derive(Debug, Clone)]
 pub struct Topic {
-    subscribers: Arc<RwLock<HashMap<u32, TcpStream>>>,
+    /// Hashmap de subscriptores.
+    /// El u32 representa el sub_id, y el valor es el stream del subscriptor.
+    subscribers: Arc<RwLock<HashMap<u8, TcpStream>>>,
 }
 
 impl Default for Topic {
@@ -27,47 +30,80 @@ impl Topic {
         }
     }
 
-    pub fn add_subscriber(&mut self, stream: TcpStream, sub_id: u32) -> Result<(), ProtocolError> {
+    pub fn add_subscriber(&mut self, stream: TcpStream, sub_id: u8) -> u8 {
+        //verificar si el sub_id ya existe en topic subscribers
+        if self.subscribers.read().unwrap().contains_key(&sub_id) {
+            return reason_code::SUB_ID_DUP_HEX;
+        }
+
         let mut lock = match self.subscribers.write() {
             Ok(guard) => guard,
-            Err(_) => return Err(ProtocolError::LockError),
+            Err(_) => return reason_code::UNSPECIFIED_ERROR_HEX,
         };
 
         lock.insert(sub_id, stream);
-        Ok(())
+        reason_code::SUCCESS_HEX
     }
 
-    // pub fn remove_subscriber(&mut self, stream: TcpStream) -> Result<(), ProtocolError> {
-    //     let mut lock = match self.subscribers.write() {
-    //         Ok(guard) => guard,
-    //         Err(_) => return Err(ProtocolError::LockError)
-    //     };
+    pub fn remove_subscriber(&mut self, sub_id: u8) -> u8 {
 
-    //     //let sub_index = lock.iter().position(|&r| r == stream).unwrap();
-    //     //println!("Encontre el sub en la pos {}", sub_index);
+        let mut lock = match self.subscribers.write() {
+            Ok(guard) => {
+                guard},
+            Err(_) => return reason_code::UNSPECIFIED_ERROR_HEX,
+        };
 
-    //     Ok(())
-    // }
+        if !lock.contains_key(&sub_id) {
+            println!("No se encontró el sub_id en los subscribers");
+            return reason_code::NO_MATCHING_SUBSCRIBERS_HEX;
+        }
 
-    pub fn deliver_message(&self, payload: String) -> Result<u8, Error> {
+        lock.remove(&sub_id);
+        reason_code::SUCCESS_HEX
+    }
+
+    pub fn deliver_message(&self, message: ClientMessage) -> Result<u8, Error> {
         let lock = self.subscribers.read().unwrap();
         let mut puback_reason_code: u8 = 0x00;
-
-        let delivery_message = BrokerMessage::PublishDelivery { payload };
-
-        if lock.is_empty() {
-            puback_reason_code = 0x10_u8;
-            return Ok(puback_reason_code);
-        }
-
-        for mut subscriber in lock.iter() {
-            println!("Enviando un PublishDelivery");
-            match delivery_message.write_to(&mut subscriber.1) {
-                Ok(_) => println!("PublishDelivery enviado"),
-                Err(err) => println!("Error al enviar PublishDelivery: {:?}", err),
+        match message {
+            ClientMessage::Publish {
+                topic_name,
+                payload,
+                packet_id,
+                qos,
+                retain_flag,
+                dup_flag,
+                properties,
+            } => {
+                let delivery_message = BrokerMessage::PublishDelivery {
+                    topic_name,
+                    payload,
+                    packet_id,
+                    qos,
+                    retain_flag,
+                    dup_flag,
+                    properties,
+                };
+        
+                if lock.is_empty() {
+                    puback_reason_code = 0x10_u8;
+                    return Ok(puback_reason_code);
+                }
+        
+                for mut subscriber in lock.iter() {
+                    println!("Enviando un PublishDelivery");
+                    match delivery_message.write_to(&mut subscriber.1) {
+                        Ok(_) => println!("PublishDelivery enviado"),
+                        Err(err) => println!("Error al enviar PublishDelivery: {:?}", err),
+                    }
+                }
+        
+        
             }
-        }
-
+            _ => {
+                return Ok(0x10);
+            }
+        };
         Ok(puback_reason_code)
     }
 }

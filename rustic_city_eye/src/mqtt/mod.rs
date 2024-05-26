@@ -27,3 +27,5 @@ pub mod connack_properties;
 pub mod topic;
 
 pub mod error;
+
+pub mod incident;

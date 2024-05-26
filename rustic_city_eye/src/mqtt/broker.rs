@@ -1,5 +1,3 @@
-use rand::Rng;
-
 use std::{
     collections::HashMap,
     net::{TcpListener, TcpStream},
@@ -7,11 +5,8 @@ use std::{
 };
 
 use crate::mqtt::{
-    broker_message::BrokerMessage, client_message::ClientMessage, protocol_error::ProtocolError,
-    topic::Topic,
+    broker_message::BrokerMessage, broker_config::BrokerConfig, client_message::ClientMessage, protocol_error::ProtocolError, reason_code::{SUB_ID_DUP_HEX, UNSPECIFIED_ERROR_HEX, SUCCESS_HEX}, topic::Topic
 };
-
-use super::broker_config::BrokerConfig;
 
 static SERVER_ARGS: usize = 2;
 
@@ -39,7 +34,7 @@ impl Broker {
             return Err(ProtocolError::InvalidNumberOfArguments);
         }
 
-        let address = "127.0.0.1:".to_owned() + &args[1];
+        let address = "0.0.0.0:".to_owned() + &args[1];
 
         let broker_config = BrokerConfig::new(address)?;
 
@@ -60,6 +55,7 @@ impl Broker {
     /// cada conexión entrante, crea un hilo para manejar el nuevo cliente.
     pub fn server_run(&mut self) -> std::io::Result<()> {
         let listener = TcpListener::bind(&self.address)?;
+        println!("Broker escuchando en {}", self.address);
 
         for stream in listener.incoming() {
             match stream {
@@ -85,7 +81,7 @@ impl Broker {
         mut stream: TcpStream,
         topics: HashMap<String, Topic>,
         packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
-        subs: Vec<u32>,
+        _subs: Vec<u32>,
     ) -> Result<(), ProtocolError> {
         while let Ok(message) = ClientMessage::read_from(&mut stream) {
             match message {
@@ -124,6 +120,8 @@ impl Broker {
                     properties,
                 } => {
                     println!("Recibí un Publish");
+                    println!("Topic name: {}", topic_name);
+                    println!("Payload: {:?}", payload);
                     let msg = ClientMessage::Publish {
                         packet_id,
                         topic_name: topic_name.clone(),
@@ -133,11 +131,11 @@ impl Broker {
                         dup_flag,
                         properties,
                     };
-                    Broker::save_packet(packets.clone(), msg, packet_id);
+                    Broker::save_packet(packets.clone(), msg.clone(), packet_id);
 
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-                    let reason_code = Broker::handle_publish(payload, topics.clone(), topic_name)?;
+                    let reason_code = Broker::handle_publish(msg, topics.clone(), topic_name)?;
 
                     if qos == 1 {
                         let puback = BrokerMessage::Puback {
@@ -172,12 +170,7 @@ impl Broker {
                         Err(_) => return Err(ProtocolError::StreamError),
                     };
 
-                    let reason_code = Broker::handle_subscribe(
-                        stream_for_topic,
-                        topics.clone(),
-                        topic_name,
-                        subs.clone(),
-                    )?;
+                    let reason_code = Broker::handle_subscribe( stream_for_topic, topics.clone(), topic_name,  properties.sub_id)?;
                     match reason_code {
                         0 => {
                             println!("Enviando un Suback");
@@ -185,6 +178,7 @@ impl Broker {
                                 packet_id_msb: packet_id_bytes[0],
                                 packet_id_lsb: packet_id_bytes[1],
                                 reason_code: 0,
+                                sub_id: properties.sub_id,
                             };
                             match suback.write_to(&mut stream) {
                                 Ok(_) => println!("Suback enviado"),
@@ -196,6 +190,7 @@ impl Broker {
                                 packet_id_msb: packet_id_bytes[0],
                                 packet_id_lsb: packet_id_bytes[1],
                                 reason_code: 0x80,
+                                sub_id: properties.sub_id,
                             };
                             println!("Enviando un Suback");
                             match suback.write_to(&mut stream) {
@@ -207,21 +202,47 @@ impl Broker {
                 }
                 ClientMessage::Unsubscribe {
                     packet_id,
-                    topic_name: _,
-                    properties: _,
+                    topic_name,
+                    properties,
                 } => {
                     println!("Recibí un Unsubscribe");
 
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
+                
+
+                    let reason_code = Broker::handle_unsubscribe(topics.clone(), topic_name, properties.sub_id)?;
+
                     let unsuback = BrokerMessage::Unsuback {
                         packet_id_msb: packet_id_bytes[0],
                         packet_id_lsb: packet_id_bytes[1],
+                        reason_code,
                     };
-                    println!("Envío un Unsuback");
+
+                    println!("Enviando un Unsuback");
                     match unsuback.write_to(&mut stream) {
                         Ok(_) => println!("Unsuback enviado"),
                         Err(err) => println!("Error al enviar Unsuback: {:?}", err),
+                    }
+                }
+                ClientMessage::Disconnect {
+                    reason_code: _,
+                    session_expiry_interval: _,
+                    reason_string,
+                    user_properties: _,
+                } => {
+                    println!(
+                        "Recibí un Disconnect, razon de desconexión: {:?}",
+                        reason_string
+                    );
+                }
+                ClientMessage::Pingreq => {
+                    println!("Recibí un Pingreq");
+                    let pingresp = BrokerMessage::Pingresp;
+                    println!("Enviando un Pingresp");
+                    match pingresp.write_to(&mut stream) {
+                        Ok(_) => println!("Pingresp enviado"),
+                        Err(err) => println!("Error al enviar Pingresp: {:?}", err),
                     }
                 }
             }
@@ -234,27 +255,39 @@ impl Broker {
         stream: TcpStream,
         mut topics: HashMap<String, Topic>,
         topic_name: String,
-        subs: Vec<u32>,
+        sub_id: u8,
     ) -> Result<u8, ProtocolError> {
         let reason_code;
         if let Some(topic) = topics.get_mut(&topic_name) {
-            let sub_id = Broker::assign_subscription_id(subs);
-            topic.add_subscriber(stream, sub_id)?;
-            reason_code = 0;
+            match topic.add_subscriber(stream, sub_id) {
+                0 => {
+                    println!("Subscripcion exitosa");
+                    reason_code = SUCCESS_HEX;
+                }
+                0x92 => {
+                    println!("SubId duplicado");
+                    reason_code = SUB_ID_DUP_HEX;
+                }
+                _ => {
+                    println!("Error no especificado");
+                    reason_code = UNSPECIFIED_ERROR_HEX;
+                }
+            }
+            
         } else {
-            reason_code = 1;
+            reason_code = UNSPECIFIED_ERROR_HEX;
         }
 
         Ok(reason_code)
     }
 
     fn handle_publish(
-        payload: String,
+        message: ClientMessage,
         mut topics: HashMap<String, Topic>,
         topic_name: String,
     ) -> Result<u8, ProtocolError> {
         if let Some(topic) = topics.get_mut(&topic_name) {
-            match topic.deliver_message(payload) {
+            match topic.deliver_message(message) {
                 Ok(reason_code) => return Ok(reason_code),
                 Err(_) => return Err(ProtocolError::PublishError),
             };
@@ -263,19 +296,36 @@ impl Broker {
         Ok(0x80_u8) //Unspecified Error reason code
     }
 
-    ///Asigna un id que no este dentro del vector de subs y lo guarda dentro de este.
-    fn assign_subscription_id(subs: Vec<u32>) -> u32 {
-        let mut rng = rand::thread_rng();
+    fn handle_unsubscribe(
+        mut topics: HashMap<String, Topic>,
+        topic_name: String,
+        sub_id: u8,
+    ) -> Result<u8, ProtocolError> {
+        let reason_code;
+        
 
-        let mut sub_id: u32;
-        loop {
-            sub_id = rng.gen();
-            if sub_id != 0 && !subs.contains(&sub_id) {
-                break;
+        if let Some(topic) = topics.get_mut(&topic_name) {
+            match topic.remove_subscriber( sub_id) {
+                0 => {
+                    println!("Unsubscribe exitoso");
+                    reason_code = SUCCESS_HEX;
+                }
+                _ => {
+                    println!("Error no especificado");
+                    reason_code = UNSPECIFIED_ERROR_HEX;
+                }
             }
+            
+        } else {
+            println!("Error no especificado");
+            reason_code = UNSPECIFIED_ERROR_HEX;
         }
-        sub_id
+        println!("reason code {:?}", reason_code);
+
+        Ok(reason_code)
     }
+
+
 
     // ///Asigna un id al packet que ingresa como parametro.
     // ///Guarda el packet en el hashmap de paquetes.
@@ -306,13 +356,3 @@ impl Broker {
     }
 }
 
-// // tests
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     #[test]
-//     fn test_subscription(){
-
-//     }
-// }

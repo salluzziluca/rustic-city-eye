@@ -77,7 +77,10 @@
                     "kind": "bin"
                 }
             },
-            "args": [],
+            "args": [
+                "127.0.0.1",
+                "5000"
+            ],
             "cwd": "${workspaceFolder}"
         },
         {
