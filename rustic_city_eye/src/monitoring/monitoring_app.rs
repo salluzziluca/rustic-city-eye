@@ -101,7 +101,7 @@ impl MonitoringApp {
         let incident = Incident::new(location);
         self.incidents.push(incident.clone());
         println!("mis incidentes: {:?}", self.incidents);
-        let publish_incident = "publish: topic:accidente ".to_string() + &incident.to_string();
+        let publish_incident = "publish: dup:1 qos:1 retain:1 accidente juancitoccrack".to_string() + &incident.to_string();
         let _ = self.send_to_client_channel.send(publish_incident);
     }
 

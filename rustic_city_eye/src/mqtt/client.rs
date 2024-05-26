@@ -1,15 +1,9 @@
 use std::{
-    io::{stdin, BufRead},
     net::TcpStream,
-    sync::{mpsc, Arc, Mutex},
+    sync::{mpsc::{self, Receiver}, Arc, Mutex},
     collections::HashMap,
 };
 use rand::Rng;
-
-use std::{
-    net::TcpStream,
-    sync::{mpsc::{self, Receiver}, Arc, Mutex},
-};
 
 use crate::mqtt::{
     broker_message::BrokerMessage,
@@ -22,6 +16,7 @@ use crate::mqtt::{
     will_properties::WillProperties,
 };
 
+#[derive(Debug)]
 pub struct Client {
     receiver_channel: Arc<Mutex<Receiver<String>>>,
 
@@ -72,17 +67,6 @@ impl Client {
             last_will_topic,
             last_will_message,
         };
-
-        let stdin = stdin();
-        for line in stdin.lock().lines() {
-            match line {
-                Ok(line) if line == *"connect" => {
-                    break;
-                }
-                Ok(_) => println!("Not a connect"),
-                Err(_) => println!("Error in line"),
-            }
-        }
 
         println!("Enviando connect message to broker");
         match connect.write_to(&mut stream) {
@@ -317,7 +301,7 @@ impl Client {
         let pending_messages_clone_one = self.pending_messages.clone();
         let pending_messages_clone_two = self.pending_messages.clone();
         let pending_messages_clone_three = self.pending_messages.clone();
-        let pending_messages_clone_four = self.pending_messages.clone();
+        let _pending_messages_clone_four = self.pending_messages.clone();
 
         let stream_clone_one = match self.stream.try_clone() {
             Ok(stream) => stream,
