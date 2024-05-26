@@ -1,8 +1,11 @@
+use std::{
+    io::{stdin, BufRead},
+    net::TcpStream,
+    sync::{mpsc, Arc, Mutex},
+};
 use rand::Rng;
 
-use std::{
-    collections::HashMap, net::TcpStream, sync::{mpsc, Arc, Mutex}
-};
+use std::collections::HashMap;
 
 
 use crate::mqtt::{
@@ -64,6 +67,17 @@ impl Client {
             last_will_topic,
             last_will_message,
         };
+
+        let stdin = stdin();
+        for line in stdin.lock().lines() {
+            match line {
+                Ok(line) if line == *"connect" => {
+                    break;
+                }
+                Ok(_) => println!("Not a connect"),
+                Err(_) => println!("Error in line"),
+            }
+        }
 
         println!("Enviando connect message to broker");
         match connect.write_to(&mut stream) {
@@ -506,7 +520,18 @@ impl Client {
                                         );
                                     }
                                 }
-                                println!("Recibi un mensaje {:?}", message);
+                            }
+                            BrokerMessage::Disconnect {
+                                reason_code: _,
+                                session_expiry_interval: _,
+                                reason_string,
+                                user_properties: _,
+                            } => {
+                                println!(
+                                    "Recibí un Disconnect, razon de desconexión: {:?}",
+                                    reason_string
+                                );    
+                                break;
                             }
                             BrokerMessage::Suback {
                                 packet_id_msb,
