@@ -118,32 +118,28 @@ impl Client {
         pending_messages: Vec<u16>,
     ) -> Result<u16, ClientError> {
         let splitted_message: Vec<&str> = message.split(' ').collect();
-
-        let mut qos = 0;
-        let mut dup_flag = false;
-        let mut retain_flag = false;
-
-        if splitted_message[0] == "dup:1" {
-            dup_flag = true;
-        }
-        if splitted_message[1] == "qos:1" {
-            qos = 1;
-        }
-        if splitted_message[2] == "retain:1" {
-            retain_flag = true;
-        }
-
-        let topic_name: Vec<&str> = splitted_message[3].split(':').collect();
-
-        let payload = splitted_message[5..].join(" ").to_string();
-
+        //message interface(temp): dup:1 qos:2 retain:1 topic_name:sometopic
+        //    let mut dup_flag = false;
+        let qos = 1;
+        //      let mut retain_flag = false;
+        //        let mut packet_id = 0x00;
+        // if splitted_message[0] == "dup:1" {
+        //     dup_flag = true;
+        // }
+        // if splitted_message[1] == "qos:1" {
+        //     qos = 1;
+        //     packet_id = 0x20FF;
+        // } else {
+        //     dup_flag = false;
+        // }
+        // if splitted_message[2] == "retain:1" {
+        //     retain_flag = true;
+        // }
         let topic_properties = TopicProperties {
             topic_alias: 10,
             response_topic: "String".to_string(),
         };
-
         let packet_id = Client::assign_packet_id(pending_messages);
-
         let properties = PublishProperties::new(
             1,
             10,
@@ -153,19 +149,15 @@ impl Client {
             1,
             "a".to_string(),
         );
-
-
-        // let payload_string = payload[1].to_string();
         let publish = ClientMessage::Publish {
             packet_id,
-            topic_name: topic_name[1].to_string(),
+            topic_name: splitted_message[0].to_string(),
             qos,
-            retain_flag: if retain_flag { 1 } else { 0 },
-            payload,
-            dup_flag: dup_flag as usize,
+            retain_flag: 1,
+            payload: "buendia".to_string(),
+            dup_flag: 0,
             properties,
         };
-
         match publish.write_to(&mut stream) {
             Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
