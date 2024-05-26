@@ -366,6 +366,7 @@ impl Client {
                             
                             if subscriptions_clone.lock().unwrap().contains_key(&topic.to_string()){
                                 println!("Ya estoy subscrito a este topic");
+                                continue;
                             }
                             
                             match stream_clone_two.try_clone() {
