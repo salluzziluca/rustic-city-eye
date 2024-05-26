@@ -366,6 +366,41 @@ impl Client {
                             
                             if subscriptions_clone.lock().unwrap().contains_key(&topic.to_string()){
                                 println!("Ya estoy subscrito a este topic");
+                                // me desuscribo y vuelvo a suscribirme
+
+                                let mut sub_id = 0;
+                                for (key, value) in subscriptions_clone.lock().unwrap().iter() {
+                                    if key == topic {
+                                        sub_id = *value;
+                                    }
+                                }
+                                match stream_clone_five.try_clone() {
+                                    Ok(stream_clone) => {
+                                        if let Ok(packet_id) = Client::unsubscribe(
+                                            topic,
+                                            sub_id,
+                                            stream_clone,
+                                            pending_messages_clone_three.clone(),
+                                        ) {
+                                            match sender.send(packet_id) {
+                                                Ok(_) => {
+                                                    let topic_new = topic.to_string();
+                                                    subscriptions_clone.lock().unwrap().remove(&topic_new);
+                                                },
+                                                Err(_) => {
+                                                    println!(
+                                                        "Error al enviar el packet_id del unsuback al receiver"
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Err(_) => {
+                                        return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                                    }
+                                }
+
+                                
                             }
                             
                             match stream_clone_two.try_clone() {
