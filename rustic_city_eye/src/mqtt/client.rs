@@ -116,7 +116,7 @@ impl Client {
         message: &str,
         mut stream: TcpStream,
         pending_messages: Vec<u16>,
-    ) -> Result<u16, ClientError> {
+        ) -> Result<u16, ClientError> {
         let splitted_message: Vec<&str> = message.split(' ').collect();
         //message interface(temp): dup:1 qos:2 retain:1 topic_name:sometopic
         //    let mut dup_flag = false;
