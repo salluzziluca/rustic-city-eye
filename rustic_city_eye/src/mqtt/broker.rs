@@ -40,7 +40,7 @@ impl Broker {
             return Err(ProtocolError::InvalidNumberOfArguments);
         }
 
-        let address = "127.0.0.1:".to_owned() + &args[1];
+        let address = "0.0.0.0:".to_owned() + &args[1];
 
         let broker_config = BrokerConfig::new(address)?;
 
@@ -61,6 +61,7 @@ impl Broker {
     /// cada conexión entrante, crea un hilo para manejar el nuevo cliente.
     pub fn server_run(&mut self) -> std::io::Result<()> {
         let listener = TcpListener::bind(&self.address)?;
+        println!("Broker escuchando en {}", self.address);
 
         for stream in listener.incoming() {
             match stream {
