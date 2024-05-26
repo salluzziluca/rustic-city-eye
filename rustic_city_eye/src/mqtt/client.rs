@@ -231,8 +231,6 @@ impl Client {
             ),
         };
 
-        println!("Unsubscribe: {:?}", unsubscribe);
-
         match unsubscribe.write_to(&mut stream) {
             Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
@@ -402,8 +400,14 @@ impl Client {
                             let topic = post_colon.trim(); // remove leading/trailing whitespace
                             
                             println!("Desubscribiendome del topic: {}", topic);
-
-                            let sub_id = *subscriptions_clone.lock().unwrap().get(topic).unwrap();
+                            //buscar sub_id correspondiente al topic
+                            let mut sub_id = 0;
+                            for (key, value) in subscriptions_clone.lock().unwrap().iter() {
+                                if key == topic {
+                                    sub_id = *value;
+                                }
+                            }
+                            
                             match stream_clone_five.try_clone() {
                                 Ok(stream_clone) => {
                                     if let Ok(packet_id) = Client::unsubscribe(
@@ -486,10 +490,9 @@ impl Client {
         let _read_messages = std::thread::spawn(move ||{
             let mut pending_messages = Vec::new();
             loop {
-                println!("pending: {:?}", pending_messages);
                 if let Ok(packet) = receiver.try_recv() {
                     pending_messages.push(packet);
-                    println!("pending messages {:?}", pending_messages);
+                    //println!("pending messages {:?}", pending_messages);
                 }
 
                 if let Ok(mut stream_clone) = stream_clone_three.try_clone() {
@@ -531,7 +534,6 @@ impl Client {
                                 reason_code:_,
                                 sub_id,
                             } => {
-                                
                                 for pending_message in &pending_messages {
                                     let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
                                     
@@ -556,7 +558,7 @@ impl Client {
                                 }
                                 subscriptions_clone.lock().unwrap().remove(&topic);
                                 subscriptions_clone.lock().unwrap().insert(topic, sub_id);
-                                    
+
                                 println!("Recibi un mensaje {:?}", message);
                             }
                             BrokerMessage::PublishDelivery {
