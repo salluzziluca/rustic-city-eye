@@ -66,6 +66,9 @@ impl CameraSystem {
             Err(err) => return Err(err),
         };
 
+        let sub_msg = "subscribe: accidente".to_string();
+        let _ = tx.send(sub_msg);
+
         Ok(CameraSystem {
             send_to_client_channel: tx,
             // args,
@@ -78,9 +81,6 @@ impl CameraSystem {
         let camera = Camera::new(location);
         self.cameras.push(camera);
         println!("mis camaritas: {:?}", self.cameras);
-
-        let sub_msg = "subscribe: accidente".to_string();
-        let _ = self.send_to_client_channel.send(sub_msg);
     }
 
     pub fn get_cameras(&self) -> &Vec<Camera> {
