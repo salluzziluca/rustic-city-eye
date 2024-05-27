@@ -241,45 +241,10 @@ fn on_webview_button_press_event(
             None::<&gio::Cancellable>,
             |_result| (),
         );
-        // webview_clone.run_javascript(
-        //     &script,
-        //     None::<&gio::Cancellable>,
-        //     clone!(@strong x, @strong y => move |result| {
-        //         match result {
-        //             Ok(js_result) => {
-        //                 if let Some(js_value) = js_result {
-        //                     if let Some(js_value_str) = js_value.get::<String>() {
-        //                         let json_value: serde_json::Value = serde_json::from_str(&js_value_str).unwrap();
-        //                         *x.borrow_mut() = json_value["lng"].as_f64().unwrap_or(0.0);
-        //                         *y.borrow_mut() = json_value["lat"].as_f64().unwrap_or(0.0);
-        //                     }
-        //                 }
-        //             },
-        //             Err(err) => {
-        //                 eprintln!("Error running JavaScript: {:?}", err);
-        //             },
-        //         }
-        //     }),
-        // );
     }
     false
 }
 
-// // El usuario clickea sobre el mapa, y se guarda la localizacion de ese click.
-// fn on_webview_button_press_event(x: Rc<RefCell<f64>>, y: Rc<RefCell<f64>>, webview_clone: WebView, event: &gdk::EventButton) -> bool {
-//     if event.button() == 1 {
-//         let pos_x = event.position().0;
-//         let pos_y = event.position().1;
-//         *x.borrow_mut() = pos_x;
-//         *y.borrow_mut() = pos_y;
-//         webview_clone.run_javascript(
-//             &format!("window.map.setView(window.map.containerPointToLatLng([{}, {}]), window.map.getZoom());", pos_x, pos_y),
-//             None::<&gio::Cancellable>,
-//             |_result| (),
-//         );
-//     }
-//     false.into()
-// }
 
 ///Se toma la localizacion del click actual, y se crea una incidente nuevo dentro de la app de monitoreo
 fn on_add_incident_clicked(
