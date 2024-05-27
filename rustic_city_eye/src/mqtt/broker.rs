@@ -9,7 +9,9 @@ use crate::mqtt::{
     broker_message::BrokerMessage,
     client_message::ClientMessage,
     protocol_error::ProtocolError,
-    reason_code::{SUB_ID_DUP_HEX, SUCCESS_HEX, UNSPECIFIED_ERROR_HEX},
+    reason_code::{
+        NO_MATCHING_SUBSCRIBERS_HEX, SUB_ID_DUP_HEX, SUCCESS_HEX, UNSPECIFIED_ERROR_HEX,
+    },
     topic::Topic,
 };
 
@@ -28,6 +30,8 @@ pub struct Broker {
     packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
 
     subs: Vec<u32>,
+
+    clients_ids: Arc<Vec<String>>,
 }
 
 impl Broker {
@@ -52,6 +56,7 @@ impl Broker {
             topics,
             packets: Arc::new(RwLock::new(packets)),
             subs: Vec::new(),
+            clients_ids: Arc::new(Vec::new()),
         })
     }
 
@@ -68,11 +73,17 @@ impl Broker {
                     let topics_clone = self.topics.clone();
                     let packets_clone = self.packets.clone();
                     let subs_clone = self.subs.clone();
+                    let clients_ids_clone = self.clients_ids.clone();
 
                     std::thread::spawn(move || {
                         // Use the cloned reference
-                        let _ =
-                            Broker::handle_client(stream, topics_clone, packets_clone, subs_clone);
+                        let _ = Broker::handle_client(
+                            stream,
+                            topics_clone,
+                            packets_clone,
+                            subs_clone,
+                            clients_ids_clone,
+                        );
                     });
                 }
                 Err(err) => return Err(err),
@@ -87,6 +98,7 @@ impl Broker {
         topics: HashMap<String, Topic>,
         packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
         _subs: Vec<u32>,
+        mut clients_ids: Arc<Vec<String>>,
     ) -> Result<(), ProtocolError> {
         while let Ok(message) = ClientMessage::read_from(&mut stream) {
             match message {
@@ -99,12 +111,28 @@ impl Broker {
                     password: _,
                     keep_alive: _,
                     properties: _,
-                    client_id: _,
+                    client_id,
                     will_properties: _,
                     last_will_topic: _,
                     last_will_message: _,
                 } => {
                     println!("Recibí un Connect");
+
+                    if clients_ids.contains(&client_id) {
+                        let disconnect = BrokerMessage::Disconnect {
+                            reason_code: 0,
+                            session_expiry_interval: 0,
+                            reason_string: "El cliente ya está conectado".to_string(),
+                            user_properties: Vec::new(),
+                        };
+
+                        match disconnect.write_to(&mut stream) {
+                            Ok(_) => println!("Disconnect enviado"),
+                            Err(err) => println!("Error al enviar Disconnect: {:?}", err),
+                        }
+                        break;
+                    }
+                    Arc::make_mut(&mut clients_ids).push(client_id);
                     let connack = BrokerMessage::Connack {
                         //session_present: true,
                         //return_code: 0,
@@ -309,6 +337,10 @@ impl Broker {
         topic_name: String,
         sub_id: u8,
     ) -> Result<u8, ProtocolError> {
+        if sub_id == 0 {
+            return Ok(NO_MATCHING_SUBSCRIBERS_HEX);
+        }
+
         let reason_code;
 
         if let Some(topic) = topics.get_mut(&topic_name) {

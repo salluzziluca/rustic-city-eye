@@ -360,7 +360,6 @@ impl Client {
                 println!("Error al clonar el stream");
             }
         }
-
         Ok(())
     }
 
