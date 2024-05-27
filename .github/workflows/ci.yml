@@ -18,8 +18,22 @@ jobs:
     - uses: actions/checkout@v3
     - name: Install GTK
       run: sudo apt-get install libgtk-3-dev
+    - name: libsoup
+      run: |
+        sudo apt install libsoup-3.0-dev
+        sudo apt-get install libjavascriptcoregtk-4.0-dev
+
     - name: Change to subdirectory
       run: cd rustic_city_eye
+    - name: add crates
+      run: cargo add javascriptcore-rs-sys
+      working-directory: rustic_city_eye
+    - name: Setup paths and env
+      run: |
+        mkdir -p $HOME/.local/bin
+        mkdir -p $HOME/.local/lib/pkgconfig
+        echo "PKG_CONFIG_PATH=$HOME/.local/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+      working-directory: rustic_city_eye
     - name: Build
       run: cargo build --verbose
       working-directory: rustic_city_eye

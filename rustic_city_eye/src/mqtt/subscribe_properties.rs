@@ -34,10 +34,6 @@ impl SubscribeProperties {
         let sub_id = read_u8(stream)?;
         let user_properties = read_string_pairs(stream)?;
         let payload = read_bin_vec(stream)?;
-        Ok(SubscribeProperties::new(
-            sub_id,
-            user_properties,
-            payload,
-        ))
+        Ok(SubscribeProperties::new(sub_id, user_properties, payload))
     }
 }

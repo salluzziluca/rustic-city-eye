@@ -1,21 +1,26 @@
 //! Se conecta mediante TCP a la dirección asignada por argv.
 //! Lee lineas desde stdin y las manda mediante el socket.
 
-//use crate::camera_system::camera_system::CameraSystem;
-use crate::mqtt::client::Client;
-use crate::mqtt::connect_properties;
-use crate::mqtt::protocol_error::ProtocolError;
-use crate::mqtt::will_properties;
+use std::sync::mpsc::{self, Sender};
 
-use std::{
-    io::{stdin, BufRead, Error, ErrorKind},
-    sync::mpsc,
+use crate::monitoring::incident::Incident;
+use crate::mqtt::connect_config::ConnectConfig;
+use crate::mqtt::messages_config::MessagesConfig;
+use crate::mqtt::publish_config::PublishConfig;
+use crate::mqtt::publish_properties::{PublishProperties, TopicProperties};
+use crate::mqtt::{
+    client::Client, connect_properties, protocol_error::ProtocolError, will_properties,
 };
-static CLIENT_ARGS: usize = 3;
+use crate::surveilling::camera::Camera;
+use crate::surveilling::{camera_system::*, location::Location};
 
+#[derive(Debug)]
+#[allow(dead_code)]
 pub struct MonitoringApp {
+    send_to_client_channel: Sender<Box<dyn MessagesConfig + Send>>,
     monitoring_app_client: Client,
-    // camera_system: CameraSystem,
+    camera_system: CameraSystem,
+    incidents: Vec<Incident>,
 }
 
 #[allow(dead_code)]
@@ -45,63 +50,93 @@ impl MonitoringApp {
             "auth".to_string(),
             vec![1, 2, 3],
         );
-        if args.len() != CLIENT_ARGS {
-            let app_name = &args[0];
-            println!("Usage:\n{:?} <host> <puerto>", app_name);
-            return Err(ProtocolError::InvalidNumberOfArguments);
-        }
 
-        let address = args[1].clone() + ":" + &args[2];
-        //let camera_system = CameraSystem::new(args.clone())?;
+        let address = args[0].to_string() + ":" + &args[1].to_string();
+        let camera_system_args = vec![
+            args[0].clone(),
+            args[1].clone(),
+            "camera_system".to_string(),
+            "CamareandoCamaritas123".to_string(),
+        ];
+
+        let connect_config = ConnectConfig::new(
+            true,
+            true,
+            1,
+            true,
+            35,
+            connect_properties,
+            "kvtr33".to_string(),
+            will_properties,
+            "camera system".to_string(),
+            "soy el monitoring y me desconecte".to_string(),
+            args[2].clone(),
+            args[3].clone(),
+        );
+
+        let camera_system = CameraSystem::new(camera_system_args)?;
+
+        let (tx, rx) = mpsc::channel();
 
         let monitoring_app = MonitoringApp {
-            // camera_system,
-            monitoring_app_client: match Client::new(
-                address,
-                will_properties,
-                connect_properties,
-                true,
-                true,
-                1,
-                true,
-                "prueba".to_string(),
-                "".to_string(),
-                35,
-                "kvtr33".to_string(),
-                "camera_system".to_string(),
-                "soy el camera_system y me desconecté".to_string(),
-            ) {
+            send_to_client_channel: tx,
+            incidents: Vec::new(),
+            camera_system,
+            monitoring_app_client: match Client::new(rx, address, connect_config) {
                 Ok(client) => client,
                 Err(err) => return Err(err),
             },
         };
+
         Ok(monitoring_app)
     }
 
-    /// En este momento la app de monitoreo ya tiene todos los clientes conectados y funcionales
-    /// Aca es donde se gestiona la interaccion entre los diferentes clientes
-    pub fn app_run(&mut self) -> Result<(), Error> {
-        let (tx, rx) = mpsc::channel();
-        let _ = self.monitoring_app_client.client_run(rx);
-
-        let stdin = stdin();
-        for line in stdin.lock().lines() {
-            match line {
-                Ok(line) => {
-                    tx.send(line).map_err(|err| {
-                        Error::new(ErrorKind::Other, format!("Failed to send line: {}", err))
-                    })?;
-                }
-                Err(_) => println!("error in line"),
-            }
-        }
-
+    pub fn run_client(&mut self) -> Result<(), ProtocolError> {
+        self.monitoring_app_client.client_run()?;
+        self.camera_system.run_client()?;
         Ok(())
     }
 
-    // pub fn add_camera (&mut self) -> Result<(), ProtocolError> {
-    //     self.camera_system.add_camera()?;
+    pub fn add_camera(&mut self, location: Location) {
+        self.camera_system.add_camera(location);
+    }
 
-    //     Ok(())
-    // }
+    pub fn add_incident(&mut self, location: Location) {
+        let incident = Incident::new(location);
+        self.incidents.push(incident.clone());
+
+        let topic_properties = TopicProperties {
+            topic_alias: 10,
+            response_topic: "String".to_string(),
+        };
+
+        let properties = PublishProperties::new(
+            1,
+            10,
+            topic_properties,
+            [1, 2, 3].to_vec(),
+            "a".to_string(),
+            1,
+            "a".to_string(),
+        );
+
+        let publish_config = PublishConfig::new(
+            1,
+            1,
+            0,
+            "incidente".to_string(),
+            "ayudame loco".to_string(),
+            properties,
+        );
+
+        let _ = self.send_to_client_channel.send(Box::new(publish_config));
+    }
+
+    pub fn get_cameras(&self) -> Vec<Camera> {
+        self.camera_system.get_cameras().clone()
+    }
+
+    pub fn get_incidents(&self) -> Vec<Incident> {
+        self.incidents.clone()
+    }
 }

@@ -11,7 +11,6 @@ use super::{
     writer::{write_string, write_u8},
 };
 
-
 #[derive(Debug, PartialEq)]
 pub enum BrokerMessage {
     Connack {
@@ -125,33 +124,6 @@ impl BrokerMessage {
 
                 Ok(())
             }
-            //     let mut byte_1 = 0x30_u8;
-
-            //     if *retain_flag == 1 {
-            //         //we must replace any existing retained message for this topic and store
-            //         //the app message.
-            //         byte_1 |= 1 << 0;
-            //     }
-
-            //     if *qos == 1 {
-            //         byte_1 |= 1 << 1;
-            //         byte_1 |= 0 << 2;
-            //     } else if *qos != 0x00 && *qos != 0x01 {
-            //         //we should throw a DISCONNECT with reason code 0x81(Malformed packet).
-            //         println!("Qos inválido");
-            //     }
-
-            //     if *dup_flag == 1 {
-            //         byte_1 |= 1 << 3;
-            //     }
-
-            //     //Dup flag must be set to 0 for all QoS 0 messages.
-            //     if *qos == 0x00 {
-            //         byte_1 |= 0 << 3;
-            //     }
-
-            //     writer.write_all(&[byte_1])?;
-            // }
             BrokerMessage::PublishDelivery {
                 packet_id,
                 topic_name,
@@ -283,7 +255,7 @@ impl BrokerMessage {
                     reason_code,
                 })
             }
-            0x90 => { 
+            0x90 => {
                 let packet_id_msb = read_u8(stream)?;
                 let packet_id_lsb = read_u8(stream)?;
                 let reason_code = read_u8(stream)?;
@@ -362,8 +334,8 @@ impl BrokerMessage {
             BrokerMessage::Suback {
                 packet_id_msb,
                 packet_id_lsb,
-                reason_code:_,
-                sub_id:_,
+                reason_code: _,
+                sub_id: _,
             } => {
                 let bytes = packet_id.to_be_bytes();
 
@@ -381,7 +353,7 @@ impl BrokerMessage {
             BrokerMessage::Unsuback {
                 packet_id_msb,
                 packet_id_lsb,
-                reason_code:_,
+                reason_code: _,
             } => {
                 let bytes = packet_id.to_be_bytes();
 

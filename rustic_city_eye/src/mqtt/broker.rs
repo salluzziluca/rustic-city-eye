@@ -5,15 +5,15 @@ use std::{
 };
 
 use crate::mqtt::{
+    broker_config::BrokerConfig,
     broker_message::BrokerMessage,
     client_message::ClientMessage,
     protocol_error::ProtocolError,
-    reason_code::{NO_MATCHING_SUBSCRIBERS_HEX, SUB_ID_DUP_HEX, UNSPECIFIED_ERROR_HEX},
+    reason_code::{
+        NO_MATCHING_SUBSCRIBERS_HEX, SUB_ID_DUP_HEX, SUCCESS_HEX, UNSPECIFIED_ERROR_HEX,
+    },
     topic::Topic,
 };
-
-use super::broker_config::BrokerConfig;
-use super::reason_code::SUCCESS_HEX;
 
 static SERVER_ARGS: usize = 2;
 
@@ -363,23 +363,6 @@ impl Broker {
         Ok(reason_code)
     }
 
-    // ///Asigna un id al packet que ingresa como parametro.
-    // ///Guarda el packet en el hashmap de paquetes.
-    // fn assign_packet_id(packets: Arc<RwLock<HashMap<u16, ClientMessage>>>) -> u16 {
-    //     let mut rng = rand::thread_rng();
-
-    //     let mut packet_id: u16;
-    //     let lock = packets.read().unwrap();
-    //     loop {
-    //         packet_id = rng.gen();
-    //         if packet_id != 0 && !lock.contains_key(&packet_id) {
-    //             break;
-    //         }
-    //     }
-    //     println!("envio packt id {}", packet_id);
-    //     packet_id
-    // }
-
     ///Se toma un packet con su respectivo ID y se lo guarda en el hashmap de mensajes que tiene el Broker.
     fn save_packet(
         packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
@@ -390,12 +373,4 @@ impl Broker {
 
         lock.insert(packet_id, message);
     }
-}
-
-// tests
-#[cfg(test)]
-mod tests {
-
-    #[test]
-    fn test_subscription() {}
 }
