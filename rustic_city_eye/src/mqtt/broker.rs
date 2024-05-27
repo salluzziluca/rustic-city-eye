@@ -331,23 +331,6 @@ impl Broker {
         Ok(reason_code)
     }
 
-    // ///Asigna un id al packet que ingresa como parametro.
-    // ///Guarda el packet en el hashmap de paquetes.
-    // fn assign_packet_id(packets: Arc<RwLock<HashMap<u16, ClientMessage>>>) -> u16 {
-    //     let mut rng = rand::thread_rng();
-
-    //     let mut packet_id: u16;
-    //     let lock = packets.read().unwrap();
-    //     loop {
-    //         packet_id = rng.gen();
-    //         if packet_id != 0 && !lock.contains_key(&packet_id) {
-    //             break;
-    //         }
-    //     }
-    //     println!("envio packt id {}", packet_id);
-    //     packet_id
-    // }
-
     ///Se toma un packet con su respectivo ID y se lo guarda en el hashmap de mensajes que tiene el Broker.
     fn save_packet(
         packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
