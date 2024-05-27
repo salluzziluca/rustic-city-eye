@@ -441,11 +441,12 @@ impl Client {
                             }
                         }
                     } else if line.starts_with("disconnect") {
+                        let (_, post_colon) = line.split_at(11); // "disconnect" is 11 characters
+                        let reason = post_colon.trim(); // remove leading/trailing whitespace
                         println!(
-                            "Desconectandome...\nPresione Enter para cerrar finalizar el programa"
+                            "Desconectandome: {}\nPresione Enter para cerrar finalizar el programa",
+                            reason
                         );
-                        let reason = "normal";
-
                         match stream_clone_five.try_clone() {
                             Ok(stream_clone) => {
                                 if let Ok(packet_id) = Client::disconnect(reason, stream_clone) {
@@ -457,6 +458,7 @@ impl Client {
                                             )
                                         }
                                     }
+
                                     desconectar = true;
                                 }
                             }
