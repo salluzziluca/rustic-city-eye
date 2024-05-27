@@ -104,7 +104,6 @@ impl MonitoringApp {
     pub fn add_incident(&mut self, location: Location) {
         let incident = Incident::new(location);
         self.incidents.push(incident.clone());
-        println!("mis incidentes: {:?}", self.incidents);
 
         let topic_properties = TopicProperties {
             topic_alias: 10,

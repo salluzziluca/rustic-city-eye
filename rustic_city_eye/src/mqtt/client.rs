@@ -247,10 +247,8 @@ impl Client {
         let mut pending_messages = Vec::new();
 
         loop {
-            println!("pending: {:?}", pending_messages);
             if let Ok(packet) = receiver.try_recv() {
                 pending_messages.push(packet);
-                println!("pending messages {:?}", pending_messages);
             }
 
             if let Ok(mut stream_clone) = stream.try_clone() {
