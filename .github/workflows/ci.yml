@@ -23,6 +23,12 @@ jobs:
     - name: add crates
       run: cargo add javascriptcore-rs-sys
       working-directory: rustic_city_eye
+    - name: Setup paths and env
+      run: |
+        mkdir -p $HOME/.local/bin
+        mkdir -p $HOME/.local/lib/pkgconfig
+        echo "PKG_CONFIG_PATH=$HOME/.local/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+      working-directory: rustic_city_eye
     - name: Build
       run: cargo build --verbose
       working-directory: rustic_city_eye
