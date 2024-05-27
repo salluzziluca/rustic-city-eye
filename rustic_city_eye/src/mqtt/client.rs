@@ -263,11 +263,9 @@ impl Client {
                                         properties,
                                     };
 
-                                    if let Ok(packet_id) = Client::publish_message(
-                                        publish,
-                                        stream_clone,
-                                        packet_id,
-                                    ) {
+                                    if let Ok(packet_id) =
+                                        Client::publish_message(publish, stream_clone, packet_id)
+                                    {
                                         pending_messages.push(packet_id);
                                         match sender.send(packet_id) {
                                             Ok(_) => continue,
