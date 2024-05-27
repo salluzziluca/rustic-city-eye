@@ -135,4 +135,8 @@ impl MonitoringApp {
     pub fn get_cameras(&self) -> Vec<Camera> {
         self.camera_system.get_cameras().clone()
     }
+
+    pub fn get_incidents(&self) -> Vec<Incident> {
+        self.incidents.clone()
+    }
 }

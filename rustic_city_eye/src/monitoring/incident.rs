@@ -24,4 +24,8 @@ impl Incident {
             ),
         }
     }
+
+    pub fn get_location(&self) -> Location {
+        self.location.clone()
+    }
 }
