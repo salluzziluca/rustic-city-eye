@@ -14,11 +14,8 @@ use crate::mqtt::{
     connect_config::ConnectConfig,
     error::ClientError,
     protocol_error::ProtocolError,
-    publish_properties::{PublishProperties, TopicProperties},
-    subscribe_properties::SubscribeProperties,
+    messages_config::MessagesConfig
 };
-
-use super::{messages_config::MessagesConfig, publish_config::PublishConfig};
 
 #[derive(Debug)]
 pub struct Client {
@@ -213,9 +210,6 @@ impl Client {
         let mut desconectar = false;
 
         let pending_messages_clone_one = self.pending_messages.clone();
-        let pending_messages_clone_two = self.pending_messages.clone();
-        let pending_messages_clone_three = self.pending_messages.clone();
-        let _pending_messages_clone_four = self.pending_messages.clone();
 
         let stream_clone_one = match self.stream.try_clone() {
             Ok(stream) => stream,
@@ -237,8 +231,6 @@ impl Client {
                         let packet_id = Client::assign_packet_id(pending_messages.clone());
 
                         let message = message_config.parse_message(packet_id);
-
-                        println!("message {:?}", message);
 
                         match message {
                             ClientMessage::Connect {
@@ -455,6 +447,7 @@ impl Client {
                                         );
                                     }
                                 }
+                                println!("puback {:?}", message);
                             }
                             BrokerMessage::Disconnect {
                                 reason_code: _,
@@ -543,7 +536,6 @@ impl Client {
                 }
             }
         });
-
         Ok(())
     }
 
