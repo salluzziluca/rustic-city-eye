@@ -22,6 +22,7 @@ jobs:
       run: cd rustic_city_eye
     - name: add crates
       run: cargo add javascriptcore-rs-sys
+      working-directory: rustic_city_eye
     - name: Build
       run: cargo build --verbose
       working-directory: rustic_city_eye
