@@ -9,7 +9,6 @@ pub struct SubscribeConfig {
 
 impl MessagesConfig for SubscribeConfig {
     fn parse_message(&self, packet_id: u16) -> ClientMessage {
-        println!("soy la config del sub!");
         ClientMessage::Subscribe {
             packet_id,
             topic_name: self.topic_name.clone(),

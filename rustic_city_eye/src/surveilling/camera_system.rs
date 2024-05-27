@@ -57,10 +57,7 @@ impl CameraSystem {
             args[3].clone(),
         );
 
-        let (tx, rx): (
-            mpsc::Sender<Box<dyn MessagesConfig + Send>>,
-            mpsc::Receiver<Box<dyn MessagesConfig + Send>>,
-        ) = mpsc::channel();
+        let (tx, rx) = mpsc::channel();
 
         let camera_system_client = match Client::new(rx, address, connect_config) {
             Ok(client) => client,

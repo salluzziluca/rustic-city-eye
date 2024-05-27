@@ -16,7 +16,7 @@ impl Location {
         }
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn parse_to_string(&self) -> String {
         format!("({}, {})", self.latitude, self.longitude)
     }
 }

@@ -19,7 +19,6 @@ pub struct ConnectConfig {
 
 impl MessagesConfig for ConnectConfig {
     fn parse_message(&self, _packet_id: u16) -> ClientMessage {
-        println!("soy la config del connect!");
         ClientMessage::Connect {
             clean_start: self.clean_start,
             last_will_flag: self.last_will_flag,
@@ -38,6 +37,7 @@ impl MessagesConfig for ConnectConfig {
 }
 
 impl ConnectConfig {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         clean_start: bool,
         last_will_flag: bool,

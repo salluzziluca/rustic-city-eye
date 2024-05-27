@@ -1,6 +1,7 @@
-use crate::mqtt::publish_properties::PublishProperties;
-
-use super::{client_message::ClientMessage, messages_config::MessagesConfig};
+use crate::mqtt::{
+    client_message::ClientMessage, messages_config::MessagesConfig,
+    publish_properties::PublishProperties,
+};
 
 pub struct PublishConfig {
     pub(crate) dup_flag: usize,

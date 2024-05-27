@@ -55,6 +55,7 @@ fn main() -> Result<(), ProtocolError> {
     Ok(())
 }
 
+#[allow(clippy::useless_format)]
 fn handle_connection(elements_container: &gtk::Box) {
     let (connect_form, host, port, user, password, connect_btn) = get_connect_form();
 
@@ -261,7 +262,7 @@ fn on_webview_button_press_event(
         //     }),
         // );
     }
-    false.into()
+    false
 }
 
 // // El usuario clickea sobre el mapa, y se guarda la localizacion de ese click.

@@ -76,10 +76,7 @@ impl MonitoringApp {
 
         let camera_system = CameraSystem::new(camera_system_args)?;
 
-        let (tx, rx): (
-            mpsc::Sender<Box<dyn MessagesConfig + Send>>,
-            mpsc::Receiver<Box<dyn MessagesConfig + Send>>,
-        ) = mpsc::channel();
+        let (tx, rx) = mpsc::channel();
 
         let monitoring_app = MonitoringApp {
             send_to_client_channel: tx,
@@ -133,8 +130,6 @@ impl MonitoringApp {
             properties,
         );
 
-        // let publish_incident = "publish: dup:1 qos:1 retain:1 accidente juancitoccrack".to_string()
-        //     + &incident.to_string();
         let _ = self.send_to_client_channel.send(Box::new(publish_config));
     }
 

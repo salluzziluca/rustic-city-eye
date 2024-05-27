@@ -124,33 +124,6 @@ impl BrokerMessage {
 
                 Ok(())
             }
-            //     let mut byte_1 = 0x30_u8;
-
-            //     if *retain_flag == 1 {
-            //         //we must replace any existing retained message for this topic and store
-            //         //the app message.
-            //         byte_1 |= 1 << 0;
-            //     }
-
-            //     if *qos == 1 {
-            //         byte_1 |= 1 << 1;
-            //         byte_1 |= 0 << 2;
-            //     } else if *qos != 0x00 && *qos != 0x01 {
-            //         //we should throw a DISCONNECT with reason code 0x81(Malformed packet).
-            //         println!("Qos inválido");
-            //     }
-
-            //     if *dup_flag == 1 {
-            //         byte_1 |= 1 << 3;
-            //     }
-
-            //     //Dup flag must be set to 0 for all QoS 0 messages.
-            //     if *qos == 0x00 {
-            //         byte_1 |= 0 << 3;
-            //     }
-
-            //     writer.write_all(&[byte_1])?;
-            // }
             BrokerMessage::PublishDelivery {
                 packet_id,
                 topic_name,

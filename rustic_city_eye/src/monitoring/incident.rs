@@ -11,8 +11,8 @@ impl Incident {
         Self { location }
     }
 
-    pub fn to_string(&self) -> String {
-        format!("Incident at {}", self.location.to_string())
+    pub fn parse_to_string(&self) -> String {
+        format!("Incident at {}", self.location.parse_to_string())
     }
 
     pub fn from_string(incident: String) -> Incident {
