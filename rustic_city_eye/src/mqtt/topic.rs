@@ -46,10 +46,8 @@ impl Topic {
     }
 
     pub fn remove_subscriber(&mut self, sub_id: u8) -> u8 {
-
         let mut lock = match self.subscribers.write() {
-            Ok(guard) => {
-                guard},
+            Ok(guard) => guard,
             Err(_) => return reason_code::UNSPECIFIED_ERROR_HEX,
         };
 
@@ -84,12 +82,12 @@ impl Topic {
                     dup_flag,
                     properties,
                 };
-        
+
                 if lock.is_empty() {
                     puback_reason_code = 0x10_u8;
                     return Ok(puback_reason_code);
                 }
-        
+
                 for mut subscriber in lock.iter() {
                     println!("Enviando un PublishDelivery");
                     match delivery_message.write_to(&mut subscriber.1) {
@@ -97,8 +95,6 @@ impl Topic {
                         Err(err) => println!("Error al enviar PublishDelivery: {:?}", err),
                     }
                 }
-        
-        
             }
             _ => {
                 return Ok(0x10);

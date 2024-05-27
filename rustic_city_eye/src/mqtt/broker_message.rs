@@ -11,7 +11,6 @@ use super::{
     writer::{write_string, write_u8},
 };
 
-
 #[derive(Debug, PartialEq)]
 pub enum BrokerMessage {
     Connack {
@@ -283,7 +282,7 @@ impl BrokerMessage {
                     reason_code,
                 })
             }
-            0x90 => { 
+            0x90 => {
                 let packet_id_msb = read_u8(stream)?;
                 let packet_id_lsb = read_u8(stream)?;
                 let reason_code = read_u8(stream)?;
@@ -362,8 +361,8 @@ impl BrokerMessage {
             BrokerMessage::Suback {
                 packet_id_msb,
                 packet_id_lsb,
-                reason_code:_,
-                sub_id:_,
+                reason_code: _,
+                sub_id: _,
             } => {
                 let bytes = packet_id.to_be_bytes();
 
@@ -381,7 +380,7 @@ impl BrokerMessage {
             BrokerMessage::Unsuback {
                 packet_id_msb,
                 packet_id_lsb,
-                reason_code:_,
+                reason_code: _,
             } => {
                 let bytes = packet_id.to_be_bytes();
 

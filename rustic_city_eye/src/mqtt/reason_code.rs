@@ -12,7 +12,6 @@ pub const QUOTA_EXCEEDED_HEX: u8 = 0x97;
 pub const PAYLOAD_FORMAT_INVALID_HEX: u8 = 0x99;
 pub const SUB_ID_DUP_HEX: u8 = 0x85;
 
-
 pub enum ReasonCode {
     Success { reason_code: u8 },
     NoMatchingSubscribers { reason_code: u8 },
@@ -24,7 +23,6 @@ pub enum ReasonCode {
     QuotaExceeded { reason_code: u8 },
     PayloadFormatInvalid { reason_code: u8 },
     SubIdDup { reason_code: u8 },
-    
 }
 
 impl ReasonCode {
@@ -40,9 +38,7 @@ impl ReasonCode {
             TOPIC_NAME_INVALID_HEX => Ok(ReasonCode::TopicNameInvalid { reason_code }),
             PACKET_ID_IN_USE_HEX => Ok(ReasonCode::PacketIdentifierInUse { reason_code }),
             QUOTA_EXCEEDED_HEX => Ok(ReasonCode::QuotaExceeded { reason_code }),
-            PAYLOAD_FORMAT_INVALID_HEX => {
-                Ok(ReasonCode::PayloadFormatInvalid { reason_code })
-            },
+            PAYLOAD_FORMAT_INVALID_HEX => Ok(ReasonCode::PayloadFormatInvalid { reason_code }),
             SUB_ID_DUP_HEX => Ok(ReasonCode::SubIdDup { reason_code }),
             _ => Err(Error::new(
                 std::io::ErrorKind::Other,

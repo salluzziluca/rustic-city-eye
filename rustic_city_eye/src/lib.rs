@@ -4,6 +4,11 @@ pub mod drone_system;
 #[doc = include_str!("doc/marco_teorico.md")]
 
 pub mod mqtt {
+    pub mod connect_config;
+    pub mod messages_config;
+    pub mod publish_config;
+    pub mod subscribe_config;
+
     pub mod broker_message;
     pub mod client;
     pub mod client_message;

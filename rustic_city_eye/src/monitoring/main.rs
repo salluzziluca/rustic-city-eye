@@ -20,35 +20,35 @@ fn main() -> Result<(), ProtocolError> {
         .build();
 
     app.connect_activate(|app| {
-            let home_window = Window::new(WindowType::Toplevel);
-            home_window.set_title("Rustic City Eye");
-            home_window.set_default_size(2000, 1500);
+        let home_window = Window::new(WindowType::Toplevel);
+        home_window.set_title("Rustic City Eye");
+        home_window.set_default_size(2000, 1500);
 
-            let vbox = Box::new(Orientation::Vertical, 5);
+        let vbox = Box::new(Orientation::Vertical, 5);
 
-            let button = Button::with_label("Conectarse a un servidor");
-            vbox.pack_start(&button, false, false, 0);
+        let button = Button::with_label("Conectarse a un servidor");
+        vbox.pack_start(&button, false, false, 0);
 
-            let elements_container = Box::new(Orientation::Vertical, 5);
-            vbox.pack_start(&elements_container, true, true, 0);
+        let elements_container = Box::new(Orientation::Vertical, 5);
+        vbox.pack_start(&elements_container, true, true, 0);
 
-            button.connect_clicked(clone!(@weak button, @weak elements_container => move |_| {
-                button.hide();
+        button.connect_clicked(clone!(@weak button, @weak elements_container => move |_| {
+            button.hide();
 
-                handle_connection(&elements_container);
+            handle_connection(&elements_container);
 
-                elements_container.show_all();
-            }));
+            elements_container.show_all();
+        }));
 
-            // Agrega la caja a la ventana.
-            home_window.add(&vbox);
+        // Agrega la caja a la ventana.
+        home_window.add(&vbox);
 
-            // Muestra todos los widgets en la ventana.
-            home_window.show_all();
+        // Muestra todos los widgets en la ventana.
+        home_window.show_all();
 
-            // Configura la aplicación principal.
-            home_window.set_application(Some(app));
-        });
+        // Configura la aplicación principal.
+        home_window.set_application(Some(app));
+    });
 
     app.run();
 
@@ -126,11 +126,9 @@ fn handle_connection(elements_container: &gtk::Box) {
                 let monitoring_app_ref = Rc::new(RefCell::new(monitoring_app));
                 let x = Rc::new(RefCell::new(0.0));
                 let y = Rc::new(RefCell::new(0.0));
-                
                 add_camera_btn.connect_clicked(clone!(@strong y, @strong x, @strong monitoring_app_ref, @strong camera_list_box => move |_| {
                     on_add_camera_clicked(y.clone(), x.clone(), monitoring_app_ref.clone(), Rc::new(RefCell::new(camera_list_box.clone())));
                 }));
-                
                 add_incident_btn.connect_clicked(clone!(@strong y, @strong x, @strong monitoring_app_ref => move |_| {
                     on_add_incident_clicked(y.clone(), x.clone(), monitoring_app_ref.clone());
                 }));
@@ -193,14 +191,22 @@ fn update_camera_list(camera_list_box: &gtk::Box, monitoring_app_ref: &Rc<RefCel
     // Add each camera to the list box
     for camera in cameras {
         let location = camera.get_location();
-        let camera_label = Label::new(Some(&format!("Camera at ({}, {})", location.latitude, location.longitude)));
+        let camera_label = Label::new(Some(&format!(
+            "Camera at ({}, {})",
+            location.latitude, location.longitude
+        )));
         camera_list_box.pack_start(&camera_label, false, false, 0);
     }
 
     camera_list_box.show_all();
 }
 
-fn on_add_camera_clicked(y: Rc<RefCell<f64>>, x: Rc<RefCell<f64>>, monitoring_app_ref: Rc<RefCell<MonitoringApp>>, camera_list_box: Rc<RefCell<gtk::Box>>) {
+fn on_add_camera_clicked(
+    y: Rc<RefCell<f64>>,
+    x: Rc<RefCell<f64>>,
+    monitoring_app_ref: Rc<RefCell<MonitoringApp>>,
+    camera_list_box: Rc<RefCell<gtk::Box>>,
+) {
     let lat = format!("{:.2}", y.borrow());
     let long = format!("{:.2}", x.borrow());
     let camera_location = Location::new(lat, long);
@@ -214,7 +220,7 @@ fn on_webview_button_press_event(
     x: Rc<RefCell<f64>>,
     y: Rc<RefCell<f64>>,
     webview_clone: WebView,
-    event: &gdk::EventButton
+    event: &gdk::EventButton,
 ) -> bool {
     if event.button() == 1 {
         let pos_x = event.position().0;
@@ -226,7 +232,6 @@ fn on_webview_button_press_event(
             pos_x, pos_y
         );
 
-        
         *x.borrow_mut() = pos_x;
         *y.borrow_mut() = pos_y;
 
@@ -259,12 +264,6 @@ fn on_webview_button_press_event(
     false.into()
 }
 
-
-
-
-
-
-
 // // El usuario clickea sobre el mapa, y se guarda la localizacion de ese click.
 // fn on_webview_button_press_event(x: Rc<RefCell<f64>>, y: Rc<RefCell<f64>>, webview_clone: WebView, event: &gdk::EventButton) -> bool {
 //     if event.button() == 1 {
@@ -282,9 +281,15 @@ fn on_webview_button_press_event(
 // }
 
 ///Se toma la localizacion del click actual, y se crea una incidente nuevo dentro de la app de monitoreo
-fn on_add_incident_clicked(y: Rc<RefCell<f64>>, x: Rc<RefCell<f64>>, monitoring_app_ref: Rc<RefCell<MonitoringApp>>) {
+fn on_add_incident_clicked(
+    y: Rc<RefCell<f64>>,
+    x: Rc<RefCell<f64>>,
+    monitoring_app_ref: Rc<RefCell<MonitoringApp>>,
+) {
     let lat = y.borrow().to_string();
     let long = x.borrow().to_string();
     let incident_location = Location::new(lat, long);
-    monitoring_app_ref.borrow_mut().add_incident(incident_location);
+    monitoring_app_ref
+        .borrow_mut()
+        .add_incident(incident_location);
 }

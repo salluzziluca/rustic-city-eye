@@ -403,7 +403,7 @@ impl ClientMessage {
 
                 //Properties
                 properties.write_properties(writer)?;
-            },
+            }
             ClientMessage::Disconnect {
                 reason_code,
                 session_expiry_interval,
@@ -422,16 +422,14 @@ impl ClientMessage {
                 write_u8(writer, &REASON_STRING_ID)?;
                 write_string(writer, reason_string)?;
 
-                write_u8( writer, &USER_PROPERTY_ID)?;
+                write_u8(writer, &USER_PROPERTY_ID)?;
                 write_string_pairs(writer, user_properties)?;
                 writer.flush()?;
-                
             }
             ClientMessage::Pingreq => {
                 let byte_1: u8 = 0xC0_u8;
                 writer.write_all(&[byte_1])?;
                 writer.flush()?;
-              
             }
         }
 
@@ -839,7 +837,7 @@ mod tests {
         };
         assert_eq!(sub, read_sub);
     }
-    
+
     #[test]
     fn test_05_disconnect_ok() {
         let disconect = ClientMessage::Disconnect {

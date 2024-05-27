@@ -1,26 +1,24 @@
 use std::sync::mpsc::{self, Sender};
 
 use crate::{
-    mqtt::{client::Client, connect_properties, protocol_error::ProtocolError, will_properties},
+    mqtt::{
+        client::Client, connect_config::ConnectConfig, connect_properties,
+        messages_config::MessagesConfig, protocol_error::ProtocolError,
+        subscribe_config::SubscribeConfig, subscribe_properties::SubscribeProperties,
+        will_properties,
+    },
     surveilling::{camera::Camera, location::Location},
 };
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct CameraSystem {
-    // args: Vec<String>,
-    send_to_client_channel: Sender<String>,
+    send_to_client_channel: Sender<Box<dyn MessagesConfig + Send>>,
     camera_system_client: Client,
     cameras: Vec<Camera>,
 }
 
 impl CameraSystem {
     pub fn new(args: Vec<String>) -> Result<CameraSystem, ProtocolError> {
-        // if args.len() != CLIENT_ARGS {
-        //     let app_name = &args[0];
-        //     println!("Usage:\n{:?} <host> <puerto>", app_name);
-        //     return Err(ProtocolError::InvalidNumberOfArguments);
-        // }
-
         let address = args[0].clone() + ":" + &args[1];
         let will_properties = will_properties::WillProperties::new(
             1,
@@ -44,34 +42,44 @@ impl CameraSystem {
             vec![1, 2, 3],
         );
 
-        let (tx, rx) = mpsc::channel();
-
-        let camera_system_client = match Client::new(
-            rx,
-            address,
-            will_properties,
-            connect_properties,
+        let connect_config = ConnectConfig::new(
             true,
             true,
             1,
             true,
+            35,
+            connect_properties,
+            "juancito".to_string(),
+            will_properties,
+            "camera system".to_string(),
+            "soy el monitoring y me desconecte".to_string(),
             args[2].clone(),
             args[3].clone(),
-            35,
-            "kvtr33".to_string(),
-            "camera_system".to_string(),
-            "soy el camera_system y me desconecté".to_string(),
-        ) {
+        );
+
+        let (tx, rx): (
+            mpsc::Sender<Box<dyn MessagesConfig + Send>>,
+            mpsc::Receiver<Box<dyn MessagesConfig + Send>>,
+        ) = mpsc::channel();
+
+        let camera_system_client = match Client::new(rx, address, connect_config) {
             Ok(client) => client,
             Err(err) => return Err(err),
         };
 
-        let sub_msg = "subscribe: accidente".to_string();
-        let _ = tx.send(sub_msg);
+        let subscribe_config = SubscribeConfig::new(
+            "incidente".to_string(),
+            SubscribeProperties::new(
+                0,
+                vec![("propiedad".to_string(), "valor".to_string())],
+                vec![0, 1, 2, 3],
+            ),
+        );
+
+        let _ = tx.send(Box::new(subscribe_config));
 
         Ok(CameraSystem {
             send_to_client_channel: tx,
-            // args,
             camera_system_client,
             cameras: Vec::new(),
         })

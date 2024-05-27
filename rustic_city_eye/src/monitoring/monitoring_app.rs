@@ -4,6 +4,10 @@
 use std::sync::mpsc::{self, Sender};
 
 use crate::monitoring::incident::Incident;
+use crate::mqtt::connect_config::ConnectConfig;
+use crate::mqtt::messages_config::MessagesConfig;
+use crate::mqtt::publish_config::PublishConfig;
+use crate::mqtt::publish_properties::{PublishProperties, TopicProperties};
 use crate::mqtt::{
     client::Client, connect_properties, protocol_error::ProtocolError, will_properties,
 };
@@ -13,7 +17,7 @@ use crate::surveilling::{camera_system::*, location::Location};
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct MonitoringApp {
-    send_to_client_channel: Sender<String>,
+    send_to_client_channel: Sender<Box<dyn MessagesConfig + Send>>,
     monitoring_app_client: Client,
     camera_system: CameraSystem,
     incidents: Vec<Incident>,
@@ -55,30 +59,33 @@ impl MonitoringApp {
             "CamareandoCamaritas123".to_string(),
         ];
 
+        let connect_config = ConnectConfig::new(
+            true,
+            true,
+            1,
+            true,
+            35,
+            connect_properties,
+            "kvtr33".to_string(),
+            will_properties,
+            "camera system".to_string(),
+            "soy el monitoring y me desconecte".to_string(),
+            args[2].clone(),
+            args[3].clone(),
+        );
+
         let camera_system = CameraSystem::new(camera_system_args)?;
 
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx): (
+            mpsc::Sender<Box<dyn MessagesConfig + Send>>,
+            mpsc::Receiver<Box<dyn MessagesConfig + Send>>,
+        ) = mpsc::channel();
 
         let monitoring_app = MonitoringApp {
             send_to_client_channel: tx,
             incidents: Vec::new(),
             camera_system,
-            monitoring_app_client: match Client::new(
-                rx,
-                address,
-                will_properties,
-                connect_properties,
-                true,
-                true,
-                1,
-                true,
-                args[2].clone(),
-                args[3].clone(),
-                35,
-                "kvtr33".to_string(),
-                "camera_system".to_string(),
-                "soy el camera_system y me desconecté".to_string(),
-            ) {
+            monitoring_app_client: match Client::new(rx, address, connect_config) {
                 Ok(client) => client,
                 Err(err) => return Err(err),
             },
@@ -101,8 +108,34 @@ impl MonitoringApp {
         let incident = Incident::new(location);
         self.incidents.push(incident.clone());
         println!("mis incidentes: {:?}", self.incidents);
-        let publish_incident = "publish: dup:1 qos:1 retain:1 accidente juancitoccrack".to_string() + &incident.to_string();
-        let _ = self.send_to_client_channel.send(publish_incident);
+
+        let topic_properties = TopicProperties {
+            topic_alias: 10,
+            response_topic: "String".to_string(),
+        };
+
+        let properties = PublishProperties::new(
+            1,
+            10,
+            topic_properties,
+            [1, 2, 3].to_vec(),
+            "a".to_string(),
+            1,
+            "a".to_string(),
+        );
+
+        let publish_config = PublishConfig::new(
+            1,
+            1,
+            0,
+            "incidente".to_string(),
+            "ayudame loco".to_string(),
+            properties,
+        );
+
+        // let publish_incident = "publish: dup:1 qos:1 retain:1 accidente juancitoccrack".to_string()
+        //     + &incident.to_string();
+        let _ = self.send_to_client_channel.send(Box::new(publish_config));
     }
 
     pub fn get_cameras(&self) -> Vec<Camera> {

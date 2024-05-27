@@ -5,7 +5,12 @@ use std::{
 };
 
 use crate::mqtt::{
-    broker_message::BrokerMessage, broker_config::BrokerConfig, client_message::ClientMessage, protocol_error::ProtocolError, reason_code::{SUB_ID_DUP_HEX, UNSPECIFIED_ERROR_HEX, SUCCESS_HEX}, topic::Topic
+    broker_config::BrokerConfig,
+    broker_message::BrokerMessage,
+    client_message::ClientMessage,
+    protocol_error::ProtocolError,
+    reason_code::{SUB_ID_DUP_HEX, SUCCESS_HEX, UNSPECIFIED_ERROR_HEX},
+    topic::Topic,
 };
 
 static SERVER_ARGS: usize = 2;
@@ -170,7 +175,12 @@ impl Broker {
                         Err(_) => return Err(ProtocolError::StreamError),
                     };
 
-                    let reason_code = Broker::handle_subscribe( stream_for_topic, topics.clone(), topic_name,  properties.sub_id)?;
+                    let reason_code = Broker::handle_subscribe(
+                        stream_for_topic,
+                        topics.clone(),
+                        topic_name,
+                        properties.sub_id,
+                    )?;
                     match reason_code {
                         0 => {
                             println!("Enviando un Suback");
@@ -209,9 +219,8 @@ impl Broker {
 
                     let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-                
-
-                    let reason_code = Broker::handle_unsubscribe(topics.clone(), topic_name, properties.sub_id)?;
+                    let reason_code =
+                        Broker::handle_unsubscribe(topics.clone(), topic_name, properties.sub_id)?;
 
                     let unsuback = BrokerMessage::Unsuback {
                         packet_id_msb: packet_id_bytes[0],
@@ -273,7 +282,6 @@ impl Broker {
                     reason_code = UNSPECIFIED_ERROR_HEX;
                 }
             }
-            
         } else {
             reason_code = UNSPECIFIED_ERROR_HEX;
         }
@@ -302,10 +310,9 @@ impl Broker {
         sub_id: u8,
     ) -> Result<u8, ProtocolError> {
         let reason_code;
-        
 
         if let Some(topic) = topics.get_mut(&topic_name) {
-            match topic.remove_subscriber( sub_id) {
+            match topic.remove_subscriber(sub_id) {
                 0 => {
                     println!("Unsubscribe exitoso");
                     reason_code = SUCCESS_HEX;
@@ -315,7 +322,6 @@ impl Broker {
                     reason_code = UNSPECIFIED_ERROR_HEX;
                 }
             }
-            
         } else {
             println!("Error no especificado");
             reason_code = UNSPECIFIED_ERROR_HEX;
@@ -324,8 +330,6 @@ impl Broker {
 
         Ok(reason_code)
     }
-
-
 
     // ///Asigna un id al packet que ingresa como parametro.
     // ///Guarda el packet en el hashmap de paquetes.
@@ -355,4 +359,3 @@ impl Broker {
         lock.insert(packet_id, message);
     }
 }
-
