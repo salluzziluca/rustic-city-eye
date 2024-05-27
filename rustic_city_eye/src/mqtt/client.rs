@@ -221,141 +221,159 @@ impl Client {
         let _write_messages = std::thread::spawn(move || {
             let pending_messages = pending_messages_clone_one.clone();
 
-            Client::receive_messages(stream_clone_one, pending_messages, receiver_channel, desconectar, sender, subscriptions_clone)
+            Client::write_messages(
+                stream_clone_one,
+                pending_messages,
+                receiver_channel,
+                desconectar,
+                sender,
+                subscriptions_clone,
+            )
         });
 
         let subscriptions_clone = self.subscriptions.clone();
         let _read_messages = std::thread::spawn(move || {
-            let mut pending_messages = Vec::new();
-
-            loop {
-                println!("pending: {:?}", pending_messages);
-                if let Ok(packet) = receiver.try_recv() {
-                    pending_messages.push(packet);
-                    println!("pending messages {:?}", pending_messages);
-                }
-
-                if let Ok(mut stream_clone) = stream_clone_two.try_clone() {
-                    if let Ok(message) = BrokerMessage::read_from(&mut stream_clone) {
-                        match message {
-                            BrokerMessage::Connack {} => todo!(),
-                            BrokerMessage::Puback {
-                                packet_id_msb,
-                                packet_id_lsb,
-                                reason_code,
-                            } => {
-                                for pending_message in &pending_messages {
-                                    let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
-                                    if packet_id_bytes[0] == packet_id_msb
-                                        && packet_id_bytes[1] == packet_id_lsb
-                                    {
-                                        println!(
-                                            "puback con id {} {} {} recibido",
-                                            packet_id_msb, packet_id_lsb, reason_code
-                                        );
-                                    }
-                                }
-                                println!("puback {:?}", message);
-                            }
-                            BrokerMessage::Disconnect {
-                                reason_code: _,
-                                session_expiry_interval: _,
-                                reason_string,
-                                user_properties: _,
-                            } => {
-                                println!(
-                                    "Recibí un Disconnect, razon de desconexión: {:?}",
-                                    reason_string
-                                );
-                                break;
-                            }
-                            BrokerMessage::Suback {
-                                packet_id_msb,
-                                packet_id_lsb,
-                                reason_code: _,
-                                sub_id,
-                            } => {
-                                for pending_message in &pending_messages {
-                                    let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
-
-                                    if packet_id_bytes[0] == packet_id_msb
-                                        && packet_id_bytes[1] == packet_id_lsb
-                                    {
-                                        println!(
-                                            "suback con id {} {} recibido",
-                                            packet_id_msb, packet_id_lsb
-                                        );
-                                    }
-                                }
-
-                                //busca el sub_id 1 en el hash de subscriptions
-                                //si lo encuentra, lo reemplaza por el sub_id que llega en el mensaje
-                                let mut topic = String::new();
-                                for (key, value) in subscriptions_clone.lock().unwrap().iter() {
-                                    if *value == 1 {
-                                        topic.clone_from(key);
-                                    }
-                                }
-                                subscriptions_clone.lock().unwrap().remove(&topic);
-                                subscriptions_clone.lock().unwrap().insert(topic, sub_id);
-
-                                println!("Recibi un mensaje {:?}", message);
-                            }
-                            BrokerMessage::PublishDelivery {
-                                packet_id,
-                                topic_name: _,
-                                qos: _,
-                                retain_flag: _,
-                                dup_flag: _,
-                                properties: _,
-                                payload,
-                            } => {
-                                println!(
-                                    "PublishDelivery con id {} recibido, payload: {}",
-                                    packet_id, payload
-                                );
-                            }
-                            BrokerMessage::Unsuback {
-                                packet_id_msb,
-                                packet_id_lsb,
-                                reason_code: _,
-                            } => {
-                                for pending_message in &pending_messages {
-                                    let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
-                                    if packet_id_bytes[0] == packet_id_msb
-                                        && packet_id_bytes[1] == packet_id_lsb
-                                    {
-                                        println!(
-                                            "Unsuback con id {} {} recibido",
-                                            packet_id_msb, packet_id_lsb
-                                        );
-                                    }
-                                }
-
-                                println!("Recibi un mensaje {:?}", message);
-                            }
-                            BrokerMessage::Pingresp => {
-                                println!("Recibi un mensaje {:?}", message)
-                            }
-                        }
-                    }
-                } else {
-                    println!("Error al clonar el stream");
-                }
-            }
+            Client::receive_messages(stream_clone_two, receiver, subscriptions_clone)
         });
+
         Ok(())
     }
 
     fn receive_messages(
         stream: TcpStream,
+        receiver: Receiver<u16>,
+        subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
+    ) -> Result<(), ProtocolError> {
+        let mut pending_messages = Vec::new();
+
+        loop {
+            println!("pending: {:?}", pending_messages);
+            if let Ok(packet) = receiver.try_recv() {
+                pending_messages.push(packet);
+                println!("pending messages {:?}", pending_messages);
+            }
+
+            if let Ok(mut stream_clone) = stream.try_clone() {
+                if let Ok(message) = BrokerMessage::read_from(&mut stream_clone) {
+                    match message {
+                        BrokerMessage::Connack {} => todo!(),
+                        BrokerMessage::Puback {
+                            packet_id_msb,
+                            packet_id_lsb,
+                            reason_code,
+                        } => {
+                            for pending_message in &pending_messages {
+                                let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
+                                if packet_id_bytes[0] == packet_id_msb
+                                    && packet_id_bytes[1] == packet_id_lsb
+                                {
+                                    println!(
+                                        "puback con id {} {} {} recibido",
+                                        packet_id_msb, packet_id_lsb, reason_code
+                                    );
+                                }
+                            }
+                            println!("puback {:?}", message);
+                        }
+                        BrokerMessage::Disconnect {
+                            reason_code: _,
+                            session_expiry_interval: _,
+                            reason_string,
+                            user_properties: _,
+                        } => {
+                            println!(
+                                "Recibí un Disconnect, razon de desconexión: {:?}",
+                                reason_string
+                            );
+                            break;
+                        }
+                        BrokerMessage::Suback {
+                            packet_id_msb,
+                            packet_id_lsb,
+                            reason_code: _,
+                            sub_id,
+                        } => {
+                            for pending_message in &pending_messages {
+                                let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
+
+                                if packet_id_bytes[0] == packet_id_msb
+                                    && packet_id_bytes[1] == packet_id_lsb
+                                {
+                                    println!(
+                                        "suback con id {} {} recibido",
+                                        packet_id_msb, packet_id_lsb
+                                    );
+                                }
+                            }
+
+                            //busca el sub_id 1 en el hash de subscriptions
+                            //si lo encuentra, lo reemplaza por el sub_id que llega en el mensaje
+                            let mut topic = String::new();
+                            let mut lock = subscriptions_clone.lock().unwrap();
+                            for (key, value) in lock.iter() {
+                                if *value == 1 {
+                                    topic.clone_from(key);
+                                }
+                            }
+                            lock.remove(&topic);
+                            lock.insert(topic, sub_id);
+
+                            println!("Recibi un mensaje {:?}", message);
+                        }
+                        BrokerMessage::PublishDelivery {
+                            packet_id,
+                            topic_name: _,
+                            qos: _,
+                            retain_flag: _,
+                            dup_flag: _,
+                            properties: _,
+                            payload,
+                        } => {
+                            println!(
+                                "PublishDelivery con id {} recibido, payload: {}",
+                                packet_id, payload
+                            );
+                        }
+                        BrokerMessage::Unsuback {
+                            packet_id_msb,
+                            packet_id_lsb,
+                            reason_code: _,
+                        } => {
+                            for pending_message in &pending_messages {
+                                let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
+                                if packet_id_bytes[0] == packet_id_msb
+                                    && packet_id_bytes[1] == packet_id_lsb
+                                {
+                                    println!(
+                                        "Unsuback con id {} {} recibido",
+                                        packet_id_msb, packet_id_lsb
+                                    );
+                                }
+                            }
+
+                            println!("Recibi un mensaje {:?}", message);
+                        }
+                        BrokerMessage::Pingresp => {
+                            println!("Recibi un mensaje {:?}", message)
+                        }
+                    }
+                }
+            } else {
+                println!("Error al clonar el stream");
+            }
+        }
+
+        Ok(())
+    }
+
+    fn write_messages(
+        stream: TcpStream,
         mut pending_messages: Vec<u16>,
         receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
         mut desconectar: bool,
         sender: Sender<u16>,
-        subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>
-    )  -> Result<(), ProtocolError> 
-    {
+        subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
+    ) -> Result<(), ProtocolError> {
         while !desconectar {
             loop {
                 let lock = receiver_channel.lock().unwrap();
@@ -407,8 +425,8 @@ impl Client {
                                         Ok(_) => continue,
                                         Err(_) => {
                                             println!(
-                                                    "Error al enviar packet_id de puback al receiver"
-                                                )
+                                                "Error al enviar packet_id de puback al receiver"
+                                            )
                                         }
                                     }
                                 }
@@ -463,9 +481,7 @@ impl Client {
                                     }
                                 }
                                 Err(_) => {
-                                    return Err::<(), ProtocolError>(
-                                        ProtocolError::StreamError,
-                                    );
+                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
                                 }
                             }
                         }
@@ -487,10 +503,7 @@ impl Client {
                                     match sender.send(packet_id) {
                                         Ok(_) => {
                                             let topic_new = topic_name.to_string();
-                                            subscriptions_clone
-                                                .lock()
-                                                .unwrap()
-                                                .remove(&topic_new);
+                                            subscriptions_clone.lock().unwrap().remove(&topic_new);
                                         }
                                         Err(_) => {
                                             println!(
@@ -515,8 +528,7 @@ impl Client {
 
                             match stream.try_clone() {
                                 Ok(stream_clone) => {
-                                    if let Ok(packet_id) =
-                                        Client::disconnect(reason, stream_clone)
+                                    if let Ok(packet_id) = Client::disconnect(reason, stream_clone)
                                     {
                                         match sender.send(packet_id) {
                                             Ok(_) => continue,
@@ -531,9 +543,7 @@ impl Client {
                                     }
                                 }
                                 Err(_) => {
-                                    return Err::<(), ProtocolError>(
-                                        ProtocolError::StreamError,
-                                    );
+                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
                                 }
                             }
                             break;
@@ -550,9 +560,7 @@ impl Client {
                                     }
                                 }
                                 Err(_) => {
-                                    return Err::<(), ProtocolError>(
-                                        ProtocolError::StreamError,
-                                    );
+                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
                                 }
                             }
                         }

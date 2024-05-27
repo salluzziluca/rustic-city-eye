@@ -245,7 +245,6 @@ fn on_webview_button_press_event(
     false
 }
 
-
 ///Se toma la localizacion del click actual, y se crea una incidente nuevo dentro de la app de monitoreo
 fn on_add_incident_clicked(
     y: Rc<RefCell<f64>>,
