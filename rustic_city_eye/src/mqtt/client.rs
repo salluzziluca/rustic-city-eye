@@ -224,8 +224,6 @@ impl Client {
             ),
         };
 
-        println!("Unsubscribe: {:?}", unsubscribe);
-
         match unsubscribe.write_to(&mut stream) {
             Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),

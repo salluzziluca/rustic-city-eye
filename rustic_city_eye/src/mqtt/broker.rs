@@ -8,7 +8,7 @@ use crate::mqtt::{
     broker_message::BrokerMessage,
     client_message::ClientMessage,
     protocol_error::ProtocolError,
-    reason_code::{SUB_ID_DUP_HEX, UNSPECIFIED_ERROR_HEX},
+    reason_code::{NO_MATCHING_SUBSCRIBERS_HEX, SUB_ID_DUP_HEX, UNSPECIFIED_ERROR_HEX},
     topic::Topic,
 };
 
@@ -337,6 +337,10 @@ impl Broker {
         topic_name: String,
         sub_id: u8,
     ) -> Result<u8, ProtocolError> {
+        if sub_id == 0 {
+            return Ok(NO_MATCHING_SUBSCRIBERS_HEX);
+        }
+
         let reason_code;
 
         if let Some(topic) = topics.get_mut(&topic_name) {
