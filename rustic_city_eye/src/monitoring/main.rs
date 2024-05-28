@@ -228,7 +228,7 @@
 //         let pos_y = event.position().1;
 
 //         let _script = format!(
-//             "var result = getLatLngFromPixel({}, {}); 
+//             "var result = getLatLngFromPixel({}, {});
 //              JSON.stringify(result);",
 //             pos_x, pos_y
 //         );
@@ -259,7 +259,6 @@
 //         .add_incident(incident_location);
 // }
 
-
 extern crate gtk;
 
 use gtk::glib::clone;
@@ -270,9 +269,9 @@ use gtk::{Application, Box, Button, Entry, Label, Orientation};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use rustic_city_eye::helpers::location::Location;
 use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
 use rustic_city_eye::mqtt::protocol_error::ProtocolError;
-use rustic_city_eye::surveilling::location::Location;
 
 fn main() -> Result<(), ProtocolError> {
     let app = Application::builder()
@@ -502,13 +501,12 @@ fn on_add_camera_clicked(
     update_camera_list(&camera_list_box.borrow(), &monitoring_app_ref);
 }
 
-
 ///Se toma la localizacion del click actual, y se crea una incidente nuevo dentro de la app de monitoreo
 fn on_add_incident_clicked(
     y: Rc<RefCell<f64>>,
     x: Rc<RefCell<f64>>,
     monitoring_app_ref: Rc<RefCell<MonitoringApp>>,
-    incident_list_box: Rc<RefCell<gtk::Box>>
+    incident_list_box: Rc<RefCell<gtk::Box>>,
 ) {
     let lat = y.borrow().to_string();
     let long = x.borrow().to_string();
@@ -519,7 +517,10 @@ fn on_add_incident_clicked(
     update_incident_list(&incident_list_box.borrow(), &monitoring_app_ref);
 }
 
-fn update_incident_list(incident_list_box: &gtk::Box, monitoring_app_ref: &Rc<RefCell<MonitoringApp>>) {
+fn update_incident_list(
+    incident_list_box: &gtk::Box,
+    monitoring_app_ref: &Rc<RefCell<MonitoringApp>>,
+) {
     // Clear the existing list
     incident_list_box.foreach(|widget| {
         incident_list_box.remove(widget);
