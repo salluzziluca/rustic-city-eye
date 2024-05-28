@@ -26,6 +26,8 @@ pub mod mqtt {
     pub mod broker_config;
 
     pub mod error;
+
+    pub mod payload;
 }
 
 pub mod monitoring {
@@ -37,5 +39,8 @@ pub mod monitoring {
 pub mod surveilling {
     pub mod camera;
     pub mod camera_system;
+}
+
+pub mod helpers {
     pub mod location;
 }

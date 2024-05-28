@@ -12,7 +12,8 @@ use crate::mqtt::{
     client::Client, connect_properties, protocol_error::ProtocolError, will_properties,
 };
 use crate::surveilling::camera::Camera;
-use crate::surveilling::{camera_system::*, location::Location};
+use crate::surveilling::camera_system::*;
+use crate::helpers::location::Location;
 
 #[derive(Debug)]
 #[allow(dead_code)]

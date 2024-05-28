@@ -7,7 +7,8 @@ use crate::{
         subscribe_config::SubscribeConfig, subscribe_properties::SubscribeProperties,
         will_properties,
     },
-    surveilling::{camera::Camera, location::Location},
+    surveilling::camera::Camera,
+    helpers::location::Location
 };
 #[derive(Debug)]
 #[allow(dead_code)]
