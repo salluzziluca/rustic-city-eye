@@ -1,8 +1,4 @@
-use std::{
-    any::Any,
-    fmt,
-    io::{Error, Read, Write},
-};
+use std::{any::Any, fmt, io::Write};
 
 /// La API del cliente le permite a sus usuarios enviar packets del tipo Publish.
 /// Dentro de este tipo de packets, hay un campo llamado Payload, que contiene el
@@ -12,7 +8,7 @@ use std::{
 /// este trait sea capaz de escribir y leer instancias de si mismo en un stream.
 pub trait Payload {
     fn write_to(&self, stream: &mut dyn Write) -> std::io::Result<()>;
-    fn read_from(&self, stream: &mut dyn Read) -> Result<Box<dyn Payload>, Error>;
+    // fn read_from(&self, stream: &mut dyn Read) -> Result<PayloadTypes, Error>;
     fn as_any(&self) -> &dyn Any;
 }
 

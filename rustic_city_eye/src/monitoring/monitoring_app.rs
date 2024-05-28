@@ -4,6 +4,7 @@
 use std::sync::mpsc::{self, Sender};
 
 use crate::helpers::location::Location;
+use crate::helpers::payload_types::PayloadTypes;
 use crate::monitoring::incident::Incident;
 use crate::mqtt::connect_config::ConnectConfig;
 use crate::mqtt::messages_config::MessagesConfig;
@@ -121,14 +122,14 @@ impl MonitoringApp {
             "a".to_string(),
         );
 
-        let publish_config = PublishConfig::new(
-            1,
-            1,
-            0,
-            "incidente".to_string(),
-            "ayudame loco".to_string(),
-            properties,
-        );
+        let payload = PayloadTypes::IncidentLocation {
+            id: 1,
+            longitude: 10.0,
+            latitude: 14.1,
+        };
+
+        let publish_config =
+            PublishConfig::new(1, 1, 0, "incidente".to_string(), payload, properties);
 
         let _ = self.send_to_client_channel.send(Box::new(publish_config));
     }

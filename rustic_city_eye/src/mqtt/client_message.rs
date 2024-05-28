@@ -1,3 +1,4 @@
+use crate::helpers::payload_types::PayloadTypes;
 use crate::mqtt::subscribe_properties::SubscribeProperties;
 use std::io::{BufWriter, Error, Read, Write};
 
@@ -6,6 +7,8 @@ use crate::mqtt::publish_properties::{PublishProperties, TopicProperties};
 use crate::mqtt::reader::*;
 use crate::mqtt::will_properties::*;
 use crate::mqtt::writer::*;
+
+use super::payload::Payload;
 
 //use self::quality_of_service::QualityOfService;
 const PROTOCOL_VERSION: u8 = 5;
@@ -57,7 +60,7 @@ pub enum ClientMessage {
 
         ///Es el application message que se esta publicando.
         ///El contenido y formato de la data es especificado por la aplicacion.
-        payload: String,
+        payload: PayloadTypes,
 
         ///Dup flag indica si fue la primera ocasion que el client o el servidor intento enviar este packete.
         /// Debe ser 0 para todos los mensajes con QoS 0.
@@ -195,7 +198,8 @@ impl ClientMessage {
                 self.write_packet_properties(&mut writer)?;
 
                 //Payload
-                write_string(&mut writer, payload)?;
+                payload.write_to(&mut writer)?;
+                // write_string(&mut writer, payload)?;
 
                 writer.flush()?;
                 Ok(())
@@ -551,13 +555,16 @@ impl ClientMessage {
                 let packet_id = read_u16(stream)?;
                 let topic_name = read_string(stream)?;
                 PublishProperties::read_from(stream)?;
-                let message = read_string(stream)?;
+
+                let payload = PayloadTypes::read_from(stream)?;
+
+                // let message = read_string(stream)?;
                 Ok(ClientMessage::Publish {
                     packet_id,
                     topic_name,
                     qos,
                     retain_flag,
-                    payload: message,
+                    payload,
                     dup_flag,
                     properties,
                 })
@@ -779,12 +786,18 @@ mod tests {
             "a".to_string(),
         );
 
+        let payload = PayloadTypes::IncidentLocation {
+            id: 1,
+            longitude: 25.0,
+            latitude: 12.1,
+        };
+
         let publish = ClientMessage::Publish {
             packet_id: 1,
             topic_name: "mensajes para juan".to_string(),
             qos: 1,
             retain_flag: 1,
-            payload: "hola soy juan".to_string(),
+            payload,
             dup_flag: 1,
             properties,
         };

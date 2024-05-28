@@ -328,7 +328,7 @@ impl Client {
                             payload,
                         } => {
                             println!(
-                                "PublishDelivery con id {} recibido, payload: {}",
+                                "PublishDelivery con id {} recibido, payload: {:?}",
                                 packet_id, payload
                             );
                         }
