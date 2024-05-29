@@ -3,74 +3,33 @@ use std::{
     io::{Error, ErrorKind},
 };
 
-use crate::mqtt::{
-    payload::Payload,
-    reader::{read_string, read_u8},
-    writer::{write_string, write_u8},
+use crate::{
+    monitoring::incident::Incident,
+    mqtt::{
+        payload::Payload,
+        reader::{read_string, read_u8},
+    },
 };
 
+use super::{incident_payload::IncidentPayload, location::Location};
+
+/// Aqui se definen los distintos tipos de payload que va a soportar nuestra aplicacion.
+/// La idea es que implemente el trait de Payload, de forma tal que sepa escribirse sobre un stream dado.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PayloadTypes {
-    IncidentLocation {
-        id: u8,
-        longitude: f64,
-        latitude: f64,
-    },
+    IncidentLocation(IncidentPayload),
 }
 
 impl Payload for PayloadTypes {
     fn write_to(&self, stream: &mut dyn std::io::prelude::Write) -> std::io::Result<()> {
         match self {
-            PayloadTypes::IncidentLocation {
-                id,
-                longitude,
-                latitude,
-            } => {
-                write_u8(stream, id)?;
-
-                let longitude_string = longitude.to_string();
-                write_string(stream, &longitude_string)?;
-
-                let latitude_string = latitude.to_string();
-                write_string(stream, &latitude_string)?;
+            PayloadTypes::IncidentLocation(payload) => {
+                payload.write_to(stream)?;
 
                 Ok(())
             }
         }
     }
-
-    // fn read_from(&self, stream: &mut dyn std::io::prelude::Read) -> Result<PayloadTypes, std::io::Error> {
-    //     let payload_type_id = read_u8(stream)?;
-
-    //     let payload_type = match payload_type_id {
-    //         1 => {
-    //             let longitude_string = read_string(stream)?;
-    //             let longitude: f64 = longitude_string.parse().map_err(|e| {
-    //                 Error::new(
-    //                     ErrorKind::InvalidData,
-    //                     format!("Error al parsear la longitud: {}", e),
-    //                 )
-    //             })?;
-
-    //             let latitude_string = read_string(stream)?;
-    //             let latitude: f64 = latitude_string.parse().map_err(|e| {
-    //                 Error::new(
-    //                     ErrorKind::InvalidData,
-    //                     format!("Error al parsear la longitud: {}", e),
-    //                 )
-    //             })?;
-
-    //             PayloadTypes::IncidentLocation { id: payload_type_id, longitude, latitude }
-    //         },
-    //         _ => {
-    //             return Err(Error::new(
-    //                 ErrorKind::InvalidData,
-    //                 format!("Error while reading payload"),
-    //             ))
-    //         }
-    //     };
-    //     Ok(payload_type)
-    // }
 
     fn as_any(&self) -> &dyn Any {
         self
@@ -78,6 +37,8 @@ impl Payload for PayloadTypes {
 }
 
 impl PayloadTypes {
+    /// Dependiendo del id del payload que se lea, se va a reconstruir el payload a partir de lo
+    /// leido efectivamente del stream.
     pub fn read_from(
         stream: &mut dyn std::io::prelude::Read,
     ) -> Result<PayloadTypes, std::io::Error> {
@@ -86,26 +47,12 @@ impl PayloadTypes {
         let payload_type = match payload_type_id {
             1 => {
                 let longitude_string = read_string(stream)?;
-                let longitude: f64 = longitude_string.parse().map_err(|e| {
-                    Error::new(
-                        ErrorKind::InvalidData,
-                        format!("Error al parsear la longitud: {}", e),
-                    )
-                })?;
-
                 let latitude_string = read_string(stream)?;
-                let latitude: f64 = latitude_string.parse().map_err(|e| {
-                    Error::new(
-                        ErrorKind::InvalidData,
-                        format!("Error al parsear la longitud: {}", e),
-                    )
-                })?;
 
-                PayloadTypes::IncidentLocation {
-                    id: payload_type_id,
-                    longitude,
-                    latitude,
-                }
+                let location = Location::new(latitude_string, longitude_string);
+                let incident = Incident::new(location);
+
+                PayloadTypes::IncidentLocation(IncidentPayload::new(incident))
             }
             _ => {
                 return Err(Error::new(

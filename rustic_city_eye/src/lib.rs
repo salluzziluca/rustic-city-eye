@@ -42,6 +42,7 @@ pub mod surveilling {
 }
 
 pub mod helpers {
+    pub mod incident_payload;
     pub mod location;
     pub mod payload_types;
 }

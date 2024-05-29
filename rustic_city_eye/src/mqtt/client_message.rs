@@ -10,7 +10,6 @@ use crate::mqtt::writer::*;
 
 use super::payload::Payload;
 
-//use self::quality_of_service::QualityOfService;
 const PROTOCOL_VERSION: u8 = 5;
 const SESSION_EXPIRY_INTERVAL_ID: u8 = 0x11;
 const REASON_STRING_ID: u8 = 0x1F;
@@ -558,7 +557,6 @@ impl ClientMessage {
 
                 let payload = PayloadTypes::read_from(stream)?;
 
-                // let message = read_string(stream)?;
                 Ok(ClientMessage::Publish {
                     packet_id,
                     topic_name,
@@ -629,29 +627,16 @@ impl ClientMessage {
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
-
-    // pub fn analize_packet_id(&self, packet: u16) -> bool {
-    //     match self {
-    //         ClientMessage::Connect { clean_start, last_will_flag, last_will_qos, last_will_retain, keep_alive, properties, client_id, will_properties, last_will_topic, last_will_message, username, password } => todo!(),
-    //         ClientMessage::Publish { packet_id, topic_name, qos, retain_flag, payload, dup_flag, properties } => {
-    //             if *packet_id == packet {
-    //                 return true;
-    //             }
-    //             false
-    //         },
-    //         ClientMessage::Subscribe { packet_id, topic_name, properties } => {
-    //             if *packet_id == packet {
-    //                 return true;
-    //             }
-    //             false
-    //         },
-    //     }
-    // }
 }
 
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
+
+    use crate::{
+        helpers::{incident_payload::IncidentPayload, location::Location},
+        monitoring::incident::Incident,
+    };
 
     use super::*;
 
@@ -786,11 +771,10 @@ mod tests {
             "a".to_string(),
         );
 
-        let payload = PayloadTypes::IncidentLocation {
-            id: 1,
-            longitude: 25.0,
-            latitude: 12.1,
-        };
+        let location = Location::new("12.1".to_string(), "25.0".to_string());
+        let incident = Incident::new(location);
+
+        let payload = PayloadTypes::IncidentLocation(IncidentPayload::new(incident));
 
         let publish = ClientMessage::Publish {
             packet_id: 1,

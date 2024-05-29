@@ -1,8 +1,9 @@
-//! Se conecta mediante TCP a la dirección asignada por argv.
-//! Lee lineas desde stdin y las manda mediante el socket.
+//! Se conecta mediante TCP a la dirección asignada por los args que le ingresan
+//! en su constructor.
 
 use std::sync::mpsc::{self, Sender};
 
+use crate::helpers::incident_payload::IncidentPayload;
 use crate::helpers::location::Location;
 use crate::helpers::payload_types::PayloadTypes;
 use crate::monitoring::incident::Incident;
@@ -121,12 +122,7 @@ impl MonitoringApp {
             1,
             "a".to_string(),
         );
-
-        let payload = PayloadTypes::IncidentLocation {
-            id: 1,
-            longitude: 10.0,
-            latitude: 14.1,
-        };
+        let payload = PayloadTypes::IncidentLocation(IncidentPayload::new(incident));
 
         let publish_config =
             PublishConfig::new(1, 1, 0, "incidente".to_string(), payload, properties);
