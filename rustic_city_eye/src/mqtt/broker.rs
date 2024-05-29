@@ -14,8 +14,11 @@ use crate::mqtt::{
     },
     topic::Topic,
 };
+use crate::utils::threadpool::ThreadPool;
 
 static SERVER_ARGS: usize = 2;
+
+const THREADPOOL_SIZE: usize = 20;
 
 #[derive(Clone)]
 pub struct Broker {
@@ -66,6 +69,7 @@ impl Broker {
     pub fn server_run(&mut self) -> std::io::Result<()> {
         let listener = TcpListener::bind(&self.address)?;
         println!("Broker escuchando en {}", self.address);
+        let threadpool = ThreadPool::new(THREADPOOL_SIZE);
 
         for stream in listener.incoming() {
             match stream {
@@ -75,7 +79,7 @@ impl Broker {
                     let subs_clone = self.subs.clone();
                     let clients_ids_clone = self.clients_ids.clone();
 
-                    std::thread::spawn(move || {
+                    threadpool.execute(move || {
                         // Use the cloned reference
                         let _ = Broker::handle_client(
                             stream,
