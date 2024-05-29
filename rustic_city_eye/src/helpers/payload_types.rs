@@ -57,7 +57,7 @@ impl PayloadTypes {
             _ => {
                 return Err(Error::new(
                     ErrorKind::InvalidData,
-                    format!("Error while reading payload"),
+                    "Error while reading payload".to_string(),
                 ))
             }
         };
