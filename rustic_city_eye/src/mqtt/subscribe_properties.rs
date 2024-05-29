@@ -1,7 +1,5 @@
+use crate::utils::{reader::*, writer::*};
 use std::io::{Error, Read, Write};
-
-use crate::mqtt::reader::*;
-use crate::mqtt::writer::*;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct SubscribeProperties {
