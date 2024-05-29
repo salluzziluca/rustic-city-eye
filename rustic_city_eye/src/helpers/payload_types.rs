@@ -9,9 +9,8 @@ use crate::{
         payload::Payload,
         reader::{read_string, read_u8},
     },
+    helpers::{incident_payload::IncidentPayload, location::Location}
 };
-
-use super::{incident_payload::IncidentPayload, location::Location};
 
 /// Aqui se definen los distintos tipos de payload que va a soportar nuestra aplicacion.
 /// La idea es que implemente el trait de Payload, de forma tal que sepa escribirse sobre un stream dado.
