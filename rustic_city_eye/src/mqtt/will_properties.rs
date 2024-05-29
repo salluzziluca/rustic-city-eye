@@ -3,8 +3,7 @@ use std::io::Error;
 use std::io::Read;
 use std::io::Write;
 
-use crate::mqtt::reader::*;
-use crate::mqtt::writer::*;
+use crate::utils::{reader::*, writer::*};
 
 const WILL_DELAY_INTERVAL_ID: u8 = 0x18;
 const PAYLOAD_FORMAT_INDICATOR_ID: u8 = 0x01;
