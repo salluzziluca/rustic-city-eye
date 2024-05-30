@@ -12,7 +12,6 @@ use rustic_city_eye::helpers::location::Location;
 use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
 use rustic_city_eye::mqtt::protocol_error::ProtocolError;
 
-#[cfg(not(test))]
 fn main() -> Result<(), ProtocolError> {
     let app = Application::builder()
         .application_id("com.example.RusticCityEye")
