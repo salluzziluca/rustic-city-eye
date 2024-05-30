@@ -19,7 +19,7 @@ pub struct Client {
 
     // stream es el socket que se conecta al broker
     stream: TcpStream,
-    
+
     // las subscriptions son un hashmap de topic y sub_id
     pub subscriptions: Arc<Mutex<HashMap<String, u8>>>,
     // user_id: u32,
@@ -550,6 +550,15 @@ impl Client {
                                     return Err::<(), ProtocolError>(ProtocolError::StreamError);
                                 }
                             }
+                        }
+                        ClientMessage::Auth {
+                            reason_code: _,
+                            authentication_method: _,
+                            authentication_data: _,
+                            reason_string: _,
+                            user_properties: _,
+                        } => {
+                            println!("auth enviado");
                         }
                     }
                 }

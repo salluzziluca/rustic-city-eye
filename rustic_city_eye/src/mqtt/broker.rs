@@ -282,6 +282,22 @@ impl Broker {
                         Err(err) => println!("Error al enviar Pingresp: {:?}", err),
                     }
                 }
+                ClientMessage::Auth {
+                    reason_code,
+                    authentication_method,
+                    authentication_data,
+                    reason_string,
+                    user_properties,
+                } => {
+                    println!(
+                        "recibi un auth {:?} {:?} {:?} {:?} {:?}",
+                        reason_code,
+                        authentication_method,
+                        authentication_data,
+                        reason_string,
+                        user_properties
+                    );
+                }
             }
         }
 
