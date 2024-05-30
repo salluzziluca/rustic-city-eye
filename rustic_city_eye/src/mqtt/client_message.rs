@@ -435,7 +435,7 @@ impl ClientMessage {
         Ok(())
     }
 
-    pub fn read_from(stream: &mut dyn Read) -> Result<ClientMessage, Error> {
+    pub fn read_from(stream: &mut impl Read) -> Result<ClientMessage, Error> {
         let mut header = [0u8; 1];
         stream.read_exact(&mut header)?;
 

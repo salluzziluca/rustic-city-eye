@@ -1,6 +1,7 @@
 use std::fmt;
 
 ///Here are detailed all the errors that the protocol is capable of throwing.
+/// Unspecified se usa de placeholder para los results de los tests
 #[derive(Debug)]
 pub enum ProtocolError {
     ConectionError,
@@ -12,6 +13,7 @@ pub enum ProtocolError {
     PublishError,
     SubscribeError,
     UnsubscribeError,
+    UnspecifiedError,
 }
 
 impl fmt::Display for ProtocolError {
@@ -30,6 +32,9 @@ impl fmt::Display for ProtocolError {
 
             ProtocolError::ReadingTopicConfigFileError => {
                 write!(f, "Error al leer el archivo de configuración de tópicos")
+            }
+            ProtocolError::UnspecifiedError => {
+                write!(f, "Error no especificado")
             }
         }
     }

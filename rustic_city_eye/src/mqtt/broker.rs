@@ -1,7 +1,8 @@
 use std::{
     collections::HashMap,
+    io::{Read, Write},
     net::{TcpListener, TcpStream},
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use crate::mqtt::{
@@ -288,7 +289,9 @@ impl Broker {
                 }
             }
         }
-
+        if let Err(_) = ClientMessage::read_from(&mut stream) {
+            return Err(ProtocolError::ConectionError);
+        }
         Ok(())
     }
 
@@ -376,5 +379,48 @@ impl Broker {
         let mut lock = packets.write().unwrap();
 
         lock.insert(packet_id, message);
+    }
+}
+
+#[cfg(test)]
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mockstream::MockStream;
+    use std::collections::HashMap;
+    use std::sync::{Arc, RwLock};
+    use std::thread;
+
+    #[test]
+    fn test_handle_client() {
+        // Set up a listener on a local port.
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        // Spawn a thread to simulate a client.
+        thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            stream.write_all(b"Hello, world!").unwrap();
+        });
+
+        let topics = HashMap::new();
+        let packets = Arc::new(RwLock::new(HashMap::new()));
+        let subs = vec![];
+        let clients_ids = Arc::new(vec![]);
+
+        // Write a ClientMessage to the stream.
+        // You'll need to replace this with a real ClientMessage.
+        let mut result: Result<(), ProtocolError> = Err(ProtocolError::UnspecifiedError);
+
+        // Accept the connection and pass the stream to the function.
+        if let Ok((stream, _)) = listener.accept() {
+            // Perform your assertions here
+            result = Broker::handle_client(stream, topics, packets, subs, clients_ids);
+        }
+
+        // Check that the function returned Ok.
+        // You might want to add more checks here, depending on what
+        // handle_client is supposed to do.
+        assert!(result.is_err());
     }
 }

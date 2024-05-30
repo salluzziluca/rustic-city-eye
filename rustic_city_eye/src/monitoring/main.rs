@@ -315,6 +315,7 @@ fn main() -> Result<(), ProtocolError> {
     Ok(())
 }
 
+#[cfg(not(test))]
 fn handle_connection(elements_container: &gtk::Box) {
     let (connect_form, host, port, user, password, connect_btn) = get_connect_form();
 
@@ -437,6 +438,7 @@ fn handle_connection(elements_container: &gtk::Box) {
         }));
 }
 
+#[cfg(not(test))]
 fn get_connect_form() -> (gtk::Box, Entry, Entry, Entry, Entry, gtk::Button) {
     let vbox = Box::new(Orientation::Vertical, 5);
 
@@ -464,6 +466,7 @@ fn get_connect_form() -> (gtk::Box, Entry, Entry, Entry, Entry, gtk::Button) {
 
     (vbox, host, port, user, password, connect_btn)
 }
+#[cfg(not(test))]
 
 fn update_camera_list(camera_list_box: &gtk::Box, monitoring_app_ref: &Rc<RefCell<MonitoringApp>>) {
     // Clear the existing list
@@ -487,6 +490,7 @@ fn update_camera_list(camera_list_box: &gtk::Box, monitoring_app_ref: &Rc<RefCel
     camera_list_box.show_all();
 }
 
+#[cfg(not(test))]
 fn on_add_camera_clicked(
     y: Rc<RefCell<f64>>,
     x: Rc<RefCell<f64>>,
