@@ -9,6 +9,7 @@ const SESSION_EXPIRY_INTERVAL_ID: u8 = 0x11;
 const REASON_STRING_ID: u8 = 0x1F;
 const USER_PROPERTY_ID: u8 = 0x26;
 use super::{
+    connack_properties::ConnackProperties,
     publish_properties::PublishProperties,
     reader::{read_string, read_u8},
     writer::{write_string, write_u8},
@@ -17,8 +18,9 @@ use super::{
 #[derive(Debug, PartialEq)]
 pub enum BrokerMessage {
     Connack {
-        //session_present: bool,
-        //return_code: u32
+        session_present: bool,
+        reason_code: u8,
+        properties: ConnackProperties,
     },
 
     /// Puback es la respuesta a un Publish packet con QoS 1.
@@ -67,10 +69,17 @@ impl BrokerMessage {
     pub fn write_to(&self, stream: &mut dyn Write) -> std::io::Result<()> {
         let mut writer = BufWriter::new(stream);
         match self {
-            BrokerMessage::Connack {} => {
-                let byte_1: u8 = 0x10_u8.to_le();
-
+            BrokerMessage::Connack {
+                session_present,
+                reason_code,
+                properties,
+            } => {
+                let byte_1: u8 = 0x20_u8.to_le(); //00100000
                 writer.write_all(&[byte_1])?;
+
+                write_bool(&mut writer, session_present)?;
+                write_u8(&mut writer, reason_code)?;
+                properties.write_to(&mut writer)?;
                 writer.flush()?;
 
                 Ok(())
@@ -248,7 +257,16 @@ impl BrokerMessage {
                     properties,
                 })
             }
-            0x10 => Ok(BrokerMessage::Connack {}),
+            0x20 => {
+                let session_present = read_bool(stream)?;
+                let reason_code = read_u8(stream)?;
+                let properties = ConnackProperties::read_from(stream)?;        
+                Ok(BrokerMessage::Connack {
+                session_present,
+                reason_code,
+                properties
+                })
+            },
             0x40 => {
                 let packet_id_msb = read_u8(stream)?;
                 let packet_id_lsb = read_u8(stream)?;
@@ -326,7 +344,10 @@ impl BrokerMessage {
 
     pub fn analize_packet_id(&self, packet_id: u16) -> bool {
         match self {
-            BrokerMessage::Connack {} => true,
+            BrokerMessage::Connack { 
+                session_present: _, 
+                reason_code: _, 
+                properties: _ } => true,
             BrokerMessage::Puback {
                 packet_id_msb,
                 packet_id_lsb,

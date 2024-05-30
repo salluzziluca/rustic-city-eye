@@ -9,6 +9,7 @@ use crate::mqtt::{
     broker_message::BrokerMessage,
     client_message::ClientMessage,
     protocol_error::ProtocolError,
+    connack_properties::ConnackProperties,
     reason_code::{
         NO_MATCHING_SUBSCRIBERS_HEX, SUB_ID_DUP_HEX, SUCCESS_HEX, UNSPECIFIED_ERROR_HEX,
     },
@@ -133,9 +134,29 @@ impl Broker {
                         break;
                     }
                     Arc::make_mut(&mut clients_ids).push(client_id);
+                    let properties = ConnackProperties {
+                        session_expiry_interval: 0,
+                        receive_maximum: 0,
+                        maximum_packet_size: 0,
+                        topic_alias_maximum: 0,
+                        user_properties: Vec::new(),
+                        authentication_method: "none".to_string(),
+                        authentication_data: Vec::new(),
+                        assigned_client_identifier: "none".to_string(),
+                        maximum_qos: true,
+                        reason_string: "none".to_string(),
+                        wildcard_subscription_available: false,
+                        subscription_identifier_available: false,
+                        shared_subscription_available: false,
+                        server_keep_alive: 0,
+                        response_information: "none".to_string(),
+                        server_reference: "none".to_string(),
+                        retain_available: false,
+                    };
                     let connack = BrokerMessage::Connack {
-                        //session_present: true,
-                        //return_code: 0,
+                        session_present: false,
+                        reason_code: 0,
+                        properties,
                     };
                     println!("Enviando un Connack");
                     match connack.write_to(&mut stream) {

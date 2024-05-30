@@ -100,7 +100,7 @@ pub enum ClientMessage {
     /// La idea es utilizar propiedades que se definen dentro de los packets del tipo Connect, y poder realizar la
     /// autenticacion correctamente.
     Auth {
-        /// Nos indica el estado de nuestra autenticacion. 
+        /// Nos indica el estado de nuestra autenticacion.
         reason_code: u8,
 
         /// Indica el metodo de autenticacion a seguir.
@@ -109,7 +109,7 @@ pub enum ClientMessage {
         /// Contiene data binaria sobre la autenticacion.
         authentication_data: Vec<u8>,
 
-        /// Aca se muestra mas a detalle la razon de la desconexion. La idea es mostrarle 
+        /// Aca se muestra mas a detalle la razon de la desconexion. La idea es mostrarle
         /// al usuario a traves de un texto legible el por que el broker decidio desconectarlo.
         reason_string: String,
 
