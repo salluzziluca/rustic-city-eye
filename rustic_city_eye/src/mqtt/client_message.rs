@@ -4,9 +4,8 @@ use std::io::{BufWriter, Error, Read, Write};
 
 use crate::mqtt::connect_properties::ConnectProperties;
 use crate::mqtt::publish_properties::{PublishProperties, TopicProperties};
-use crate::mqtt::reader::*;
 use crate::mqtt::will_properties::*;
-use crate::mqtt::writer::*;
+use crate::utils::{reader::*, writer::*};
 
 use super::payload::Payload;
 

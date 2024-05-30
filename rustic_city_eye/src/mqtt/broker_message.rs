@@ -1,18 +1,11 @@
 use std::io::{BufWriter, Error, Read, Write};
 
-use crate::helpers::payload_types::PayloadTypes;
-
-use super::payload::Payload;
-use super::{reader::*, writer::*};
+use crate::{helpers::payload_types::PayloadTypes, utils::{reader::*, writer::*}};
 
 const SESSION_EXPIRY_INTERVAL_ID: u8 = 0x11;
 const REASON_STRING_ID: u8 = 0x1F;
 const USER_PROPERTY_ID: u8 = 0x26;
-use super::{
-    publish_properties::PublishProperties,
-    reader::{read_string, read_u8},
-    writer::{write_string, write_u8},
-};
+use super::{payload::Payload, publish_properties::PublishProperties};
 
 #[derive(Debug, PartialEq)]
 pub enum BrokerMessage {
