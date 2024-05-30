@@ -1,6 +1,6 @@
 use crate::helpers::payload_types::PayloadTypes;
 use crate::mqtt::subscribe_properties::SubscribeProperties;
-use std::io::{BufWriter, Error, Read, Write};
+use std::io::{BufWriter, Error, ErrorKind, Read, Write};
 
 use crate::mqtt::connect_properties::ConnectProperties;
 use crate::mqtt::publish_properties::{PublishProperties, TopicProperties};
@@ -94,6 +94,27 @@ pub enum ClientMessage {
         user_properties: Vec<(String, String)>,
     },
     Pingreq,
+
+    /// Sirve para autenticar usuarios. Se puede enviar desde el cliente al server, o desde el server al cliente.
+    /// La idea es utilizar propiedades que se definen dentro de los packets del tipo Connect, y poder realizar la
+    /// autenticacion correctamente.
+    Auth {
+        /// Nos indica el estado de nuestra autenticacion.
+        reason_code: u8,
+
+        /// Indica el metodo de autenticacion a seguir.
+        authentication_method: String,
+
+        /// Contiene data binaria sobre la autenticacion.
+        authentication_data: Vec<u8>,
+
+        /// Aca se muestra mas a detalle la razon de la desconexion. La idea es mostrarle
+        /// al usuario a traves de un texto legible el por que el broker decidio desconectarlo.
+        reason_string: String,
+
+        /// Para diagnosticos e informacion adicionales.
+        user_properties: Vec<(String, String)>,
+    },
 }
 
 #[allow(dead_code)]
@@ -253,6 +274,22 @@ impl ClientMessage {
                 writer.flush()?;
                 Ok(())
             }
+            ClientMessage::Auth {
+                reason_code,
+                authentication_method: _,
+                authentication_data: _,
+                reason_string: _,
+                user_properties: _,
+            } => {
+                println!("authenticating user...");
+                self.write_first_packet_byte(&mut writer)?;
+
+                write_u8(&mut writer, reason_code)?;
+                self.write_packet_properties(&mut writer)?;
+                writer.flush()?;
+
+                Ok(())
+            }
         }
     }
 
@@ -341,6 +378,16 @@ impl ClientMessage {
             }
             ClientMessage::Pingreq => {
                 let byte_1: u8 = 0xC0_u8;
+                writer.write_all(&[byte_1])?;
+            }
+            ClientMessage::Auth {
+                reason_code: _,
+                authentication_method: _,
+                authentication_data: _,
+                reason_string: _,
+                user_properties: _,
+            } => {
+                let byte_1 = 0xF0_u8;
                 writer.write_all(&[byte_1])?;
             }
         }
@@ -432,6 +479,31 @@ impl ClientMessage {
                 let byte_1: u8 = 0xC0_u8;
                 writer.write_all(&[byte_1])?;
                 writer.flush()?;
+            }
+            ClientMessage::Auth {
+                reason_code: _,
+                authentication_method,
+                authentication_data,
+                reason_string,
+                user_properties,
+            } => {
+                println!("writing auth");
+
+                let authentication_method_id: u8 = 0x15_u8;
+                writer.write_all(&[authentication_method_id])?;
+                write_string(writer, authentication_method)?;
+
+                let authentication_data_id: u8 = 0x16_u8;
+                writer.write_all(&[authentication_data_id])?;
+                write_bin_vec(writer, authentication_data)?;
+
+                let reason_string_id: u8 = 0x1F_u8;
+                writer.write_all(&[reason_string_id])?;
+                write_string(writer, reason_string)?;
+
+                let user_properties_id: u8 = 0x26_u8; // 38
+                writer.write_all(&[user_properties_id])?;
+                write_tuple_vec(writer, user_properties)?;
             }
         }
 
@@ -623,6 +695,62 @@ impl ClientMessage {
                 })
             }
             0xC0 => Ok(ClientMessage::Pingreq),
+            0xF0 => {
+                let reason_code = read_u8(stream)?;
+                let mut authentication_method: Option<String> = None;
+                let mut authentication_data: Option<Vec<u8>> = None;
+                let mut reason_string: Option<String> = None;
+                let mut user_properties: Option<Vec<(String, String)>> = None;
+
+                let mut count = 0;
+                while let Ok(property_id) = read_u8(stream) {
+                    match property_id {
+                        0x15 => {
+                            let value = read_string(stream)?;
+                            authentication_method = Some(value);
+                        }
+                        0x16 => {
+                            let value = read_bin_vec(stream)?;
+                            authentication_data = Some(value);
+                        }
+                        0x26 => {
+                            let value = read_tuple_vec(stream)?;
+                            user_properties = Some(value);
+                        }
+                        0x1F => {
+                            let value = read_string(stream)?;
+                            reason_string = Some(value);
+                        }
+                        _ => {
+                            return Err(Error::new(ErrorKind::InvalidData, "Property ID inválido"));
+                        }
+                    }
+                    count += 1;
+                    if count == 4 {
+                        break;
+                    }
+                }
+
+                Ok(ClientMessage::Auth {
+                    reason_code,
+                    user_properties: user_properties.ok_or(Error::new(
+                        ErrorKind::InvalidData,
+                        "Missing user_properties property",
+                    ))?,
+                    authentication_method: authentication_method.ok_or(Error::new(
+                        ErrorKind::InvalidData,
+                        "Missing authentication_method property",
+                    ))?,
+                    authentication_data: authentication_data.ok_or(Error::new(
+                        ErrorKind::InvalidData,
+                        "Missing authentication_data property",
+                    ))?,
+                    reason_string: reason_string.ok_or(Error::new(
+                        ErrorKind::InvalidData,
+                        "Missing reason_string property",
+                    ))?,
+                })
+            }
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
@@ -858,5 +986,32 @@ mod tests {
             }
         };
         assert_eq!(disconect, read_disconect);
+    }
+
+    #[test]
+    fn test_06_auth_ok() {
+        let auth = ClientMessage::Auth {
+            reason_code: 0x00_u8,
+            authentication_method: "user y password".to_string(),
+            authentication_data: vec![],
+            reason_string: "usuario no encontrado".to_string(),
+            user_properties: vec![("propiedad".to_string(), "valor".to_string())],
+        };
+
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+        match auth.write_to(&mut cursor) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("no se pudo escribir en el cursor {:?}", e);
+            }
+        }
+        cursor.set_position(0);
+        let read_auth = match ClientMessage::read_from(&mut cursor) {
+            Ok(auth) => auth,
+            Err(e) => {
+                panic!("no se pudo leer del cursor {:?}", e);
+            }
+        };
+        assert_eq!(auth, read_auth);
     }
 }
