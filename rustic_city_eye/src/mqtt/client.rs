@@ -19,7 +19,7 @@ pub struct Client {
 
     // stream es el socket que se conecta al broker
     stream: TcpStream,
-    
+
     // las subscriptions son un hashmap de topic y sub_id
     pub subscriptions: Arc<Mutex<HashMap<String, u8>>>,
     // user_id: u32,
@@ -60,8 +60,9 @@ impl Client {
         if let Ok(message) = BrokerMessage::read_from(&mut stream) {
             match message {
                 BrokerMessage::Connack {
-                   //session_present,
-                    //return_code,
+                    session_present: _,
+                    reason_code: _,
+                    properties: _,
                 } => {
                     println!("Recibí un Connack");
                 },
@@ -246,7 +247,12 @@ impl Client {
             if let Ok(mut stream_clone) = stream.try_clone() {
                 if let Ok(message) = BrokerMessage::read_from(&mut stream_clone) {
                     match message {
-                        BrokerMessage::Connack {} => todo!(),
+                        BrokerMessage::Connack { 
+                            session_present: _, 
+                            reason_code: _, 
+                            properties: _ } => {
+                                println!("Volví a recibir un connack")
+                            },
                         BrokerMessage::Puback {
                             packet_id_msb,
                             packet_id_lsb,
@@ -550,6 +556,15 @@ impl Client {
                                     return Err::<(), ProtocolError>(ProtocolError::StreamError);
                                 }
                             }
+                        }
+                        ClientMessage::Auth {
+                            reason_code: _,
+                            authentication_method: _,
+                            authentication_data: _,
+                            reason_string: _,
+                            user_properties: _,
+                        } => {
+                            println!("auth enviado");
                         }
                     }
                 }
