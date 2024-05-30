@@ -8,9 +8,13 @@ use std::{
     },
 };
 
-use crate::mqtt::{
-    broker_message::BrokerMessage, client_message::ClientMessage, connect_config::ConnectConfig,
-    error::ClientError, messages_config::MessagesConfig, protocol_error::ProtocolError,
+use crate::{
+    mqtt::{
+        broker_message::BrokerMessage, client_message::ClientMessage,
+        connect_config::ConnectConfig, error::ClientError, messages_config::MessagesConfig,
+        protocol_error::ProtocolError,
+    },
+    utils::threadpool::ThreadPool,
 };
 
 #[derive(Debug)]
@@ -216,9 +220,11 @@ impl Client {
             Err(_) => return Err(ProtocolError::StreamError),
         };
 
+        let threadpool = ThreadPool::new(5);
+
         let subscriptions_clone = self.subscriptions.clone();
 
-        let _write_messages = std::thread::spawn(move || {
+        let _write_messages = threadpool.execute(move || {
             let pending_messages = pending_messages_clone_one.clone();
 
             Client::write_messages(
@@ -232,7 +238,7 @@ impl Client {
         });
 
         let subscriptions_clone = self.subscriptions.clone();
-        let _read_messages = std::thread::spawn(move || {
+        let _read_messages = threadpool.execute(move || {
             Client::receive_messages(stream_clone_two, receiver, subscriptions_clone)
         });
 
