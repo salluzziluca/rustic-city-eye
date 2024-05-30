@@ -1,8 +1,11 @@
-//! Se conecta mediante TCP a la dirección asignada por argv.
-//! Lee lineas desde stdin y las manda mediante el socket.
+//! Se conecta mediante TCP a la dirección asignada por los args que le ingresan
+//! en su constructor.
 
 use std::sync::mpsc::{self, Sender};
 
+use crate::helpers::incident_payload::IncidentPayload;
+use crate::helpers::location::Location;
+use crate::helpers::payload_types::PayloadTypes;
 use crate::monitoring::incident::Incident;
 use crate::mqtt::connect_config::ConnectConfig;
 use crate::mqtt::messages_config::MessagesConfig;
@@ -12,7 +15,7 @@ use crate::mqtt::{
     client::Client, connect_properties, protocol_error::ProtocolError, will_properties,
 };
 use crate::surveilling::camera::Camera;
-use crate::surveilling::{camera_system::*, location::Location};
+use crate::surveilling::camera_system::*;
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -119,15 +122,10 @@ impl MonitoringApp {
             1,
             "a".to_string(),
         );
+        let payload = PayloadTypes::IncidentLocation(IncidentPayload::new(incident));
 
-        let publish_config = PublishConfig::new(
-            1,
-            1,
-            0,
-            "incidente".to_string(),
-            "ayudame loco".to_string(),
-            properties,
-        );
+        let publish_config =
+            PublishConfig::new(1, 1, 0, "incidente".to_string(), payload, properties);
 
         let _ = self.send_to_client_channel.send(Box::new(publish_config));
     }

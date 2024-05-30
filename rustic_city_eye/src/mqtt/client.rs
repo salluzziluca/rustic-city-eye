@@ -23,15 +23,13 @@ pub struct Client {
 
     // stream es el socket que se conecta al broker
     stream: TcpStream,
+
     // las subscriptions son un hashmap de topic y sub_id
     pub subscriptions: Arc<Mutex<HashMap<String, u8>>>,
-    // pending_messages es un vector de packet_id
-    pending_messages: Vec<u16>,
     // user_id: u32,
 }
 
 impl Client {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         receiver_channel: Receiver<Box<dyn MessagesConfig + Send>>,
         address: String,
@@ -66,8 +64,9 @@ impl Client {
         if let Ok(message) = BrokerMessage::read_from(&mut stream) {
             match message {
                 BrokerMessage::Connack {
-                   //session_present,
-                    //return_code,
+                    session_present: _,
+                    reason_code: _,
+                    properties: _,
                 } => {
                     println!("Recibí un Connack");
                 },
@@ -84,7 +83,6 @@ impl Client {
             receiver_channel: Arc::new(Mutex::new(receiver_channel)),
             stream,
             subscriptions: Arc::new(Mutex::new(HashMap::new())),
-            pending_messages: Vec::new(),
         })
     }
 
@@ -209,8 +207,6 @@ impl Client {
 
         let desconectar = false;
 
-        let pending_messages_clone_one = self.pending_messages.clone();
-
         let stream_clone_one = match self.stream.try_clone() {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
@@ -225,11 +221,8 @@ impl Client {
         let subscriptions_clone = self.subscriptions.clone();
 
         let _write_messages = threadpool.execute(move || {
-            let pending_messages = pending_messages_clone_one.clone();
-
             Client::write_messages(
                 stream_clone_one,
-                pending_messages,
                 receiver_channel,
                 desconectar,
                 sender,
@@ -260,7 +253,12 @@ impl Client {
             if let Ok(mut stream_clone) = stream.try_clone() {
                 if let Ok(message) = BrokerMessage::read_from(&mut stream_clone) {
                     match message {
-                        BrokerMessage::Connack {} => todo!(),
+                        BrokerMessage::Connack { 
+                            session_present: _, 
+                            reason_code: _, 
+                            properties: _ } => {
+                                println!("Volví a recibir un connack")
+                            },
                         BrokerMessage::Puback {
                             packet_id_msb,
                             packet_id_lsb,
@@ -334,7 +332,7 @@ impl Client {
                             payload,
                         } => {
                             println!(
-                                "PublishDelivery con id {} recibido, payload: {}",
+                                "PublishDelivery con id {} recibido, payload: {:?}",
                                 packet_id, payload
                             );
                         }
@@ -371,7 +369,6 @@ impl Client {
 
     fn write_messages(
         stream: TcpStream,
-        mut pending_messages: Vec<u16>,
         receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
         mut desconectar: bool,
         sender: Sender<u16>,
@@ -381,7 +378,7 @@ impl Client {
             loop {
                 let lock = receiver_channel.lock().unwrap();
                 if let Ok(message_config) = lock.recv() {
-                    let packet_id = Client::assign_packet_id(pending_messages.clone());
+                    let packet_id = Client::assign_packet_id();
 
                     let message = message_config.parse_message(packet_id);
 
@@ -423,7 +420,6 @@ impl Client {
                                 if let Ok(packet_id) =
                                     Client::publish_message(publish, stream_clone, packet_id)
                                 {
-                                    pending_messages.push(packet_id);
                                     match sender.send(packet_id) {
                                         Ok(_) => continue,
                                         Err(_) => {
@@ -567,6 +563,15 @@ impl Client {
                                 }
                             }
                         }
+                        ClientMessage::Auth {
+                            reason_code: _,
+                            authentication_method: _,
+                            authentication_data: _,
+                            reason_string: _,
+                            user_properties: _,
+                        } => {
+                            println!("auth enviado");
+                        }
                     }
                 }
             }
@@ -574,15 +579,14 @@ impl Client {
         Ok(())
     }
 
-    ///Asigna un id al packet que ingresa como parametro.
-    ///Guarda el packet en el hashmap de paquetes.
-    fn assign_packet_id(packets: Vec<u16>) -> u16 {
+    ///Asigna un id random
+    fn assign_packet_id() -> u16 {
         let mut rng = rand::thread_rng();
 
         let mut packet_id: u16;
         loop {
             packet_id = rng.gen();
-            if packet_id != 0 && !packets.contains(&packet_id) {
+            if packet_id != 0 {
                 break;
             }
         }

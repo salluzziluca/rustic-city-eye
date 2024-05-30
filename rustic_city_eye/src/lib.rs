@@ -13,6 +13,7 @@ pub mod mqtt {
     pub mod broker_message;
     pub mod client;
     pub mod client_message;
+    pub mod connack_properties;
     pub mod connect_properties;
     pub mod protocol_error;
     pub mod publish_properties;
@@ -25,6 +26,8 @@ pub mod mqtt {
     pub mod broker_config;
 
     pub mod error;
+
+    pub mod payload;
 }
 
 pub mod monitoring {
@@ -36,7 +39,12 @@ pub mod monitoring {
 pub mod surveilling {
     pub mod camera;
     pub mod camera_system;
+}
+
+pub mod helpers {
+    pub mod incident_payload;
     pub mod location;
+    pub mod payload_types;
 }
 
 // pub mod utils {
