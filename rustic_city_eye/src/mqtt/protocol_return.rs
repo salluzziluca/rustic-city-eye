@@ -9,6 +9,7 @@ pub enum ProtocolReturn {
     UnsubackSent,
     DisconnectRecieved,
     PlaceHolder,
+    DisconnectSent,
 }
 
 impl fmt::Display for ProtocolReturn {
@@ -21,6 +22,7 @@ impl fmt::Display for ProtocolReturn {
             ProtocolReturn::UnsubackSent => write!(f, "Unsuback Enviado."),
             ProtocolReturn::DisconnectRecieved => write!(f, "Disconnect Recibido."),
             ProtocolReturn::PlaceHolder => write!(f, "Placeholder."),
+            ProtocolReturn::DisconnectSent => write!(f, "Disconnect Enviado."),
         }
     }
 }

@@ -254,7 +254,10 @@ pub fn handle_messages(
                 };
 
                 match disconnect.write_to(&mut stream) {
-                    Ok(_) => println!("Disconnect enviado"),
+                    Ok(_) => {
+                        println!("Disconnect enviado");
+                        return Ok(ProtocolReturn::DisconnectSent);
+                    }
                     Err(err) => println!("Error al enviar Disconnect: {:?}", err),
                 }
             }
