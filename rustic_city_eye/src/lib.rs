@@ -25,6 +25,7 @@ pub mod mqtt {
     pub mod broker_config;
 
     pub mod error;
+    pub mod protocol_return;
 }
 
 pub mod monitoring {

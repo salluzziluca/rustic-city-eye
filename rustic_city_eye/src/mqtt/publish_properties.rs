@@ -30,8 +30,8 @@ pub struct PublishProperties {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct TopicProperties {
-    pub(crate) topic_alias: u16,
-    pub(crate) response_topic: String,
+    pub topic_alias: u16,
+    pub response_topic: String,
 }
 
 impl PublishProperties {

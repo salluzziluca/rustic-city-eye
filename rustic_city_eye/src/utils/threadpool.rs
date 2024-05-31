@@ -60,16 +60,17 @@ impl ThreadPool {
         R: Send + 'static,
     {
         let (tx, rx) = channel();
+        let senderr = self.sender.clone();
 
         let job = Box::new(move || {
             let result = f();
             if let Err(err) = tx.send(result) {
-                eprintln!("Failed to send result: {:?}", err);
+                println!("Failed to send result: {:?}", err);
             }
         });
 
-        if let Err(err) = self.sender.send(job) {
-            eprintln!("Failed to send job: {:?}", err);
+        if let Err(err) = senderr.send(job) {
+            println!("Failed to send job: {:?}", err);
         }
 
         rx

@@ -12,6 +12,8 @@ pub mod reason_code;
 
 pub mod protocol_error;
 
+pub mod protocol_return;
+
 pub mod connect_properties;
 
 pub mod quality_of_service;
