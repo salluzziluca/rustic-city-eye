@@ -386,8 +386,6 @@ impl Broker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mockstream::MockStream;
-    use std::collections::HashMap;
     use std::sync::{Arc, RwLock};
     use std::thread;
 
