@@ -14,6 +14,7 @@ pub enum ProtocolError {
     SubscribeError,
     UnsubscribeError,
     UnspecifiedError,
+    PubackWithoutPendingID,
 }
 
 impl fmt::Display for ProtocolError {
@@ -32,6 +33,12 @@ impl fmt::Display for ProtocolError {
 
             ProtocolError::ReadingTopicConfigFileError => {
                 write!(f, "Error al leer el archivo de configuración de tópicos")
+            }
+            ProtocolError::PubackWithoutPendingID => {
+                write!(
+                    f,
+                    "Error: Se recibió un Puback sin un ID en la lista de pending message"
+                )
             }
             ProtocolError::UnspecifiedError => {
                 write!(f, "Error no especificado")

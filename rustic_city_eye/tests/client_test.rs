@@ -1,60 +1,23 @@
 #[cfg(test)]
 mod tests {
     use rustic_city_eye::mqtt::{
-        broker_message::BrokerMessage, client::Client, client_return::ClientReturn,
-        connect_config::ConnectConfig, connect_properties, protocol_error::ProtocolError,
-        will_properties,
+        broker_message::BrokerMessage,
+        client::handle_message,
+        client_return::ClientReturn,
+        protocol_error::ProtocolError,
+        publish_properties::{PublishProperties, TopicProperties},
     };
     use std::{
         collections::HashMap,
         io::Write,
         net::{TcpListener, TcpStream},
-        sync::{mpsc, Arc, Mutex},
+        sync::{Arc, Mutex},
         thread,
     };
     #[test]
     fn test_recibir_puback() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
-        let (sender, receiver) = mpsc::channel();
-        let address = "127.0.0.1::5000".to_string();
-        let will_properties = will_properties::WillProperties::new(
-            1,
-            1,
-            1,
-            "a".to_string(),
-            "a".to_string(),
-            [1, 2, 3].to_vec(),
-            vec![("a".to_string(), "a".to_string())],
-        );
-
-        let connect_properties = connect_properties::ConnectProperties::new(
-            30,
-            1,
-            20,
-            20,
-            true,
-            true,
-            vec![("hola".to_string(), "chau".to_string())],
-            "auth".to_string(),
-            vec![1, 2, 3],
-        );
-        let connect_config = ConnectConfig::new(
-            true,
-            true,
-            1,
-            true,
-            35,
-            connect_properties,
-            "juancito".to_string(),
-            will_properties,
-            "camera system".to_string(),
-            "soy el monitoring y me desconecte".to_string(),
-            "user".to_string(),
-            "pass".to_string(),
-        );
-
-        let cliente = Client::new(receiver, address, connect_config);
 
         let puback = BrokerMessage::Puback {
             packet_id_msb: 1,
@@ -72,11 +35,171 @@ mod tests {
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
         let subscriptions = Arc::new(Mutex::new(HashMap::new()));
-        let (tx, rx): (mpsc::Sender<u16>, mpsc::Receiver<u16>) = mpsc::channel();
+        let pending_messages: Vec<u16> = Vec::new();
         if let Ok((stream, _)) = listener.accept() {
-            result = Client::receive_messages(stream, rx, subscriptions)
+            result = handle_message(stream, subscriptions, pending_messages)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::PubackRecieved);
+    }
+
+    #[test]
+    fn test_recibir_disconnect() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let disconnect = BrokerMessage::Disconnect {
+            reason_code: 1,
+            session_expiry_interval: 1,
+            reason_string: "pasaron_cosas".to_string(),
+            user_properties: vec![("propiedad".to_string(), "valor".to_string())],
+        };
+        thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            let mut buffer = vec![];
+            disconnect.write_to(&mut buffer).unwrap();
+            stream.write_all(&buffer).unwrap();
+        });
+
+        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
+
+        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
+        let pending_messages: Vec<u16> = Vec::new();
+        if let Ok((stream, _)) = listener.accept() {
+            result = handle_message(stream, subscriptions, pending_messages)
+        }
+
+        assert_eq!(result.unwrap(), ClientReturn::DisconnectRecieved);
+    }
+
+    #[test]
+    fn test_recibir_suback() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let suback = BrokerMessage::Suback {
+            packet_id_msb: 3,
+            packet_id_lsb: 1,
+            reason_code: 3,
+            sub_id: 2,
+        };
+        thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            let mut buffer = vec![];
+            suback.write_to(&mut buffer).unwrap();
+            stream.write_all(&buffer).unwrap();
+        });
+
+        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
+
+        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
+        let pending_messages: Vec<u16> = Vec::new();
+        if let Ok((stream, _)) = listener.accept() {
+            result = handle_message(stream, subscriptions, pending_messages)
+        }
+        assert_eq!(result.unwrap(), ClientReturn::SubackRecieved);
+    }
+
+    #[test]
+    fn test_recibir_publish_delivery() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let topic = TopicProperties {
+            topic_alias: 1,
+            response_topic: "topic".to_string(),
+        };
+
+        let publish_propreties = PublishProperties {
+            payload_format_indicator: 1,
+            message_expiry_interval: 2,
+            topic_properties: topic,
+            correlation_data: vec![1, 2, 3],
+            user_property: "propiedad".to_string(),
+            subscription_identifier: 3,
+            content_type: "content".to_string(),
+        };
+
+        let pub_delivery = BrokerMessage::PublishDelivery {
+            packet_id: 1,
+            topic_name: "topic".to_string(),
+            qos: 1,
+            retain_flag: 2,
+            payload: "payload".to_string(),
+            dup_flag: 4,
+            properties: publish_propreties,
+        };
+        thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            let mut buffer = vec![];
+            pub_delivery.write_to(&mut buffer).unwrap();
+            stream.write_all(&buffer).unwrap();
+        });
+
+        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
+
+        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
+        let pending_messages: Vec<u16> = Vec::new();
+        //agregar id 1 a pending messages
+        //pending_messages.push(1);
+        if let Ok((stream, _)) = listener.accept() {
+            result = handle_message(stream, subscriptions.clone(), pending_messages.clone())
+        }
+
+        assert_eq!(result.unwrap(), ClientReturn::PublishDeliveryRecieved);
+        //assert_eq!(pending_messages.len(), 0);
+    }
+
+    #[test]
+    fn test_recibir_unsuback() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let unsuback = BrokerMessage::Unsuback {
+            packet_id_msb: 1,
+            packet_id_lsb: 1,
+            reason_code: 1,
+        };
+        thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            let mut buffer = vec![];
+            unsuback.write_to(&mut buffer).unwrap();
+            stream.write_all(&buffer).unwrap();
+        });
+
+        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
+
+        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
+        let pending_messages: Vec<u16> = Vec::new();
+        if let Ok((stream, _)) = listener.accept() {
+            result = handle_message(stream, subscriptions, pending_messages)
+        }
+
+        assert_eq!(result.unwrap(), ClientReturn::UnsubackRecieved);
+    }
+
+    #[test]
+
+    fn test_recibir_pingresp() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let pingresp = BrokerMessage::Pingresp;
+        thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            let mut buffer = vec![];
+            pingresp.write_to(&mut buffer).unwrap();
+            stream.write_all(&buffer).unwrap();
+        });
+
+        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
+
+        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
+        let pending_messages: Vec<u16> = Vec::new();
+        if let Ok((stream, _)) = listener.accept() {
+            result = handle_message(stream, subscriptions, pending_messages)
+        }
+
+        assert_eq!(result.unwrap(), ClientReturn::PingrespRecieved);
     }
 }

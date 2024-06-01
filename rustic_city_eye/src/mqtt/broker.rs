@@ -216,6 +216,9 @@ impl Broker {
     }
 }
 
+/// Lee del stream un mensaje y lo procesa
+/// Devuelve un ProtocolReturn con informacion del mensaje recibido
+/// O ProtocolError en caso de error
 pub fn handle_messages(
     mut stream: TcpStream,
     topics: HashMap<String, Topic>,

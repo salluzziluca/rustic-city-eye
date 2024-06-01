@@ -21,7 +21,19 @@ struct Worker {
 impl Worker {
     fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
         let thread = thread::spawn(move || loop {
-            let job = receiver.lock().unwrap().recv().unwrap();
+            let job = match receiver.lock() {
+                Ok(lock) => match lock.recv() {
+                    Ok(job) => job,
+                    Err(err) => {
+                        println!("Failed to receive job: {:?}", err);
+                        continue;
+                    }
+                },
+                Err(err) => {
+                    println!("Failed to acquire lock: {:?}", err);
+                    continue;
+                }
+            };
 
             job();
         });
