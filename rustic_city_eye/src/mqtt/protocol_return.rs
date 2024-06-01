@@ -10,6 +10,7 @@ pub enum ProtocolReturn {
     DisconnectRecieved,
     PlaceHolder,
     DisconnectSent,
+    AuthRecieved,
 }
 
 impl fmt::Display for ProtocolReturn {
@@ -23,6 +24,7 @@ impl fmt::Display for ProtocolReturn {
             ProtocolReturn::DisconnectRecieved => write!(f, "Disconnect Recibido."),
             ProtocolReturn::PlaceHolder => write!(f, "Placeholder."),
             ProtocolReturn::DisconnectSent => write!(f, "Disconnect Enviado."),
+            ProtocolReturn::AuthRecieved => write!(f, "Auth Recibido."),
         }
     }
 }

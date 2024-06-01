@@ -1,11 +1,17 @@
 #[cfg(test)]
 mod tests {
-    use rustic_city_eye::mqtt::{
-        broker_message::BrokerMessage,
-        client::handle_message,
-        client_return::ClientReturn,
-        protocol_error::ProtocolError,
-        publish_properties::{PublishProperties, TopicProperties},
+    use rustic_city_eye::{
+        monitoring::incident::Incident,
+        mqtt::{
+            broker_message::BrokerMessage,
+            client::handle_message,
+            client_return::ClientReturn,
+            protocol_error::ProtocolError,
+            publish_properties::{PublishProperties, TopicProperties},
+        },
+        utils::{
+            incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes,
+        },
     };
     use std::{
         collections::HashMap,
@@ -119,13 +125,15 @@ mod tests {
             subscription_identifier: 3,
             content_type: "content".to_string(),
         };
-
+        let location = Location::new("1".to_string(), "1".to_string());
+        let new = Incident::new(location);
+        let incident_payload = IncidentPayload::new(new);
         let pub_delivery = BrokerMessage::PublishDelivery {
             packet_id: 1,
             topic_name: "topic".to_string(),
             qos: 1,
             retain_flag: 2,
-            payload: "payload".to_string(),
+            payload: PayloadTypes::IncidentLocation(incident_payload),
             dup_flag: 4,
             properties: publish_propreties,
         };

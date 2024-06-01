@@ -4,10 +4,13 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use gtk::gdk::keys::constants::Return;
+
 use crate::mqtt::{
     broker_config::BrokerConfig,
     broker_message::BrokerMessage,
     client_message::ClientMessage,
+    connack_properties::ConnackProperties,
     protocol_error::ProtocolError,
     protocol_return::ProtocolReturn,
     reason_code::{
@@ -264,10 +267,30 @@ pub fn handle_messages(
                 }
             }
             Arc::make_mut(&mut clients_ids).push(client_id);
+            let properties = ConnackProperties {
+                session_expiry_interval: 0,
+                receive_maximum: 0,
+                maximum_packet_size: 0,
+                topic_alias_maximum: 0,
+                user_properties: Vec::new(),
+                authentication_method: "none".to_string(),
+                authentication_data: Vec::new(),
+                assigned_client_identifier: "none".to_string(),
+                maximum_qos: true,
+                reason_string: "none".to_string(),
+                wildcard_subscription_available: false,
+                subscription_identifier_available: false,
+                shared_subscription_available: false,
+                server_keep_alive: 0,
+                response_information: "none".to_string(),
+                server_reference: "none".to_string(),
+                retain_available: false,
+            };
             let connack = BrokerMessage::Connack {
-                    //session_present: true,
-                    //return_code: 0,
-                };
+                session_present: false,
+                reason_code: 0,
+                properties,
+            };
             println!("Enviando un Connack");
             match connack.write_to(&mut stream) {
                 Ok(_) => return Ok(ProtocolReturn::ConnackSent),
@@ -431,6 +454,24 @@ pub fn handle_messages(
                 }
                 Err(err) => println!("Error al enviar Pingresp: {:?}", err),
             }
+        }
+        ClientMessage::Auth {
+            reason_code,
+            authentication_method,
+            authentication_data,
+            reason_string,
+            user_properties,
+        } => {
+            println!(
+                "recibi un auth {:?} {:?} {:?} {:?} {:?}",
+                reason_code,
+                authentication_method,
+                authentication_data,
+                reason_string,
+                user_properties
+            );
+
+            return Ok(ProtocolReturn::AuthRecieved);
         }
     }
     return Err(ProtocolError::UnspecifiedError);

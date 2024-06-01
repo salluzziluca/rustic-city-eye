@@ -1,6 +1,9 @@
-use crate::mqtt::{
-    client_message::ClientMessage, messages_config::MessagesConfig,
-    publish_properties::PublishProperties,
+use crate::{
+    mqtt::{
+        client_message::ClientMessage, messages_config::MessagesConfig,
+        publish_properties::PublishProperties,
+    },
+    utils::payload_types::PayloadTypes,
 };
 
 pub struct PublishConfig {
@@ -8,7 +11,7 @@ pub struct PublishConfig {
     pub(crate) qos: usize,
     pub(crate) retain_flag: usize,
     pub(crate) topic_name: String,
-    pub(crate) payload: String,
+    pub(crate) payload: PayloadTypes,
     pub(crate) publish_properties: PublishProperties,
 }
 
@@ -32,7 +35,7 @@ impl PublishConfig {
         qos: usize,
         retain_flag: usize,
         topic_name: String,
-        payload: String,
+        payload: PayloadTypes,
         publish_properties: PublishProperties,
     ) -> PublishConfig {
         PublishConfig {

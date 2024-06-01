@@ -25,9 +25,12 @@ pub mod writer;
 
 pub mod will_properties;
 
-pub mod connack_properties;
 pub mod topic;
 
 pub mod error;
 
 pub mod incident;
+
+pub mod connack_properties;
+
+pub mod location;
