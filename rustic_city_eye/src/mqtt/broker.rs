@@ -1,8 +1,7 @@
 use std::{
     collections::HashMap,
-    io::{Read, Write},
     net::{TcpListener, TcpStream},
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, RwLock},
 };
 
 use crate::mqtt::{
@@ -104,7 +103,7 @@ impl Broker {
         topics: HashMap<String, Topic>,
         packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
         _subs: Vec<u32>,
-        mut clients_ids: Arc<Vec<String>>,
+        clients_ids: Arc<Vec<String>>,
     ) -> Result<(), ProtocolError> {
         loop {
             let cloned_sream = match stream.try_clone() {
@@ -226,7 +225,7 @@ pub fn handle_messages(
 ) -> Result<ProtocolReturn, ProtocolError> {
     let mensaje = match ClientMessage::read_from(&mut stream) {
         Ok(mensaje) => mensaje,
-        Err(err) => return Err(ProtocolError::StreamError),
+        Err(_) => return Err(ProtocolError::StreamError),
     };
     match mensaje {
         ClientMessage::Connect {
@@ -438,6 +437,7 @@ pub fn handle_messages(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use std::sync::{Arc, RwLock};
     use std::thread;
 
@@ -450,7 +450,7 @@ mod tests {
         // Spawn a thread to simulate a client.
         thread::spawn(move || {
             let mut stream = TcpStream::connect(addr).unwrap();
-            stream.write_all(b"Hello, world!").unwrap();
+            stream.write(b"Hello, world!").unwrap();
         });
 
         let topics = HashMap::new();

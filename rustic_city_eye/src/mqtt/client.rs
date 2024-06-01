@@ -17,6 +17,8 @@ use crate::{
     utils::threadpool::ThreadPool,
 };
 
+use super::client_return::ClientReturn;
+
 #[derive(Debug)]
 pub struct Client {
     receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
@@ -245,11 +247,11 @@ impl Client {
         Ok(())
     }
 
-    fn receive_messages(
+    pub fn receive_messages(
         stream: TcpStream,
         receiver: Receiver<u16>,
         subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
-    ) -> Result<(), ProtocolError> {
+    ) -> Result<ClientReturn, ProtocolError> {
         let mut pending_messages = Vec::new();
 
         loop {
@@ -278,6 +280,7 @@ impl Client {
                                 }
                             }
                             println!("puback {:?}", message);
+                            return Ok(ClientReturn::PubackRecieved);
                         }
                         BrokerMessage::Disconnect {
                             reason_code: _,
@@ -366,7 +369,7 @@ impl Client {
                 println!("Error al clonar el stream");
             }
         }
-        Ok(())
+        Ok(ClientReturn::PlaceHolder)
     }
 
     fn write_messages(
