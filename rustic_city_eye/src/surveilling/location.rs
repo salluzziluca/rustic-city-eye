@@ -11,8 +11,8 @@ impl Location {
         let longitude = long.parse::<f64>().unwrap();
 
         Location {
-            longitude,
             latitude,
+            longitude,
         }
     }
 
