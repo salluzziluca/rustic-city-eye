@@ -992,7 +992,7 @@ mod tests {
     fn test_06_auth_ok() {
         let auth = ClientMessage::Auth {
             reason_code: 0x00_u8,
-            authentication_method: "user y password".to_string(),
+            authentication_method: "password-based".to_string(),
             authentication_data: vec![],
             reason_string: "usuario no encontrado".to_string(),
             user_properties: vec![("propiedad".to_string(), "valor".to_string())],

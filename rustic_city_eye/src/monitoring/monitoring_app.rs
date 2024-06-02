@@ -50,7 +50,7 @@ impl MonitoringApp {
             true,
             true,
             vec![("hola".to_string(), "chau".to_string())],
-            "auth".to_string(),
+            "password-based".to_string(),
             vec![1, 2, 3],
         );
 

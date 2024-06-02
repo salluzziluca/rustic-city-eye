@@ -4,8 +4,6 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use gtk::gdk::keys::constants::Return;
-
 use crate::mqtt::{
     broker_config::BrokerConfig,
     broker_message::BrokerMessage,
@@ -109,12 +107,12 @@ impl Broker {
         clients_ids: Arc<Vec<String>>,
     ) -> Result<(), ProtocolError> {
         loop {
-            let cloned_sream = match stream.try_clone() {
+            let cloned_stream = match stream.try_clone() {
                 Ok(stream) => stream,
                 Err(_) => return Err(ProtocolError::StreamError),
             };
             match handle_messages(
-                cloned_sream,
+                cloned_stream,
                 topics.clone(),
                 packets.clone(),
                 _subs.clone(),
@@ -456,28 +454,57 @@ pub fn handle_messages(
             }
         }
         ClientMessage::Auth {
-            reason_code,
+            reason_code: _,
             authentication_method,
             authentication_data,
             reason_string,
             user_properties,
         } => {
-            println!(
-                "recibi un auth {:?} {:?} {:?} {:?} {:?}",
-                reason_code,
-                authentication_method,
-                authentication_data,
-                reason_string,
-                user_properties
-            );
+            println!("Recibi un auth");
 
-            return Ok(ProtocolReturn::AuthRecieved);
+            match authentication_method.as_str() {
+                "password-based" => return Ok(ProtocolReturn::AuthRecieved),
+                _ => {
+                    let properties = ConnackProperties {
+                        session_expiry_interval: 0,
+                        receive_maximum: 0,
+                        maximum_packet_size: 0,
+                        topic_alias_maximum: 0,
+                        user_properties,
+                        authentication_method,
+                        authentication_data,
+                        assigned_client_identifier: "none".to_string(),
+                        maximum_qos: true,
+                        reason_string,
+                        wildcard_subscription_available: false,
+                        subscription_identifier_available: false,
+                        shared_subscription_available: false,
+                        server_keep_alive: 0,
+                        response_information: "none".to_string(),
+                        server_reference: "none".to_string(),
+                        retain_available: false,
+                    };
+
+                    let connack = BrokerMessage::Connack {
+                        session_present: false,
+                        reason_code: 0x8C, //Bad auth method
+                        properties,
+                    };
+                    println!("Parece que intentaste autenticarte con un metodo no soportado por el broker :(");
+
+                    match connack.write_to(&mut stream) {
+                        Ok(_) => return Ok(ProtocolReturn::ConnackSent),
+                        Err(err) => {
+                            println!("{:?}", err);
+                        }
+                    }
+                }
+            }
         }
     }
-    return Err(ProtocolError::UnspecifiedError);
+    Err(ProtocolError::UnspecifiedError)
 }
 
-#[cfg(test)]
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -67,10 +67,19 @@ impl Client {
             match message {
                 BrokerMessage::Connack {
                     session_present: _,
-                    reason_code: _,
+                    reason_code,
                     properties: _,
                 } => {
                     println!("Recibí un Connack");
+
+                    match reason_code {
+                        0x00_u8 => {
+                            println!("todo salio bien!");
+                        }
+                        _ => {
+                            println!("malio sal");
+                        }
+                    }
                 }
                 _ => println!("no recibi un Connack :("),
             }
@@ -505,7 +514,7 @@ impl Client {
 pub fn handle_message(
     mut stream: TcpStream,
     subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
-    mut pending_messages: Vec<u16>,
+    pending_messages: Vec<u16>,
 ) -> Result<ClientReturn, ProtocolError> {
     if let Ok(message) = BrokerMessage::read_from(&mut stream) {
         match message {
@@ -515,19 +524,19 @@ pub fn handle_message(
                 properties: _,
             } => {
                 println!("Recibí un Connack");
-                return Ok(ClientReturn::PlaceHolder);
+                Ok(ClientReturn::ConnackReceived)
             }
             BrokerMessage::Puback {
                 packet_id_msb,
                 packet_id_lsb,
-                reason_code,
+                reason_code: _,
             } => {
                 for pending_message in &pending_messages {
                     let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
                     if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {}
                 }
                 println!("puback {:?}", message);
-                return Ok(ClientReturn::PubackRecieved);
+                Ok(ClientReturn::PubackRecieved)
             }
             BrokerMessage::Disconnect {
                 reason_code: _,
@@ -539,7 +548,7 @@ pub fn handle_message(
                     "Recibí un Disconnect, razon de desconexión: {:?}",
                     reason_string
                 );
-                return Ok(ClientReturn::DisconnectRecieved);
+                Ok(ClientReturn::DisconnectRecieved)
             }
             BrokerMessage::Suback {
                 packet_id_msb,
@@ -568,7 +577,7 @@ pub fn handle_message(
                 lock.insert(topic, sub_id);
 
                 println!("Recibi un mensaje {:?}", message);
-                return Ok(ClientReturn::SubackRecieved);
+                Ok(ClientReturn::SubackRecieved)
             }
             BrokerMessage::PublishDelivery {
                 packet_id,
@@ -583,7 +592,7 @@ pub fn handle_message(
                     "PublishDelivery con id {} recibido, payload: {:?}",
                     packet_id, payload
                 );
-                return Ok(ClientReturn::PublishDeliveryRecieved);
+                Ok(ClientReturn::PublishDeliveryRecieved)
             }
             BrokerMessage::Unsuback {
                 packet_id_msb,
@@ -601,14 +610,14 @@ pub fn handle_message(
                 }
 
                 println!("Recibi un mensaje {:?}", message);
-                return Ok(ClientReturn::UnsubackRecieved);
+                Ok(ClientReturn::UnsubackRecieved)
             }
             BrokerMessage::Pingresp => {
                 println!("Recibi un mensaje {:?}", message);
-                return Ok(ClientReturn::PingrespRecieved);
+                Ok(ClientReturn::PingrespRecieved)
             }
         }
     } else {
-        return Err(ProtocolError::StreamError);
+        Err(ProtocolError::StreamError)
     }
 }

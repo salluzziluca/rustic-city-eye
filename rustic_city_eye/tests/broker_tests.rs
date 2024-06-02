@@ -6,8 +6,8 @@ mod tests {
     use rustic_city_eye::mqtt::subscribe_properties::SubscribeProperties;
     use rustic_city_eye::mqtt::will_properties::WillProperties;
     use rustic_city_eye::mqtt::{
-        broker::handle_messages, broker::Broker, client_message::ClientMessage,
-        protocol_error::ProtocolError, protocol_return::ProtocolReturn,
+        broker::handle_messages, client_message::ClientMessage, protocol_error::ProtocolError,
+        protocol_return::ProtocolReturn,
     };
     use rustic_city_eye::utils::incident_payload;
     use rustic_city_eye::utils::{location::Location, payload_types::PayloadTypes};
@@ -185,7 +185,7 @@ mod tests {
         // Set up a listener on a local port.
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
-        let topic_properties = TopicProperties {
+        let _topic_properties = TopicProperties {
             topic_alias: 10,
             response_topic: "String".to_string(),
         };
@@ -368,5 +368,73 @@ mod tests {
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::PingrespSent);
+    }
+
+    #[test]
+    fn test_auth() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let auth = ClientMessage::Auth {
+            reason_code: 0,
+            authentication_method: "password-based".to_string(),
+            authentication_data: vec![],
+            reason_string: "buendia".to_string(),
+            user_properties: vec![("hola".to_string(), "mundo".to_string())],
+        };
+
+        thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            let mut buffer = vec![];
+            auth.write_to(&mut buffer).unwrap();
+            stream.write_all(&buffer).unwrap();
+        });
+
+        let topics = HashMap::new();
+        let packets = Arc::new(RwLock::new(HashMap::new()));
+        let subs = vec![];
+        let clients_ids = Arc::new(vec![]);
+        let mut result: Result<ProtocolReturn, ProtocolError> =
+            Err(ProtocolError::UnspecifiedError);
+
+        if let Ok((stream, _)) = listener.accept() {
+            result = handle_messages(stream, topics, packets, subs, clients_ids);
+        }
+
+        assert_eq!(result.unwrap(), ProtocolReturn::AuthRecieved);
+    }
+
+    #[test]
+    fn test_auth_method_not_supported() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let auth = ClientMessage::Auth {
+            reason_code: 0,
+            authentication_method: "metodo de juancito".to_string(),
+            authentication_data: vec![],
+            reason_string: "buendia".to_string(),
+            user_properties: vec![("hola".to_string(), "mundo".to_string())],
+        };
+
+        thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            let mut buffer = vec![];
+            auth.write_to(&mut buffer).unwrap();
+            stream.write_all(&buffer).unwrap();
+        });
+
+        let topics = HashMap::new();
+        let packets = Arc::new(RwLock::new(HashMap::new()));
+        let subs = vec![];
+        let clients_ids = Arc::new(vec![]);
+        let mut result: Result<ProtocolReturn, ProtocolError> =
+            Err(ProtocolError::UnspecifiedError);
+
+        if let Ok((stream, _)) = listener.accept() {
+            result = handle_messages(stream, topics, packets, subs, clients_ids);
+        }
+
+        assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
     }
 }
