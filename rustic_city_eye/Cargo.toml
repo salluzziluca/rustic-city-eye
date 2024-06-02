@@ -9,10 +9,10 @@ edition = "2021"
 rand = "0.8.5"
 mockall = "0.12.1"
 walkers = "=0.8.0"
-webkit2gtk = "2.0.1"
-osmgpsmap = "0.2.16"
 egui = "0.27.2"
 eframe = "0.27.2"
+egui_extras = { version = "*", features = ["all_loaders"] }
+image = { version = "0.24", features = ["jpeg", "png"] }
 
 [[bin]]
 name = "broker"
