@@ -1,7 +1,6 @@
 use std::sync::mpsc::{self, Sender};
 
 use crate::{
-    helpers::location::Location,
     mqtt::{
         client::Client, connect_config::ConnectConfig, connect_properties,
         messages_config::MessagesConfig, protocol_error::ProtocolError,
@@ -9,6 +8,7 @@ use crate::{
         will_properties,
     },
     surveilling::camera::Camera,
+    utils::location::Location,
 };
 #[derive(Debug)]
 #[allow(dead_code)]

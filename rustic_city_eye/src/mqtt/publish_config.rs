@@ -1,9 +1,9 @@
 use crate::{
-    helpers::payload_types::PayloadTypes,
     mqtt::{
         client_message::ClientMessage, messages_config::MessagesConfig,
         publish_properties::PublishProperties,
     },
+    utils::payload_types::PayloadTypes,
 };
 
 pub struct PublishConfig {

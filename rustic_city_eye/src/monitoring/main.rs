@@ -8,9 +8,9 @@ use gtk::{Application, Box, Button, Entry, Label, Orientation};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use rustic_city_eye::helpers::location::Location;
 use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
 use rustic_city_eye::mqtt::protocol_error::ProtocolError;
+use rustic_city_eye::utils::location::Location;
 
 fn main() -> Result<(), ProtocolError> {
     let app = Application::builder()

@@ -1,6 +1,6 @@
 pub mod doc;
 pub mod drone_system;
-mod utils;
+pub mod utils;
 #[doc = include_str!("doc/informe.md")]
 #[doc = include_str!("doc/marco_teorico.md")]
 
@@ -25,7 +25,9 @@ pub mod mqtt {
     pub mod broker;
     pub mod broker_config;
 
+    pub mod client_return;
     pub mod error;
+    pub mod protocol_return;
 
     pub mod payload;
 }
@@ -40,15 +42,3 @@ pub mod surveilling {
     pub mod camera;
     pub mod camera_system;
 }
-
-pub mod helpers {
-    pub mod incident_payload;
-    pub mod location;
-    pub mod payload_types;
-}
-
-// pub mod utils {
-//     pub mod reader;
-//     pub mod threadpool;
-//     pub mod writer;
-// }

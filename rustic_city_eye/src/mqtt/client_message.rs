@@ -1,5 +1,5 @@
-use crate::helpers::payload_types::PayloadTypes;
 use crate::mqtt::subscribe_properties::SubscribeProperties;
+use crate::utils::payload_types::PayloadTypes;
 use std::io::{BufWriter, Error, ErrorKind, Read, Write};
 
 use crate::mqtt::connect_properties::ConnectProperties;
@@ -510,7 +510,7 @@ impl ClientMessage {
         Ok(())
     }
 
-    pub fn read_from(stream: &mut dyn Read) -> Result<ClientMessage, Error> {
+    pub fn read_from(stream: &mut impl Read) -> Result<ClientMessage, Error> {
         let mut header = [0u8; 1];
         stream.read_exact(&mut header)?;
 
@@ -761,8 +761,8 @@ mod tests {
     use std::io::Cursor;
 
     use crate::{
-        helpers::{incident_payload::IncidentPayload, location::Location},
         monitoring::incident::Incident,
+        utils::{incident_payload::IncidentPayload, location::Location},
     };
 
     use super::*;

@@ -4,10 +4,10 @@ use std::{
 };
 
 use crate::{
-    helpers::{incident_payload::IncidentPayload, location::Location},
     monitoring::incident::Incident,
     mqtt::payload::Payload,
-    utils::reader::{read_string, read_u8}
+    utils::reader::{read_string, read_u8},
+    utils::{incident_payload::IncidentPayload, location::Location},
 };
 
 /// Aqui se definen los distintos tipos de payload que va a soportar nuestra aplicacion.

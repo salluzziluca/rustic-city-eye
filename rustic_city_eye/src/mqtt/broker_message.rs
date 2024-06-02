@@ -1,12 +1,15 @@
 use std::io::{BufWriter, Error, Read, Write};
 
-use crate::{helpers::payload_types::PayloadTypes, utils::{reader::*, writer::*}};
+use crate::{
+    utils::payload_types::PayloadTypes,
+    utils::{reader::*, writer::*},
+};
 
 const SESSION_EXPIRY_INTERVAL_ID: u8 = 0x11;
 const REASON_STRING_ID: u8 = 0x1F;
 const USER_PROPERTY_ID: u8 = 0x26;
 use super::{
-    connack_properties::ConnackProperties, payload::Payload, publish_properties::PublishProperties
+    connack_properties::ConnackProperties, payload::Payload, publish_properties::PublishProperties,
 };
 use crate::utils::{
     reader::{read_string, read_u8},
@@ -258,13 +261,13 @@ impl BrokerMessage {
             0x20 => {
                 let session_present = read_bool(stream)?;
                 let reason_code = read_u8(stream)?;
-                let properties = ConnackProperties::read_from(stream)?;        
+                let properties = ConnackProperties::read_from(stream)?;
                 Ok(BrokerMessage::Connack {
-                session_present,
-                reason_code,
-                properties
+                    session_present,
+                    reason_code,
+                    properties,
                 })
-            },
+            }
             0x40 => {
                 let packet_id_msb = read_u8(stream)?;
                 let packet_id_lsb = read_u8(stream)?;
@@ -342,10 +345,11 @@ impl BrokerMessage {
 
     pub fn analize_packet_id(&self, packet_id: u16) -> bool {
         match self {
-            BrokerMessage::Connack { 
-                session_present: _, 
-                reason_code: _, 
-                properties: _ } => true,
+            BrokerMessage::Connack {
+                session_present: _,
+                reason_code: _,
+                properties: _,
+            } => true,
             BrokerMessage::Puback {
                 packet_id_msb,
                 packet_id_lsb,

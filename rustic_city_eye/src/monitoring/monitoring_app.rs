@@ -3,9 +3,6 @@
 
 use std::sync::mpsc::{self, Sender};
 
-use crate::helpers::incident_payload::IncidentPayload;
-use crate::helpers::location::Location;
-use crate::helpers::payload_types::PayloadTypes;
 use crate::monitoring::incident::Incident;
 use crate::mqtt::connect_config::ConnectConfig;
 use crate::mqtt::messages_config::MessagesConfig;
@@ -16,6 +13,9 @@ use crate::mqtt::{
 };
 use crate::surveilling::camera::Camera;
 use crate::surveilling::camera_system::*;
+use crate::utils::incident_payload::IncidentPayload;
+use crate::utils::location::Location;
+use crate::utils::payload_types::PayloadTypes;
 
 #[derive(Debug)]
 #[allow(dead_code)]
