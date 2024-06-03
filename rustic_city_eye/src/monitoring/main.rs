@@ -1,12 +1,28 @@
+mod plugins;
+mod windows;
+
+use walkers::{sources::OpenStreetMap, Map, MapMemory, Plugin, Position, Texture, Tiles};
 use eframe::{run_native, App, CreationContext, NativeOptions};
 use egui::{CentralPanel, Image, RichText, TextStyle};
+use plugins::ClickWatcher;
+use windows::{add_camera_window, add_incident_window, zoom};
+
+struct MyMap {
+    tiles: Tiles, 
+    map_memory: MapMemory,
+    click_watcher: ClickWatcher,
+    cameras: Vec<Position>,
+    incidents: Vec<Position>,
+    // camera_icon: Texture,
+    // incident_icon:Texture,
+}
 
 struct MyApp {
     usermane: String,
     ip: String,
     port: String,
     connected: bool,
-    last_clicked_pos: egui::Pos2
+    map: MyMap,
 }
 
 impl MyApp{
@@ -59,34 +75,37 @@ impl App for MyApp {
             self.handle_form(ctx, _frame);
         } else {
             CentralPanel::default().show(ctx, |ui| {
-                ui.image(egui::include_image!("assets/Map.png"));
-
-                if ui.input(|input| input.pointer.primary_clicked()) {
-                    if let Some(pos) = ui.input(|input| input.pointer.interact_pos()){
-                        println!("Clicked at {:?}", pos);
-                        self.last_clicked_pos = pos;
-                    }
-                }
-                if  self.last_clicked_pos != egui::Pos2::ZERO {
-                    ui.painter().circle(self.last_clicked_pos, 10.0, egui::Color32::RED, egui::Stroke::new(1.0, egui::Color32::WHITE));
-                }
-
-            });
+                ui.add(Map::new(
+                    Some(&mut self.map.tiles),
+                    &mut self.map.map_memory,
+                    Position::from_lon_lat(-58.368925,-34.61716)
+                ).with_plugin(&mut self.map.click_watcher)
+                );
+                zoom(ui,&mut self.map.map_memory);
+                add_camera_window(ui,&mut self.map);
+                add_incident_window(ui, &mut self.map);                
+                });
 
         }
     }
     
 }
 
-fn create_my_app(_cc: &CreationContext<'_>) -> Box<dyn App> {
-    egui_extras::install_image_loaders(&_cc.egui_ctx);
+fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
+    egui_extras::install_image_loaders(&cc.egui_ctx);
 
     Box::new(MyApp {
         usermane: String::new(),
         ip: String::new(),
         port: String::new(),
         connected: false,
-        last_clicked_pos: egui::Pos2::ZERO,
+        map: MyMap {
+            tiles: Tiles::new(OpenStreetMap, cc.egui_ctx.clone()),
+            map_memory: MapMemory::default(),
+            click_watcher: ClickWatcher::default(),
+            cameras: vec![],
+            incidents: vec![],
+        },
     })
 }
 
@@ -99,3 +118,4 @@ fn main() {
         eprintln!("Error: {}", e);
     }
 }
+
