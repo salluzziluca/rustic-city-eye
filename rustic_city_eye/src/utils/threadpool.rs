@@ -88,3 +88,16 @@ impl ThreadPool {
         rx
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_threadpool() {
+        let pool = ThreadPool::new(4);
+
+        let result = pool.execute(|| 1 + 2).recv().unwrap();
+        assert_eq!(result, 3);
+    }
+}
