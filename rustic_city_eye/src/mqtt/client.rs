@@ -515,7 +515,7 @@ pub fn handle_message(
                 properties: _,
             } => {
                 println!("Recibí un Connack");
-                return Ok(ClientReturn::PlaceHolder);
+                Ok(ClientReturn::PlaceHolder)
             }
             BrokerMessage::Puback {
                 packet_id_msb,
@@ -527,7 +527,7 @@ pub fn handle_message(
                     if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {}
                 }
                 println!("puback {:?}", message);
-                return Ok(ClientReturn::PubackRecieved);
+                Ok(ClientReturn::PubackRecieved)
             }
             BrokerMessage::Disconnect {
                 reason_code: _,
@@ -539,7 +539,7 @@ pub fn handle_message(
                     "Recibí un Disconnect, razon de desconexión: {:?}",
                     reason_string
                 );
-                return Ok(ClientReturn::DisconnectRecieved);
+                Ok(ClientReturn::DisconnectRecieved)
             }
             BrokerMessage::Suback {
                 packet_id_msb,
@@ -568,7 +568,7 @@ pub fn handle_message(
                 lock.insert(topic, sub_id);
 
                 println!("Recibi un mensaje {:?}", message);
-                return Ok(ClientReturn::SubackRecieved);
+                Ok(ClientReturn::SubackRecieved)
             }
             BrokerMessage::PublishDelivery {
                 packet_id,
@@ -583,7 +583,7 @@ pub fn handle_message(
                     "PublishDelivery con id {} recibido, payload: {:?}",
                     packet_id, payload
                 );
-                return Ok(ClientReturn::PublishDeliveryRecieved);
+                Ok(ClientReturn::PublishDeliveryRecieved)
             }
             BrokerMessage::Unsuback {
                 packet_id_msb,
@@ -601,15 +601,15 @@ pub fn handle_message(
                 }
 
                 println!("Recibi un mensaje {:?}", message);
-                return Ok(ClientReturn::UnsubackRecieved);
+                Ok(ClientReturn::UnsubackRecieved)
             }
             BrokerMessage::Pingresp => {
                 println!("Recibi un mensaje {:?}", message);
-                return Ok(ClientReturn::PingrespRecieved);
+                Ok(ClientReturn::PingrespRecieved)
             }
         }
     } else {
-        return Err(ProtocolError::StreamError);
+        Err(ProtocolError::StreamError)
     }
 }
 

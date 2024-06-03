@@ -577,8 +577,8 @@ fn test_builder() {
         .unwrap();
     assert_eq!(properties.session_expiry_interval, 0);
     assert_eq!(properties.receive_maximum, 0);
-    assert_eq!(properties.maximum_qos, false);
-    assert_eq!(properties.retain_available, false);
+    assert!(!properties.maximum_qos);
+    assert!(!properties.retain_available);
     assert_eq!(properties.maximum_packet_size, 0);
     assert_eq!(
         properties.assigned_client_identifier,
@@ -590,9 +590,9 @@ fn test_builder() {
         properties.user_properties,
         vec![("propiedad".to_string(), "valor".to_string())]
     );
-    assert_eq!(properties.wildcard_subscription_available, false);
-    assert_eq!(properties.subscription_identifier_available, false);
-    assert_eq!(properties.shared_subscription_available, false);
+    assert!(!properties.wildcard_subscription_available);
+    assert!(!properties.subscription_identifier_available);
+    assert!(!properties.shared_subscription_available);
     assert_eq!(properties.server_keep_alive, 0);
     assert_eq!(properties.response_information, "propiedad".to_string());
     assert_eq!(properties.server_reference, "propiedad".to_string());

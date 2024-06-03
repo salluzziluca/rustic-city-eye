@@ -122,7 +122,7 @@ fn test_parse_message() {
             keep_alive: 35,
             properties: connect_properties,
             client_id: "juancito".to_string(),
-            will_properties: will_properties,
+            will_properties,
             last_will_topic: "camera system".to_string(),
             last_will_message: "soy el monitoring y me desconecte".to_string(),
             username: "a".to_string(),

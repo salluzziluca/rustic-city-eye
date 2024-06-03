@@ -355,8 +355,8 @@ mod tests {
         assert_eq!(connect_properties.receive_maximum, 2);
         assert_eq!(connect_properties.maximum_packet_size, 10);
         assert_eq!(connect_properties.topic_alias_maximum, 99);
-        assert_eq!(connect_properties.request_response_information, true);
-        assert_eq!(connect_properties.request_problem_information, false);
+        assert!(connect_properties.request_response_information);
+        assert!(!connect_properties.request_problem_information);
         assert_eq!(
             connect_properties.user_properties,
             vec![

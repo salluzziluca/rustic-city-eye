@@ -472,7 +472,7 @@ pub fn handle_messages(
             return Ok(ProtocolReturn::AuthRecieved);
         }
     }
-    return Err(ProtocolError::UnspecifiedError);
+    Err(ProtocolError::UnspecifiedError)
 }
 
 #[cfg(test)]
@@ -492,7 +492,7 @@ mod tests {
         // Spawn a thread to simulate a client.
         thread::spawn(move || {
             let mut stream = TcpStream::connect(addr).unwrap();
-            stream.write(b"Hello, world!").unwrap();
+            stream.write_all(b"Hello, world!").unwrap();
         });
 
         let topics = HashMap::new();
