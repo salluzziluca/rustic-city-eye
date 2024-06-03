@@ -1,9 +1,7 @@
-use egui::{Align2, RichText, Ui, Window, Image};
-use walkers::{sources::Attribution, MapMemory, Position,
-    extras::{Texture}
-};
+use egui::{Align2, RichText, Ui, Window};
+use walkers::MapMemory;
 
-use crate::MyMap;
+use crate::{camera_view::CameraView, incident_view::IncidentView, MyMap};
 
 /// Simple GUI to zoom in and out.
 pub fn zoom(ui: &Ui, map_memory: &mut MapMemory) {
@@ -34,7 +32,13 @@ pub fn add_camera_window(ui: &Ui, map: &mut MyMap) {
         .show(ui.ctx(), |ui| {
             ui.horizontal(|ui| {
                 if ui.button(RichText::new("📷").heading()).clicked() {
-                    map.cameras.push(map.click_watcher.clicked_at.unwrap());
+                    map.cameras.push(
+                        CameraView {
+                            image: map.camera_icon.clone(),
+                            position: map.click_watcher.clicked_at.unwrap(),
+                            radius: map.camera_radius.clone(),
+                        }
+                    );
                 }
             });
         });
@@ -49,8 +53,13 @@ pub fn add_incident_window(ui: &Ui, map: &mut MyMap) {
         .show(ui.ctx(), |ui| {
             ui.horizontal(|ui| {
                 if ui.button(RichText::new("🚨").heading()).clicked() {
-                    map.incidents.push(map.click_watcher.clicked_at.unwrap());
+                    map.incidents.push(
+                        IncidentView {
+                            image: map.incident_icon.clone(),
+                            position: map.click_watcher.clicked_at.unwrap(),
+                        }
+                    );
                 }
             });
         });
-}
+    }
