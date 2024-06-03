@@ -345,7 +345,7 @@ mod tests {
     #[test]
     fn test_pingreq() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = listener.local_addr().unwrap();
+        let addr: std::net::SocketAddr = listener.local_addr().unwrap();
 
         let pingreq = ClientMessage::Pingreq;
 
