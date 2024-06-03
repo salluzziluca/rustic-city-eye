@@ -521,3 +521,81 @@ impl ConnackPropertiesBuilder {
         })
     }
 }
+
+#[cfg(test)]
+#[test]
+
+fn test_read_write() {
+    let mut buffer = vec![];
+    let properties = ConnackPropertiesBuilder::new()
+        .session_expiry_interval(0)
+        .receive_maximum(0)
+        .maximum_qos(false)
+        .retain_available(false)
+        .maximum_packet_size(0)
+        .assigned_client_identifier("propiedad".to_string())
+        .topic_alias_maximum(0)
+        .reason_string("propiedad".to_string())
+        .user_properties(vec![("propiedad".to_string(), "valor".to_string())])
+        .wildcard_subscription_available(false)
+        .subscription_identifier_available(false)
+        .shared_subscription_available(false)
+        .server_keep_alive(0)
+        .response_information("propiedad".to_string())
+        .server_reference("propiedad".to_string())
+        .authentication_method("propiedad".to_string())
+        .authentication_data(vec![0, 1, 2, 3])
+        .build()
+        .unwrap();
+    properties.write_to(&mut buffer).unwrap();
+    let mut buffer = buffer.as_slice();
+    let read_properties = ConnackProperties::read_from(&mut buffer).unwrap();
+    assert_eq!(properties, read_properties);
+}
+
+#[test]
+fn test_builder() {
+    let properties = ConnackPropertiesBuilder::new()
+        .session_expiry_interval(0)
+        .receive_maximum(0)
+        .maximum_qos(false)
+        .retain_available(false)
+        .maximum_packet_size(0)
+        .assigned_client_identifier("propiedad".to_string())
+        .topic_alias_maximum(0)
+        .reason_string("propiedad".to_string())
+        .user_properties(vec![("propiedad".to_string(), "valor".to_string())])
+        .wildcard_subscription_available(false)
+        .subscription_identifier_available(false)
+        .shared_subscription_available(false)
+        .server_keep_alive(0)
+        .response_information("propiedad".to_string())
+        .server_reference("propiedad".to_string())
+        .authentication_method("propiedad".to_string())
+        .authentication_data(vec![0, 1, 2, 3])
+        .build()
+        .unwrap();
+    assert_eq!(properties.session_expiry_interval, 0);
+    assert_eq!(properties.receive_maximum, 0);
+    assert_eq!(properties.maximum_qos, false);
+    assert_eq!(properties.retain_available, false);
+    assert_eq!(properties.maximum_packet_size, 0);
+    assert_eq!(
+        properties.assigned_client_identifier,
+        "propiedad".to_string()
+    );
+    assert_eq!(properties.topic_alias_maximum, 0);
+    assert_eq!(properties.reason_string, "propiedad".to_string());
+    assert_eq!(
+        properties.user_properties,
+        vec![("propiedad".to_string(), "valor".to_string())]
+    );
+    assert_eq!(properties.wildcard_subscription_available, false);
+    assert_eq!(properties.subscription_identifier_available, false);
+    assert_eq!(properties.shared_subscription_available, false);
+    assert_eq!(properties.server_keep_alive, 0);
+    assert_eq!(properties.response_information, "propiedad".to_string());
+    assert_eq!(properties.server_reference, "propiedad".to_string());
+    assert_eq!(properties.authentication_method, "propiedad".to_string());
+    assert_eq!(properties.authentication_data, vec![0, 1, 2, 3]);
+}
