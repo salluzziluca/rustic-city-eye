@@ -28,3 +28,34 @@ impl fmt::Display for ProtocolReturn {
         }
     }
 }
+
+#[cfg(test)]
+
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display_protocol_return() {
+        assert_eq!(ProtocolReturn::ConnackSent.to_string(), "Connack Enviado.");
+        assert_eq!(ProtocolReturn::SubackSent.to_string(), "Suback Enviado.");
+        assert_eq!(ProtocolReturn::PubackSent.to_string(), "Puback Enviado.");
+        assert_eq!(
+            ProtocolReturn::PingrespSent.to_string(),
+            "Pingresp Enviado."
+        );
+        assert_eq!(
+            ProtocolReturn::UnsubackSent.to_string(),
+            "Unsuback Enviado."
+        );
+        assert_eq!(
+            ProtocolReturn::DisconnectRecieved.to_string(),
+            "Disconnect Recibido."
+        );
+        assert_eq!(ProtocolReturn::PlaceHolder.to_string(), "Placeholder.");
+        assert_eq!(
+            ProtocolReturn::DisconnectSent.to_string(),
+            "Disconnect Enviado."
+        );
+        assert_eq!(ProtocolReturn::AuthRecieved.to_string(), "Auth Recibido.");
+    }
+}
