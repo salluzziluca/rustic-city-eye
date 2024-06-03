@@ -46,3 +46,50 @@ impl fmt::Display for ProtocolError {
         }
     }
 }
+
+#[cfg(test)]
+#[test]
+
+fn test_display_protocol_error() {
+    assert_eq!(
+        ProtocolError::ConectionError.to_string(),
+        "Error al conectar al broker."
+    );
+    assert_eq!(
+        ProtocolError::InvalidQOS.to_string(),
+        "Error: Valor de QoS inválido. Debe ser 0 o 1."
+    );
+    assert_eq!(
+        ProtocolError::InvalidNumberOfArguments.to_string(),
+        "Error: número de argumentos inválido"
+    );
+    assert_eq!(
+        ProtocolError::StreamError.to_string(),
+        "Error: Error en la creación de un stream."
+    );
+    assert_eq!(ProtocolError::LockError.to_string(), "Error en Lock.");
+    assert_eq!(
+        ProtocolError::PublishError.to_string(),
+        "Error al realizar un publish."
+    );
+    assert_eq!(
+        ProtocolError::SubscribeError.to_string(),
+        "Error al realizar la subscripcion."
+    );
+    assert_eq!(
+        ProtocolError::UnsubscribeError.to_string(),
+        "Error al desuscribirse."
+    );
+    assert_eq!(
+        ProtocolError::ReadingTopicConfigFileError.to_string(),
+        "Error al leer el archivo de configuración de tópicos"
+    );
+    assert_eq!(
+        ProtocolError::PubackWithoutPendingID.to_string(),
+        "Error: Se recibió un Puback sin un ID en la lista de pending message"
+    );
+    assert_eq!(
+        ProtocolError::UnspecifiedError.to_string(),
+        "Error no especificado"
+    );
+}
