@@ -332,4 +332,42 @@ mod tests {
         };
         assert_eq!(connect_properties, connect_properties_read);
     }
+
+    #[test]
+    fn connect_properties_builder() {
+        let connect_properties = ConnectPropertiesBuilder::default()
+            .session_expiry_interval(1)
+            .receive_maximum(2)
+            .maximum_packet_size(10)
+            .topic_alias_maximum(99)
+            .request_response_information(true)
+            .request_problem_information(false)
+            .user_properties(vec![
+                ("Hola".to_string(), "Mundo".to_string()),
+                ("Chau".to_string(), "Mundo".to_string()),
+            ])
+            .authentication_method("test".to_string())
+            .authentication_data(vec![1_u8, 2_u8, 3_u8, 4_u8, 5_u8])
+            .create()
+            .unwrap();
+
+        assert_eq!(connect_properties.session_expiry_interval, 1);
+        assert_eq!(connect_properties.receive_maximum, 2);
+        assert_eq!(connect_properties.maximum_packet_size, 10);
+        assert_eq!(connect_properties.topic_alias_maximum, 99);
+        assert!(connect_properties.request_response_information);
+        assert!(!connect_properties.request_problem_information);
+        assert_eq!(
+            connect_properties.user_properties,
+            vec![
+                ("Hola".to_string(), "Mundo".to_string()),
+                ("Chau".to_string(), "Mundo".to_string()),
+            ]
+        );
+        assert_eq!(connect_properties.authentication_method, "test");
+        assert_eq!(
+            connect_properties.authentication_data,
+            vec![1_u8, 2_u8, 3_u8, 4_u8, 5_u8]
+        );
+    }
 }

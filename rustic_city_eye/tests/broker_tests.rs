@@ -185,7 +185,7 @@ mod tests {
         // Set up a listener on a local port.
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
-        let _topic_properties = TopicProperties {
+        let _ = TopicProperties {
             topic_alias: 10,
             response_topic: "String".to_string(),
         };
@@ -345,7 +345,7 @@ mod tests {
     #[test]
     fn test_pingreq() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = listener.local_addr().unwrap();
+        let addr: std::net::SocketAddr = listener.local_addr().unwrap();
 
         let pingreq = ClientMessage::Pingreq;
 

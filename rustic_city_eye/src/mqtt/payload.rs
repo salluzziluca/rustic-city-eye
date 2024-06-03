@@ -27,3 +27,37 @@ impl dyn Payload {
         self.as_any().downcast_ref::<T>()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+
+    struct TestPayload {
+        pub value: u32,
+    }
+
+    impl Payload for TestPayload {
+        fn write_to(&self, stream: &mut dyn Write) -> std::io::Result<()> {
+            let value_string = self.value.to_string();
+            stream.write_all(value_string.as_bytes())?;
+            Ok(())
+        }
+
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+    }
+
+    #[test]
+    fn test_payload_trait() {
+        let payload = TestPayload { value: 42 };
+        let mut cursor = Cursor::new(Vec::new());
+
+        payload.write_to(&mut cursor).unwrap();
+
+        let payload: &dyn Payload = &TestPayload { value: 42 };
+        assert!(payload.is::<TestPayload>());
+        assert_eq!(payload.downcast_ref::<TestPayload>().unwrap().value, 42);
+    }
+}

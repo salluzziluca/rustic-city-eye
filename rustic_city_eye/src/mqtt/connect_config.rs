@@ -68,3 +68,65 @@ impl ConnectConfig {
         }
     }
 }
+
+#[cfg(test)]
+#[test]
+
+fn test_parse_message() {
+    let connect_properties = ConnectProperties::new(
+        30,
+        1,
+        20,
+        20,
+        true,
+        true,
+        vec![("hola".to_string(), "chau".to_string())],
+        "auth".to_string(),
+        vec![1, 2, 3],
+    );
+
+    let will_properties = WillProperties::new(
+        1,
+        1,
+        1,
+        "a".to_string(),
+        "a".to_string(),
+        [1, 2, 3].to_vec(),
+        vec![("a".to_string(), "a".to_string())],
+    );
+
+    let connect_config = ConnectConfig::new(
+        true,
+        true,
+        1,
+        true,
+        35,
+        connect_properties.clone(),
+        "juancito".to_string(),
+        will_properties.clone(),
+        "camera system".to_string(),
+        "soy el monitoring y me desconecte".to_string(),
+        "a".to_string(),
+        "a".to_string(),
+    );
+
+    let connect_message = connect_config.parse_message(1);
+
+    assert_eq!(
+        connect_message,
+        ClientMessage::Connect {
+            clean_start: true,
+            last_will_flag: true,
+            last_will_qos: 1,
+            last_will_retain: true,
+            keep_alive: 35,
+            properties: connect_properties,
+            client_id: "juancito".to_string(),
+            will_properties,
+            last_will_topic: "camera system".to_string(),
+            last_will_message: "soy el monitoring y me desconecte".to_string(),
+            username: "a".to_string(),
+            password: "a".to_string(),
+        }
+    );
+}

@@ -35,3 +35,34 @@ impl SubscribeProperties {
         Ok(SubscribeProperties::new(sub_id, user_properties, payload))
     }
 }
+
+#[cfg(test)]
+
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+
+    #[test]
+    fn test_new_subscribe_properties() {
+        let user_properties = vec![("key".to_string(), "value".to_string())];
+        let payload = vec![1, 2, 3, 4];
+        let subscribe_properties =
+            SubscribeProperties::new(1, user_properties.clone(), payload.clone());
+        assert_eq!(subscribe_properties.sub_id, 1);
+        assert_eq!(subscribe_properties.user_properties, user_properties);
+        assert_eq!(subscribe_properties.payload, payload);
+    }
+
+    #[test]
+    fn test_read_properties() {
+        let user_properties = vec![("key".to_string(), "value".to_string())];
+        let payload = vec![1, 2, 3, 4];
+        let subscribe_properties =
+            SubscribeProperties::new(1, user_properties.clone(), payload.clone());
+        let mut cursor = Cursor::new(Vec::new());
+        subscribe_properties.write_properties(&mut cursor).unwrap();
+        cursor.set_position(0);
+        let read_subscribe_properties = SubscribeProperties::read_properties(&mut cursor).unwrap();
+        assert_eq!(read_subscribe_properties, subscribe_properties);
+    }
+}

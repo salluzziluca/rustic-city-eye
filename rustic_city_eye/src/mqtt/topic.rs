@@ -106,57 +106,141 @@ impl Topic {
 
 #[cfg(test)]
 mod tests {
+    use std::net::TcpListener;
+
+    use crate::{
+        monitoring::incident::Incident,
+        mqtt::publish_properties::{PublishProperties, TopicProperties},
+        utils::{incident_payload, location::Location, payload_types::PayloadTypes},
+    };
+
     use super::*;
 
     #[test]
-    fn test_01_topic_creation_ok() -> std::io::Result<()> {
-        let _ = Topic::new();
-
-        Ok(())
+    fn test_new_topic() {
+        let topic = Topic::new();
+        assert_eq!(topic.subscribers.read().unwrap().len(), 0);
     }
 
-    // #[test]
-    // fn test_02_adding_sub_ok() -> std::io::Result<()> {
-    //     let mut topic = Topic::new();
+    #[test]
+    fn test_add_subscriber() {
+        let mut topic = Topic::new();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let stream = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let sub_id = 1;
+        let result = topic.add_subscriber(stream, sub_id);
+        assert_eq!(result, 0x00);
+    }
 
-    //     let (tx, _rx) = mpsc::channel();
-    //     topic.add_subscriber(tx);
+    #[test]
+    fn test_add_subscriber_duplicate() {
+        let mut topic = Topic::new();
+        let listener = TcpListener::bind("127.0.0.1:0");
+        let stream = TcpStream::connect(listener.unwrap().local_addr().unwrap()).unwrap();
+        let sub_id = 1;
+        let result = topic.add_subscriber(stream.try_clone().unwrap(), sub_id);
+        assert_eq!(result, 0x00);
+        let result = topic.add_subscriber(stream, sub_id);
+        assert_eq!(result, 0x85);
+    }
 
-    //     Ok(())
-    // }
+    #[test]
+    fn test_remove_subscriber() {
+        let mut topic = Topic::new();
+        let listener = TcpListener::bind("127.0.0.1:0");
+        let stream = TcpStream::connect(listener.unwrap().local_addr().unwrap()).unwrap();
+        let sub_id = 1;
+        let result = topic.add_subscriber(stream, sub_id);
+        assert_eq!(result, 0x00);
+        let result = topic.remove_subscriber(sub_id);
+        assert_eq!(result, 0x00);
+    }
 
-    // #[test]
-    // fn test_03_adding_sub_and_sending_message_ok() {
-    //     let mut topic = Topic::new();
-    //     let (tx, rx) = mpsc::channel();
-    //     topic.add_subscriber(tx);
+    #[test]
+    fn test_remove_subscriber_no_matching() {
+        let mut topic = Topic::new();
+        let listener = TcpListener::bind("127.0.0.1:0");
+        let stream = TcpStream::connect(listener.unwrap().local_addr().unwrap()).unwrap();
 
-    //     let _ = topic.send_message("holaholahola");
+        let sub_id = 1;
+        let result = topic.add_subscriber(stream, sub_id);
+        assert_eq!(result, 0x00);
+        let result = topic.remove_subscriber(2);
+        assert_eq!(result, 0x10);
+    }
 
-    //     let message_received = rx.recv().unwrap();
+    #[test]
+    fn test_deliver_message() {
+        let mut topic = Topic::new();
+        let listener = TcpListener::bind("127.0.0.1:0");
+        let stream = TcpStream::connect(listener.unwrap().local_addr().unwrap()).unwrap();
+        let sub_id = 1;
+        let result = topic.add_subscriber(stream, sub_id);
+        let topic_properties = TopicProperties {
+            topic_alias: 10,
+            response_topic: "String".to_string(),
+        };
+        let properties = PublishProperties::new(
+            1,
+            10,
+            topic_properties,
+            [1, 2, 3].to_vec(),
+            "a".to_string(),
+            1,
+            "a".to_string(),
+        );
+        assert_eq!(result, 0x00);
+        let location = Location::new("1".to_string(), "1".to_string());
+        let new = Incident::new(location);
+        let incident_payload = incident_payload::IncidentPayload::new(new);
+        let publish = ClientMessage::Publish {
+            packet_id: 1,
+            topic_name: "mensajes para juan".to_string(),
+            qos: 1,
+            retain_flag: 1,
+            payload: PayloadTypes::IncidentLocation(incident_payload),
+            dup_flag: 1,
+            properties,
+        };
+        let result = match topic.deliver_message(publish) {
+            Ok(result) => result,
+            Err(err) => panic!("Error al enviar mensaje: {:?}", err),
+        };
+        assert_eq!(result, 0x00);
+    }
 
-    //     assert_eq!(message_received, "holaholahola".to_string());
-    // }
-
-    // #[test]
-    // fn test_04_adding_multiple_subs_and_sending_message_ok() {
-    //     let mut topic = Topic::new();
-    //     let (tx1, rx1) = mpsc::channel();
-    //     let (tx2, rx2) = mpsc::channel();
-    //     let (tx3, rx3) = mpsc::channel();
-
-    //     topic.add_subscriber(tx1);
-    //     topic.add_subscriber(tx2);
-    //     topic.add_subscriber(tx3);
-
-    //     let _ = topic.send_message("holaholahola");
-
-    //     let message_received1 = rx1.recv().unwrap();
-    //     let message_received2 = rx2.recv().unwrap();
-    //     let message_received3 = rx3.recv().unwrap();
-
-    //     assert_eq!(message_received1, "holaholahola".to_string());
-    //     assert_eq!(message_received2, "holaholahola".to_string());
-    //     assert_eq!(message_received3, "holaholahola".to_string());
-    // }
+    #[test]
+    fn test_deliver_message_no_subscribers() {
+        let topic = Topic::new();
+        let topic_properties = TopicProperties {
+            topic_alias: 10,
+            response_topic: "String".to_string(),
+        };
+        let properties = PublishProperties::new(
+            1,
+            10,
+            topic_properties,
+            [1, 2, 3].to_vec(),
+            "a".to_string(),
+            1,
+            "a".to_string(),
+        );
+        let location = Location::new("1".to_string(), "1".to_string());
+        let new = Incident::new(location);
+        let incident_payload = incident_payload::IncidentPayload::new(new);
+        let publish = ClientMessage::Publish {
+            packet_id: 1,
+            topic_name: "mensajes para juan".to_string(),
+            qos: 1,
+            retain_flag: 1,
+            payload: PayloadTypes::IncidentLocation(incident_payload),
+            dup_flag: 1,
+            properties,
+        };
+        let result = match topic.deliver_message(publish) {
+            Ok(result) => result,
+            Err(err) => panic!("Error al enviar mensaje: {:?}", err),
+        };
+        assert_eq!(result, 0x10);
+    }
 }
