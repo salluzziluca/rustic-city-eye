@@ -9,10 +9,13 @@ use std::{
 /// Los workers tienen un thread y un ID, se crean segun el valor que se le pase por parametro al constructor.
 /// Si se ejecuta new(4), se crearan 4 workers.
 /// el sender es el encargado de recibir el nuevo job a ejecutar.
+#[allow(dead_code)]
+
 pub struct ThreadPool {
     workers: Vec<Worker>,
     sender: mpsc::Sender<Job>,
 }
+#[allow(dead_code)]
 struct Worker {
     id: usize,
     thread: thread::JoinHandle<()>,

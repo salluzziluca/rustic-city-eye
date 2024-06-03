@@ -6,8 +6,8 @@ mod tests {
     use rustic_city_eye::mqtt::subscribe_properties::SubscribeProperties;
     use rustic_city_eye::mqtt::will_properties::WillProperties;
     use rustic_city_eye::mqtt::{
-        broker::handle_messages, broker::Broker, client_message::ClientMessage,
-        protocol_error::ProtocolError, protocol_return::ProtocolReturn,
+        broker::handle_messages, client_message::ClientMessage, protocol_error::ProtocolError,
+        protocol_return::ProtocolReturn,
     };
     use rustic_city_eye::utils::incident_payload;
     use rustic_city_eye::utils::{location::Location, payload_types::PayloadTypes};
@@ -185,7 +185,7 @@ mod tests {
         // Set up a listener on a local port.
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
-        let topic_properties = TopicProperties {
+        let _ = TopicProperties {
             topic_alias: 10,
             response_topic: "String".to_string(),
         };

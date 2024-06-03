@@ -29,7 +29,6 @@ impl SubscribeConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mqtt::publish_properties::TopicProperties;
 
     #[test]
     fn test_new_subscribe_config() {

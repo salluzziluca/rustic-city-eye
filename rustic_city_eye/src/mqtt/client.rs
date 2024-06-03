@@ -505,7 +505,7 @@ impl Client {
 pub fn handle_message(
     mut stream: TcpStream,
     subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
-    mut pending_messages: Vec<u16>,
+    pending_messages: Vec<u16>,
 ) -> Result<ClientReturn, ProtocolError> {
     if let Ok(message) = BrokerMessage::read_from(&mut stream) {
         match message {
@@ -520,7 +520,7 @@ pub fn handle_message(
             BrokerMessage::Puback {
                 packet_id_msb,
                 packet_id_lsb,
-                reason_code,
+                reason_code: _,
             } => {
                 for pending_message in &pending_messages {
                     let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
