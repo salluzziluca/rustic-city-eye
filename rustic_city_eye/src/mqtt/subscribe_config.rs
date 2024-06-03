@@ -25,3 +25,22 @@ impl SubscribeConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mqtt::publish_properties::TopicProperties;
+
+    #[test]
+    fn test_new_subscribe_config() {
+        let topic_name = "topic".to_string();
+        let properties = SubscribeProperties::new(
+            1,
+            vec![("key".to_string(), "value".to_string())],
+            vec![1, 2, 3, 4],
+        );
+        let subscribe_config = SubscribeConfig::new(topic_name.clone(), properties.clone());
+        assert_eq!(subscribe_config.topic_name, topic_name);
+        assert_eq!(subscribe_config.properties, properties);
+    }
+}
