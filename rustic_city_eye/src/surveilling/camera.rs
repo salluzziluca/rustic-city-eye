@@ -1,4 +1,4 @@
-use crate::surveilling::location::Location;
+use crate::utils::location::Location;
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
