@@ -70,4 +70,86 @@ mod tests {
             "Reason code inválido".to_string()
         );
     }
+
+    #[test]
+    fn test_new_reason_code_no_matching_subscribers() {
+        let reason_code = ReasonCode::new(NO_MATCHING_SUBSCRIBERS_HEX);
+        assert_eq!(
+            reason_code.unwrap(),
+            ReasonCode::NoMatchingSubscribers { reason_code: 0x10 }
+        );
+    }
+
+    #[test]
+    fn test_new_reason_code_unspecified_error() {
+        let reason_code = ReasonCode::new(UNSPECIFIED_ERROR_HEX);
+        assert_eq!(
+            reason_code.unwrap(),
+            ReasonCode::UnspecifiedError { reason_code: 0x80 }
+        );
+    }
+
+    #[test]
+    fn test_new_reason_code_implementation_specific_error() {
+        let reason_code = ReasonCode::new(IMPLEMENTATION_SPECIFIC_ERROR_HEX);
+        assert_eq!(
+            reason_code.unwrap(),
+            ReasonCode::ImplementationSpecificError { reason_code: 0x83 }
+        );
+    }
+
+    #[test]
+    fn test_new_reason_code_not_authorized() {
+        let reason_code = ReasonCode::new(NOT_AUTHORIZED_HEX);
+        assert_eq!(
+            reason_code.unwrap(),
+            ReasonCode::NotAuthorized { reason_code: 0x87 }
+        );
+    }
+
+    #[test]
+    fn test_new_reason_code_topic_name_invalid() {
+        let reason_code = ReasonCode::new(TOPIC_NAME_INVALID_HEX);
+        assert_eq!(
+            reason_code.unwrap(),
+            ReasonCode::TopicNameInvalid { reason_code: 0x90 }
+        );
+    }
+
+    #[test]
+    fn test_new_reason_code_packet_identifier_in_use() {
+        let reason_code = ReasonCode::new(PACKET_ID_IN_USE_HEX);
+        assert_eq!(
+            reason_code.unwrap(),
+            ReasonCode::PacketIdentifierInUse { reason_code: 0x91 }
+        );
+    }
+
+    #[test]
+    fn test_new_reason_code_quota_exceeded() {
+        let reason_code = ReasonCode::new(QUOTA_EXCEEDED_HEX);
+        assert_eq!(
+            reason_code.unwrap(),
+            ReasonCode::QuotaExceeded { reason_code: 0x97 }
+        );
+    }
+
+    #[test]
+    fn test_new_reason_code_payload_format_invalid() {
+        let reason_code = ReasonCode::new(PAYLOAD_FORMAT_INVALID_HEX);
+        assert_eq!(
+            reason_code.unwrap(),
+            ReasonCode::PayloadFormatInvalid { reason_code: 0x99 }
+        );
+    }
+
+    #[test]
+
+    fn test_new_reason_code_sub_id_dup() {
+        let reason_code = ReasonCode::new(SUB_ID_DUP_HEX);
+        assert_eq!(
+            reason_code.unwrap(),
+            ReasonCode::SubIdDup { reason_code: 0x85 }
+        );
+    }
 }
