@@ -27,6 +27,7 @@ struct MyApp {
     port: String,
     connected: bool,
     map: MyMap,
+    monitoring_app: Option<MonitoringApp>
 }
 
 impl MyApp{
@@ -76,8 +77,9 @@ impl MyApp{
                 if ui.button("Submit").clicked() {
                     let args = vec![self.username.clone(), self.password.clone(), self.ip.clone(), self.port.clone()];
                     match MonitoringApp::new(args) {
-                        Ok(mut monitoring_app) => {
-                            let _ = monitoring_app.run_client();
+                        Ok(monitoring_app) => {
+                            // let _ = monitoring_app.run_client();
+                            self.monitoring_app = Some(monitoring_app);
                             self.connected = true;
 
                         },
@@ -169,6 +171,7 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
             incident_icon,
             camera_radius: circle_icon, 
         },
+        monitoring_app: None
     })
 }
 
