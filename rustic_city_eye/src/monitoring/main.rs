@@ -97,7 +97,7 @@ impl MyApp{
 
     }
 
-    fn handle_map(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame, monitoring_app: &mut MonitoringApp){
+    fn handle_map(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame){
         CentralPanel::default().show(ctx, |ui| {
             ui.add(Map::new(
                 Some(&mut self.map.tiles),
@@ -109,7 +109,9 @@ impl MyApp{
 
             );
             zoom(ui,&mut self.map.map_memory);
-            add_camera_window(ui,&mut self.map, monitoring_app);
+            if let Some(monitoring_app) = &mut self.monitoring_app {
+                add_camera_window(ui,&mut self.map, monitoring_app);
+            }
             add_incident_window(ui, &mut self.map);                
         });
 
@@ -122,9 +124,7 @@ impl App for MyApp {
         if !self.connected {
             self.handle_form(ctx, _frame);
         } else {
-            if let Some(mut monitoring_app) = &self.monitoring_app {
-                self.handle_map(ctx, _frame, &mut monitoring_app);
-            }
+                self.handle_map(ctx, _frame);
         }
     }
     
@@ -133,35 +133,38 @@ impl App for MyApp {
 fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
     egui_extras::install_image_loaders(&cc.egui_ctx);
     let camera_bytes = include_bytes!("assets/Camera.png");
-   // let camera_icon = ImagesPluginData{ texture: todo!(), x_scale: todo!(), y_scale: todo!() };
-    if let Ok(camera_text) = Texture::new(camera_bytes, &cc.egui_ctx){
-        camera_icon = ImagesPluginData {
-            texture: camera_text,
-            x_scale: 0.2,
-            y_scale: 0.2,
-        };    
-    }else {
-        
+    let camera_icon = match Texture::new(camera_bytes, &cc.egui_ctx) {
+        Ok(t) => {
+            ImagesPluginData {
+                texture: t,
+                x_scale: 0.2,
+                y_scale: 0.2,
+            }
+        },
+        Err(_) => todo!(),
     };
-
     let incident_bytes = include_bytes!("assets/Incident.png");
-    let incident_icon = ImagesPluginData{ texture: todo!(), x_scale: todo!(), y_scale: todo!() }
-    if let Ok(incident_text) = Texture::new(incident_bytes, &cc.egui_ctx){
-        incident_icon = ImagesPluginData {
-            texture: incident_text,
-            x_scale: 0.15,
-            y_scale: 0.15,
-        };    
+    let incident_icon = match Texture::new(incident_bytes, &cc.egui_ctx){
+        Ok(t) => {
+            ImagesPluginData {
+                texture: t,
+                x_scale: 0.15,
+                y_scale: 0.15,
+            }
+        }
+        Err(_) => todo!(),
     };
 
     let circle_bytes = include_bytes!("assets/circle.png");
-    let circle_icon = ImagesPluginData{ texture: todo!(), x_scale: todo!(), y_scale: todo!() };
-    if let Ok(circle_texture) = Texture::new(circle_bytes, &cc.egui_ctx){
-        circle_icon = ImagesPluginData {
-            texture: circle_texture,
-            x_scale: 0.2,
-            y_scale: 0.2,
-        };    
+    let circle_icon = match Texture::new(circle_bytes, &cc.egui_ctx){
+        Ok(t) => {
+            ImagesPluginData {
+                texture: t,
+                x_scale: 0.2,
+                y_scale: 0.2,
+            }
+        }
+        Err(_) => todo!(),
     };
 
     Box::new(MyApp {
