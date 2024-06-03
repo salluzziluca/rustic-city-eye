@@ -4,8 +4,6 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use gtk::gdk::keys::constants::Return;
-
 use crate::mqtt::{
     broker_config::BrokerConfig,
     broker_message::BrokerMessage,

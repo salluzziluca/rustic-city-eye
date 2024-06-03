@@ -612,3 +612,28 @@ pub fn handle_message(
         return Err(ProtocolError::StreamError);
     }
 }
+
+#[cfg(test)]
+
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_assign_packet_id() {
+        let packet_id = Client::assign_packet_id();
+        assert_ne!(packet_id, 0);
+    }
+
+    #[test]
+    fn test_assign_subscription_id() {
+        let sub_id = Client::assign_subscription_id();
+        assert_ne!(sub_id, 0);
+    }
+
+    #[test]
+    fn test_assign_user_id() {
+        let user_id = Client::assign_user_id();
+        assert_eq!(user_id, 1111);
+    }
+}
