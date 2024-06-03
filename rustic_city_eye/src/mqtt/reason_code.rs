@@ -26,7 +26,7 @@ pub enum ReasonCode {
 }
 
 impl ReasonCode {
-    pub fn new(&self, reason_code: u8) -> Result<ReasonCode, Error> {
+    pub fn new(reason_code: u8) -> Result<ReasonCode, Error> {
         match reason_code {
             SUCCESS_HEX => Ok(ReasonCode::Success { reason_code }),
             NO_MATCHING_SUBSCRIBERS_HEX => Ok(ReasonCode::NoMatchingSubscribers { reason_code }),
