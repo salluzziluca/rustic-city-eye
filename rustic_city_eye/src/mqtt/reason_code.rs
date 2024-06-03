@@ -12,6 +12,7 @@ pub const QUOTA_EXCEEDED_HEX: u8 = 0x97;
 pub const PAYLOAD_FORMAT_INVALID_HEX: u8 = 0x99;
 pub const SUB_ID_DUP_HEX: u8 = 0x85;
 
+#[derive(Debug, PartialEq)]
 pub enum ReasonCode {
     Success { reason_code: u8 },
     NoMatchingSubscribers { reason_code: u8 },
@@ -45,5 +46,28 @@ impl ReasonCode {
                 "Reason code inválido",
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_reason_code() {
+        let reason_code = ReasonCode::new(SUCCESS_HEX);
+        assert_eq!(
+            reason_code.unwrap(),
+            ReasonCode::Success { reason_code: 0x00 }
+        );
+    }
+
+    #[test]
+    fn test_new_reason_code_invalid() {
+        let reason_code = ReasonCode::new(0x01);
+        assert_eq!(
+            reason_code.unwrap_err().to_string(),
+            "Reason code inválido".to_string()
+        );
     }
 }
