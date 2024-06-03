@@ -27,7 +27,7 @@ mod tests {
         thread::spawn(move || {
             let mut stream = TcpStream::connect(addr).unwrap();
 
-            stream.write_all(&"Hola".as_bytes()).unwrap();
+            stream.write_all("Hola".as_bytes()).unwrap();
         });
 
         let topics = HashMap::new();
