@@ -43,4 +43,29 @@ mod tests {
         assert_eq!(subscribe_config.topic_name, topic_name);
         assert_eq!(subscribe_config.properties, properties);
     }
+
+    #[test]
+    fn test_parse_message() {
+        let topic_name = "topic".to_string();
+        let properties = SubscribeProperties::new(
+            1,
+            vec![("key".to_string(), "value".to_string())],
+            vec![1, 2, 3, 4],
+        );
+        let subscribe_config = SubscribeConfig::new(topic_name.clone(), properties.clone());
+        let packet_id = 1;
+        let message = subscribe_config.parse_message(packet_id);
+        match message {
+            ClientMessage::Subscribe {
+                packet_id: message_packet_id,
+                topic_name: message_topic_name,
+                properties: message_properties,
+            } => {
+                assert_eq!(message_packet_id, packet_id);
+                assert_eq!(message_topic_name, topic_name);
+                assert_eq!(message_properties, properties);
+            }
+            _ => panic!("Invalid message type"),
+        }
+    }
 }
