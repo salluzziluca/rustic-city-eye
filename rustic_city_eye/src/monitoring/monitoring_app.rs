@@ -51,10 +51,10 @@ impl MonitoringApp {
             vec![1, 2, 3],
         );
 
-        let address = args[0].to_string() + ":" + &args[1].to_string();
+        let address = args[2].to_string() + ":" + &args[3].to_string();
         let camera_system_args = vec![
-            args[0].clone(),
-            args[1].clone(),
+            args[2].clone(),
+            args[3].clone(),
             "camera_system".to_string(),
             "CamareandoCamaritas123".to_string(),
         ];
@@ -70,12 +70,11 @@ impl MonitoringApp {
             will_properties,
             "camera system".to_string(),
             "soy el monitoring y me desconecte".to_string(),
-            args[2].clone(),
-            args[3].clone(),
+            args[0].clone(),
+            args[1].clone(),
         );
 
         let camera_system = CameraSystem::new(camera_system_args)?;
-
         let (tx, rx) = mpsc::channel();
 
         let monitoring_app = MonitoringApp {

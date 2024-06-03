@@ -3,6 +3,7 @@ mod windows;
 mod camera_view;
 mod incident_view;
 
+use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
 use walkers::{sources::OpenStreetMap, Map, MapMemory, Position, Texture, Tiles};
 use eframe::{run_native, App, CreationContext, NativeOptions};
 use egui::{CentralPanel, RichText, TextStyle};
@@ -20,7 +21,8 @@ struct MyMap {
 }
 
 struct MyApp {
-    usermane: String,
+    username: String,
+    password: String,
     ip: String,
     port: String,
     connected: bool,
@@ -37,11 +39,24 @@ impl MyApp{
                         .color(egui::Color32::WHITE),
                 );
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.usermane)
-                        .min_size(egui::vec2(100.0, 20.0))
-                        .text_color(egui::Color32::WHITE)
-                        .font(TextStyle::Body),
+                    egui::TextEdit::singleline(&mut self.username)
+                    .min_size(egui::vec2(100.0, 20.0))
+                    .text_color(egui::Color32::WHITE)
+                    .font(TextStyle::Body),
                 );
+
+                ui.label(
+                    RichText::new("Password")
+                        .size(20.0)
+                        .color(egui::Color32::WHITE),
+                );
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.password)
+                    .min_size(egui::vec2(100.0, 20.0))
+                    .text_color(egui::Color32::WHITE)
+                    .font(TextStyle::Body),
+                );
+
                 ui.label(RichText::new("IP").size(20.0).color(egui::Color32::WHITE));
                 ui.add(
                     egui::TextEdit::singleline(&mut self.ip)
@@ -49,6 +64,7 @@ impl MyApp{
                         .text_color(egui::Color32::WHITE)
                         .font(TextStyle::Body),
                 );
+
                 ui.label(RichText::new("Port").size(20.0).color(egui::Color32::WHITE));
                 ui.add(
                     egui::TextEdit::singleline(&mut self.port)
@@ -56,12 +72,23 @@ impl MyApp{
                         .text_color(egui::Color32::WHITE)
                         .font(TextStyle::Body),
                 );
+
                 if ui.button("Submit").clicked() {
-                    println!(
-                        "Username: {}, IP: {}, Port: {}",
-                        self.usermane, self.ip, self.port
-                    );
-                    self.connected = true;
+                    let args = vec![self.username.clone(), self.password.clone(), self.ip.clone(), self.port.clone()];
+                    match MonitoringApp::new(args) {
+                        Ok(mut monitoring_app) => {
+                            let _ = monitoring_app.run_client();
+                            self.connected = true;
+
+                        },
+                        Err(_) => {
+                            println!("La conexion ha fallado. Intenta conectarte nuevamente.");
+                            self.username.clear();
+                            self.password.clear();
+                            self.ip.clear();
+                            self.port.clear();
+                        },
+                    };
                 }
             })
         });
@@ -127,7 +154,8 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
     };
 
     Box::new(MyApp {
-        usermane: String::new(),
+        username: String::new(),
+        password: String::new(),
         ip: String::new(),
         port: String::new(),
         connected: false,
@@ -145,7 +173,7 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
 }
 
 fn main() {
-    let app_name = "City_eye";
+    let app_name = "Rustic City Eye";
     let win_options = NativeOptions {
         ..Default::default()
     };
