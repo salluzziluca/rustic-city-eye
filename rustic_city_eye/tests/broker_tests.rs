@@ -369,4 +369,72 @@ mod tests {
 
         assert_eq!(result.unwrap(), ProtocolReturn::PingrespSent);
     }
+
+    #[test]
+    fn test_auth() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let auth = ClientMessage::Auth {
+            reason_code: 0,
+            authentication_method: "password-based".to_string(),
+            authentication_data: vec![],
+            reason_string: "buendia".to_string(),
+            user_properties: vec![("hola".to_string(), "mundo".to_string())],
+        };
+
+        thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            let mut buffer = vec![];
+            auth.write_to(&mut buffer).unwrap();
+            stream.write_all(&buffer).unwrap();
+        });
+
+        let topics = HashMap::new();
+        let packets = Arc::new(RwLock::new(HashMap::new()));
+        let subs = vec![];
+        let clients_ids = Arc::new(vec![]);
+        let mut result: Result<ProtocolReturn, ProtocolError> =
+            Err(ProtocolError::UnspecifiedError);
+
+        if let Ok((stream, _)) = listener.accept() {
+            result = handle_messages(stream, topics, packets, subs, clients_ids);
+        }
+
+        assert_eq!(result.unwrap(), ProtocolReturn::AuthRecieved);
+    }
+
+    #[test]
+    fn test_auth_method_not_supported() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let auth = ClientMessage::Auth {
+            reason_code: 0,
+            authentication_method: "metodo de juancito".to_string(),
+            authentication_data: vec![],
+            reason_string: "buendia".to_string(),
+            user_properties: vec![("hola".to_string(), "mundo".to_string())],
+        };
+
+        thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            let mut buffer = vec![];
+            auth.write_to(&mut buffer).unwrap();
+            stream.write_all(&buffer).unwrap();
+        });
+
+        let topics = HashMap::new();
+        let packets = Arc::new(RwLock::new(HashMap::new()));
+        let subs = vec![];
+        let clients_ids = Arc::new(vec![]);
+        let mut result: Result<ProtocolReturn, ProtocolError> =
+            Err(ProtocolError::UnspecifiedError);
+
+        if let Ok((stream, _)) = listener.accept() {
+            result = handle_messages(stream, topics, packets, subs, clients_ids);
+        }
+
+        assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
+    }
 }

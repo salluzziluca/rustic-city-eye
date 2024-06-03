@@ -6,6 +6,7 @@ mod tests {
             broker_message::BrokerMessage,
             client::handle_message,
             client_return::ClientReturn,
+            connack_properties::ConnackProperties,
             protocol_error::ProtocolError,
             publish_properties::{PublishProperties, TopicProperties},
         },
@@ -20,6 +21,56 @@ mod tests {
         sync::{Arc, Mutex},
         thread,
     };
+
+    #[test]
+    fn test_recibir_connack() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let properties = ConnackProperties {
+            session_expiry_interval: 0,
+            receive_maximum: 0,
+            maximum_packet_size: 0,
+            topic_alias_maximum: 0,
+            user_properties: vec![],
+            authentication_method: "password-based".to_string(),
+            authentication_data: vec![],
+            assigned_client_identifier: "none".to_string(),
+            maximum_qos: true,
+            reason_string: "buendia".to_string(),
+            wildcard_subscription_available: false,
+            subscription_identifier_available: false,
+            shared_subscription_available: false,
+            server_keep_alive: 0,
+            response_information: "none".to_string(),
+            server_reference: "none".to_string(),
+            retain_available: false,
+        };
+
+        let connack = BrokerMessage::Connack {
+            session_present: true,
+            reason_code: 0x00_u8,
+            properties,
+        };
+
+        thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            let mut buffer = vec![];
+            connack.write_to(&mut buffer).unwrap();
+            stream.write_all(&buffer).unwrap();
+        });
+
+        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
+
+        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
+        let pending_messages: Vec<u16> = Vec::new();
+        if let Ok((stream, _)) = listener.accept() {
+            result = handle_message(stream, subscriptions, pending_messages)
+        }
+
+        assert_eq!(result.unwrap(), ClientReturn::ConnackReceived);
+    }
+
     #[test]
     fn test_recibir_puback() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();

@@ -67,10 +67,19 @@ impl Client {
             match message {
                 BrokerMessage::Connack {
                     session_present: _,
-                    reason_code: _,
+                    reason_code,
                     properties: _,
                 } => {
                     println!("Recibí un Connack");
+
+                    match reason_code {
+                        0x00_u8 => {
+                            println!("todo salio bien!");
+                        }
+                        _ => {
+                            println!("malio sal");
+                        }
+                    }
                 }
                 _ => println!("no recibi un Connack :("),
             }
@@ -515,7 +524,7 @@ pub fn handle_message(
                 properties: _,
             } => {
                 println!("Recibí un Connack");
-                Ok(ClientReturn::PlaceHolder)
+                Ok(ClientReturn::ConnackReceived)
             }
             BrokerMessage::Puback {
                 packet_id_msb,

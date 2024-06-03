@@ -10,7 +10,6 @@ use std::{
 /// Si se ejecuta new(4), se crearan 4 workers.
 /// el sender es el encargado de recibir el nuevo job a ejecutar.
 #[allow(dead_code)]
-
 pub struct ThreadPool {
     workers: Vec<Worker>,
     sender: mpsc::Sender<Job>,
@@ -25,7 +24,7 @@ impl Worker {
     fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
         let thread = thread::spawn(move || loop {
             let job = match receiver.lock() {
-                Ok(lock) => match lock.recv() {
+                Ok(lock) => match lock.try_recv() {
                     Ok(job) => job,
                     Err(err) => {
                         println!("Failed to receive job: {:?}", err);
