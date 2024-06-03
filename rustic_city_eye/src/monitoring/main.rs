@@ -77,8 +77,8 @@ impl MyApp{
                 if ui.button("Submit").clicked() {
                     let args = vec![self.username.clone(), self.password.clone(), self.ip.clone(), self.port.clone()];
                     match MonitoringApp::new(args) {
-                        Ok(monitoring_app) => {
-                            // let _ = monitoring_app.run_client();
+                        Ok(mut monitoring_app) => {
+                            let _ = monitoring_app.run_client();
                             self.monitoring_app = Some(monitoring_app);
                             self.connected = true;
 
@@ -111,8 +111,8 @@ impl MyApp{
             zoom(ui,&mut self.map.map_memory);
             if let Some(monitoring_app) = &mut self.monitoring_app {
                 add_camera_window(ui,&mut self.map, monitoring_app);
+                add_incident_window(ui, &mut self.map, monitoring_app);
             }
-            add_incident_window(ui, &mut self.map);                
         });
 
     }

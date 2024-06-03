@@ -24,7 +24,7 @@ pub fn zoom(ui: &Ui, map_memory: &mut MapMemory) {
         });
 }
 
-pub fn add_camera_window(ui: &Ui, map: &mut MyMap, mut monitoring_app: &mut MonitoringApp) {
+pub fn add_camera_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut MonitoringApp) {
     Window::new("Add Camera")
         .collapsible(false)
         .resizable(false)
@@ -35,11 +35,7 @@ pub fn add_camera_window(ui: &Ui, map: &mut MyMap, mut monitoring_app: &mut Moni
                 if ui.button(RichText::new("📷").heading()).clicked() {
                     if let Some(position) = map.click_watcher.clicked_at {
                         let location = Location::new(position.lat(), position.lon());
-
                         monitoring_app.add_camera(location);
-
-                        println!("mi monitoring: {:?}", monitoring_app);
-
                         map.cameras.push(
                             CameraView {
                                 image: map.camera_icon.clone(),
@@ -56,7 +52,7 @@ pub fn add_camera_window(ui: &Ui, map: &mut MyMap, mut monitoring_app: &mut Moni
         });
 }
 
-pub fn add_incident_window(ui: &Ui, map: &mut MyMap) {
+pub fn add_incident_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut MonitoringApp) {
     Window::new("Add Incident")
         .collapsible(false)
         .resizable(false)
@@ -66,6 +62,9 @@ pub fn add_incident_window(ui: &Ui, map: &mut MyMap) {
             ui.horizontal(|ui| {
                 if ui.button(RichText::new("🚨").heading()).clicked() {
                     if let Some(position) = map.click_watcher.clicked_at{
+                        let location = Location::new(position.lat(), position.lon());
+                        monitoring_app.add_incident(location);
+
                         map.incidents.push(
                             IncidentView {
                                 image: map.incident_icon.clone(),
