@@ -11,20 +11,6 @@ impl Incident {
         Self { location }
     }
 
-    // pub fn parse_to_string(&self) -> String {
-    //     format!("Incident at {}", self.location.parse_to_string())
-    // }
-
-    // pub fn from_string(incident: String) -> Incident {
-    //     let location = incident.split(" at ").collect::<Vec<&str>>()[1];
-    //     Incident {
-    //         location: Location::new(
-    //             location.split(", ").collect::<Vec<&str>>()[0].to_string(),
-    //             location.split(", ").collect::<Vec<&str>>()[1].to_string(),
-    //         ),
-    //     }
-    // }
-
     pub fn get_location(&self) -> Location {
         self.location.clone()
     }
@@ -52,33 +38,4 @@ mod tests {
         let incident = Incident::new(location.clone());
         assert_eq!(incident.get_location(), location);
     }
-
-    // #[test]
-    // fn test_parse_to_string() {
-    //     let location = Location::new(1.0, 2.0);
-    //     let incident = Incident::new(location.clone());
-
-    //     assert_eq!(incident.parse_to_string(), "Incident at (1, 2)");
-    // }
-
-    // #[test]
-    // fn test_from_string() {
-    //     let location = Location::new(1.0, 2.0);
-    //     let incident = Incident::new(location.clone());
-    //     assert_eq!(
-    //         Incident::from_string("Incident at 1, 2".to_string()),
-    //         incident
-    //     );
-    // }
-
-    // #[test]
-    // fn test_write_to() {
-    //     let mut cursor = Cursor::new(Vec::<u8>::new());
-    //     let location = Location::new(1.0, 2.0);
-    //     let incident = Incident::new(location.clone());
-
-    //     incident.write_to(&mut cursor).unwrap();
-    //     let buffer = cursor.into_inner();
-    //     assert_eq!(buffer, vec![0, 1, 50, 0, 1, 49]);
-    // }
 }
