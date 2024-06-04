@@ -73,3 +73,142 @@ pub fn write_string_pairs(
     }
     Ok(())
 }
+
+#[cfg(test)]
+
+mod tests {
+    use super::*;
+    use std::io::{Cursor, Read};
+
+    #[test]
+    fn test_write_string() {
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+        write_string(&mut cursor, "Hola").unwrap();
+        cursor.set_position(0);
+        let mut buf = [0u8; 2];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(u16::from_be_bytes(buf), 4);
+        let mut buf = [0u8; 4];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(String::from_utf8(buf.to_vec()).unwrap(), "Hola");
+    }
+
+    #[test]
+    fn test_write_tuple_vec() {
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+        let vec = vec![("Hola".to_string(), "Chau".to_string())];
+        write_tuple_vec(&mut cursor, &vec).unwrap();
+        cursor.set_position(0);
+        let mut buf = [0u8; 2];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(u16::from_be_bytes(buf), 1);
+        let mut buf = [0u8; 2];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(u16::from_be_bytes(buf), 4);
+        let mut buf = [0u8; 4];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(String::from_utf8(buf.to_vec()).unwrap(), "Hola");
+        let mut buf = [0u8; 2];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(u16::from_be_bytes(buf), 4);
+        let mut buf = [0u8; 4];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(String::from_utf8(buf.to_vec()).unwrap(), "Chau");
+    }
+
+    #[test]
+    fn test_write_bin_vec() {
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+        let vec = vec![1, 2, 3, 4];
+        write_bin_vec(&mut cursor, &vec).unwrap();
+        cursor.set_position(0);
+        let mut buf = [0u8; 2];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(u16::from_be_bytes(buf), 4);
+        let mut buf = [0u8; 4];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(buf.to_vec(), vec![1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn test_write_string_tuple() {
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+        write_string_tuple(&mut cursor, &("Hola".to_string(), "Chau".to_string())).unwrap();
+        cursor.set_position(0);
+        let mut buf = [0u8; 2];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(u16::from_be_bytes(buf), 4);
+        let mut buf = [0u8; 4];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(String::from_utf8(buf.to_vec()).unwrap(), "Hola");
+        let mut buf = [0u8; 2];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(u16::from_be_bytes(buf), 4);
+        let mut buf = [0u8; 4];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(String::from_utf8(buf.to_vec()).unwrap(), "Chau");
+    }
+
+    #[test]
+    fn test_write_u8() {
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+        write_u8(&mut cursor, &1).unwrap();
+        cursor.set_position(0);
+        let mut buf = [0u8; 1];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(buf[0], 1);
+    }
+
+    #[test]
+    fn test_write_u16() {
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+        write_u16(&mut cursor, &1).unwrap();
+        cursor.set_position(0);
+        let mut buf = [0u8; 2];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(u16::from_be_bytes(buf), 1);
+    }
+
+    #[test]
+    fn test_write_u32() {
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+        write_u32(&mut cursor, &1).unwrap();
+        cursor.set_position(0);
+        let mut buf = [0u8; 4];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(u32::from_be_bytes(buf), 1);
+    }
+
+    #[test]
+    fn test_write_bool() {
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+        write_bool(&mut cursor, &true).unwrap();
+        cursor.set_position(0);
+        let mut buf = [0u8; 1];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(buf[0], 1);
+    }
+
+    #[test]
+    fn test_write_string_pairs() {
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+        let vec = vec![("Hola".to_string(), "Chau".to_string())];
+        write_string_pairs(&mut cursor, &vec).unwrap();
+        cursor.set_position(0);
+        let mut buf = [0u8; 2];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(u16::from_be_bytes(buf), 1);
+        let mut buf = [0u8; 2];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(u16::from_be_bytes(buf), 4);
+        let mut buf = [0u8; 4];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(String::from_utf8(buf.to_vec()).unwrap(), "Hola");
+        let mut buf = [0u8; 2];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(u16::from_be_bytes(buf), 4);
+        let mut buf = [0u8; 4];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(String::from_utf8(buf.to_vec()).unwrap(), "Chau");
+    }
+}
