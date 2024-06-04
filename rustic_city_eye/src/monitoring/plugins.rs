@@ -1,12 +1,11 @@
 use egui::Response;
 use walkers::{
-    Plugin, Position, Projector, 
-    extras::{Images, Image, Texture},
+    extras::{Image, Images, Texture},
+    Plugin, Position, Projector,
 };
 
 use crate::camera_view::CameraView;
 use crate::incident_view::IncidentView;
-
 
 #[derive(Default, Clone)]
 pub struct ClickWatcher {
@@ -38,7 +37,11 @@ impl Plugin for &mut ClickWatcher {
         }
 
         if let Some(position) = self.clicked_at {
-            painter.circle_filled(projector.project(position).to_pos2(), 15.0, egui::Color32::GRAY);
+            painter.circle_filled(
+                projector.project(position).to_pos2(),
+                15.0,
+                egui::Color32::GRAY,
+            );
         }
     }
 }
@@ -52,28 +55,27 @@ pub struct ImagesPluginData {
 }
 
 // Creates a built-in `Images` plugin with an example image.
-pub fn cameras(cameras : &mut Vec<CameraView>) -> impl Plugin {
+pub fn cameras(cameras: &mut Vec<CameraView>) -> impl Plugin {
     let mut images_vec = vec![];
 
     for camera in cameras {
-        let mut radius = Image::new(camera.radius.texture.clone(),camera.position.clone() );
+        let mut radius = Image::new(camera.radius.texture.clone(), camera.position.clone());
         radius.scale(camera.radius.x_scale, camera.radius.y_scale);
         images_vec.push(radius);
 
-        let mut image = Image::new(camera.image.texture.clone(),camera.position.clone() );
+        let mut image = Image::new(camera.image.texture.clone(), camera.position.clone());
         image.scale(camera.image.x_scale, camera.image.y_scale);
         images_vec.push(image);
-
     }
     let images = Images::new(images_vec);
     images
 }
 
-pub fn incidents(incidents : &mut Vec<IncidentView>) -> impl Plugin {
+pub fn incidents(incidents: &mut Vec<IncidentView>) -> impl Plugin {
     let mut images_vec = vec![];
 
     for incident in incidents {
-        let mut image = Image::new(incident.image.texture.clone(),incident.position.clone() );
+        let mut image = Image::new(incident.image.texture.clone(), incident.position.clone());
         image.scale(incident.image.x_scale, incident.image.y_scale);
         images_vec.push(image);
     }

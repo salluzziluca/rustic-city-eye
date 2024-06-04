@@ -13,10 +13,7 @@ pub struct Location {
 
 impl Location {
     pub fn new(lat: f64, long: f64) -> Location {
-        Location {
-            lat,
-            long,
-        }
+        Location { lat, long }
     }
 
     // pub fn parse_to_string(&self) -> String {

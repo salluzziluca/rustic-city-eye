@@ -176,7 +176,7 @@ mod tests {
             subscription_identifier: 3,
             content_type: "content".to_string(),
         };
-        let location = Location::new("1".to_string(), "1".to_string());
+        let location = Location::new(1.1, 1.12);
         let new = Incident::new(location);
         let incident_payload = IncidentPayload::new(new);
         let pub_delivery = BrokerMessage::PublishDelivery {

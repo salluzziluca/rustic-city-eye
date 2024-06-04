@@ -1,5 +1,5 @@
 use egui::{Align2, RichText, Ui, Window};
-use rustic_city_eye::{monitoring::monitoring_app::MonitoringApp, surveilling::location::Location};
+use rustic_city_eye::{monitoring::monitoring_app::MonitoringApp, utils::location::Location};
 use walkers::MapMemory;
 
 use crate::{camera_view::CameraView, incident_view::IncidentView, MyMap};
@@ -36,17 +36,12 @@ pub fn add_camera_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitori
                     if let Some(position) = map.click_watcher.clicked_at {
                         let location = Location::new(position.lat(), position.lon());
                         monitoring_app.add_camera(location);
-                        map.cameras.push(
-                            CameraView {
-                                image: map.camera_icon.clone(),
-                                position,
-                                radius: map.camera_radius.clone(),
-                            }
-                        );
-
+                        map.cameras.push(CameraView {
+                            image: map.camera_icon.clone(),
+                            position,
+                            radius: map.camera_radius.clone(),
+                        });
                     }
-
-
                 }
             });
         });
@@ -61,18 +56,16 @@ pub fn add_incident_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monito
         .show(ui.ctx(), |ui| {
             ui.horizontal(|ui| {
                 if ui.button(RichText::new("🚨").heading()).clicked() {
-                    if let Some(position) = map.click_watcher.clicked_at{
+                    if let Some(position) = map.click_watcher.clicked_at {
                         let location = Location::new(position.lat(), position.lon());
                         monitoring_app.add_incident(location);
 
-                        map.incidents.push(
-                            IncidentView {
-                                image: map.incident_icon.clone(),
-                                position
-                            }
-                        );    
+                        map.incidents.push(IncidentView {
+                            image: map.incident_icon.clone(),
+                            position,
+                        });
                     }
                 }
             });
         });
-    }
+}
