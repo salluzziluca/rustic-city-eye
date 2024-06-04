@@ -1,7 +1,6 @@
 use std::io::{Error, Read, Write};
 
-use crate::mqtt::reader::*;
-use crate::mqtt::writer::*;
+use crate::utils::{reader::*, writer::*};
 
 //PROPERTIES IDs
 const PAYLOAD_FORMAT_INDICATOR_ID: u8 = 0x01;
@@ -31,8 +30,8 @@ pub struct PublishProperties {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct TopicProperties {
-    pub(crate) topic_alias: u16,
-    pub(crate) response_topic: String,
+    pub topic_alias: u16,
+    pub response_topic: String,
 }
 
 impl PublishProperties {

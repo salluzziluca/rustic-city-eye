@@ -1,26 +1,26 @@
-use crate::mqtt::reader::*;
-use crate::mqtt::writer::*;
+use crate::utils::reader::*;
+use crate::utils::writer::*;
 use std::io::{BufReader, BufWriter, Error, ErrorKind, Read, Write};
 
 #[derive(Debug, PartialEq)]
 pub struct ConnackProperties {
-    session_expiry_interval: u32,
-    receive_maximum: u16,
-    maximum_qos: bool,
-    retain_available: bool,
-    maximum_packet_size: u32,
-    assigned_client_identifier: String,
-    topic_alias_maximum: u16,
-    reason_string: String,
-    user_properties: Vec<(String, String)>,
-    wildcard_subscription_available: bool,
-    subscription_identifier_available: bool,
-    shared_subscription_available: bool,
-    server_keep_alive: u16,
-    response_information: String,
-    server_reference: String,
-    authentication_method: String,
-    authentication_data: Vec<u8>,
+    pub session_expiry_interval: u32,
+    pub receive_maximum: u16,
+    pub maximum_qos: bool,
+    pub retain_available: bool,
+    pub maximum_packet_size: u32,
+    pub assigned_client_identifier: String,
+    pub topic_alias_maximum: u16,
+    pub reason_string: String,
+    pub user_properties: Vec<(String, String)>,
+    pub wildcard_subscription_available: bool,
+    pub subscription_identifier_available: bool,
+    pub shared_subscription_available: bool,
+    pub server_keep_alive: u16,
+    pub response_information: String,
+    pub server_reference: String,
+    pub authentication_method: String,
+    pub authentication_data: Vec<u8>,
 }
 
 impl ConnackProperties {
@@ -520,4 +520,82 @@ impl ConnackPropertiesBuilder {
             ))?,
         })
     }
+}
+
+#[cfg(test)]
+#[test]
+
+fn test_read_write() {
+    let mut buffer = vec![];
+    let properties = ConnackPropertiesBuilder::new()
+        .session_expiry_interval(0)
+        .receive_maximum(0)
+        .maximum_qos(false)
+        .retain_available(false)
+        .maximum_packet_size(0)
+        .assigned_client_identifier("propiedad".to_string())
+        .topic_alias_maximum(0)
+        .reason_string("propiedad".to_string())
+        .user_properties(vec![("propiedad".to_string(), "valor".to_string())])
+        .wildcard_subscription_available(false)
+        .subscription_identifier_available(false)
+        .shared_subscription_available(false)
+        .server_keep_alive(0)
+        .response_information("propiedad".to_string())
+        .server_reference("propiedad".to_string())
+        .authentication_method("propiedad".to_string())
+        .authentication_data(vec![0, 1, 2, 3])
+        .build()
+        .unwrap();
+    properties.write_to(&mut buffer).unwrap();
+    let mut buffer = buffer.as_slice();
+    let read_properties = ConnackProperties::read_from(&mut buffer).unwrap();
+    assert_eq!(properties, read_properties);
+}
+
+#[test]
+fn test_builder() {
+    let properties = ConnackPropertiesBuilder::new()
+        .session_expiry_interval(0)
+        .receive_maximum(0)
+        .maximum_qos(false)
+        .retain_available(false)
+        .maximum_packet_size(0)
+        .assigned_client_identifier("propiedad".to_string())
+        .topic_alias_maximum(0)
+        .reason_string("propiedad".to_string())
+        .user_properties(vec![("propiedad".to_string(), "valor".to_string())])
+        .wildcard_subscription_available(false)
+        .subscription_identifier_available(false)
+        .shared_subscription_available(false)
+        .server_keep_alive(0)
+        .response_information("propiedad".to_string())
+        .server_reference("propiedad".to_string())
+        .authentication_method("propiedad".to_string())
+        .authentication_data(vec![0, 1, 2, 3])
+        .build()
+        .unwrap();
+    assert_eq!(properties.session_expiry_interval, 0);
+    assert_eq!(properties.receive_maximum, 0);
+    assert!(!properties.maximum_qos);
+    assert!(!properties.retain_available);
+    assert_eq!(properties.maximum_packet_size, 0);
+    assert_eq!(
+        properties.assigned_client_identifier,
+        "propiedad".to_string()
+    );
+    assert_eq!(properties.topic_alias_maximum, 0);
+    assert_eq!(properties.reason_string, "propiedad".to_string());
+    assert_eq!(
+        properties.user_properties,
+        vec![("propiedad".to_string(), "valor".to_string())]
+    );
+    assert!(!properties.wildcard_subscription_available);
+    assert!(!properties.subscription_identifier_available);
+    assert!(!properties.shared_subscription_available);
+    assert_eq!(properties.server_keep_alive, 0);
+    assert_eq!(properties.response_information, "propiedad".to_string());
+    assert_eq!(properties.server_reference, "propiedad".to_string());
+    assert_eq!(properties.authentication_method, "propiedad".to_string());
+    assert_eq!(properties.authentication_data, vec![0, 1, 2, 3]);
 }

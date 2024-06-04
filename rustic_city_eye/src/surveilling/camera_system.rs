@@ -7,7 +7,8 @@ use crate::{
         subscribe_config::SubscribeConfig, subscribe_properties::SubscribeProperties,
         will_properties,
     },
-    surveilling::{camera::Camera, location::Location},
+    surveilling::camera::Camera,
+    utils::location::Location,
 };
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -96,3 +97,33 @@ impl CameraSystem {
         Ok(())
     }
 }
+
+// #[cfg(test)]
+// mod tests {
+//     use std::net::TcpListener;
+
+//     use crate::mqtt::broker_message::BrokerMessage;
+
+//     use super::*;
+
+//     #[test]
+//     fn test_camera_system() {
+//         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+//         let addr: std::net::SocketAddr = listener.local_addr().unwrap();
+
+//         let connack = BrokerMessage::Connack {
+//             session_present: false,
+//             reason_code: 0,
+//             properties:
+//         };
+//         let args = vec![
+//             addr.ip().to_string(),
+//             addr.port().to_string(),
+//             "user".to_string(),
+//             "pass".to_string(),
+//         ];
+
+//         let camera_system = CameraSystem::new(args).unwrap();
+//         assert_eq!(camera_system.get_cameras().len(), 0);
+//     }
+// }
