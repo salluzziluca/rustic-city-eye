@@ -211,7 +211,10 @@ impl Broker {
         message: ClientMessage,
         packet_id: u16,
     ) {
-        let mut lock = packets.write().unwrap();
+        let mut lock = match packets.write() {
+            Ok(lock) => lock,
+            Err(_) => return,
+        };
 
         lock.insert(packet_id, message);
     }
