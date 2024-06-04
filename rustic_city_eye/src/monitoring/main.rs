@@ -137,8 +137,8 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
     let camera_icon = match Texture::new(camera_bytes, &cc.egui_ctx) {
         Ok(t) => ImagesPluginData {
             texture: t,
-            x_scale: 0.2,
-            y_scale: 0.2,
+            x_scale: 0.1,
+            y_scale: 0.1,
         },
         Err(_) => todo!(),
     };

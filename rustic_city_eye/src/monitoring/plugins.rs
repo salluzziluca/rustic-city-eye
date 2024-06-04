@@ -59,26 +59,26 @@ pub fn cameras(cameras: &mut Vec<CameraView>) -> impl Plugin {
     let mut images_vec = vec![];
 
     for camera in cameras {
-        let mut radius = Image::new(camera.radius.texture.clone(), camera.position);
+        let mut radius = Image::new(camera.radius.texture.clone(), camera.position.clone());
         radius.scale(camera.radius.x_scale, camera.radius.y_scale);
         images_vec.push(radius);
 
-        let mut image = Image::new(camera.image.texture.clone(), camera.position);
+        let mut image = Image::new(camera.image.texture.clone(), camera.position.clone());
         image.scale(camera.image.x_scale, camera.image.y_scale);
         images_vec.push(image);
     }
-    
-    Images::new(images_vec)
+    let images = Images::new(images_vec);
+    images
 }
 
 pub fn incidents(incidents: &mut Vec<IncidentView>) -> impl Plugin {
     let mut images_vec = vec![];
 
     for incident in incidents {
-        let mut image = Image::new(incident.image.texture.clone(), incident.position);
+        let mut image = Image::new(incident.image.texture.clone(), incident.position.clone());
         image.scale(incident.image.x_scale, incident.image.y_scale);
         images_vec.push(image);
     }
-    
-    Images::new(images_vec)
+    let images = Images::new(images_vec);
+    images
 }
