@@ -21,3 +21,7 @@ path = "src/mqtt/run_broker.rs"
 [[bin]]
 name = "monitoring_app"
 path = "src/monitoring/main.rs"
+
+
+[profile.dev] 
+opt-level = 1

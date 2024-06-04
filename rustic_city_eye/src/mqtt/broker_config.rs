@@ -59,3 +59,34 @@ impl BrokerConfig {
         Ok(readings)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_broker_config() {
+        let address = "127.0.0.1::5000".to_string();
+        let broker_config = BrokerConfig::new(address.clone()).unwrap();
+        let (broker_address, topics) = broker_config.get_broker_config();
+        assert!(broker_address == address);
+        assert!(topics.len() == 5);
+        assert!(topics.contains_key("incidente"));
+        assert!(topics.contains_key("fulbito"));
+        assert!(topics.contains_key("mensajes para juan"));
+        assert!(topics.contains_key("accidente"));
+        assert!(topics.contains_key("messi"));
+    }
+
+    #[test]
+    fn test_process_topic_config_file() {
+        let topic_config_path = "./src/monitoring/topics_test.txt";
+        let readings = BrokerConfig::process_topic_config_file(topic_config_path).unwrap();
+
+        assert!(readings.len() == 4);
+        assert!(readings.contains(&"Luca".to_string()));
+        assert!(readings.contains(&"Juan".to_string()));
+        assert!(readings.contains(&"Lihuen".to_string()));
+        assert!(readings.contains(&"Nacho".to_string()));
+    }
+}

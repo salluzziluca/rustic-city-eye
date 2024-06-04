@@ -18,3 +18,14 @@ impl std::fmt::Display for ClientError {
 }
 
 impl std::error::Error for ClientError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_client_error() {
+        let error = ClientError::new("error message");
+        assert_eq!(error.to_string(), "error message");
+    }
+}
