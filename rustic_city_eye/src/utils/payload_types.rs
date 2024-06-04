@@ -44,9 +44,13 @@ impl PayloadTypes {
         let payload_type = match payload_type_id {
             1 => {
                 let longitude_string = read_string(stream)?;
+                let long = longitude_string.parse::<f64>().unwrap();
+
                 let latitude_string = read_string(stream)?;
 
-                let location = Location::new(latitude_string, longitude_string);
+                let lat = latitude_string.parse::<f64>().unwrap();
+
+                let location = Location::new(lat, long);
                 let incident = Incident::new(location);
 
                 PayloadTypes::IncidentLocation(IncidentPayload::new(incident))
