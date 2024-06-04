@@ -131,181 +131,177 @@ impl ConnackProperties {
     }
 
     pub fn read_from(stream: &mut dyn Read) -> Result<ConnackProperties, Error> {
-        let mut reader = BufReader::new(stream);
-
-        let mut session_expiry_interval: Option<u32> = None;
-        let mut receive_maximum: Option<u16> = None;
-        let mut maximum_qos: Option<bool> = None;
-        let mut retain_available: Option<bool> = None;
-        let mut maximum_packet_size: Option<u32> = None;
-        let mut assigned_client_identifier: Option<String> = None;
-        let mut topic_alias_maximum: Option<u16> = None;
-        let mut reason_string: Option<String> = None;
-        let mut user_properties: Option<Vec<(String, String)>> = None;
-        let mut wildcard_subscription_available: Option<bool> = None;
-        let mut subscription_identifier_available: Option<bool> = None;
-        let mut shared_subscription_available: Option<bool> = None;
-        let mut server_keep_alive: Option<u16> = None;
-        let mut response_information: Option<String> = None;
-        let mut server_reference: Option<String> = None;
-        let mut authentication_method: Option<String> = None;
-        let mut authentication_data: Option<Vec<u8>> = None;
-
-        let mut count = 0;
-        while let Ok(property_id) = read_u8(&mut reader) {
-            match property_id {
-                0x11 => {
-                    let value = read_u32(&mut reader)?;
-                    session_expiry_interval = Some(value);
-                }
-                0x12 => {
-                    let value = read_string(&mut reader)?;
-                    assigned_client_identifier = Some(value);
-                }
-                0x15 => {
-                    let value = read_string(&mut reader)?;
-                    authentication_method = Some(value);
-                }
-                0x16 => {
-                    let value = read_bin_vec(&mut reader)?;
-                    authentication_data = Some(value);
-                }
-                0x1A => {
-                    let value = read_string(&mut reader)?;
-                    response_information = Some(value);
-                }
-                0x1C => {
-                    let value = read_string(&mut reader)?;
-                    server_reference = Some(value);
-                }
-                0x1F => {
-                    let value = read_string(&mut reader)?;
-                    reason_string = Some(value);
-                }
-                0x21 => {
-                    let value = read_u16(&mut reader)?;
-                    receive_maximum = Some(value);
-                }
-                0x22 => {
-                    let value = read_u16(&mut reader)?;
-                    topic_alias_maximum = Some(value);
-                }
-                0x24 => {
-                    let value = read_bool(&mut reader)?;
-                    maximum_qos = Some(value);
-                }
-                0x25 => {
-                    let value = read_bool(&mut reader)?;
-                    retain_available = Some(value);
-                }
-                0x26 => {
-                    let value = read_tuple_vec(&mut reader)?;
-                    user_properties = Some(value);
-                }
-                0x27 => {
-                    let value = read_u32(&mut reader)?;
-                    maximum_packet_size = Some(value);
-                }
-                0x28 => {
-                    let value = read_bool(&mut reader)?;
-                    wildcard_subscription_available = Some(value);
-                }
-                0x29 => {
-                    let value = read_bool(&mut reader)?;
-                    subscription_identifier_available = Some(value);
-                }
-                0x2A => {
-                    let value = read_bool(&mut reader)?;
-                    shared_subscription_available = Some(value);
-                }
-                0x2D => {
-                    let value = read_u16(&mut reader)?;
-                    server_keep_alive = Some(value);
-                }
-                _ => {
-                    return Err(Error::new(
-                        ErrorKind::InvalidData,
-                        format!("Invalid property id: {:?}", property_id),
-                    ));
-                }
-            }
-            count += 1;
-            if count == 17 {
-                break;
-            }
+        let session_expiry_interval_id = read_u8(stream)?;
+        if session_expiry_interval_id != 0x11 {
+            return Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Invalid session expiry interval id",
+            ));
         }
+        let session_expiry_interval = read_u32(stream)?;
+
+        let assigned_client_identifier_id = read_u8(stream)?;
+        if assigned_client_identifier_id != 0x12 {
+            return Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Invalid assigned client identifier id",
+            ));
+        }
+        let assigned_client_identifier = read_string(stream)?;
+
+        let authentication_method_id = read_u8(stream)?;
+        if authentication_method_id != 0x15 {
+            return Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Invalid authentication method id",
+            ));
+        }
+        let authentication_method = read_string(stream)?;
+
+        let authentication_data_id = read_u8(stream)?;
+        if authentication_data_id != 0x16 {
+            return Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Invalid authentication data id",
+            ));
+        }
+        let authentication_data = read_bin_vec(stream)?;
+
+        let response_information_id = read_u8(stream)?;
+        if response_information_id != 0x1A {
+            return Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Invalid response information id",
+            ));
+        }
+        let response_information = read_string(stream)?;
+
+        let server_reference_id = read_u8(stream)?;
+        if server_reference_id != 0x1C {
+            return Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Invalid server reference id",
+            ));
+        }
+        let server_reference = read_string(stream)?;
+
+        let reason_string_id = read_u8(stream)?;
+        if reason_string_id != 0x1F {
+            return Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Invalid reason string id",
+            ));
+        }
+        let reason_string = read_string(stream)?;
+
+        let receive_maximum_id = read_u8(stream)?;
+        if receive_maximum_id != 0x21 {
+            return Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Invalid receive maximum id",
+            ));
+        }
+        let receive_maximum = read_u16(stream)?;
+
+        let topic_alias_maximum_id = read_u8(stream)?;
+        if topic_alias_maximum_id != 0x22 {
+            return Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Invalid topic alias maximum id",
+            ));
+        }
+        let topic_alias_maximum = read_u16(stream)?;
+
+        let maximum_qos_id = read_u8(stream)?;
+        if maximum_qos_id != 0x24 {
+            return Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Invalid maximum qos id",
+            ));
+        }
+        let maximum_qos = read_bool(stream)?;
+
+        let retain_available_id = read_u8(stream)?;
+        if retain_available_id != 0x25 {
+            return Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Invalid retain available id",
+            ));
+        }
+        let retain_available = read_bool(stream)?;
+
+        let user_properties_id = read_u8(stream)?;
+        if user_properties_id != 0x26 {
+            return Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Invalid user properties id",
+            ));
+        }
+        let user_properties = read_tuple_vec(stream)?;
+
+        let maximum_packet_size_id = read_u8(stream)?;
+        if maximum_packet_size_id != 0x27 {
+            return Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Invalid maximum packet size id",
+            ));
+        }
+        let maximum_packet_size = read_u32(stream)?;
+
+        let wildcard_subscription_available_id = read_u8(stream)?;
+        if wildcard_subscription_available_id != 0x28 {
+            return Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Invalid wildcard subscription available id",
+            ));
+        }
+        let wildcard_subscription_available = read_bool(stream)?;
+
+        let subscription_identifier_available_id = read_u8(stream)?;
+        if subscription_identifier_available_id != 0x29 {
+            return Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Invalid subscription identifier available id",
+            ));
+        }
+        let subscription_identifier_available = read_bool(stream)?;
+
+        let shared_subscription_available_id = read_u8(stream)?;
+        if shared_subscription_available_id != 0x2A {
+            return Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Invalid shared subscription available id",
+            ));
+        }
+        let shared_subscription_available = read_bool(stream)?;
+
+        let server_keep_alive_id = read_u8(stream)?;
+        if server_keep_alive_id != 0x2D {
+            return Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Invalid server keep alive id",
+            ));
+        }
+        let server_keep_alive = read_u16(stream)?;
 
         Ok(ConnackProperties {
-            session_expiry_interval: session_expiry_interval.ok_or(Error::new(
-                ErrorKind::InvalidData,
-                "Missing session_expiry_interval property",
-            ))?,
-            receive_maximum: receive_maximum.ok_or(Error::new(
-                ErrorKind::InvalidData,
-                "Missing receive_maximum property",
-            ))?,
-            maximum_packet_size: maximum_packet_size.ok_or(Error::new(
-                ErrorKind::InvalidData,
-                "Missing maximum_packet_size property",
-            ))?,
-            topic_alias_maximum: topic_alias_maximum.ok_or(Error::new(
-                ErrorKind::InvalidData,
-                "Missing topic_alias_maximum property",
-            ))?,
-            user_properties: user_properties.ok_or(Error::new(
-                ErrorKind::InvalidData,
-                "Missing user_properties property",
-            ))?,
-            authentication_method: authentication_method.ok_or(Error::new(
-                ErrorKind::InvalidData,
-                "Missing authentication_method property",
-            ))?,
-            authentication_data: authentication_data.ok_or(Error::new(
-                ErrorKind::InvalidData,
-                "Missing authentication_data property",
-            ))?,
-            maximum_qos: maximum_qos.ok_or(Error::new(
-                ErrorKind::InvalidData,
-                "Missing maximum_qos property",
-            ))?,
-            retain_available: retain_available.ok_or(Error::new(
-                ErrorKind::InvalidData,
-                "Missing retain_available property",
-            ))?,
-            assigned_client_identifier: assigned_client_identifier.ok_or(Error::new(
-                ErrorKind::InvalidData,
-                "Missing assigned_client_identifier property",
-            ))?,
-            reason_string: reason_string.ok_or(Error::new(
-                ErrorKind::InvalidData,
-                "Missing reason_string property",
-            ))?,
-            wildcard_subscription_available: wildcard_subscription_available.ok_or(Error::new(
-                ErrorKind::InvalidData,
-                "Missing wildcard_subscription_available property",
-            ))?,
-            subscription_identifier_available: subscription_identifier_available.ok_or(
-                Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing subscription_identifier_available property",
-                ),
-            )?,
-            shared_subscription_available: shared_subscription_available.ok_or(Error::new(
-                ErrorKind::InvalidData,
-                "Missing shared_subscription_available property",
-            ))?,
-            server_keep_alive: server_keep_alive.ok_or(Error::new(
-                ErrorKind::InvalidData,
-                "Missing server_keep_alive property",
-            ))?,
-            response_information: response_information.ok_or(Error::new(
-                ErrorKind::InvalidData,
-                "Missing response_information property",
-            ))?,
-            server_reference: server_reference.ok_or(Error::new(
-                ErrorKind::InvalidData,
-                "Missing server_reference property",
-            ))?,
+            session_expiry_interval,
+            assigned_client_identifier,
+            authentication_method,
+            authentication_data,
+            response_information,
+            server_reference,
+            reason_string,
+            receive_maximum,
+            topic_alias_maximum,
+            maximum_qos,
+            retain_available,
+            user_properties,
+            maximum_packet_size,
+            wildcard_subscription_available,
+            subscription_identifier_available,
+            shared_subscription_available,
+            server_keep_alive,
         })
     }
 }
