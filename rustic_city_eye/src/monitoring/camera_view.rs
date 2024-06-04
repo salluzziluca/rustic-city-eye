@@ -1,6 +1,6 @@
 use walkers::Position;
 
-use crate::plugins::ImagesPluginData;
+use crate::ImagesPluginData;
 
 pub struct CameraView {
     pub image: ImagesPluginData,

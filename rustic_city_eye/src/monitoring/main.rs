@@ -5,10 +5,18 @@ mod windows;
 
 use eframe::{run_native, App, CreationContext, NativeOptions};
 use egui::{CentralPanel, RichText, TextStyle};
-use plugins::{cameras, incidents, ClickWatcher, ImagesPluginData};
+use plugins::{cameras, incidents, ClickWatcher};
 use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
 use walkers::{sources::OpenStreetMap, Map, MapMemory, Position, Texture, Tiles};
 use windows::{add_camera_window, add_incident_window, zoom};
+#[derive(Clone)]
+struct ImagesPluginData {
+    texture: Texture,
+    x_scale: f32,
+    y_scale: f32,
+    original_scale: f32,
+}
+
 struct MyMap {
     tiles: Tiles,
     map_memory: MapMemory,
@@ -18,6 +26,7 @@ struct MyMap {
     incident_icon: ImagesPluginData,
     incidents: Vec<incident_view::IncidentView>,
     camera_radius: ImagesPluginData,
+    zoom_level: f32,
 }
 
 struct MyApp {
@@ -30,6 +39,33 @@ struct MyApp {
     monitoring_app: Option<MonitoringApp>,
 }
 
+impl ImagesPluginData {
+    /// recibe el zoom level inicial y la escala para cada una de las imagenes
+    fn new(texture: Texture, initial_zoom_level: f32, original_scale: f32) -> Self {
+        let scale = initial_zoom_level * original_scale;
+        Self {
+            texture,
+            x_scale: scale,
+            y_scale: scale,
+            original_scale,
+        }
+    }
+
+    ///calcula la escala segun la escala original y el nuevo zoom level
+    fn calculate_scale(&mut self, zoom_level: f32) -> f32 {
+        self.original_scale * zoom_level
+    }
+    /// updatea la escala de la imagen, modificando los ejes segun la nueva escala
+    /// que depende del zoom
+    fn update_scale(&mut self, ctx: &egui::Context, zoom_level: f32) {
+        let scale = Self::calculate_scale(self, zoom_level);
+        self.x_scale = scale;
+        self.y_scale = scale;
+
+        // Mark UI as dirty to trigger refresh
+        ctx.request_repaint();
+    }
+}
 impl MyApp {
     fn handle_form(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         CentralPanel::default().show(ctx, |ui| {
@@ -112,12 +148,26 @@ impl MyApp {
                 .with_plugin(cameras(&mut self.map.cameras))
                 .with_plugin(incidents(&mut self.map.incidents)),
             );
-            zoom(ui, &mut self.map.map_memory);
+            zoom(ui, &mut self.map.map_memory, &mut self.map.zoom_level);
+
+            // Get the current zoom level, however it's done in your code
+            let current_zoom_level = self.get_current_zoom_level();
+
+            // Update the scale for each image based on the current zoom level
+            self.map.camera_icon.update_scale(ctx, current_zoom_level);
+            self.map.incident_icon.update_scale(ctx, current_zoom_level);
+            self.map.camera_radius.update_scale(ctx, current_zoom_level);
+
             if let Some(monitoring_app) = &mut self.monitoring_app {
                 add_camera_window(ui, &mut self.map, monitoring_app);
                 add_incident_window(ui, &mut self.map, monitoring_app);
             }
         });
+    }
+
+    /// Busca el zoom level actual
+    fn get_current_zoom_level(&self) -> f32 {
+        self.map.zoom_level
     }
 }
 
@@ -135,30 +185,18 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
     egui_extras::install_image_loaders(&cc.egui_ctx);
     let camera_bytes = include_bytes!("assets/Camera.png");
     let camera_icon = match Texture::new(camera_bytes, &cc.egui_ctx) {
-        Ok(t) => ImagesPluginData {
-            texture: t,
-            x_scale: 0.1,
-            y_scale: 0.1,
-        },
+        Ok(t) => ImagesPluginData::new(t, 1.0, 0.1), // Initialize with zoom level 1.0
         Err(_) => todo!(),
     };
     let incident_bytes = include_bytes!("assets/Incident.png");
     let incident_icon = match Texture::new(incident_bytes, &cc.egui_ctx) {
-        Ok(t) => ImagesPluginData {
-            texture: t,
-            x_scale: 0.15,
-            y_scale: 0.15,
-        },
+        Ok(t) => ImagesPluginData::new(t, 1.0, 0.15), // Initialize with zoom level 1.0
         Err(_) => todo!(),
     };
 
     let circle_bytes = include_bytes!("assets/circle.png");
     let circle_icon = match Texture::new(circle_bytes, &cc.egui_ctx) {
-        Ok(t) => ImagesPluginData {
-            texture: t,
-            x_scale: 0.2,
-            y_scale: 0.2,
-        },
+        Ok(t) => ImagesPluginData::new(t, 1.0, 0.2), // Initialize with zoom level 1.0
         Err(_) => todo!(),
     };
 
@@ -177,6 +215,7 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
             camera_icon,
             incident_icon,
             camera_radius: circle_icon,
+            zoom_level: 1.0,
         },
         monitoring_app: None,
     })

@@ -5,7 +5,8 @@ use walkers::MapMemory;
 use crate::{camera_view::CameraView, incident_view::IncidentView, MyMap};
 
 /// Simple GUI to zoom in and out.
-pub fn zoom(ui: &Ui, map_memory: &mut MapMemory) {
+/// Se updatea el zoom level con cada click en los botones de zoom
+pub fn zoom(ui: &Ui, map_memory: &mut MapMemory, zoom_level: &mut f32) {
     Window::new("Map")
         .collapsible(false)
         .resizable(false)
@@ -15,10 +16,12 @@ pub fn zoom(ui: &Ui, map_memory: &mut MapMemory) {
             ui.horizontal(|ui| {
                 if ui.button(RichText::new("➕").heading()).clicked() {
                     let _ = map_memory.zoom_in();
+                    *zoom_level += 1.0;
                 }
 
                 if ui.button(RichText::new("➖").heading()).clicked() {
                     let _ = map_memory.zoom_out();
+                    *zoom_level -= 1.0;
                 }
             });
         });
