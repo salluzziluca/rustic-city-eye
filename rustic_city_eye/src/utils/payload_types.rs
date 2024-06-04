@@ -61,3 +61,60 @@ impl PayloadTypes {
         Ok(payload_type)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::{Cursor, Read};
+
+    #[test]
+    fn test_read_from() {
+        let location = Location::new("1.0".to_string(), "2.0".to_string());
+        let incident = Incident::new(location.clone());
+        let incident_payload = IncidentPayload::new(incident.clone());
+        let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
+
+        let mut cursor = Cursor::new(Vec::new());
+        payload.write_to(&mut cursor).unwrap();
+        cursor.set_position(0);
+
+        let read_payload = PayloadTypes::read_from(&mut cursor).unwrap();
+        assert_eq!(read_payload, payload);
+    }
+
+    #[test]
+    fn test_write_to() {
+        let location = Location::new("1.0".to_string(), "2.0".to_string());
+        let incident = Incident::new(location.clone());
+        let incident_payload = IncidentPayload::new(incident.clone());
+        let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
+
+        let mut cursor = Cursor::new(Vec::new());
+        payload.write_to(&mut cursor).unwrap();
+        cursor.set_position(0);
+
+        let mut buf = [0u8; 1];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(buf[0], 1);
+    }
+
+    #[test]
+    fn test_as_any() {
+        let location = Location::new("1.0".to_string(), "2.0".to_string());
+        let incident = Incident::new(location.clone());
+        let incident_payload = IncidentPayload::new(incident.clone());
+        let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
+
+        assert_eq!(payload.as_any().is::<PayloadTypes>(), true);
+    }
+
+    #[test]
+    fn test_clone() {
+        let location = Location::new("1.0".to_string(), "2.0".to_string());
+        let incident = Incident::new(location.clone());
+        let incident_payload = IncidentPayload::new(incident.clone());
+        let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
+
+        assert_eq!(payload.clone(), payload);
+    }
+}
