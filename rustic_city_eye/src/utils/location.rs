@@ -7,23 +7,13 @@
 /// los incidentes a resolver.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Location {
-    pub longitude: f64,
-    pub latitude: f64,
+    pub long: f64,
+    pub lat: f64,
 }
 
 impl Location {
-    pub fn new(lat: String, long: String) -> Location {
-        let latitude = lat.parse::<f64>().unwrap();
-        let longitude = long.parse::<f64>().unwrap();
-
-        Location {
-            longitude,
-            latitude,
-        }
-    }
-
-    pub fn parse_to_string(&self) -> String {
-        format!("({}, {})", self.latitude, self.longitude)
+    pub fn new(lat: f64, long: f64) -> Location {
+        Location { lat, long }
     }
 }
 

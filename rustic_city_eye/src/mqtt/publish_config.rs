@@ -65,7 +65,7 @@ mod tests {
             topic_alias: 10,
             response_topic: "String".to_string(),
         };
-        let location = Location::new("12.1".to_string(), "25.0".to_string());
+        let location = Location::new(12.1, 25.0);
         let incident = Incident::new(location);
         let incident_payload = incident_payload::IncidentPayload::new(incident);
         let publish_prop = PublishProperties::new(

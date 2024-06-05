@@ -21,7 +21,7 @@ mod tests {
     use super::*;
     #[test]
     fn test_new_camera() {
-        let location = Location::new("1.0".to_string(), "2.0".to_string());
+        let location = Location::new(1.0, 2.0);
         let camera = Camera::new(location.clone());
         assert_eq!(camera.get_location(), location);
     }

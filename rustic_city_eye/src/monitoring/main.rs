@@ -1,282 +1,193 @@
-extern crate gtk;
+mod camera_view;
+mod incident_view;
+mod plugins;
+mod windows;
 
-use gtk::glib::clone;
-use gtk::prelude::*;
-use gtk::{glib, Window, WindowType};
-use gtk::{Application, Box, Button, Entry, Label, Orientation};
-
-use std::cell::RefCell;
-use std::rc::Rc;
-
+use eframe::{run_native, App, CreationContext, NativeOptions};
+use egui::{CentralPanel, RichText, TextStyle};
+use plugins::{cameras, incidents, ClickWatcher, ImagesPluginData};
 use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
-use rustic_city_eye::mqtt::protocol_error::ProtocolError;
-use rustic_city_eye::utils::location::Location;
-
-fn main() -> Result<(), ProtocolError> {
-    let app = Application::builder()
-        .application_id("com.example.RusticCityEye")
-        .build();
-
-    app.connect_activate(|app| {
-        let home_window = Window::new(WindowType::Toplevel);
-        home_window.set_title("Rustic City Eye");
-        home_window.set_default_size(2000, 1500);
-
-        let vbox = Box::new(Orientation::Vertical, 5);
-
-        let button = Button::with_label("Conectarse a un servidor");
-        vbox.pack_start(&button, false, false, 0);
-
-        let elements_container = Box::new(Orientation::Vertical, 5);
-        vbox.pack_start(&elements_container, true, true, 0);
-
-        button.connect_clicked(clone!(@weak button, @weak elements_container => move |_| {
-            button.hide();
-
-            handle_connection(&elements_container);
-
-            elements_container.show_all();
-        }));
-
-        // Agrega la caja a la ventana.
-        home_window.add(&vbox);
-
-        // Muestra todos los widgets en la ventana.
-        home_window.show_all();
-
-        // Configura la aplicación principal.
-        home_window.set_application(Some(app));
-    });
-
-    app.run();
-
-    Ok(())
+use walkers::{sources::OpenStreetMap, Map, MapMemory, Position, Texture, Tiles};
+use windows::{add_camera_window, add_incident_window, zoom};
+struct MyMap {
+    tiles: Tiles,
+    map_memory: MapMemory,
+    click_watcher: ClickWatcher,
+    camera_icon: ImagesPluginData,
+    cameras: Vec<camera_view::CameraView>,
+    incident_icon: ImagesPluginData,
+    incidents: Vec<incident_view::IncidentView>,
+    camera_radius: ImagesPluginData,
 }
 
-fn handle_connection(elements_container: &gtk::Box) {
-    let (connect_form, host, port, user, password, connect_btn) = get_connect_form();
+struct MyApp {
+    username: String,
+    password: String,
+    ip: String,
+    port: String,
+    connected: bool,
+    map: MyMap,
+    monitoring_app: Option<MonitoringApp>,
+}
 
-    elements_container.pack_start(&connect_form, false, false, 0);
+impl MyApp {
+    fn handle_form(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
+        CentralPanel::default().show(ctx, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.label(
+                    RichText::new("Username")
+                        .size(20.0)
+                        .color(egui::Color32::WHITE),
+                );
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.username)
+                        .min_size(egui::vec2(100.0, 20.0))
+                        .text_color(egui::Color32::WHITE)
+                        .font(TextStyle::Body),
+                );
 
-    connect_btn.connect_clicked(clone!(@weak host, @weak port, @weak user, @weak password, @weak elements_container => move |_| {
-        let args = vec![host.text().to_string(), port.text().to_string(), user.text().to_string(), password.text().to_string()];
+                ui.label(
+                    RichText::new("Password")
+                        .size(20.0)
+                        .color(egui::Color32::WHITE),
+                );
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.password)
+                        .min_size(egui::vec2(100.0, 20.0))
+                        .text_color(egui::Color32::WHITE)
+                        .font(TextStyle::Body),
+                );
 
-        match MonitoringApp::new(args) {
-            Ok(mut monitoring_app) => {
-                elements_container.foreach(|widget| {
-                    elements_container.remove(widget);
-                });
+                ui.label(RichText::new("IP").size(20.0).color(egui::Color32::WHITE));
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.ip)
+                        .min_size(egui::vec2(100.0, 20.0))
+                        .text_color(egui::Color32::WHITE)
+                        .font(TextStyle::Body),
+                );
 
-                let _ = monitoring_app.run_client();
+                ui.label(RichText::new("Port").size(20.0).color(egui::Color32::WHITE));
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.port)
+                        .min_size(egui::vec2(100.0, 20.0))
+                        .text_color(egui::Color32::WHITE)
+                        .font(TextStyle::Body),
+                );
 
-                // Create the horizontal box to hold the map and the panel
-                let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 5);
-                elements_container.pack_start(&hbox, true, true, 0);
+                if ui.button("Submit").clicked() {
+                    let args = vec![
+                        self.username.clone(),
+                        self.password.clone(),
+                        self.ip.clone(),
+                        self.port.clone(),
+                    ];
+                    match MonitoringApp::new(args) {
+                        Ok(mut monitoring_app) => {
+                            let _ = monitoring_app.run_client();
+                            self.monitoring_app = Some(monitoring_app);
+                            self.connected = true;
+                        }
+                        Err(_) => {
+                            println!("La conexion ha fallado. Intenta conectarte nuevamente.");
+                            self.username.clear();
+                            self.password.clear();
+                            self.ip.clear();
+                            self.port.clear();
+                        }
+                    };
+                }
+            })
+        });
+    }
 
-                // Create a new image widget
-                let image = gtk::Image::from_file("src/monitoring/Map.png");
+    fn handle_map(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
+        CentralPanel::default().show(ctx, |ui| {
+            ui.add(
+                Map::new(
+                    Some(&mut self.map.tiles),
+                    &mut self.map.map_memory,
+                    Position::from_lon_lat(-58.368925, -34.61716),
+                )
+                .with_plugin(&mut self.map.click_watcher)
+                .with_plugin(cameras(&mut self.map.cameras))
+                .with_plugin(incidents(&mut self.map.incidents)),
+            );
+            zoom(ui, &mut self.map.map_memory);
+            if let Some(monitoring_app) = &mut self.monitoring_app {
+                add_camera_window(ui, &mut self.map, monitoring_app);
+                add_incident_window(ui, &mut self.map, monitoring_app);
+            }
+        });
+    }
+}
 
-                // Create a new event box
-                let event_box = gtk::EventBox::new();
-                event_box.add(&image);
-
-                // Add the event box to the horizontal box
-                hbox.add(&event_box);
-
-                // Create a vertical box to hold buttons for the panel
-                let vbox = gtk::Box::new(gtk::Orientation::Vertical, 0);
-
-                // Create a button for adding a camera
-                let add_camera_button = gtk::Button::with_label("Add Camera");
-                vbox.add(&add_camera_button);
-
-                // Create a button for adding an incident
-                let add_incident_button = gtk::Button::with_label("Add Incident");
-                vbox.add(&add_incident_button);
-
-                // Create the panel for camera list and buttons
-                let panel = gtk::Box::new(gtk::Orientation::Vertical, 5);
-                hbox.pack_start(&panel, false, false, 0);
-
-                let add_camera_btn = gtk::Button::with_label("Add camera");
-                panel.pack_start(&add_camera_btn, false, false, 0);
-
-                let add_incident_btn = gtk::Button::with_label("Add incident");
-                panel.pack_start(&add_incident_btn, false, false, 0);
-
-                // Create the camera list panel
-                let camera_list_box = gtk::Box::new(gtk::Orientation::Vertical, 5);
-                panel.pack_start(&camera_list_box, true, true, 0);
-                let camera_list_box = Rc::new(RefCell::new(camera_list_box));
-
-                let incident_list_box = gtk::Box::new(gtk::Orientation::Vertical, 5);
-                panel.pack_start(&incident_list_box, true, true, 0);
-                let incident_list_box = Rc::new(RefCell::new(incident_list_box));
-
-                let monitoring_app_ref = Rc::new(RefCell::new(monitoring_app));
-
-                let (x, y) = (0.0, 0.0);
-                let x_ref = Rc::new(RefCell::new(x));
-                let y_ref = Rc::new(RefCell::new(y));
-                event_box.connect_button_press_event({
-                    let x_ref = Rc::clone(&x_ref);
-                    let y_ref = Rc::clone(&y_ref);
-                    move |_, event| {
-                        x_ref.replace(event.position().0);
-                        y_ref.replace(event.position().1);
-                        println!("Image clicked at coordinates {},{}", x_ref.borrow(), y_ref.borrow());
-                        false.into() // Ensure you return the correct type here
-                    }
-                });
-
-                add_camera_btn.connect_clicked({
-                    let x_ref = Rc::clone(&x_ref);
-                    let y_ref = Rc::clone(&y_ref);
-                    let monitoring_app_ref = Rc::clone(&monitoring_app_ref);
-                    let camera_list_box = Rc::clone(&camera_list_box);
-                    move |_| {
-                        on_add_camera_clicked(Rc::clone(&y_ref), Rc::clone(&x_ref), Rc::clone(&monitoring_app_ref), Rc::clone(&camera_list_box));
-                    }
-                });
-
-                add_incident_btn.connect_clicked({
-                    let x_ref = Rc::clone(&x_ref);
-                    let y_ref = Rc::clone(&y_ref);
-                    let monitoring_app_ref = Rc::clone(&monitoring_app_ref);
-                    let incident_list_box = Rc::clone(&incident_list_box);
-                    move |_| {
-                        on_add_incident_clicked(Rc::clone(&y_ref), Rc::clone(&x_ref), Rc::clone(&monitoring_app_ref), Rc::clone(&incident_list_box));
-                    }
-                });
-
-
-                // add_incident_btn.connect_clicked({
-                //     let x_ref = Rc::clone(&x_ref);
-                //     let y_ref = Rc::clone(&y_ref);
-                //     let monitoring_app_ref = Rc::clone(&monitoring_app_ref);
-                //     move |_| {
-                //         on_add_incident_clicked(Rc::clone(&y_ref), Rc::clone(&x_ref), Rc::clone(&monitoring_app_ref));
-                //     }
-                // });
-
-                elements_container.add(&hbox);
-
-                elements_container.show_all();
-
-                // Initial call to populate the camera list
-                update_camera_list(&camera_list_box.borrow(), &monitoring_app_ref);
-            },
-            Err(_) => {
-                println!("Error: intenta conectarte de nuevo");
-
-                handle_connection(&elements_container);
-            },
+impl App for MyApp {
+    fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
+        if !self.connected {
+            self.handle_form(ctx, _frame);
+        } else {
+            self.handle_map(ctx, _frame);
         }
-        }));
-}
-
-fn get_connect_form() -> (gtk::Box, Entry, Entry, Entry, Entry, gtk::Button) {
-    let vbox = Box::new(Orientation::Vertical, 5);
-
-    let label = Label::new(Some("Ingrese al servidor"));
-
-    let host = Entry::new();
-    host.set_placeholder_text(Some("Host: "));
-
-    let port = Entry::new();
-    port.set_placeholder_text(Some("Port: "));
-
-    let user = Entry::new();
-    user.set_placeholder_text(Some("Username: "));
-
-    let password = Entry::new();
-    password.set_placeholder_text(Some("Password: "));
-
-    let connect_btn = Button::with_label("Conectarse");
-    vbox.pack_start(&label, false, false, 0);
-    vbox.pack_start(&host, false, false, 0);
-    vbox.pack_start(&port, false, false, 0);
-    vbox.pack_start(&user, false, false, 0);
-    vbox.pack_start(&password, false, false, 0);
-    vbox.pack_start(&connect_btn, false, false, 0);
-
-    (vbox, host, port, user, password, connect_btn)
-}
-
-fn update_camera_list(camera_list_box: &gtk::Box, monitoring_app_ref: &Rc<RefCell<MonitoringApp>>) {
-    // Clear the existing list
-    camera_list_box.foreach(|widget| {
-        camera_list_box.remove(widget);
-    });
-
-    // Fetch the list of cameras from the monitoring app
-    let cameras = monitoring_app_ref.borrow().get_cameras(); // Assuming you have a method to get the list of cameras
-
-    // Add each camera to the list box
-    for camera in cameras {
-        let location = camera.get_location();
-        let camera_label = gtk::Label::new(Some(&format!(
-            "Camera at ({}, {})",
-            location.latitude, location.longitude
-        )));
-        camera_list_box.pack_start(&camera_label, false, false, 0);
     }
-
-    camera_list_box.show_all();
 }
 
-fn on_add_camera_clicked(
-    y: Rc<RefCell<f64>>,
-    x: Rc<RefCell<f64>>,
-    monitoring_app_ref: Rc<RefCell<MonitoringApp>>,
-    camera_list_box: Rc<RefCell<gtk::Box>>,
-) {
-    let lat = format!("{:.2}", y.borrow());
-    let long = format!("{:.2}", x.borrow());
-    let camera_location = Location::new(lat, long);
-    monitoring_app_ref.borrow_mut().add_camera(camera_location);
+fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
+    egui_extras::install_image_loaders(&cc.egui_ctx);
+    let camera_bytes = include_bytes!("assets/Camera.png");
+    let camera_icon = match Texture::new(camera_bytes, &cc.egui_ctx) {
+        Ok(t) => ImagesPluginData {
+            texture: t,
+            x_scale: 0.2,
+            y_scale: 0.2,
+        },
+        Err(_) => todo!(),
+    };
+    let incident_bytes = include_bytes!("assets/Incident.png");
+    let incident_icon = match Texture::new(incident_bytes, &cc.egui_ctx) {
+        Ok(t) => ImagesPluginData {
+            texture: t,
+            x_scale: 0.15,
+            y_scale: 0.15,
+        },
+        Err(_) => todo!(),
+    };
 
-    // Update the camera list panel
-    update_camera_list(&camera_list_box.borrow(), &monitoring_app_ref);
+    let circle_bytes = include_bytes!("assets/circle.png");
+    let circle_icon = match Texture::new(circle_bytes, &cc.egui_ctx) {
+        Ok(t) => ImagesPluginData {
+            texture: t,
+            x_scale: 0.2,
+            y_scale: 0.2,
+        },
+        Err(_) => todo!(),
+    };
+
+    Box::new(MyApp {
+        username: String::new(),
+        password: String::new(),
+        ip: String::new(),
+        port: String::new(),
+        connected: false,
+        map: MyMap {
+            tiles: Tiles::new(OpenStreetMap, cc.egui_ctx.clone()),
+            map_memory: MapMemory::default(),
+            click_watcher: ClickWatcher::default(),
+            cameras: vec![],
+            incidents: vec![],
+            camera_icon,
+            incident_icon,
+            camera_radius: circle_icon,
+        },
+        monitoring_app: None,
+    })
 }
 
-///Se toma la localizacion del click actual, y se crea una incidente nuevo dentro de la app de monitoreo
-fn on_add_incident_clicked(
-    y: Rc<RefCell<f64>>,
-    x: Rc<RefCell<f64>>,
-    monitoring_app_ref: Rc<RefCell<MonitoringApp>>,
-    incident_list_box: Rc<RefCell<gtk::Box>>,
-) {
-    let lat = y.borrow().to_string();
-    let long = x.borrow().to_string();
-    let incident_location = Location::new(lat, long);
-    monitoring_app_ref
-        .borrow_mut()
-        .add_incident(incident_location);
-    update_incident_list(&incident_list_box.borrow(), &monitoring_app_ref);
-}
-
-fn update_incident_list(
-    incident_list_box: &gtk::Box,
-    monitoring_app_ref: &Rc<RefCell<MonitoringApp>>,
-) {
-    // Clear the existing list
-    incident_list_box.foreach(|widget| {
-        incident_list_box.remove(widget);
-    });
-
-    // Fetch the list of incidents from the monitoring app
-    let incidents = monitoring_app_ref.borrow().get_incidents(); // Assuming you have a method to get the list of incidents
-
-    // Add each incident to the list box
-    for incident in incidents {
-        let location = incident.get_location();
-        let incident_label = gtk::Label::new(Some(&format!(
-            "Incident at ({:.2}, {:.2})",
-            location.latitude, location.longitude
-        )));
-        incident_list_box.pack_start(&incident_label, false, false, 0);
+fn main() {
+    let app_name = "Rustic City Eye";
+    let win_options = NativeOptions {
+        ..Default::default()
+    };
+    if let Err(e) = run_native(app_name, win_options, Box::new(|cc| create_my_app(cc))) {
+        eprintln!("Error: {}", e);
     }
-
-    incident_list_box.show_all();
 }

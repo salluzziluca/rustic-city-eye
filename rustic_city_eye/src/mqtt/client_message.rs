@@ -897,7 +897,7 @@ mod tests {
             "a".to_string(),
         );
 
-        let location = Location::new("12.1".to_string(), "25.0".to_string());
+        let location = Location::new(12.1, 25.0);
         let incident = Incident::new(location);
 
         let payload = PayloadTypes::IncidentLocation(IncidentPayload::new(incident));
