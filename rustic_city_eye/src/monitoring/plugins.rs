@@ -52,33 +52,32 @@ pub struct ImagesPluginData {
     pub texture: Texture,
     pub x_scale: f32,
     pub y_scale: f32,
+    pub original_scale: f32,
 }
 
 // Creates a built-in `Images` plugin with an example image.
-pub fn cameras(cameras: &mut Vec<CameraView>) -> impl Plugin {
+pub fn cameras(cameras: &mut Vec<CameraView>, zoom_level: f32) -> impl Plugin {
     let mut images_vec = vec![];
 
     for camera in cameras {
-        let mut radius = Image::new(camera.radius.texture.clone(), camera.position.clone());
-        radius.scale(camera.radius.x_scale, camera.radius.y_scale);
+        let mut radius = Image::new(camera.radius.texture.clone(), camera.position);
+        radius.scale(camera.radius.x_scale*zoom_level, camera.radius.y_scale* zoom_level);
         images_vec.push(radius);
 
-        let mut image = Image::new(camera.image.texture.clone(), camera.position.clone());
-        image.scale(camera.image.x_scale, camera.image.y_scale);
+        let mut image = Image::new(camera.image.texture.clone(), camera.position);
+        image.scale(camera.image.x_scale* zoom_level, camera.image.y_scale* zoom_level);
         images_vec.push(image);
     }
-    let images = Images::new(images_vec);
-    images
+    Images::new(images_vec)    
 }
 
-pub fn incidents(incidents: &mut Vec<IncidentView>) -> impl Plugin {
+pub fn incidents(incidents: &mut Vec<IncidentView>, zoom_level: f32) -> impl Plugin {
     let mut images_vec = vec![];
 
     for incident in incidents {
-        let mut image = Image::new(incident.image.texture.clone(), incident.position.clone());
-        image.scale(incident.image.x_scale, incident.image.y_scale);
+        let mut image = Image::new(incident.image.texture.clone(), incident.position);
+        image.scale(incident.image.x_scale* zoom_level, incident.image.y_scale* zoom_level);
         images_vec.push(image);
     }
-    let images = Images::new(images_vec);
-    images
+    Images::new(images_vec)
 }

@@ -5,17 +5,10 @@ mod windows;
 
 use eframe::{run_native, App, CreationContext, NativeOptions};
 use egui::{CentralPanel, RichText, TextStyle};
-use plugins::{cameras, incidents, ClickWatcher};
+use plugins::{cameras, incidents, ClickWatcher, ImagesPluginData};
 use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
 use walkers::{sources::OpenStreetMap, Map, MapMemory, Position, Texture, Tiles};
 use windows::{add_camera_window, add_incident_window, zoom};
-#[derive(Clone)]
-struct ImagesPluginData {
-    texture: Texture,
-    x_scale: f32,
-    y_scale: f32,
-    original_scale: f32,
-}
 
 struct MyMap {
     tiles: Tiles,
@@ -49,21 +42,6 @@ impl ImagesPluginData {
             y_scale: scale,
             original_scale,
         }
-    }
-
-    ///calcula la escala segun la escala original y el nuevo zoom level
-    fn calculate_scale(&mut self, zoom_level: f32) -> f32 {
-        self.original_scale * zoom_level
-    }
-    /// updatea la escala de la imagen, modificando los ejes segun la nueva escala
-    /// que depende del zoom
-    fn update_scale(&mut self, ctx: &egui::Context, zoom_level: f32) {
-        let scale = Self::calculate_scale(self, zoom_level);
-        self.x_scale = scale;
-        self.y_scale = scale;
-
-        // Mark UI as dirty to trigger refresh
-        ctx.request_repaint();
     }
 }
 impl MyApp {
@@ -111,12 +89,16 @@ impl MyApp {
                 );
 
                 if ui.button("Submit").clicked() {
-                    let args = vec![
+                    let mut args = vec![
                         self.username.clone(),
                         self.password.clone(),
                         self.ip.clone(),
                         self.port.clone(),
                     ];
+                    if args[2].is_empty() && args [3].is_empty(){
+                        "127.0.0.1".clone_into(&mut args[2]);
+                        "5000".clone_into(&mut args[3]);
+                    }
                     match MonitoringApp::new(args) {
                         Ok(mut monitoring_app) => {
                             let _ = monitoring_app.run_client();
@@ -145,18 +127,10 @@ impl MyApp {
                     Position::from_lon_lat(-58.368925, -34.61716),
                 )
                 .with_plugin(&mut self.map.click_watcher)
-                .with_plugin(cameras(&mut self.map.cameras))
-                .with_plugin(incidents(&mut self.map.incidents)),
+                .with_plugin(cameras(&mut self.map.cameras, self.map.zoom_level))
+                .with_plugin(incidents(&mut self.map.incidents, self.map.zoom_level)),
             );
             zoom(ui, &mut self.map.map_memory, &mut self.map.zoom_level);
-
-            // Get the current zoom level, however it's done in your code
-            let current_zoom_level = self.get_current_zoom_level();
-
-            // Update the scale for each image based on the current zoom level
-            self.map.camera_icon.update_scale(ctx, current_zoom_level);
-            self.map.incident_icon.update_scale(ctx, current_zoom_level);
-            self.map.camera_radius.update_scale(ctx, current_zoom_level);
 
             if let Some(monitoring_app) = &mut self.monitoring_app {
                 add_camera_window(ui, &mut self.map, monitoring_app);
@@ -165,10 +139,6 @@ impl MyApp {
         });
     }
 
-    /// Busca el zoom level actual
-    fn get_current_zoom_level(&self) -> f32 {
-        self.map.zoom_level
-    }
 }
 
 impl App for MyApp {

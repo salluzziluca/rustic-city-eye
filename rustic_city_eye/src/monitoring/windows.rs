@@ -16,12 +16,20 @@ pub fn zoom(ui: &Ui, map_memory: &mut MapMemory, zoom_level: &mut f32) {
             ui.horizontal(|ui| {
                 if ui.button(RichText::new("➕").heading()).clicked() {
                     let _ = map_memory.zoom_in();
-                    *zoom_level += 1.0;
+                    *zoom_level += 0.1;
+                    if *zoom_level > 1.3 {
+                        *zoom_level = 1.3;
+                    }
+                    println!("Zoom level: {}", zoom_level)
                 }
 
                 if ui.button(RichText::new("➖").heading()).clicked() {
                     let _ = map_memory.zoom_out();
-                    *zoom_level -= 1.0;
+                    *zoom_level -= 0.1;
+                    if *zoom_level < 0.1 {
+                        *zoom_level = 0.1;
+                    }
+                    println!("Zoom level: {}", zoom_level)
                 }
             });
         });
