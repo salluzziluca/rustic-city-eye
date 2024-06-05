@@ -72,3 +72,21 @@ pub fn add_incident_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monito
             });
         });
 }
+
+pub fn add_disconnect_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut MonitoringApp, connected: &mut bool) {
+    Window::new("Disconnect")
+        .collapsible(false)
+        .resizable(false)
+        .title_bar(false)
+        .anchor(Align2::RIGHT_BOTTOM, [-10., -30.])
+        .show(ui.ctx(), |ui| {
+            ui.horizontal(|ui| {
+                if ui.button(RichText::new("DIsconnect").heading()).clicked() {
+                    // monitoring_app.disconnect();    No está implementado?
+                    map.cameras.clear();
+                    map.incidents.clear();
+                    *connected = false;
+                }
+            });
+        });
+}

@@ -8,7 +8,7 @@ use egui::{CentralPanel, RichText, TextStyle};
 use plugins::{cameras, incidents, ClickWatcher, ImagesPluginData};
 use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
 use walkers::{sources::OpenStreetMap, Map, MapMemory, Position, Texture, Tiles};
-use windows::{add_camera_window, add_incident_window, zoom};
+use windows::{add_camera_window, add_incident_window, zoom, add_disconnect_window};
 
 struct MyMap {
     tiles: Tiles,
@@ -135,6 +135,7 @@ impl MyApp {
             if let Some(monitoring_app) = &mut self.monitoring_app {
                 add_camera_window(ui, &mut self.map, monitoring_app);
                 add_incident_window(ui, &mut self.map, monitoring_app);
+                add_disconnect_window(ui, &mut self.map, monitoring_app, &mut self.connected);
             }
         });
     }
