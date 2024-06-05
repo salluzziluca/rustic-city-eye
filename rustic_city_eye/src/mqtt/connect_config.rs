@@ -72,6 +72,8 @@ impl ConnectConfig {
         }
     }
 }
+#[allow(dead_code)]
+
 fn read_json_to_connect_config(json_data: &str) -> Result<ConnectConfig, Box<dyn Error>> {
     let connect_config: ConnectConfig = serde_json::from_str(json_data)?;
     Ok(connect_config)

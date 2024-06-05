@@ -181,7 +181,7 @@ impl WillProperties {
         })
     }
 }
-
+#[allow(dead_code)]
 fn read_json_to_will_properties(json_data: &str) -> Result<WillProperties, Error> {
     let will_properties: WillProperties = serde_json::from_str(json_data)?;
     Ok(will_properties)

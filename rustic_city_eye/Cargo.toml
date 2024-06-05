@@ -19,7 +19,6 @@ egui = "0.27.2"
 eframe = "0.27.2"
 egui_extras = { version = "*", features = ["all_loaders"] }
 image = { version = "0.25.1", features = ["jpeg", "png"] }
-walkers = "0.22.0"
 
 [[bin]]
 name = "broker"

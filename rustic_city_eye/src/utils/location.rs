@@ -23,14 +23,8 @@ mod tests {
 
     #[test]
     fn test_location_new() {
-        let location = Location::new("1.0".to_string(), "2.0".to_string());
-        assert_eq!(location.latitude, 1.0);
-        assert_eq!(location.longitude, 2.0);
-    }
-
-    #[test]
-    fn test_location_parse_to_string() {
-        let location = Location::new("1.0".to_string(), "2.0".to_string());
-        assert_eq!(location.parse_to_string(), "(1, 2)");
+        let location = Location::new(1.0, 2.0);
+        assert_eq!(location.lat, 1.0);
+        assert_eq!(location.long, 2.0);
     }
 }

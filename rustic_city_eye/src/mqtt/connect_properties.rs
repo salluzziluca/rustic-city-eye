@@ -289,9 +289,11 @@ impl ConnectPropertiesBuilder {
         self
     }
 }
+#[allow(dead_code)]
+
 fn read_json_to_connect_properties(json_data: &str) -> Result<ConnectProperties, Error> {
-    let will_properties: ConnectProperties = serde_json::from_str(json_data)?;
-    Ok(will_properties)
+    let connect_properties: ConnectProperties = serde_json::from_str(json_data)?;
+    Ok(connect_properties)
 }
 #[cfg(test)]
 mod tests {
