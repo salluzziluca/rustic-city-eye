@@ -109,7 +109,7 @@ mod tests {
         let incident_payload = IncidentPayload::new(incident.clone());
         let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
 
-        assert_eq!(payload.as_any().is::<PayloadTypes>(), true);
+        assert!(payload.as_any().is::<PayloadTypes>());
     }
 
     #[test]

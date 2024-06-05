@@ -112,6 +112,6 @@ mod tests {
     #[test]
     fn test_read_bool() {
         let mut cursor = Cursor::new(vec![1]);
-        assert_eq!(read_bool(&mut cursor).unwrap(), true);
+        assert!(read_bool(&mut cursor).unwrap());
     }
 }
