@@ -17,7 +17,7 @@ use crate::{
     utils::threadpool::ThreadPool,
 };
 
-use super::client_return::ClientReturn;
+use super::{client_return::ClientReturn, subscription::Subscription};
 
 #[derive(Debug)]
 pub struct Client {
@@ -26,9 +26,11 @@ pub struct Client {
     // stream es el socket que se conecta al broker
     stream: TcpStream,
 
-    // las subscriptions son un hashmap de topic y sub_id
-    pub subscriptions: Arc<Mutex<HashMap<String, u8>>>,
-    // user_id: u32,
+    // las subscriptions es un vector de topics a los que el cliente está subscrito
+    pub subscriptions: Arc<Mutex<Vec<String>>>,
+
+    //
+    pub client_id: String,
 }
 
 impl Client {
@@ -87,12 +89,13 @@ impl Client {
             println!("soy el client y no pude leer el mensaje");
         };
 
-        let _user_id = Client::assign_user_id();
+        let client_id = connect_config.client_id;
 
         Ok(Client {
             receiver_channel: Arc::new(Mutex::new(receiver_channel)),
             stream,
-            subscriptions: Arc::new(Mutex::new(HashMap::new())),
+            subscriptions: Arc::new(Mutex::new(Vec::new())),
+            client_id,
         })
     }
 
@@ -111,17 +114,8 @@ impl Client {
     pub fn subscribe(
         message: ClientMessage,
         packet_id: u16,
-        topic: &str,
         mut stream: TcpStream,
-        subscriptions: Arc<Mutex<HashMap<String, u8>>>,
     ) -> Result<u16, ClientError> {
-        let sub_id = Client::assign_subscription_id();
-        let topic = topic.to_string();
-
-        let subscriptions = subscriptions.clone();
-
-        subscriptions.lock().unwrap().insert(topic.clone(), sub_id);
-
         match message.write_to(&mut stream) {
             Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
@@ -134,14 +128,6 @@ impl Client {
         let sub_id: u8 = rng.gen();
 
         sub_id
-    }
-
-    fn assign_user_id() -> u32 {
-        //let mut rng = rand::thread_rng();
-
-        //let user_id: u32 = rng.gen();
-
-        1111
     }
 
     pub fn unsubscribe(
@@ -251,7 +237,7 @@ impl Client {
     pub fn receive_messages(
         stream: TcpStream,
         receiver: Receiver<u16>,
-        subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
+        subscriptions_clone: Arc<Mutex<Vec<String>>>,
     ) -> Result<(), ProtocolError> {
         let mut pending_messages = Vec::new();
 
@@ -286,7 +272,7 @@ impl Client {
         receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
         mut desconectar: bool,
         sender: Sender<u16>,
-        subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
+        subscriptions_clone: Arc<Mutex<Vec<String>>>,
     ) -> Result<(), ProtocolError> {
         while !desconectar {
             loop {
@@ -351,53 +337,50 @@ impl Client {
 
                         ClientMessage::Subscribe {
                             packet_id,
-                            topic_name,
                             properties,
-                        } => {
-                            if subscriptions_clone
-                                .lock()
-                                .unwrap()
-                                .contains_key(&topic_name.to_string())
-                            {
-                                println!("Ya estoy subscrito a este topic");
-                            }
+                            payload,
+                        } => match stream.try_clone() {
+                            Ok(stream_clone) => {
+                                let subscribe = ClientMessage::Subscribe {
+                                    packet_id,
+                                    properties,
+                                    payload,
+                                };
 
-                            match stream.try_clone() {
-                                Ok(stream_clone) => {
-                                    let subscribe = ClientMessage::Subscribe {
-                                        packet_id,
-                                        topic_name: topic_name.clone(),
-                                        properties,
-                                    };
-                                    if let Ok(packet_id) = Client::subscribe(
+                                for subscription in payload {
+                                    if let Ok(packet_id) = (Client::subscribe {
                                         subscribe,
                                         packet_id,
-                                        &topic_name,
                                         stream_clone,
-                                        subscriptions_clone.clone(),
-                                    ) {
+                                    }) {
                                         match sender.send(packet_id) {
                                             Ok(_) => {
-                                                let provitional_sub_id = 1;
-                                                let topic_new = topic_name.to_string();
-                                                subscriptions_clone
-                                                    .lock()
-                                                    .unwrap()
-                                                    .insert(topic_new, provitional_sub_id);
+                                                let topic_new = subscription.topic.to_string();
+                                                match subscriptions_clone.lock() {
+                                                    Ok(mut guard) => {
+                                                        guard.push(topic_new);
+                                                    }
+                                                    Err(e) => {
+                                                        println!(
+                                                            "Error al obtener el bloqueo: {}",
+                                                            e
+                                                        );
+                                                    }
+                                                }
                                             }
                                             Err(_) => {
                                                 println!(
-                                                    "Error al enviar el packet_id del suback al receiver"
-                                                )
+                                                        "Error al enviar el packet_id del suback al receiver"
+                                                    )
                                             }
                                         }
                                     }
                                 }
-                                Err(_) => {
-                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
-                                }
                             }
-                        }
+                            Err(_) => {
+                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                            }
+                        },
                         ClientMessage::Unsubscribe {
                             packet_id,
                             topic_name,
@@ -416,7 +399,14 @@ impl Client {
                                     match sender.send(packet_id) {
                                         Ok(_) => {
                                             let topic_new = topic_name.to_string();
-                                            subscriptions_clone.lock().unwrap().remove(&topic_new);
+                                            match subscriptions_clone.lock() {
+                                                Ok(mut guard) => {
+                                                    guard.retain(|x| x != &topic_new);
+                                                }
+                                                Err(e) => {
+                                                    println!("Error al obtener el bloqueo: {}", e);
+                                                }
+                                            }
                                         }
                                         Err(_) => {
                                             println!(
@@ -513,7 +503,7 @@ impl Client {
 /// O ProtocolError en caso de error
 pub fn handle_message(
     mut stream: TcpStream,
-    subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
+    subscriptions_clone: Arc<Mutex<Vec<String>>>,
     pending_messages: Vec<u16>,
 ) -> Result<ClientReturn, ProtocolError> {
     if let Ok(message) = BrokerMessage::read_from(&mut stream) {
@@ -568,13 +558,16 @@ pub fn handle_message(
                 //si lo encuentra, lo reemplaza por el sub_id que llega en el mensaje
                 let mut topic = String::new();
                 let mut lock = subscriptions_clone.lock().unwrap();
-                for (key, value) in lock.iter() {
-                    if *value == 1 {
-                        topic.clone_from(key);
+
+                for (key, value) in lock.iter().enumerate() {
+                    if value == "1" {
+                        topic = value.to_string();
+                        lock.remove(key);
                     }
                 }
-                lock.remove(&topic);
-                lock.insert(topic, sub_id);
+
+                lock.retain(|x| x != &topic);
+                lock.push(topic);
 
                 println!("Recibi un mensaje {:?}", message);
                 Ok(ClientReturn::SubackRecieved)
@@ -638,11 +631,5 @@ mod tests {
     fn test_assign_subscription_id() {
         let sub_id = Client::assign_subscription_id();
         assert_ne!(sub_id, 0);
-    }
-
-    #[test]
-    fn test_assign_user_id() {
-        let user_id = Client::assign_user_id();
-        assert_eq!(user_id, 1111);
     }
 }
