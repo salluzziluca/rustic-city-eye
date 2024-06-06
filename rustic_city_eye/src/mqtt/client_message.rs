@@ -8,6 +8,7 @@ use crate::mqtt::will_properties::*;
 use crate::utils::{reader::*, writer::*};
 
 use super::payload::Payload;
+use super::subscription::Subscription;
 
 const PROTOCOL_VERSION: u8 = 5;
 const SESSION_EXPIRY_INTERVAL_ID: u8 = 0x11;
@@ -72,8 +73,8 @@ pub enum ClientMessage {
     /// El Subscribe Message se utiliza para suscribirse a uno o más topics. El cliente puede enviar un mensaje de subscribe con un packet id y una lista de topics a los que se quiere suscribir. El broker responde con un mensaje de suback con el mismo packet id y una lista de return codes que indican si la suscripcion fue exitosa o no.
     Subscribe {
         packet_id: u16,
-        /// topic_name es el nombre del topic al que se quiere suscribir.
-        topic_name: String,
+        /// subscription es un struct que contiene la informacion de la suscripcion.
+        subscription: Subscription,
         /// properties es un struct que contiene las propiedades del mensaje de subscribe.
         properties: SubscribeProperties,
     },
@@ -225,7 +226,7 @@ impl ClientMessage {
             }
             ClientMessage::Subscribe {
                 packet_id: _,
-                topic_name: _,
+                subscription: _,
                 properties: _,
             } => {
                 self.write_first_packet_byte(&mut writer)?;

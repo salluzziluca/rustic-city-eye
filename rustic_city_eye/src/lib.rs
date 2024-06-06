@@ -19,6 +19,7 @@ pub mod mqtt {
     pub mod publish_properties;
     pub mod reason_code;
     pub mod subscribe_properties;
+    pub mod subscription;
     pub mod topic;
     pub mod user_subscription;
     pub mod will_properties;
