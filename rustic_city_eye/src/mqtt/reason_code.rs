@@ -11,6 +11,7 @@ pub const PACKET_ID_IN_USE_HEX: u8 = 0x91;
 pub const QUOTA_EXCEEDED_HEX: u8 = 0x97;
 pub const PAYLOAD_FORMAT_INVALID_HEX: u8 = 0x99;
 pub const SUB_ID_DUP_HEX: u8 = 0x85;
+pub const NO_MATCHING_USER_HEX: u8 = 0x11;
 
 #[derive(Debug, PartialEq)]
 pub enum ReasonCode {
