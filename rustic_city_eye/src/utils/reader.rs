@@ -60,3 +60,58 @@ pub fn read_bool(stream: &mut dyn Read) -> Result<bool, Error> {
     stream.read_exact(&mut buf)?;
     Ok(buf[0] != 0)
 }
+
+#[cfg(test)]
+
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+
+    #[test]
+    fn test_read_string() {
+        let mut cursor = Cursor::new(vec![0, 4, 116, 101, 115, 116]);
+        assert_eq!(read_string(&mut cursor).unwrap(), "test".to_string());
+    }
+
+    #[test]
+    fn test_read_u8() {
+        let mut cursor = Cursor::new(vec![1]);
+        assert_eq!(read_u8(&mut cursor).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_read_u16() {
+        let mut cursor = Cursor::new(vec![123, 128, 129]);
+        assert_eq!(read_u16(&mut cursor).unwrap(), 31616);
+    }
+
+    #[test]
+    fn test_read_u32() {
+        let mut cursor = Cursor::new(vec![0, 1, 0, 0, 0, 2]);
+        assert_eq!(read_u32(&mut cursor).unwrap(), 65536);
+    }
+
+    #[test]
+    fn test_read_bin_vec() {
+        let mut cursor = Cursor::new(vec![0, 1, 1]);
+        assert_eq!(read_bin_vec(&mut cursor).unwrap(), vec![1]);
+    }
+
+    #[test]
+    fn test_read_tuple_vec() {
+        let mut cursor = Cursor::new(vec![
+            0, 1, 0, 4, 116, 101, 115, 116, 0, 1, 0, 4, 116, 101, 115, 116, 0, 1, 0, 4, 116, 101,
+            115, 116,
+        ]);
+        assert_eq!(
+            read_tuple_vec(&mut cursor).unwrap(),
+            vec![("test".to_string(), "\0".to_string())]
+        );
+    }
+
+    #[test]
+    fn test_read_bool() {
+        let mut cursor = Cursor::new(vec![1]);
+        assert!(read_bool(&mut cursor).unwrap());
+    }
+}

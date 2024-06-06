@@ -16,3 +16,15 @@ impl Location {
         Location { lat, long }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_location_new() {
+        let location = Location::new(1.0, 2.0);
+        assert_eq!(location.lat, 1.0);
+        assert_eq!(location.long, 2.0);
+    }
+}

@@ -137,11 +137,10 @@ impl Client {
     }
 
     fn assign_user_id() -> u32 {
-        //let mut rng = rand::thread_rng();
+        let mut rng = rand::thread_rng();
 
-        //let user_id: u32 = rng.gen();
-
-        1111
+        let user_id: u32 = rng.gen();
+        user_id
     }
 
     pub fn unsubscribe(
@@ -643,6 +642,6 @@ mod tests {
     #[test]
     fn test_assign_user_id() {
         let user_id = Client::assign_user_id();
-        assert_eq!(user_id, 1111);
+        assert_ne!(user_id, 0);
     }
 }

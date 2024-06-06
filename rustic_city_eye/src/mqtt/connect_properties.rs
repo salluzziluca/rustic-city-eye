@@ -2,7 +2,9 @@ use crate::utils::{reader::*, writer::*};
 
 use std::io::{BufReader, BufWriter, Error, ErrorKind, Read, Write};
 
-#[derive(Debug, PartialEq, Clone)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct ConnectProperties {
     pub session_expiry_interval: u32,
     pub receive_maximum: u16,
@@ -287,13 +289,55 @@ impl ConnectPropertiesBuilder {
         self
     }
 }
+#[allow(dead_code)]
 
+fn read_json_to_connect_properties(json_data: &str) -> Result<ConnectProperties, Error> {
+    let connect_properties: ConnectProperties = serde_json::from_str(json_data)?;
+    Ok(connect_properties)
+}
 #[cfg(test)]
 mod tests {
     use core::panic;
     use std::io::Cursor;
 
     use super::*;
+
+    #[test]
+    fn test_read_json_to_connect_properties() {
+        let json_data = r#"{
+            "session_expiry_interval": 30,
+            "receive_maximum": 1,
+            "maximum_packet_size": 20,
+            "topic_alias_maximum": 20,
+            "request_response_information": true,
+            "request_problem_information": true,
+            "user_properties": [
+                [
+                    "hola",
+                    "chau"
+                ]
+            ],
+            "authentication_method": "password-based",
+            "authentication_data": [
+                1,
+                2,
+                3
+            ]
+        }"#;
+        let connect_properties = read_json_to_connect_properties(json_data).unwrap();
+        let expected_connect_properties = ConnectProperties::new(
+            30,
+            1,
+            20,
+            20,
+            true,
+            true,
+            vec![("hola".to_string(), "chau".to_string())],
+            "password-based".to_string(),
+            vec![1, 2, 3],
+        );
+        assert_eq!(connect_properties, expected_connect_properties);
+    }
 
     #[test]
     fn test_01_connect_properties_ok() {

@@ -139,7 +139,6 @@ impl ClientMessage {
                 //fixed header
                 self.write_first_packet_byte(&mut writer)?;
 
-                //TODO: aca deberia ir el remaining lenght field
                 //protocol name
                 let protocol_name = "MQTT";
                 write_string(&mut writer, protocol_name)?;
