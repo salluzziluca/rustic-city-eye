@@ -7,9 +7,8 @@ use crate::mqtt::publish_properties::{PublishProperties, TopicProperties};
 use crate::mqtt::will_properties::*;
 use crate::utils::{reader::*, writer::*};
 
-use super::payload::{self, Payload};
+use super::payload::Payload;
 use super::subscription::Subscription;
-use super::topic;
 
 const PROTOCOL_VERSION: u8 = 5;
 const SESSION_EXPIRY_INTERVAL_ID: u8 = 0x11;
