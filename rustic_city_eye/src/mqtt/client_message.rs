@@ -7,8 +7,9 @@ use crate::mqtt::publish_properties::{PublishProperties, TopicProperties};
 use crate::mqtt::will_properties::*;
 use crate::utils::{reader::*, writer::*};
 
-use super::payload::Payload;
+use super::payload::{self, Payload};
 use super::subscription::Subscription;
+use super::topic;
 
 const PROTOCOL_VERSION: u8 = 5;
 const SESSION_EXPIRY_INTERVAL_ID: u8 = 0x11;
@@ -73,10 +74,10 @@ pub enum ClientMessage {
     /// El Subscribe Message se utiliza para suscribirse a uno o más topics. El cliente puede enviar un mensaje de subscribe con un packet id y una lista de topics a los que se quiere suscribir. El broker responde con un mensaje de suback con el mismo packet id y una lista de return codes que indican si la suscripcion fue exitosa o no.
     Subscribe {
         packet_id: u16,
-        /// subscription es un struct que contiene la informacion de la suscripcion.
-        subscription: Subscription,
         /// properties es un struct que contiene las propiedades del mensaje de subscribe.
         properties: SubscribeProperties,
+        /// Vector de subscription es un struct que contiene la informacion de la suscripcion.
+        payload: Vec<Subscription>,
     },
     Unsubscribe {
         packet_id: u16,
@@ -226,11 +227,15 @@ impl ClientMessage {
             }
             ClientMessage::Subscribe {
                 packet_id: _,
-                subscription: _,
                 properties: _,
+                payload: _,
             } => {
+                // fixed header
                 self.write_first_packet_byte(&mut writer)?;
+
+                // variable header
                 self.write_packet_properties(&mut writer)?;
+
                 writer.flush()?;
                 Ok(())
             }
@@ -354,8 +359,8 @@ impl ClientMessage {
             }
             ClientMessage::Subscribe {
                 packet_id: _,
-                topic_name: _,
                 properties: _,
+                payload: _,
             } => {
                 let byte_1: u8 = 0x82_u8;
                 writer.write_all(&[byte_1])?;
@@ -432,15 +437,20 @@ impl ClientMessage {
             }
             ClientMessage::Subscribe {
                 packet_id,
-                topic_name,
                 properties,
+                payload,
             } => {
                 write_u16(writer, packet_id)?;
 
-                write_string(writer, topic_name)?;
-
                 //Properties
                 properties.write_properties(writer)?;
+
+                // payload
+
+                for subscription in payload {
+                    write_string(writer, &subscription.topic)?;
+                    write_u8(writer, &subscription.qos)?;
+                }
             }
             ClientMessage::Unsubscribe {
                 packet_id,
@@ -642,11 +652,17 @@ impl ClientMessage {
             0x82 => {
                 let packet_id = read_u16(stream)?;
                 let topic = read_string(stream)?;
+                if topic == "" {
+                    return Err(Error::new(std::io::ErrorKind::Other, "Invalid topic name"));
+                }
                 let properties = SubscribeProperties::read_properties(stream)?;
                 Ok(ClientMessage::Subscribe {
                     packet_id,
-                    topic_name: topic,
                     properties,
+                    payload: vec![Subscription {
+                        topic: topic,
+                        qos: read_u8(stream)?,
+                    }],
                 })
             }
             0xA2 => {
@@ -936,14 +952,19 @@ mod tests {
 
     #[test]
     fn test_04_subscribe_ok() {
+        let vector = vec![Subscription {
+            topic: "topic".to_string(),
+            qos: 1,
+        }];
+
         let sub = ClientMessage::Subscribe {
             packet_id: 1,
-            topic_name: "topico".to_string(),
             properties: SubscribeProperties::new(
                 1,
                 vec![("propiedad".to_string(), "valor".to_string())],
                 vec![0, 1, 2, 3],
             ),
+            payload: vector,
         };
 
         let mut cursor = Cursor::new(Vec::<u8>::new());
