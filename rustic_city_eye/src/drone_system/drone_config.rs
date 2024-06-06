@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 use std::{fs::File, io::BufReader};
 
-use super::drone_error::DroneError;
+use super::{drone_error::DroneError, drone_state::DroneState};
 
 /// Sirve para levantar la configuracion del Drone a partir del JSON.
 /// Pone a correr al Drone:
@@ -42,7 +42,7 @@ impl DroneConfig {
 
     /// Simula la descarga de bateria del Drone, dependiendo de su
     /// tasa de descarga en milisegundos.
-    pub fn run_drone(&mut self) {
+    pub fn run_drone(&mut self) -> DroneState {
         let mut start_time = Utc::now();
 
         while self.battery_level > 0 {
@@ -62,6 +62,8 @@ impl DroneConfig {
                 start_time = current_time;
             }
         }
+
+        DroneState::LowBatteryLevel
     }
 }
 
@@ -96,6 +98,8 @@ mod tests {
         let mut config =
             DroneConfig::read_drone_config("./src/drone_system/drone_config.json").unwrap();
 
-        config.run_drone();
+        let final_drone_state = config.run_drone();
+
+        assert_eq!(final_drone_state, DroneState::LowBatteryLevel);
     }
 }

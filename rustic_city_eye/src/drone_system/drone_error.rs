@@ -1,7 +1,6 @@
 use std::fmt;
 
-///Here are detailed all the errors that the protocol is capable of throwing.
-/// Unspecified se usa de placeholder para los results de los tests
+/// Errores que se pueden lanzar desde el software de control de Drones.
 #[derive(Debug)]
 pub enum DroneError {
     ReadingConfigFileError,

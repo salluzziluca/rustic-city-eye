@@ -45,5 +45,7 @@ pub mod surveilling {
 pub mod drone_system {
     pub mod drone;
     pub mod drone_config;
+    pub mod drone_state;
+
     pub mod drone_error;
 }
