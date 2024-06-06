@@ -67,7 +67,7 @@ pub fn cameras(cameras: &mut Vec<CameraView>) -> impl Plugin {
         image.scale(camera.image.x_scale, camera.image.y_scale);
         images_vec.push(image);
     }
-    
+
     Images::new(images_vec)
 }
 
@@ -79,6 +79,6 @@ pub fn incidents(incidents: &mut Vec<IncidentView>) -> impl Plugin {
         image.scale(incident.image.x_scale, incident.image.y_scale);
         images_vec.push(image);
     }
-    
+
     Images::new(images_vec)
 }

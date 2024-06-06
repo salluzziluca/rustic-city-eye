@@ -45,7 +45,7 @@ impl Topic {
                         Ok(mut guard2) => {
                             guard2.remove(&subscription);
                             guard2
-                        },
+                        }
                         Err(_) => return reason_code::UNSPECIFIED_ERROR_HEX,
                     };
                 }
@@ -165,7 +165,7 @@ mod tests {
         let subscription = UserSubscription::new(user_id, 1);
         let result = topic.add_user_to_topic(stream, subscription);
         assert_eq!(result, 0x00);
-        let result = topic.remove_user_from_topic(subscription);    
+        let result = topic.remove_user_from_topic(subscription);
         assert_eq!(result, 0x00);
     }
 
@@ -182,12 +182,12 @@ mod tests {
         assert_eq!(result, 0x00);
     }
 
-    /*
     use crate::{
         monitoring::incident::Incident,
         mqtt::publish_properties::{PublishProperties, TopicProperties},
         utils::{incident_payload, location::Location, payload_types::PayloadTypes},
     };
+
     #[test]
     fn test_deliver_message() {
         let mut topic = Topic::new();
@@ -262,5 +262,5 @@ mod tests {
             Err(err) => panic!("Error al enviar mensaje: {:?}", err),
         };
         assert_eq!(result, 0x10);
-    }*/
+    }
 }

@@ -1,4 +1,3 @@
-
 // UserSubscription es una estructura que representa una suscripción de un usuario a un topic
 #[derive(Debug, Eq, Hash, PartialEq)]
 pub struct UserSubscription {
