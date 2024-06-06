@@ -12,12 +12,12 @@ pub struct Drone {
 
     ///  El Drone puede tener distintos estados:
     /// - Waiting: esta circulando en su radio de operacion, pero no esta atendiendo ningun incidente.
-    /// - AttendingIncident: un nuevo incidente fue cargado por la app de monitoreo, y el Drone fue asignado 
+    /// - AttendingIncident: un nuevo incidente fue cargado por la app de monitoreo, y el Drone fue asignado
     ///                         a resolverlo.
-    /// - LowBatteryLevel: el Drone se quedo sin bateria, por lo que va a su central a cargarse, y no va a volver a 
-    ///                    funcionar hasta que tenga el nivel de bateria completo(al terminar de cargarse, vuelve a 
+    /// - LowBatteryLevel: el Drone se quedo sin bateria, por lo que va a su central a cargarse, y no va a volver a
+    ///                    funcionar hasta que tenga el nivel de bateria completo(al terminar de cargarse, vuelve a
     ///                    tener el estado Waiting).
-    drone_state: DroneState
+    drone_state: DroneState,
 }
 
 impl Drone {
@@ -32,19 +32,18 @@ impl Drone {
             longitude,
             latitude,
             drone_config,
-            drone_state: DroneState::Waiting
+            drone_state: DroneState::Waiting,
         })
     }
 
-    /// Pongo a correr el Drone. Ira descargando su bateria dependiendo de 
-    /// su configuracion. Una vez que se descarga, su estado para a ser de Low Battery Level, 
+    /// Pongo a correr el Drone. Ira descargando su bateria dependiendo de
+    /// su configuracion. Una vez que se descarga, su estado para a ser de Low Battery Level,
     /// y va a proceder a moverse hacia su central.
     pub fn run_drone(&mut self) {
         let drone_state = self.drone_config.run_drone();
 
         self.drone_state = drone_state;
     }
-
 
     pub fn get_state(self) -> DroneState {
         self.drone_state
@@ -76,7 +75,7 @@ mod tests {
     }
 
     #[test]
-    fn test_02_drone_low_battery_level_state_ok () {
+    fn test_02_drone_low_battery_level_state_ok() {
         let latitude = 1.1;
         let longitude = 12.1;
         let mut drone = Drone::new(latitude, longitude).unwrap();
