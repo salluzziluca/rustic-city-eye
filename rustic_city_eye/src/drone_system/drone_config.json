@@ -1,4 +1,5 @@
 {
     "battery_level": 100,
+    "battery_discharge_rate_milisecs": 50,
     "operation_radius": 3
 }
