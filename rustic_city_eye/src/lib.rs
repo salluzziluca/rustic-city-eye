@@ -1,5 +1,4 @@
 pub mod doc;
-pub mod drone_system;
 pub mod utils;
 #[doc = include_str!("doc/informe.md")]
 #[doc = include_str!("doc/marco_teorico.md")]
@@ -41,4 +40,10 @@ pub mod monitoring {
 pub mod surveilling {
     pub mod camera;
     pub mod camera_system;
+}
+
+pub mod drone_system {
+    pub mod drone;
+    pub mod drone_config;
+    pub mod drone_error;
 }
