@@ -14,7 +14,7 @@ use crate::mqtt::{
     reason_code::{
         NO_MATCHING_SUBSCRIBERS_HEX, SUB_ID_DUP_HEX, SUCCESS_HEX, UNSPECIFIED_ERROR_HEX,
     },
-    topic::Topic,
+    topic::Topic, user_subscription::UserSubscription,
 };
 use crate::utils::threadpool::ThreadPool;
 
@@ -134,11 +134,11 @@ impl Broker {
         stream: TcpStream,
         mut topics: HashMap<String, Topic>,
         topic_name: String,
-        sub_id: u8,
+        usersubscription: UserSubscription,
     ) -> Result<u8, ProtocolError> {
         let reason_code;
         if let Some(topic) = topics.get_mut(&topic_name) {
-            match topic.add_subscriber(stream, sub_id) {
+            match topic.add_user_to_topic(stream, usersubscription) {
                 0 => {
                     println!("Subscripcion exitosa");
                     reason_code = SUCCESS_HEX;
@@ -186,7 +186,7 @@ impl Broker {
         let reason_code;
 
         if let Some(topic) = topics.get_mut(&topic_name) {
-            match topic.remove_subscriber(sub_id) {
+            match topic.remove_user_from_topic(sub_id) {
                 0 => {
                     println!("Unsubscribe exitoso");
                     reason_code = SUCCESS_HEX;
@@ -342,14 +342,14 @@ pub fn handle_messages(
         }
         ClientMessage::Subscribe {
             packet_id,
-            topic_name,
             properties,
+            payload,
         } => {
             println!("Recibi un Subscribe");
             let msg = ClientMessage::Subscribe {
                 packet_id,
-                topic_name: topic_name.clone(),
                 properties: properties.clone(),
+                payload: payload.clone(),
             };
             Broker::save_packet(packets.clone(), msg, packet_id);
 
@@ -360,46 +360,48 @@ pub fn handle_messages(
                 Err(_) => return Err(ProtocolError::StreamError),
             };
 
-            let reason_code = Broker::handle_subscribe(
-                stream_for_topic,
-                topics.clone(),
-                topic_name,
-                properties.sub_id,
-            )?;
-            match reason_code {
-                0 => {
-                    println!("Enviando un Suback");
-                    let suback = BrokerMessage::Suback {
-                        packet_id_msb: packet_id_bytes[0],
-                        packet_id_lsb: packet_id_bytes[1],
-                        reason_code: 0,
-                        sub_id: properties.sub_id,
-                    };
-                    match suback.write_to(&mut stream) {
-                        Ok(_) => {
-                            println!("Suback enviado");
-                            return Ok(ProtocolReturn::SubackSent);
-                        }
-                        Err(err) => println!("Error al enviar suback: {:?}", err),
-                    }
-                }
-                _ => {
-                    let suback = BrokerMessage::Suback {
-                        packet_id_msb: packet_id_bytes[0],
-                        packet_id_lsb: packet_id_bytes[1],
-                        reason_code: 0x80,
-                        sub_id: properties.sub_id,
-                    };
-                    println!("Enviando un Suback");
-                    match suback.write_to(&mut stream) {
-                        Ok(_) => {
-                            println!("Suback enviado");
-                            return Ok(ProtocolReturn::SubackSent);
-                        }
-                        Err(err) => println!("Error al enviar suback: {:?}", err),
-                    }
-                }
+            let user_id = 0;
+            let mut reason_code_vec = Vec::new();
+
+            for p in payload {
+                let topic = p.topic;
+                let qos = p.qos;
+                let new_sub = UserSubscription {
+                    user_id,
+                    qos,
+                };
+
+                let reason_code = Broker::handle_subscribe(
+                    stream_for_topic,
+                    topics.clone(),
+                    p.topic,
+                    new_sub,
+                )?;
+
+                reason_code_vec.push(reason_code);
             }
+
+            
+
+
+            
+            
+            
+            println!("Enviando un Suback");
+            let suback = BrokerMessage::Suback {
+                packet_id_msb: packet_id_bytes[0],
+                packet_id_lsb: packet_id_bytes[1],
+                reason_code: 0,
+            };
+            match suback.write_to(&mut stream) {
+                Ok(_) => {
+                    println!("Suback enviado");
+                    return Ok(ProtocolReturn::SubackSent);
+                }
+                Err(err) => println!("Error al enviar suback: {:?}", err),
+            }
+             
+                
             return Ok(ProtocolReturn::SubackSent);
         }
         ClientMessage::Unsubscribe {
