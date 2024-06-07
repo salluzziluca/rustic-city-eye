@@ -66,28 +66,8 @@ impl Drone {
 mod tests {
     use super::*;
 
-    // #[test]
-    // fn test_01_drone_creation_ok() {
-    //     let latitude = 1.1;
-    //     let longitude = 12.1;
-    //     let drone_config =
-    //         DroneConfig::read_drone_config("./src/drone_system/drone_config.json").unwrap();
-
-    //     let drone = Drone::new(latitude, longitude).unwrap();
-
-    //     assert_eq!(
-    //         Drone {
-    //             longitude: 12.1,
-    //             latitude: 1.1,
-    //             drone_config,
-    //             drone_state: DroneState::Waiting
-    //         },
-    //         drone
-    //     );
-    // }
-
     #[test]
-    fn test_02_drone_low_battery_level_state_ok() {
+    fn test_01_drone_low_battery_level_state_ok() {
         let latitude = 0.0;
         let longitude = 0.0;
         let mut drone = Drone::new(latitude, longitude).unwrap();
