@@ -138,7 +138,6 @@ mod tests {
             packet_id_msb: 3,
             packet_id_lsb: 1,
             reason_code: 3,
-            sub_id: 2,
         };
         thread::spawn(move || {
             let mut stream = TcpStream::connect(addr).unwrap();
