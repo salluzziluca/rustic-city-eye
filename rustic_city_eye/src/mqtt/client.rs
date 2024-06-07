@@ -333,8 +333,7 @@ impl Client {
                             Err(_) => {
                                 return Err::<(), ProtocolError>(ProtocolError::StreamError);
                             }
-                        },
-
+                        }
                         ClientMessage::Subscribe {
                             packet_id,
                             properties,
@@ -360,18 +359,13 @@ impl Client {
                                                     Ok(mut guard) => {
                                                         guard.push(topic_new);
                                                     }
-                                                    Err(e) => {
-                                                        println!(
-                                                            "Error al obtener el bloqueo: {}",
-                                                            e
-                                                        );
+                                                    Err(_) => {
+                                                        return Err::<(), ProtocolError>(ProtocolError::StreamError);
                                                     }
                                                 }
                                             }
                                             Err(_) => {
-                                                println!(
-                                                        "Error al enviar el packet_id del suback al receiver"
-                                                    )
+                                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
                                             }
                                         }
                                     }
@@ -380,7 +374,7 @@ impl Client {
                             Err(_) => {
                                 return Err::<(), ProtocolError>(ProtocolError::StreamError);
                             }
-                        },
+                        }
                         ClientMessage::Unsubscribe {
                             packet_id,
                             topic_name,
@@ -419,8 +413,7 @@ impl Client {
                             Err(_) => {
                                 return Err::<(), ProtocolError>(ProtocolError::StreamError);
                             }
-                        },
-
+                        }
                         ClientMessage::Disconnect {
                             reason_code: _,
                             session_expiry_interval: _,
@@ -451,7 +444,6 @@ impl Client {
                             }
                             break;
                         }
-
                         ClientMessage::Pingreq => {
                             match stream.try_clone() {
                                 Ok(mut stream_clone) => {
@@ -544,7 +536,6 @@ pub fn handle_message(
                 packet_id_msb,
                 packet_id_lsb,
                 reason_code: _,
-                sub_id,
             } => {
                 for pending_message in &pending_messages {
                     let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
@@ -553,21 +544,6 @@ pub fn handle_message(
                         println!("suback con id {} {} recibido", packet_id_msb, packet_id_lsb);
                     }
                 }
-
-                //busca el sub_id 1 en el hash de subscriptions
-                //si lo encuentra, lo reemplaza por el sub_id que llega en el mensaje
-                let mut topic = String::new();
-                let mut lock = subscriptions_clone.lock().unwrap();
-
-                for (key, value) in lock.iter().enumerate() {
-                    if value == "1" {
-                        topic = value.to_string();
-                        lock.remove(key);
-                    }
-                }
-
-                lock.retain(|x| x != &topic);
-                lock.push(topic);
 
                 println!("Recibi un mensaje {:?}", message);
                 Ok(ClientReturn::SubackRecieved)

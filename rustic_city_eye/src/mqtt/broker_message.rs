@@ -41,7 +41,6 @@ pub enum BrokerMessage {
         packet_id_lsb: u8,
         /// reason_code es el código de razón de la confirmación
         reason_code: u8,
-        sub_id: u8,
     },
     PublishDelivery {
         packet_id: u16,
