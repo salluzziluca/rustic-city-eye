@@ -66,11 +66,12 @@ impl CameraSystem {
         };
 
         let subscribe_config = SubscribeConfig::new(
-            "incidente".to_string(),
+            "cameras".to_string(),
+            1,
             SubscribeProperties::new(
-                0,
-                vec![("propiedad".to_string(), "valor".to_string())],
-                vec![0, 1, 2, 3],
+                1,
+                vec![("key".to_string(), "value".to_string())],
+                vec![1, 2, 3, 4],
             ),
         );
 
