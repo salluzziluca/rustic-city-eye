@@ -348,11 +348,11 @@ impl Client {
                                 };
 
                                 for subscription in payload {
-                                    if let Ok(packet_id) = (Client::subscribe {
+                                    if let Ok(packet_id) = Client::subscribe (
                                         subscribe,
                                         packet_id,
                                         stream_clone,
-                                    }) {
+                                    ) {
                                         match sender.send(packet_id) {
                                             Ok(_) => {
                                                 let topic_new = subscription.topic.to_string();
