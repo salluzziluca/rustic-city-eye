@@ -27,7 +27,7 @@ pub struct DroneConfig {
 
     /// El Drone circulara en un area de operacion determinado por el archivo de configuracion.
     /// A medida que pasa el tiempo, el Drone va moviendose dentro de ese area.
-    operation_radius: usize,
+    operation_radius: f64,
 
     /// Es la velocidad con la que el Drone va a circular.
     /// Para simplificarle la vida al usuario, el valor que se
@@ -59,13 +59,20 @@ impl DroneConfig {
     /// al Drone(siempre y cuando tenga bateria).
     pub fn run_drone(
         &mut self,
-        _latitude: f64,
-        _longitude: f64,
+        latitude: f64,
+        longitude: f64,
         location_sender: Sender<(f64, f64)>,
     ) -> DroneState {
         let battery_clone = self.battery_level.clone();
         let battery_clone_two = battery_clone.clone();
         let battery_discharge_rate = self.battery_discharge_rate_milisecs;
+        let radius = self.operation_radius;
+
+        // cuando se pone a correr al drone, se toma a su posicion inicial
+        // como el centro de su area de operacion(es un circulo!)
+        let center_lat = latitude;
+        let center_long = longitude;
+
 
         let discharge_battery = std::thread::spawn(move || {
             let mut start_time = Utc::now();
@@ -96,15 +103,50 @@ impl DroneConfig {
             }
         });
 
-        let move_drone = std::thread::spawn(move || loop {
-            let lock = battery_clone_two.read().unwrap();
-            if *lock > 0 {
-                let new_lat = 10.0;
-                let new_long = 10.0;
+        let move_drone = std::thread::spawn(move || {
+            let mut current_lat = latitude;
+            let mut current_long = longitude;
+            let mut last_move_time = Utc::now();
+            let mut rng = rand::thread_rng();
+    
+            loop {
+                let lock = battery_clone_two.read().unwrap();
+                if *lock > 0 {
+                    let current_time = Utc::now();
+                    let elapsed_time = current_time
+                        .signed_duration_since(last_move_time)
+                        .num_milliseconds();
+    
+                    if elapsed_time >= 50 {
+                        let mut new_lat;
+                        let mut new_long;
 
-                let _ = location_sender.send((new_lat, new_long));
-            } else {
-                break;
+                        loop {
+                            let delta_lat: f64 = rng.gen_range(-radius..radius);
+                            let delta_long: f64 = rng.gen_range(-radius..radius);
+
+                            new_lat = current_lat + delta_lat;
+                            new_long = current_long + delta_long;
+
+                            let distance_from_center = ((new_lat - center_lat).powi(2) + (new_long - center_long).powi(2)).sqrt();
+                            if distance_from_center <= radius {
+                                break;
+                            } else {
+                                println!("Generated move out of bounds: ({}, {}). Regenerating...", new_lat, new_long);
+                            }
+                        }
+
+                        current_lat = new_lat;
+                        current_long = new_long;
+
+                        println!("Moving to ({}, {})", new_lat, new_long);
+                        let _ = location_sender.send((new_lat, new_long));
+    
+                        last_move_time = current_time;
+                    }
+                } else {
+                    break;
+                }
             }
         });
 

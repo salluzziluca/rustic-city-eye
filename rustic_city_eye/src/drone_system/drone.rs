@@ -88,8 +88,8 @@ mod tests {
 
     #[test]
     fn test_02_drone_low_battery_level_state_ok() {
-        let latitude = 1.1;
-        let longitude = 12.1;
+        let latitude = 0.0;
+        let longitude = 0.0;
         let mut drone = Drone::new(latitude, longitude).unwrap();
 
         drone.run_drone();
