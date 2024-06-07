@@ -8,7 +8,7 @@ use crate::mqtt::broker_message::BrokerMessage;
 
 use super::client_message::ClientMessage;
 
-use super::user_subscription::UserSubscription;
+use super::subscription::Subscription;
 
 use super::reason_code;
 
@@ -16,7 +16,7 @@ use super::reason_code;
 #[derive(Debug, Clone)]
 pub struct Topic {
     /// Hashmap de subscriptores.
-    users: Arc<RwLock<HashMap<UserSubscription, TcpStream>>>,
+    users: Arc<RwLock<HashMap<Subscription, TcpStream>>>,
 }
 
 impl Default for Topic {
@@ -36,7 +36,7 @@ impl Topic {
     // Si el usuario ya existe en el tópic, lo elimina y lo vuelve a agregar
     // Si el usuario no existe en el tópic, lo agrega
     // Retorna el reason code de la operación
-    pub fn add_user_to_topic(&mut self, stream: TcpStream, subscription: UserSubscription) -> u8 {
+    pub fn add_user_to_topic(&mut self, stream: TcpStream, subscription: Subscription) -> u8 {
         //verificar si el user_id ya existe en topic users
         match self.users.read() {
             Ok(guard) => {
@@ -62,7 +62,7 @@ impl Topic {
         reason_code::SUCCESS_HEX
     }
 
-    pub fn remove_user_from_topic(&mut self, subscription: UserSubscription) -> u8 {
+    pub fn remove_user_from_topic(&mut self, subscription: Subscription) -> u8 {
         let mut lock = match self.users.write() {
             Ok(guard) => guard,
             Err(_) => return reason_code::UNSPECIFIED_ERROR_HEX,
@@ -136,9 +136,9 @@ mod tests {
         let mut topic = Topic::new();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let stream = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
-        let user_id = 1;
+        let user_id = "user".to_string();
         let qos = 1;
-        let subscription = UserSubscription::new(user_id, qos);
+        let subscription = Subscription::new("topic".to_string(), user_id, qos);
         let result = topic.add_user_to_topic(stream, subscription);
         assert_eq!(result, 0x00);
     }
@@ -148,8 +148,8 @@ mod tests {
         let mut topic = Topic::new();
         let listener = TcpListener::bind("127.0.0.1:0");
         let stream = TcpStream::connect(listener.unwrap().local_addr().unwrap()).unwrap();
-        let user_id = 1;
-        let subscription = UserSubscription::new(user_id, 1);
+        let user_id = "user".to_string();
+        let subscription = Subscription::new("topic".to_string(), user_id, 1);
         let result = topic.add_user_to_topic(stream, subscription);
         assert_eq!(result, 0x00);
         let result = topic.add_user_to_topic(stream, subscription);
@@ -161,8 +161,8 @@ mod tests {
         let mut topic = Topic::new();
         let listener = TcpListener::bind("127.0.0.1:0");
         let stream = TcpStream::connect(listener.unwrap().local_addr().unwrap()).unwrap();
-        let user_id = 1;
-        let subscription = UserSubscription::new(user_id, 1);
+        let user_id = "user".to_string();
+        let subscription = Subscription::new("topic".to_string(), user_id, 1);
         let result = topic.add_user_to_topic(stream, subscription);
         assert_eq!(result, 0x00);
         let result = topic.remove_user_from_topic(subscription);
@@ -174,8 +174,8 @@ mod tests {
         let mut topic = Topic::new();
         let listener = TcpListener::bind("127.0.0.1:0");
         let stream = TcpStream::connect(listener.unwrap().local_addr().unwrap()).unwrap();
-        let user_id = 1;
-        let subscription = UserSubscription::new(user_id, 1);
+        let user_id = "user".to_string();
+        let subscription = Subscription::new("topic".to_string(), user_id, 1);
         let result = topic.add_user_to_topic(stream, subscription);
         assert_eq!(result, 0x00);
         let result = topic.remove_user_from_topic(subscription);
@@ -193,8 +193,8 @@ mod tests {
         let mut topic = Topic::new();
         let listener = TcpListener::bind("127.0.0.1:0");
         let stream = TcpStream::connect(listener.unwrap().local_addr().unwrap()).unwrap();
-        let user_id = 1;
-        let subscription = UserSubscription::new(user_id, 1);
+        let user_id = "user".to_string();
+        let subscription = Subscription::new("mensajes para juan".to_string(), user_id, 1);
         let result = topic.add_user_to_topic(stream, subscription);
         let topic_properties = TopicProperties {
             topic_alias: 10,
