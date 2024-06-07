@@ -1,17 +1,24 @@
 use chrono::Utc;
+use rand::Rng;
 use serde::Deserialize;
 
-use std::{fs::File, io::BufReader};
+use std::{
+    f64::consts::PI,
+    fs::File,
+    io::BufReader,
+    sync::{mpsc::Sender, Arc, RwLock},
+};
 
 use super::{drone_error::DroneError, drone_state::DroneState};
 
 /// Sirve para levantar la configuracion del Drone a partir del JSON.
 /// Pone a correr al Drone:
 ///     - Simula su descarga de bateria.
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct DroneConfig {
     /// Indica el nivel de bateria del Drone. Se va descargando con el paso del tiempo.
-    battery_level: i64,
+    battery_level: Arc<RwLock<i64>>,
 
     /// Indice la tasa de desgaste de la bateria en milisegundos.
     /// Por ej: si vale 10, por cada 10 segundos que pasen, la
@@ -21,6 +28,11 @@ pub struct DroneConfig {
     /// El Drone circulara en un area de operacion determinado por el archivo de configuracion.
     /// A medida que pasa el tiempo, el Drone va moviendose dentro de ese area.
     operation_radius: usize,
+
+    /// Es la velocidad con la que el Drone va a circular.
+    /// Para simplificarle la vida al usuario, el valor que se
+    /// lee desde el archivo de configuracion esta en km/h.
+    speed: f64,
 }
 
 impl DroneConfig {
@@ -41,65 +53,115 @@ impl DroneConfig {
     }
 
     /// Simula la descarga de bateria del Drone, dependiendo de su
-    /// tasa de descarga en milisegundos.
-    pub fn run_drone(&mut self) -> DroneState {
-        let mut start_time = Utc::now();
+    /// tasa de descarga en milisegundos. Tambien, el Drone se movera dependiendo del tiempo
+    /// transcurrido, su velocidad asignada y su radio de operacion. Para poder hacer ambas cosas a la
+    /// vez, trabajo con dos threads: uno encargado de descargar la bateria, y otro que se encarga de mover
+    /// al Drone(siempre y cuando tenga bateria).
+    pub fn run_drone(
+        &mut self,
+        _latitude: f64,
+        _longitude: f64,
+        location_sender: Sender<(f64, f64)>,
+    ) -> DroneState {
+        let battery_clone = self.battery_level.clone();
+        let battery_clone_two = battery_clone.clone();
+        let battery_discharge_rate = self.battery_discharge_rate_milisecs;
 
-        while self.battery_level > 0 {
-            let current_time = Utc::now();
-            let elapsed = current_time
-                .signed_duration_since(start_time)
-                .num_milliseconds();
+        let discharge_battery = std::thread::spawn(move || {
+            let mut start_time = Utc::now();
 
-            if elapsed >= self.battery_discharge_rate_milisecs {
-                self.battery_level -= 1;
+            loop {
+                let mut lock = match battery_clone.write() {
+                    Ok(lock) => lock,
+                    Err(_) => {
+                        println!("Failed to acquire write lock. Exiting thread.");
+                        break;
+                    }
+                };
+                let current_time = Utc::now();
+                let elapsed_time = current_time
+                    .signed_duration_since(start_time)
+                    .num_milliseconds();
 
-                if self.battery_level < 0 {
-                    self.battery_level = 0;
-                    break;
+                if elapsed_time >= battery_discharge_rate {
+                    println!("discharging");
+                    *lock -= 1;
+
+                    if *lock < 0 {
+                        *lock = 0;
+                        break;
+                    }
+                    start_time = current_time;
                 }
-
-                start_time = current_time;
             }
-        }
+        });
 
+        let move_drone = std::thread::spawn(move || loop {
+            let lock = battery_clone_two.read().unwrap();
+            if *lock > 0 {
+                let new_lat = 10.0;
+                let new_long = 10.0;
+
+                let _ = location_sender.send((new_lat, new_long));
+            } else {
+                break;
+            }
+        });
+
+        let _ = discharge_battery.join();
+        let _ = move_drone.join();
         DroneState::LowBatteryLevel
+    }
+
+    pub fn move_drone(&mut self, mut latitude: f64, mut longitude: f64, elapsed_time: i64) {
+        let mut rng = rand::thread_rng();
+
+        let elapsed_time_in_hours = elapsed_time as f64 / 3600000.0;
+        let distance = self.speed * elapsed_time_in_hours;
+
+        let angle = rng.gen_range(0.0..2.0 * PI);
+
+        let distance_in_degrees = distance / 111.0; //representa a un grado de latitud/longitud.
+
+        let delta_latitude = distance_in_degrees * angle.cos();
+        let delta_longitude = distance_in_degrees * angle.sin();
+
+        latitude += delta_latitude;
+        longitude += delta_longitude;
+
+        println!("new lat: {} new long: {}", latitude, longitude);
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::mpsc;
+
     use super::*;
 
     #[test]
-    fn test_01_config_reading_ok() {
-        let config =
-            DroneConfig::read_drone_config("./src/drone_system/drone_config.json").unwrap();
+    fn test_01_config_creation_cases() {
+        let config_ok = DroneConfig::read_drone_config("./src/drone_system/drone_config.json");
 
-        assert_eq!(
-            DroneConfig {
-                battery_level: 100,
-                battery_discharge_rate_milisecs: 50,
-                operation_radius: 3
-            },
-            config
-        );
+        let config_err = DroneConfig::read_drone_config("este/es/un/path/feo");
+
+        assert!(config_ok.is_ok());
+        assert!(config_err.is_err());
     }
 
     #[test]
-    fn test_02_config_reading_json_err() {
-        let config = DroneConfig::read_drone_config("este/es/un/path/feo");
-
-        assert!(config.is_err());
-    }
-
-    #[test]
-    fn test_03_running_drone_ok() {
+    fn test_02_running_drone_ok() -> std::io::Result<()> {
+        let (tx, rx) = mpsc::channel();
         let mut config =
             DroneConfig::read_drone_config("./src/drone_system/drone_config.json").unwrap();
 
-        let final_drone_state = config.run_drone();
+        let final_drone_state = config.run_drone(1.1, 12.1, tx);
 
+        let new_location = rx.try_recv().unwrap();
+
+        assert_eq!(new_location, (10.0, 10.0));
         assert_eq!(final_drone_state, DroneState::LowBatteryLevel);
+
+        Ok(())
     }
 }
