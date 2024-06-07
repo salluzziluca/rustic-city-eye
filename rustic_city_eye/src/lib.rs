@@ -21,7 +21,6 @@ pub mod mqtt {
     pub mod subscribe_properties;
     pub mod subscription;
     pub mod topic;
-    pub mod user_subscription;
     pub mod will_properties;
 
     pub mod broker;
