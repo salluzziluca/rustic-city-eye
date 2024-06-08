@@ -20,9 +20,14 @@ pub struct DroneConfig {
     /// Indica el nivel de bateria del Drone. Se va descargando con el paso del tiempo.
     battery_level: Arc<RwLock<i64>>,
 
+    /// Indice la tasa de carga de la bateria en milisegundos.
+    /// Por ej: si vale 10, por cada segundo que pase, la
+    /// bateria del Drone aumentara en un 100 por ciento.
+    battery_charge_rate_milisecs: i64,
+
     /// Indice la tasa de desgaste de la bateria en milisegundos.
-    /// Por ej: si vale 10, por cada 10 segundos que pasen, la
-    /// bateria del Drone se reducira en un 1 por ciento.
+    /// Por ej: si vale 10, por cada segundo que pase, la
+    /// bateria del Drone se reducira en un 100 por ciento.
     battery_discharge_rate_milisecs: i64,
 
     /// El Drone circulara en un area de operacion determinado por el archivo de configuracion.
@@ -36,8 +41,16 @@ pub struct DroneConfig {
 }
 
 impl DroneConfig {
+    /// Leo la configuracion a partir de un archivo json.
+    pub fn new(config_file_path: &str) -> Result<DroneConfig, DroneError> {
+        match DroneConfig::read_drone_config(config_file_path) {
+            Ok(config) => Ok(config),
+            Err(err) => Err(err),
+        }
+    }
+
     /// Toma un path a un archivo de configuracion y levanta el DroneConfig.
-    pub fn read_drone_config(file_path: &str) -> Result<DroneConfig, DroneError> {
+    fn read_drone_config(file_path: &str) -> Result<DroneConfig, DroneError> {
         let config_file = match File::open(file_path) {
             Ok(file) => file,
             Err(_) => return Err(DroneError::ReadingConfigFileError),
@@ -203,6 +216,36 @@ impl DroneConfig {
             }
         }
     }
+
+    /// Carga al Drone de acuerdo a la tasa de carga que venga definida en la configuracion.
+    ///
+    /// Al llegar al 100%, devuelve un DroneState del tipo Waiting.
+    pub fn charge_battery(&mut self) -> Result<DroneState, DroneError> {
+        let mut start_time = Utc::now();
+
+        loop {
+            let mut lock = match self.battery_level.write() {
+                Ok(lock) => lock,
+                Err(_) => {
+                    return Err(DroneError::ReadingConfigFileError);
+                }
+            };
+            let current_time = Utc::now();
+            let elapsed_time = current_time
+                .signed_duration_since(start_time)
+                .num_milliseconds();
+
+            if elapsed_time >= self.battery_charge_rate_milisecs {
+                *lock += 1;
+
+                if *lock > 100 {
+                    *lock = 100;
+                    return Ok(DroneState::Waiting);
+                }
+                start_time = current_time;
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -213,16 +256,16 @@ mod tests {
 
     #[test]
     fn test_01_config_creation_cases() {
-        let config_ok = DroneConfig::read_drone_config("./src/drone_system/drone_config.json");
+        let config_ok = DroneConfig::new("./src/drone_system/drone_config.json");
 
-        let config_err = DroneConfig::read_drone_config("este/es/un/path/feo");
+        let config_err = DroneConfig::new("este/es/un/path/feo");
 
         assert!(config_ok.is_ok());
         assert!(config_err.is_err());
     }
 
     #[test]
-    fn test_02_running_drone_ok() -> std::io::Result<()> {
+    fn test_02_running_drone_and_discharges_battery_ok() -> std::io::Result<()> {
         let (tx, _rx) = mpsc::channel();
         let mut config =
             DroneConfig::read_drone_config("./src/drone_system/drone_config.json").unwrap();
@@ -232,5 +275,14 @@ mod tests {
         assert_eq!(final_drone_state, DroneState::LowBatteryLevel);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_03_drone_charge_ok() {
+        let mut config = DroneConfig::read_drone_config("./tests/drone_config_test.json").unwrap();
+
+        let final_state = config.charge_battery().unwrap();
+
+        assert_eq!(final_state, DroneState::Waiting);
     }
 }

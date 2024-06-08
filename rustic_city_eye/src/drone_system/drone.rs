@@ -23,14 +23,9 @@ pub struct Drone {
 }
 
 impl Drone {
-
     /// levanto su configuracion, y me guardo su posicion inicial.
-    pub fn new(latitude: f64, longitude: f64) -> Result<Drone, DroneError> {
-        let drone_config =
-            match DroneConfig::read_drone_config("./src/drone_system/drone_config.json") {
-                Ok(c) => c,
-                Err(err) => return Err(err),
-            };
+    pub fn new(latitude: f64, longitude: f64, config_file_path: &str) -> Result<Drone, DroneError> {
+        let drone_config = DroneConfig::new(config_file_path)?;
 
         Ok(Drone {
             longitude,
@@ -43,27 +38,33 @@ impl Drone {
     /// Pongo a correr el Drone. Ira descargando su bateria dependiendo de
     /// su configuracion. Una vez que se descarga, su estado para a ser de Low Battery Level,
     /// y va a proceder a moverse hacia su central.
-    pub fn run_drone(&mut self) {
+    pub fn run_drone(&mut self) -> Result<(), DroneError> {
         let (tx, rx) = mpsc::channel();
         let drone_state = self
             .drone_config
             .run_drone(self.latitude, self.longitude, tx);
 
-        loop {
-            match rx.recv() {
-                Ok((new_latitude, new_longitude)) => {
-                    self.latitude = new_latitude;
-                    self.longitude = new_longitude;
-                }
-                Err(e) => {
-                    eprintln!("Error receiving coordinates: {}", e);
-                    break;
-                }
-            }
+        while let Ok((new_latitude, new_longitude)) = rx.recv() {
+            self.latitude = new_latitude;
+            self.longitude = new_longitude;
         }
         self.drone_state = drone_state;
 
-        println!("new state: {:?}", self.drone_state);
+        if self.drone_state == DroneState::LowBatteryLevel {
+            self.charge_drone()?;
+        }
+
+        Ok(())
+    }
+
+    pub fn charge_drone(&mut self) -> Result<(), DroneError> {
+        let new_state = match self.drone_config.charge_battery() {
+            Ok(s) => s,
+            Err(e) => return Err(e),
+        };
+
+        self.drone_state = new_state;
+        Ok(())
     }
 
     pub fn get_state(self) -> DroneState {
@@ -79,10 +80,22 @@ mod tests {
     fn test_01_drone_low_battery_level_state_ok() {
         let latitude = 0.0;
         let longitude = 0.0;
-        let mut drone = Drone::new(latitude, longitude).unwrap();
+        let mut drone =
+            Drone::new(latitude, longitude, "./src/drone_system/drone_config.json").unwrap();
 
-        drone.run_drone();
+        let _ = drone.run_drone();
 
-        assert_eq!(drone.get_state(), DroneState::LowBatteryLevel);
+        assert_eq!(drone.get_state(), DroneState::Waiting);
+    }
+
+    #[test]
+    fn test_02_drone_going_to_charge_battery_ok() {
+        let latitude = 0.0;
+        let longitude = 0.0;
+        let mut drone = Drone::new(latitude, longitude, "./tests/drone_config_test.json").unwrap();
+
+        let _ = drone.run_drone();
+
+        assert_eq!(drone.get_state(), DroneState::Waiting);
     }
 }
