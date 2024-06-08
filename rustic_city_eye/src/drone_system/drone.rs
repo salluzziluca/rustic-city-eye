@@ -23,6 +23,8 @@ pub struct Drone {
 }
 
 impl Drone {
+
+    /// levanto su configuracion, y me guardo su posicion inicial.
     pub fn new(latitude: f64, longitude: f64) -> Result<Drone, DroneError> {
         let drone_config =
             match DroneConfig::read_drone_config("./src/drone_system/drone_config.json") {
@@ -47,14 +49,21 @@ impl Drone {
             .drone_config
             .run_drone(self.latitude, self.longitude, tx);
 
+        loop {
+            match rx.recv() {
+                Ok((new_latitude, new_longitude)) => {
+                    self.latitude = new_latitude;
+                    self.longitude = new_longitude;
+                }
+                Err(e) => {
+                    eprintln!("Error receiving coordinates: {}", e);
+                    break;
+                }
+            }
+        }
         self.drone_state = drone_state;
 
-        let (new_latitude, new_longitude) = rx.try_recv().unwrap();
-
-        self.latitude = new_latitude;
-        self.longitude = new_longitude;
-
-        println!("lat: {} long: {}", self.latitude, self.longitude);
+        println!("new state: {:?}", self.drone_state);
     }
 
     pub fn get_state(self) -> DroneState {

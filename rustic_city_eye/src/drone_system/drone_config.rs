@@ -117,7 +117,6 @@ impl DroneConfig {
                 .num_milliseconds();
 
             if elapsed_time >= battery_discharge_rate {
-                println!("discharging drone battery");
                 *lock -= 1;
 
                 if *lock < 0 {
@@ -195,7 +194,6 @@ impl DroneConfig {
                     current_lat = new_lat;
                     current_long = new_long;
 
-                    println!("Moving to ({}, {})", new_lat, new_long);
                     let _ = location_sender.send((new_lat, new_long));
 
                     last_move_time = current_time;
