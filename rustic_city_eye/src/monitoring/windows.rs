@@ -2,7 +2,7 @@ use egui::{Align2, RichText, Ui, Window};
 use rustic_city_eye::{monitoring::monitoring_app::MonitoringApp, utils::location::Location};
 use walkers::MapMemory;
 
-use crate::{camera_view::CameraView, incident_view::IncidentView, MyMap};
+use crate::{camera_view::CameraView, incident_view::IncidentView, drone_view::DroneView, MyMap};
 
 /// Simple GUI to zoom in and out.
 /// Se updatea el zoom level con cada click en los botones de zoom
@@ -65,6 +65,28 @@ pub fn add_incident_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monito
 
                         map.incidents.push(IncidentView {
                             image: map.incident_icon.clone(),
+                            position,
+                        });
+                    }
+                }
+            });
+        });
+}
+
+pub fn add_drone_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut MonitoringApp) {
+    Window::new("Add Drone")
+        .collapsible(false)
+        .resizable(false)
+        .title_bar(false)
+        .anchor(Align2::RIGHT_TOP, [-10., 90.])
+        .show(ui.ctx(), |ui| {
+            ui.horizontal(|ui| {
+                if ui.button(RichText::new("📡").heading()).clicked() {
+                    if let Some(position) = map.click_watcher.clicked_at {
+                        // let location = Location::new(position.lat(), position.lon());
+                        // monitoring_app.add_drone(location);
+                        map.drones.push(DroneView {
+                            image: map.drone_icon.clone(),
                             position,
                         });
                     }

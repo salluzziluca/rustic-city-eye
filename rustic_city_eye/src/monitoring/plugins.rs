@@ -4,7 +4,7 @@ use walkers::{
     Plugin, Position, Projector,
 };
 
-use crate::camera_view::CameraView;
+use crate::{camera_view::CameraView, drone_view::DroneView};
 use crate::incident_view::IncidentView;
 
 #[derive(Default, Clone)]
@@ -77,6 +77,17 @@ pub fn incidents(incidents: &mut Vec<IncidentView>, zoom_level: f32) -> impl Plu
     for incident in incidents {
         let mut image = Image::new(incident.image.texture.clone(), incident.position);
         image.scale(incident.image.x_scale* zoom_level, incident.image.y_scale* zoom_level);
+        images_vec.push(image);
+    }
+    Images::new(images_vec)
+}
+
+pub fn drones(drones: &mut Vec<DroneView>, zoom_level: f32) -> impl Plugin {
+    let mut images_vec = vec![];
+
+    for drone in drones {
+        let mut image = Image::new(drone.image.texture.clone(), drone.position);
+        image.scale(drone.image.x_scale* zoom_level, drone.image.y_scale* zoom_level);
         images_vec.push(image);
     }
     Images::new(images_vec)

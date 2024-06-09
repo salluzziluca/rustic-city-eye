@@ -1,14 +1,15 @@
 mod camera_view;
 mod incident_view;
+mod drone_view;
 mod plugins;
 mod windows;
 
 use eframe::{run_native, App, CreationContext, NativeOptions};
 use egui::{CentralPanel, RichText, TextStyle};
-use plugins::{cameras, incidents, ClickWatcher, ImagesPluginData};
+use plugins::{cameras, incidents, ClickWatcher, ImagesPluginData, drones};
 use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
 use walkers::{sources::OpenStreetMap, Map, MapMemory, Position, Texture, Tiles};
-use windows::{add_camera_window, add_incident_window, zoom, add_disconnect_window};
+use windows::{add_camera_window, add_incident_window, zoom, add_disconnect_window, add_drone_window};
 
 struct MyMap {
     tiles: Tiles,
@@ -16,9 +17,11 @@ struct MyMap {
     click_watcher: ClickWatcher,
     camera_icon: ImagesPluginData,
     cameras: Vec<camera_view::CameraView>,
+    camera_radius: ImagesPluginData,
     incident_icon: ImagesPluginData,
     incidents: Vec<incident_view::IncidentView>,
-    camera_radius: ImagesPluginData,
+    drones: Vec<drone_view::DroneView>,
+    drone_icon: ImagesPluginData,
     zoom_level: f32,
 }
 
@@ -128,14 +131,17 @@ impl MyApp {
                 )
                 .with_plugin(&mut self.map.click_watcher)
                 .with_plugin(cameras(&mut self.map.cameras, self.map.zoom_level))
-                .with_plugin(incidents(&mut self.map.incidents, self.map.zoom_level)),
+                .with_plugin(incidents(&mut self.map.incidents, self.map.zoom_level))
+                .with_plugin(drones(&mut self.map.drones, self.map.zoom_level)),
             );
             zoom(ui, &mut self.map.map_memory, &mut self.map.zoom_level);
 
             if let Some(monitoring_app) = &mut self.monitoring_app {
                 add_camera_window(ui, &mut self.map, monitoring_app);
                 add_incident_window(ui, &mut self.map, monitoring_app);
+                add_drone_window(ui, &mut self.map, monitoring_app);
                 add_disconnect_window(ui, &mut self.map, monitoring_app, &mut self.connected);
+
             }
         });
     }
@@ -159,9 +165,16 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
         Ok(t) => ImagesPluginData::new(t, 1.0, 0.1), // Initialize with zoom level 1.0
         Err(_) => todo!(),
     };
+
     let incident_bytes = include_bytes!("assets/Incident.png");
     let incident_icon = match Texture::new(incident_bytes, &cc.egui_ctx) {
         Ok(t) => ImagesPluginData::new(t, 1.0, 0.15), // Initialize with zoom level 1.0
+        Err(_) => todo!(),
+    };
+
+    let drone_bytes = include_bytes!("assets/Drone.png");
+    let drone_icon = match Texture::new(drone_bytes, &cc.egui_ctx) {
+        Ok(t) => ImagesPluginData::new(t, 1.0, 0.08), // Initialize with zoom level 1.0
         Err(_) => todo!(),
     };
 
@@ -186,6 +199,8 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
             camera_icon,
             incident_icon,
             camera_radius: circle_icon,
+            drones: vec![],
+            drone_icon: drone_icon,
             zoom_level: 1.0,
         },
         monitoring_app: None,

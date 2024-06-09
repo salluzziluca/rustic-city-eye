@@ -23,7 +23,10 @@ struct Worker {
 impl Worker {
     fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
         let thread = thread::spawn(move || loop {
-            receiver.lock().unwrap().recv().unwrap()();
+            let job = match receiver.lock().unwrap().recv().unwrap() {
+                job => job,
+            };
+            job();
         });
 
         Worker { id, thread }
