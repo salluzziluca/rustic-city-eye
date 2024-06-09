@@ -14,7 +14,8 @@ use crate::mqtt::{
     reason_code::{
         NO_MATCHING_SUBSCRIBERS_HEX, SUB_ID_DUP_HEX, SUCCESS_HEX, UNSPECIFIED_ERROR_HEX,
     },
-    topic::Topic, user_subscription::UserSubscription,
+    topic::Topic,
+    user_subscription::UserSubscription,
 };
 use crate::utils::threadpool::ThreadPool;
 
@@ -366,42 +367,30 @@ pub fn handle_messages(
             for p in payload {
                 let topic = p.topic;
                 let qos = p.qos;
-                let new_sub = UserSubscription {
-                    user_id,
-                    qos,
-                };
+                let new_sub = UserSubscription { user_id, qos };
 
-                let reason_code = Broker::handle_subscribe(
-                    stream_for_topic,
-                    topics.clone(),
-                    p.topic,
-                    new_sub,
-                )?;
+                let reason_code =
+                    Broker::handle_subscribe(stream_for_topic, topics.clone(), p.topic, new_sub)?;
 
                 reason_code_vec.push(reason_code);
             }
 
-            
-
-
-            
-            
-            
-            println!("Enviando un Suback");
-            let suback = BrokerMessage::Suback {
-                packet_id_msb: packet_id_bytes[0],
-                packet_id_lsb: packet_id_bytes[1],
-                reason_code: 0,
-            };
-            match suback.write_to(&mut stream) {
-                Ok(_) => {
-                    println!("Suback enviado");
-                    return Ok(ProtocolReturn::SubackSent);
+            if reason_code_vec.iter().any(|&x| x != SUCCESS_HEX) {
+                let suback = BrokerMessage::Suback {
+                    packet_id_msb: packet_id_bytes[0],
+                    packet_id_lsb: packet_id_bytes[1],
+                    reason_code: UNSPECIFIED_ERROR_HEX,
+                };
+                println!("Enviando un Suback");
+                match suback.write_to(&mut stream) {
+                    Ok(_) => {
+                        println!("Suback enviado");
+                        return Ok(ProtocolReturn::SubackSent);
+                    }
+                    Err(err) => println!("Error al enviar suback: {:?}", err),
                 }
-                Err(err) => println!("Error al enviar suback: {:?}", err),
             }
-             
-                
+
             return Ok(ProtocolReturn::SubackSent);
         }
         ClientMessage::Unsubscribe {

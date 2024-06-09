@@ -651,15 +651,18 @@ impl ClientMessage {
             0x82 => {
                 let packet_id = read_u16(stream)?;
                 let topic = read_string(stream)?;
+                let client_id = read_string(stream)?;
                 if topic == "" {
                     return Err(Error::new(std::io::ErrorKind::Other, "Invalid topic name"));
                 }
+
                 let properties = SubscribeProperties::read_properties(stream)?;
                 Ok(ClientMessage::Subscribe {
                     packet_id,
                     properties,
                     payload: vec![Subscription {
                         topic: topic,
+                        client_id: client_id,
                         qos: read_u8(stream)?,
                     }],
                 })
@@ -953,6 +956,7 @@ mod tests {
     fn test_04_subscribe_ok() {
         let vector = vec![Subscription {
             topic: "topic".to_string(),
+            client_id: "client".to_string(),
             qos: 1,
         }];
 

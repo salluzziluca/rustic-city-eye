@@ -7,7 +7,11 @@ pub struct Subscription {
 
 impl Subscription {
     pub fn new(topic: String, client_id: String, qos: u8) -> Subscription {
-        Subscription { topic, client_id, qos }
+        Subscription {
+            topic,
+            client_id,
+            qos,
+        }
     }
 }
 

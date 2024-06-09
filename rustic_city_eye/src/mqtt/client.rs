@@ -333,7 +333,7 @@ impl Client {
                             Err(_) => {
                                 return Err::<(), ProtocolError>(ProtocolError::StreamError);
                             }
-                        }
+                        },
                         ClientMessage::Subscribe {
                             packet_id,
                             properties,
@@ -347,11 +347,9 @@ impl Client {
                                 };
 
                                 for subscription in payload {
-                                    if let Ok(packet_id) = Client::subscribe (
-                                        subscribe,
-                                        packet_id,
-                                        stream_clone,
-                                    ) {
+                                    if let Ok(packet_id) =
+                                        Client::subscribe(subscribe, packet_id, stream_clone)
+                                    {
                                         match sender.send(packet_id) {
                                             Ok(_) => {
                                                 let topic_new = subscription.topic.to_string();
@@ -360,12 +358,16 @@ impl Client {
                                                         guard.push(topic_new);
                                                     }
                                                     Err(_) => {
-                                                        return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                                                        return Err::<(), ProtocolError>(
+                                                            ProtocolError::StreamError,
+                                                        );
                                                     }
                                                 }
                                             }
                                             Err(_) => {
-                                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                                                return Err::<(), ProtocolError>(
+                                                    ProtocolError::StreamError,
+                                                );
                                             }
                                         }
                                     }
@@ -374,7 +376,7 @@ impl Client {
                             Err(_) => {
                                 return Err::<(), ProtocolError>(ProtocolError::StreamError);
                             }
-                        }
+                        },
                         ClientMessage::Unsubscribe {
                             packet_id,
                             topic_name,
@@ -413,7 +415,7 @@ impl Client {
                             Err(_) => {
                                 return Err::<(), ProtocolError>(ProtocolError::StreamError);
                             }
-                        }
+                        },
                         ClientMessage::Disconnect {
                             reason_code: _,
                             session_expiry_interval: _,
