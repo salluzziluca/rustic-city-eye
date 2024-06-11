@@ -8,6 +8,7 @@ use crate::mqtt::will_properties::*;
 use crate::utils::{reader::*, writer::*};
 
 use super::payload::Payload;
+use super::protocol_error::ProtocolError;
 
 const PROTOCOL_VERSION: u8 = 5;
 const SESSION_EXPIRY_INTERVAL_ID: u8 = 0x11;
@@ -16,7 +17,7 @@ const USER_PROPERTY_ID: u8 = 0x26;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ClientMessage {
-    ///El Connect Message es el primer menasje que el cliente envia cuando se conecta al broker. Este contiene toda la informacion necesaria para que el broker identifique al cliente y pueda establecer una sesion con los parametros establecidos.
+    ///El Connect Message es el primer mensaje que el cliente envia cuando se conecta al broker. Este contiene toda la informacion necesaria para que el broker identifique al cliente y pueda establecer una sesion con los parametros establecidos.
     ///
     /// clean_start especifica si se debe limpiar la sesion previa del cliente y arrancar una nueva limpia y desde cero.
     ///
@@ -119,7 +120,7 @@ pub enum ClientMessage {
 
 #[allow(dead_code)]
 impl ClientMessage {
-    pub fn write_to(&self, stream: &mut dyn Write) -> std::io::Result<()> {
+    pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), ProtocolError> {
         let mut writer = BufWriter::new(stream);
         match self {
             ClientMessage::Connect {
@@ -137,7 +138,8 @@ impl ClientMessage {
                 password,
             } => {
                 //fixed header
-                self.write_first_packet_byte(&mut writer)?;
+                let byte_1: u8 = 0x10_u8.to_le(); //00010000
+                let _ = writer.write_all(&[byte_1]).map_err(|_e| ProtocolError::WriteError);
 
                 //protocol name
                 let protocol_name = "MQTT";
@@ -145,7 +147,7 @@ impl ClientMessage {
 
                 //protocol version
                 let protocol_version: u8 = 0x05;
-                writer.write_all(&[protocol_version])?;
+                let _ = writer.write_all(&[protocol_version]).map_err(|_e| ProtocolError::WriteError);
 
                 //connection flags
                 let mut connect_flags: u8 = 0x00;
@@ -156,11 +158,8 @@ impl ClientMessage {
                 if *last_will_flag {
                     connect_flags |= 1 << 2;
                 }
-                if *last_will_qos > 3 {
-                    return Err(Error::new(
-                        std::io::ErrorKind::Other,
-                        "Invalid last will qos",
-                    ));
+                if *last_will_qos > 1 {
+                    return Err(ProtocolError::InvalidQOS);
                 }
                 connect_flags |= (last_will_qos & 0b11) << 3;
 
@@ -176,7 +175,7 @@ impl ClientMessage {
                     connect_flags |= 1 << 7;
                 }
 
-                writer.write_all(&[connect_flags])?;
+                let _ = writer.write_all(&[connect_flags]).map_err(|_e| ProtocolError::WriteError);
 
                 //keep alive
                 write_u16(&mut writer, keep_alive)?;
@@ -197,132 +196,19 @@ impl ClientMessage {
                 }
                 properties.write_to(&mut writer)?;
 
-                writer.flush()?;
+                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
                 Ok(())
             }
             ClientMessage::Publish {
-                packet_id: _,
-                topic_name: _,
-                qos: _,
-                retain_flag: _,
-                payload,
-                dup_flag: _,
-                properties: _,
-            } => {
-                //fixed header
-                self.write_first_packet_byte(&mut writer)?;
-
-                //Remaining Length
-                self.write_packet_properties(&mut writer)?;
-
-                //Payload
-                payload.write_to(&mut writer)?;
-                // write_string(&mut writer, payload)?;
-
-                writer.flush()?;
-                Ok(())
-            }
-            ClientMessage::Subscribe {
-                packet_id: _,
-                topic_name: _,
-                properties: _,
-            } => {
-                self.write_first_packet_byte(&mut writer)?;
-                self.write_packet_properties(&mut writer)?;
-                writer.flush()?;
-                Ok(())
-            }
-            ClientMessage::Unsubscribe {
-                packet_id: _,
-                topic_name: _,
-                properties: _,
-            } => {
-                self.write_first_packet_byte(&mut writer)?;
-                self.write_packet_properties(&mut writer)?;
-                writer.flush()?;
-                Ok(())
-            }
-            ClientMessage::Disconnect {
-                reason_code,
-                session_expiry_interval,
-                reason_string,
-                user_properties,
-            } => {
-                //fixed header
-                let header: u8 = 0xE0_u8.to_le(); //11100000
-                write_u8(&mut writer, &header)?;
-
-                //variable_header
-                write_u8(&mut writer, reason_code)?;
-
-                write_u8(&mut writer, &SESSION_EXPIRY_INTERVAL_ID)?;
-                write_u32(&mut writer, session_expiry_interval)?;
-
-                write_u8(&mut writer, &REASON_STRING_ID)?;
-                write_string(&mut writer, reason_string)?;
-
-                write_u8(&mut writer, &USER_PROPERTY_ID)?;
-                write_string_pairs(&mut writer, user_properties)?;
-
-                writer.flush()?;
-                Ok(())
-            }
-            ClientMessage::Pingreq => {
-                let byte_1: u8 = 0xC0_u8;
-                writer.write_all(&[byte_1])?;
-                writer.flush()?;
-                Ok(())
-            }
-            ClientMessage::Auth {
-                reason_code,
-                authentication_method: _,
-                authentication_data: _,
-                reason_string: _,
-                user_properties: _,
-            } => {
-                println!("authenticating user...");
-                self.write_first_packet_byte(&mut writer)?;
-
-                write_u8(&mut writer, reason_code)?;
-                self.write_packet_properties(&mut writer)?;
-                writer.flush()?;
-
-                Ok(())
-            }
-        }
-    }
-
-    fn write_first_packet_byte(
-        &self,
-        writer: &mut BufWriter<&mut dyn Write>,
-    ) -> std::io::Result<()> {
-        match self {
-            ClientMessage::Connect {
-                clean_start: _,
-                last_will_flag: _,
-                last_will_qos: _,
-                last_will_retain: _,
-                keep_alive: _,
-                properties: _,
-                client_id: _,
-                will_properties: _,
-                last_will_topic: _,
-                last_will_message: _,
-                username: _,
-                password: _,
-            } => {
-                let byte_1: u8 = 0x10_u8.to_le(); //00010000
-                writer.write_all(&[byte_1])?;
-            }
-            ClientMessage::Publish {
-                packet_id: _,
-                topic_name: _,
+                packet_id,
+                topic_name,
                 qos,
                 retain_flag,
-                payload: _,
+                payload,
                 dup_flag,
-                properties: _,
+                properties,
             } => {
+                //fixed header
                 let mut byte_1 = 0x30_u8;
 
                 if *retain_flag == 1 {
@@ -348,109 +234,55 @@ impl ClientMessage {
                     byte_1 |= 0 << 3;
                 }
 
-                writer.write_all(&[byte_1])?;
+                let _ = writer.write_all(&[byte_1]).map_err(|_e| ProtocolError::WriteError);
+
+                //Remaining Length
+                write_u16(&mut writer, packet_id)?;
+
+                write_string(&mut writer, topic_name)?;
+
+                //Properties
+                let _ = properties.write_properties(&mut writer).map_err(|_e| ProtocolError::WriteError);
+
+                //Payload
+                payload.write_to(&mut writer)?;
+
+                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
+                Ok(())
             }
             ClientMessage::Subscribe {
-                packet_id: _,
-                topic_name: _,
-                properties: _,
+                packet_id,
+                topic_name,
+                properties,
             } => {
                 let byte_1: u8 = 0x82_u8;
-                writer.write_all(&[byte_1])?;
+                let _ = writer.write_all(&[byte_1]).map_err(|_e| ProtocolError::WriteError);
+                write_u16(&mut writer, packet_id)?;
+
+                write_string(&mut writer, topic_name)?;
+
+                //Properties
+                let _ = properties.write_properties(&mut writer).map_err(|_e| ProtocolError::WriteError);
+
+                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
+                Ok(())
             }
             ClientMessage::Unsubscribe {
-                packet_id: _,
-                topic_name: _,
-                properties: _,
+                packet_id,
+                topic_name,
+                properties,
             } => {
                 let byte_1: u8 = 0xA2_u8;
-                writer.write_all(&[byte_1])?;
-            }
-            ClientMessage::Disconnect {
-                reason_code: _,
-                session_expiry_interval: _,
-                reason_string: _,
-                user_properties: _,
-            } => {
-                let byte_1: u8 = 0xE0_u8;
-                writer.write_all(&[byte_1])?;
-            }
-            ClientMessage::Pingreq => {
-                let byte_1: u8 = 0xC0_u8;
-                writer.write_all(&[byte_1])?;
-            }
-            ClientMessage::Auth {
-                reason_code: _,
-                authentication_method: _,
-                authentication_data: _,
-                reason_string: _,
-                user_properties: _,
-            } => {
-                let byte_1 = 0xF0_u8;
-                writer.write_all(&[byte_1])?;
-            }
-        }
-        Ok(())
-    }
+                let _ = writer.write_all(&[byte_1]).map_err(|_e| ProtocolError::WriteError);
+                write_u16(&mut writer, packet_id)?;
 
-    fn write_packet_properties(
-        &self,
-        writer: &mut BufWriter<&mut dyn Write>,
-    ) -> std::io::Result<()> {
-        match self {
-            ClientMessage::Connect {
-                clean_start: _,
-                last_will_flag: _,
-                last_will_qos: _,
-                last_will_retain: _,
-                keep_alive: _,
-                properties: _,
-                client_id: _,
-                will_properties: _,
-                last_will_topic: _,
-                last_will_message: _,
-                username: _,
-                password: _,
-            } => todo!(),
-            ClientMessage::Publish {
-                packet_id,
-                topic_name,
-                qos: _,
-                retain_flag: _,
-                payload: _,
-                dup_flag: _,
-                properties,
-            } => {
-                write_u16(writer, packet_id)?;
-
-                write_string(writer, topic_name)?;
+                write_string(&mut writer, topic_name)?;
 
                 //Properties
-                properties.write_properties(writer)?;
-            }
-            ClientMessage::Subscribe {
-                packet_id,
-                topic_name,
-                properties,
-            } => {
-                write_u16(writer, packet_id)?;
+                let _ = properties.write_properties(&mut writer).map_err(|_e| ProtocolError::WriteError);
 
-                write_string(writer, topic_name)?;
-
-                //Properties
-                properties.write_properties(writer)?;
-            }
-            ClientMessage::Unsubscribe {
-                packet_id,
-                topic_name,
-                properties,
-            } => {
-                write_u16(writer, packet_id)?;
-
-                write_string(writer, topic_name)?;
-
-                //Properties
-                properties.write_properties(writer)?;
+                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
+                Ok(())
             }
             ClientMessage::Disconnect {
                 reason_code,
@@ -460,53 +292,62 @@ impl ClientMessage {
             } => {
                 //fixed header
                 let header: u8 = 0xE0_u8.to_le(); //11100000
-                write_u8(writer, &header)?;
+                write_u8(&mut writer, &header)?;
+
                 //variable_header
-                write_u8(writer, reason_code)?;
+                write_u8(&mut writer, reason_code)?;
 
-                write_u8(writer, &SESSION_EXPIRY_INTERVAL_ID)?;
-                write_u32(writer, session_expiry_interval)?;
+                write_u8(&mut writer, &SESSION_EXPIRY_INTERVAL_ID)?;
+                write_u32(&mut writer, session_expiry_interval)?;
 
-                write_u8(writer, &REASON_STRING_ID)?;
-                write_string(writer, reason_string)?;
+                write_u8(&mut writer, &REASON_STRING_ID)?;
+                write_string(&mut writer, reason_string)?;
 
-                write_u8(writer, &USER_PROPERTY_ID)?;
-                write_string_pairs(writer, user_properties)?;
-                writer.flush()?;
+                write_u8(&mut writer, &USER_PROPERTY_ID)?;
+                write_string_pairs(&mut writer, user_properties)?;
+
+                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
+                Ok(())
             }
             ClientMessage::Pingreq => {
                 let byte_1: u8 = 0xC0_u8;
-                writer.write_all(&[byte_1])?;
-                writer.flush()?;
+                let _ = writer.write_all(&[byte_1]).map_err(|_e| ProtocolError::WriteError);
+                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
+                Ok(())
             }
             ClientMessage::Auth {
-                reason_code: _,
+                reason_code,
                 authentication_method,
                 authentication_data,
                 reason_string,
                 user_properties,
             } => {
-                println!("writing auth");
+                let byte_1 = 0xF0_u8;
+                let _ = writer.write_all(&[byte_1]).map_err(|_e| ProtocolError::WriteError);
+
+                write_u8(&mut writer, reason_code)?;
 
                 let authentication_method_id: u8 = 0x15_u8;
-                writer.write_all(&[authentication_method_id])?;
-                write_string(writer, authentication_method)?;
+                let _ = writer.write_all(&[authentication_method_id]).map_err(|_e| ProtocolError::WriteError);
+                write_string(&mut writer, authentication_method)?;
 
                 let authentication_data_id: u8 = 0x16_u8;
-                writer.write_all(&[authentication_data_id])?;
-                write_bin_vec(writer, authentication_data)?;
+                let _ = writer.write_all(&[authentication_data_id]).map_err(|_e| ProtocolError::WriteError);
+                write_bin_vec(&mut writer, authentication_data)?;
 
                 let reason_string_id: u8 = 0x1F_u8;
-                writer.write_all(&[reason_string_id])?;
-                write_string(writer, reason_string)?;
+                let _ = writer.write_all(&[reason_string_id]).map_err(|_e| ProtocolError::WriteError);
+                write_string(&mut writer, reason_string)?;
 
                 let user_properties_id: u8 = 0x26_u8; // 38
-                writer.write_all(&[user_properties_id])?;
-                write_tuple_vec(writer, user_properties)?;
+                let _ = writer.write_all(&[user_properties_id]).map_err(|_e| ProtocolError::WriteError);
+                write_tuple_vec(&mut writer, user_properties)?;
+
+                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
+
+                Ok(())
             }
         }
-
-        Ok(())
     }
 
     pub fn read_from(stream: &mut impl Read) -> Result<ClientMessage, Error> {
@@ -1012,5 +853,53 @@ mod tests {
             }
         };
         assert_eq!(auth, read_auth);
+    }
+
+    #[test]
+    fn test_07_connect_with_invalid_qos_throws_err() -> std::io::Result<()> {
+        let connect_properties = ConnectProperties {
+            session_expiry_interval: 0,
+            receive_maximum: 0,
+            maximum_packet_size: 0,
+            topic_alias_maximum: 0,
+            request_response_information: false,
+            request_problem_information: false,
+            user_properties: vec![],
+            authentication_method: "".to_string(),
+            authentication_data: vec![],
+        };
+
+        let connect = ClientMessage::Connect {
+            clean_start: true,
+            last_will_flag: true,
+            last_will_qos: 2,
+            last_will_retain: true,
+            keep_alive: 35,
+            properties: connect_properties,
+            client_id: "kvtr33".to_string(),
+            will_properties: WillProperties::new(
+                0,
+                1,
+                0,
+                "".to_string(),
+                "".to_string(),
+                vec![],
+                vec![],
+            ),
+            last_will_topic: "topic".to_string(),
+            last_will_message: "chauchis".to_string(),
+            username: "prueba".to_string(),
+            password: "".to_string(),
+        };
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+
+        match connect.write_to(&mut cursor) {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                println!("QoS invalida");
+                assert_eq!(e, ProtocolError::InvalidQOS);
+                Ok(())
+            }
+        }
     }
 }

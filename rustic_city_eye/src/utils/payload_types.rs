@@ -5,9 +5,8 @@ use std::{
 
 use crate::{
     monitoring::incident::Incident,
-    mqtt::payload::Payload,
-    utils::reader::{read_string, read_u8},
-    utils::{incident_payload::IncidentPayload, location::Location},
+    mqtt::{payload::Payload, protocol_error::ProtocolError},
+    utils::{incident_payload::IncidentPayload, location::Location, reader::{read_string, read_u8}},
 };
 
 /// Aqui se definen los distintos tipos de payload que va a soportar nuestra aplicacion.
@@ -18,7 +17,7 @@ pub enum PayloadTypes {
 }
 
 impl Payload for PayloadTypes {
-    fn write_to(&self, stream: &mut dyn std::io::prelude::Write) -> std::io::Result<()> {
+    fn write_to(&self, stream: &mut dyn std::io::prelude::Write) -> Result<(), ProtocolError> {
         match self {
             PayloadTypes::IncidentLocation(payload) => {
                 payload.write_to(stream)?;

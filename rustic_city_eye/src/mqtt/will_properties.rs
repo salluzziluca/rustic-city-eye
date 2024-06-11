@@ -15,6 +15,8 @@ const USER_PROPERTIES_ID: u8 = 0x26;
 
 use serde::{Deserialize, Serialize};
 
+use super::protocol_error::ProtocolError;
+
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 /// last_will_delay_interval especifica el tiempo en segundos que el broker debe esperar antes de publicar el will message.
 ///
@@ -56,7 +58,7 @@ impl WillProperties {
             user_properties,
         }
     }
-    pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), Error> {
+    pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), ProtocolError> {
         let mut writer = BufWriter::new(stream);
         //will properties
         write_u8(&mut writer, &WILL_DELAY_INTERVAL_ID)?;
