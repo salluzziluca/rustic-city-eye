@@ -39,9 +39,11 @@ mod tests {
     }
 
     impl Payload for TestPayload {
-        fn write_to(&self, stream: &mut dyn Write) -> Result<(), ProtocolError>{
+        fn write_to(&self, stream: &mut dyn Write) -> Result<(), ProtocolError> {
             let value_string = self.value.to_string();
-            let _ = stream.write_all(value_string.as_bytes()).map_err(|_e| ProtocolError::WriteError);
+            let _ = stream
+                .write_all(value_string.as_bytes())
+                .map_err(|_e| ProtocolError::WriteError);
             Ok(())
         }
 

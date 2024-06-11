@@ -1,4 +1,7 @@
-use crate::{mqtt::protocol_error::ProtocolError, utils::{location::Location, writer::write_string}};
+use crate::{
+    mqtt::protocol_error::ProtocolError,
+    utils::{location::Location, writer::write_string},
+};
 
 #[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]

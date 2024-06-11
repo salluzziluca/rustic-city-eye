@@ -139,7 +139,9 @@ impl ClientMessage {
             } => {
                 //fixed header
                 let byte_1: u8 = 0x10_u8.to_le(); //00010000
-                let _ = writer.write_all(&[byte_1]).map_err(|_e| ProtocolError::WriteError);
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_e| ProtocolError::WriteError);
 
                 //protocol name
                 let protocol_name = "MQTT";
@@ -147,7 +149,9 @@ impl ClientMessage {
 
                 //protocol version
                 let protocol_version: u8 = 0x05;
-                let _ = writer.write_all(&[protocol_version]).map_err(|_e| ProtocolError::WriteError);
+                let _ = writer
+                    .write_all(&[protocol_version])
+                    .map_err(|_e| ProtocolError::WriteError);
 
                 //connection flags
                 let mut connect_flags: u8 = 0x00;
@@ -175,7 +179,9 @@ impl ClientMessage {
                     connect_flags |= 1 << 7;
                 }
 
-                let _ = writer.write_all(&[connect_flags]).map_err(|_e| ProtocolError::WriteError);
+                let _ = writer
+                    .write_all(&[connect_flags])
+                    .map_err(|_e| ProtocolError::WriteError);
 
                 //keep alive
                 write_u16(&mut writer, keep_alive)?;
@@ -234,7 +240,9 @@ impl ClientMessage {
                     byte_1 |= 0 << 3;
                 }
 
-                let _ = writer.write_all(&[byte_1]).map_err(|_e| ProtocolError::WriteError);
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_e| ProtocolError::WriteError);
 
                 //Remaining Length
                 write_u16(&mut writer, packet_id)?;
@@ -242,7 +250,9 @@ impl ClientMessage {
                 write_string(&mut writer, topic_name)?;
 
                 //Properties
-                let _ = properties.write_properties(&mut writer).map_err(|_e| ProtocolError::WriteError);
+                let _ = properties
+                    .write_properties(&mut writer)
+                    .map_err(|_e| ProtocolError::WriteError);
 
                 //Payload
                 payload.write_to(&mut writer)?;
@@ -256,13 +266,17 @@ impl ClientMessage {
                 properties,
             } => {
                 let byte_1: u8 = 0x82_u8;
-                let _ = writer.write_all(&[byte_1]).map_err(|_e| ProtocolError::WriteError);
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_e| ProtocolError::WriteError);
                 write_u16(&mut writer, packet_id)?;
 
                 write_string(&mut writer, topic_name)?;
 
                 //Properties
-                let _ = properties.write_properties(&mut writer).map_err(|_e| ProtocolError::WriteError);
+                let _ = properties
+                    .write_properties(&mut writer)
+                    .map_err(|_e| ProtocolError::WriteError);
 
                 let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
                 Ok(())
@@ -273,13 +287,17 @@ impl ClientMessage {
                 properties,
             } => {
                 let byte_1: u8 = 0xA2_u8;
-                let _ = writer.write_all(&[byte_1]).map_err(|_e| ProtocolError::WriteError);
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_e| ProtocolError::WriteError);
                 write_u16(&mut writer, packet_id)?;
 
                 write_string(&mut writer, topic_name)?;
 
                 //Properties
-                let _ = properties.write_properties(&mut writer).map_err(|_e| ProtocolError::WriteError);
+                let _ = properties
+                    .write_properties(&mut writer)
+                    .map_err(|_e| ProtocolError::WriteError);
 
                 let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
                 Ok(())
@@ -311,7 +329,9 @@ impl ClientMessage {
             }
             ClientMessage::Pingreq => {
                 let byte_1: u8 = 0xC0_u8;
-                let _ = writer.write_all(&[byte_1]).map_err(|_e| ProtocolError::WriteError);
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_e| ProtocolError::WriteError);
                 let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
                 Ok(())
             }
@@ -323,24 +343,34 @@ impl ClientMessage {
                 user_properties,
             } => {
                 let byte_1 = 0xF0_u8;
-                let _ = writer.write_all(&[byte_1]).map_err(|_e| ProtocolError::WriteError);
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_e| ProtocolError::WriteError);
 
                 write_u8(&mut writer, reason_code)?;
 
                 let authentication_method_id: u8 = 0x15_u8;
-                let _ = writer.write_all(&[authentication_method_id]).map_err(|_e| ProtocolError::WriteError);
+                let _ = writer
+                    .write_all(&[authentication_method_id])
+                    .map_err(|_e| ProtocolError::WriteError);
                 write_string(&mut writer, authentication_method)?;
 
                 let authentication_data_id: u8 = 0x16_u8;
-                let _ = writer.write_all(&[authentication_data_id]).map_err(|_e| ProtocolError::WriteError);
+                let _ = writer
+                    .write_all(&[authentication_data_id])
+                    .map_err(|_e| ProtocolError::WriteError);
                 write_bin_vec(&mut writer, authentication_data)?;
 
                 let reason_string_id: u8 = 0x1F_u8;
-                let _ = writer.write_all(&[reason_string_id]).map_err(|_e| ProtocolError::WriteError);
+                let _ = writer
+                    .write_all(&[reason_string_id])
+                    .map_err(|_e| ProtocolError::WriteError);
                 write_string(&mut writer, reason_string)?;
 
                 let user_properties_id: u8 = 0x26_u8; // 38
-                let _ = writer.write_all(&[user_properties_id]).map_err(|_e| ProtocolError::WriteError);
+                let _ = writer
+                    .write_all(&[user_properties_id])
+                    .map_err(|_e| ProtocolError::WriteError);
                 write_tuple_vec(&mut writer, user_properties)?;
 
                 let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);

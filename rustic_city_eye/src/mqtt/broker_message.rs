@@ -9,7 +9,8 @@ const SESSION_EXPIRY_INTERVAL_ID: u8 = 0x11;
 const REASON_STRING_ID: u8 = 0x1F;
 const USER_PROPERTY_ID: u8 = 0x26;
 use super::{
-    connack_properties::ConnackProperties, payload::Payload, protocol_error::ProtocolError, publish_properties::PublishProperties
+    connack_properties::ConnackProperties, payload::Payload, protocol_error::ProtocolError,
+    publish_properties::PublishProperties,
 };
 use crate::utils::{
     reader::{read_string, read_u8},
@@ -76,7 +77,9 @@ impl BrokerMessage {
                 properties,
             } => {
                 let byte_1: u8 = 0x20_u8.to_le(); //00100000
-                let _ = writer.write_all(&[byte_1]).map_err(|_| ProtocolError::WriteError);
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_| ProtocolError::WriteError);
 
                 write_bool(&mut writer, session_present)?;
                 write_u8(&mut writer, reason_code)?;
@@ -93,7 +96,9 @@ impl BrokerMessage {
                 //fixed header
                 let byte_1: u8 = 0x40_u8.to_le(); //01000000
 
-                let _ = writer.write_all(&[byte_1]).map_err(|_| ProtocolError::WriteError);
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_| ProtocolError::WriteError);
 
                 //variable header
                 //packet_id
@@ -116,7 +121,9 @@ impl BrokerMessage {
                 //fixed header
                 let byte_1: u8 = 0x90_u8.to_le(); //10010000
 
-                let _ = writer.write_all(&[byte_1]).map_err(|_e| ProtocolError::WriteError);
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_e| ProtocolError::WriteError);
 
                 //variable header
                 //let byte_2: u8 = 0x00_u8.to_le(); //00000000
@@ -148,7 +155,9 @@ impl BrokerMessage {
             } => {
                 //fixed header -> es uno de juguete, hay que pensarlo mejor
                 let byte_1: u8 = 0x00_u8.to_le();
-                let _ = writer.write_all(&[byte_1]).map_err(|_e| ProtocolError::WriteError);
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_e| ProtocolError::WriteError);
 
                 //variable header
                 //packet_id
@@ -186,7 +195,9 @@ impl BrokerMessage {
                 //fixed header
                 let byte_1: u8 = 0xB0_u8.to_le(); //10110000
 
-                let _ = writer.write_all(&[byte_1]).map_err(|_e| ProtocolError::WriteError);
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_e| ProtocolError::WriteError);
 
                 //variable header
                 //packet_id
@@ -223,7 +234,9 @@ impl BrokerMessage {
             }
             BrokerMessage::Pingresp => {
                 let byte_1: u8 = 0xD0_u8.to_le();
-                let _ = writer.write_all(&[byte_1]).map_err(|_e| ProtocolError::WriteError);
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_e| ProtocolError::WriteError);
                 let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
 
                 Ok(())
