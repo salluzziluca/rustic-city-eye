@@ -5,9 +5,12 @@ use std::{
 
 use crate::{
     monitoring::incident::Incident,
-    mqtt::payload::Payload,
-    utils::reader::{read_string, read_u8},
-    utils::{incident_payload::IncidentPayload, location::Location},
+    mqtt::{payload::Payload, protocol_error::ProtocolError},
+    utils::{
+        incident_payload::IncidentPayload,
+        location::Location,
+        reader::{read_string, read_u8},
+    },
 };
 
 /// Aqui se definen los distintos tipos de payload que va a soportar nuestra aplicacion.
@@ -18,7 +21,7 @@ pub enum PayloadTypes {
 }
 
 impl Payload for PayloadTypes {
-    fn write_to(&self, stream: &mut dyn std::io::prelude::Write) -> std::io::Result<()> {
+    fn write_to(&self, stream: &mut dyn std::io::prelude::Write) -> Result<(), ProtocolError> {
         match self {
             PayloadTypes::IncidentLocation(payload) => {
                 payload.write_to(stream)?;
@@ -63,5 +66,62 @@ impl PayloadTypes {
             }
         };
         Ok(payload_type)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::{Cursor, Read};
+
+    #[test]
+    fn test_read_from() {
+        let location = Location::new(1.0, 2.0);
+        let incident = Incident::new(location.clone());
+        let incident_payload = IncidentPayload::new(incident.clone());
+        let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
+
+        let mut cursor = Cursor::new(Vec::new());
+        payload.write_to(&mut cursor).unwrap();
+        cursor.set_position(0);
+
+        let read_payload = PayloadTypes::read_from(&mut cursor).unwrap();
+        assert_eq!(read_payload, payload);
+    }
+
+    #[test]
+    fn test_write_to() {
+        let location = Location::new(1.0, 2.0);
+        let incident = Incident::new(location.clone());
+        let incident_payload = IncidentPayload::new(incident.clone());
+        let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
+
+        let mut cursor = Cursor::new(Vec::new());
+        payload.write_to(&mut cursor).unwrap();
+        cursor.set_position(0);
+
+        let mut buf = [0u8; 1];
+        cursor.read_exact(&mut buf).unwrap();
+        assert_eq!(buf[0], 1);
+    }
+
+    #[test]
+    fn test_as_any() {
+        let location = Location::new(1.0, 2.0);
+        let incident = Incident::new(location.clone());
+        let incident_payload = IncidentPayload::new(incident.clone());
+        let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
+
+        assert!(payload.as_any().is::<PayloadTypes>());
+    }
+
+    #[test]
+    fn test_clone() {
+        let location = Location::new(1.0, 2.0);
+        let incident = Incident::new(location.clone());
+        let incident_payload = IncidentPayload::new(incident.clone());
+        let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
+
+        assert_eq!(payload.clone(), payload);
     }
 }

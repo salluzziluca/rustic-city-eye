@@ -211,7 +211,10 @@ impl Broker {
         message: ClientMessage,
         packet_id: u16,
     ) {
-        let mut lock = packets.write().unwrap();
+        let mut lock = match packets.write() {
+            Ok(lock) => lock,
+            Err(_) => return,
+        };
 
         lock.insert(packet_id, message);
     }
@@ -232,23 +235,10 @@ pub fn handle_messages(
         Err(_) => return Err(ProtocolError::StreamError),
     };
     match mensaje {
-        ClientMessage::Connect {
-            clean_start: _,
-            last_will_flag: _,
-            last_will_qos: _,
-            last_will_retain: _,
-            username: _,
-            password: _,
-            keep_alive: _,
-            properties: _,
-            client_id,
-            will_properties: _,
-            last_will_topic: _,
-            last_will_message: _,
-        } => {
+        ClientMessage::Connect { 0: connect } => {
             println!("Recibí un Connect");
 
-            if clients_ids.contains(&client_id) {
+            if clients_ids.contains(&connect.client_id) {
                 let disconnect = BrokerMessage::Disconnect {
                     reason_code: 0,
                     session_expiry_interval: 0,
@@ -264,7 +254,7 @@ pub fn handle_messages(
                     Err(err) => println!("Error al enviar Disconnect: {:?}", err),
                 }
             }
-            Arc::make_mut(&mut clients_ids).push(client_id);
+            Arc::make_mut(&mut clients_ids).push(connect.client_id);
             let properties = ConnackProperties {
                 session_expiry_interval: 0,
                 receive_maximum: 0,

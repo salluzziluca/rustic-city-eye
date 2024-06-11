@@ -2,7 +2,7 @@ use std::fmt;
 
 ///Here are detailed all the errors that the protocol is capable of throwing.
 /// Unspecified se usa de placeholder para los results de los tests
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ProtocolError {
     ConectionError,
     InvalidQOS,
@@ -15,12 +15,22 @@ pub enum ProtocolError {
     UnsubscribeError,
     UnspecifiedError,
     PubackWithoutPendingID,
+    WriteError,
+    ReadingConfigFileError,
+    MissingWillMessageProperties,
 }
 
 impl fmt::Display for ProtocolError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ProtocolError::ConectionError => write!(f, "Error al conectar al broker."),
+            ProtocolError::ReadingConfigFileError => {
+                write!(f, "Error al leer el archivo de configuracion del connect.")
+            }
+            ProtocolError::MissingWillMessageProperties => {
+                write!(f, "Error: faltan propiedades del will message.")
+            }
+            ProtocolError::WriteError => write!(f, "Error escribir el mensaje."),
             ProtocolError::InvalidQOS => write!(f, "Error: Valor de QoS inválido. Debe ser 0 o 1."),
             ProtocolError::InvalidNumberOfArguments => {
                 write!(f, "Error: número de argumentos inválido")

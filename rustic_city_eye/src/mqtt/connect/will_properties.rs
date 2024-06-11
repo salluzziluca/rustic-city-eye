@@ -1,8 +1,11 @@
+use serde::{Deserialize, Serialize};
+
 use std::io::BufWriter;
 use std::io::Error;
 use std::io::Read;
 use std::io::Write;
 
+use crate::mqtt::protocol_error::ProtocolError;
 use crate::utils::{reader::*, writer::*};
 
 const WILL_DELAY_INTERVAL_ID: u8 = 0x18;
@@ -13,7 +16,7 @@ const RESPONSE_TOPIC_ID: u8 = 0x08;
 const CORRELATION_DATA_ID: u8 = 0x09;
 const USER_PROPERTIES_ID: u8 = 0x26;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 /// last_will_delay_interval especifica el tiempo en segundos que el broker debe esperar antes de publicar el will message.
 ///
 /// payload_format_indicator indica si el payload esta encodado en utf-8 o no.
@@ -54,7 +57,7 @@ impl WillProperties {
             user_properties,
         }
     }
-    pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), Error> {
+    pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), ProtocolError> {
         let mut writer = BufWriter::new(stream);
         //will properties
         write_u8(&mut writer, &WILL_DELAY_INTERVAL_ID)?;
@@ -179,13 +182,49 @@ impl WillProperties {
         })
     }
 }
-
+#[allow(dead_code)]
+fn read_json_to_will_properties(json_data: &str) -> Result<WillProperties, Error> {
+    let will_properties: WillProperties = serde_json::from_str(json_data)?;
+    Ok(will_properties)
+}
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
 
     use super::*;
 
+    #[test]
+    fn test_read_json_to_will_properties() {
+        let json_data = r#"{
+            "last_will_delay_interval": 1,
+            "payload_format_indicator": 1,
+            "message_expiry_interval": 1,
+            "content_type": "a",
+            "response_topic": "a",
+            "correlation_data": [
+                1,
+                2,
+                3
+            ],
+            "user_properties": [
+                [
+                    "a",
+                    "a"
+                ]
+            ]
+        }"#;
+        let will_properties = read_json_to_will_properties(json_data).unwrap();
+        let expected_will_properties = WillProperties::new(
+            1,
+            1,
+            1,
+            "a".to_string(),
+            "a".to_string(),
+            vec![1, 2, 3],
+            vec![("a".to_string(), "a".to_string())],
+        );
+        assert_eq!(will_properties, expected_will_properties);
+    }
     #[test]
     fn test_01_will_properties_ok() {
         let will_properties = WillProperties::new(
