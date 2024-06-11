@@ -1,15 +1,15 @@
 mod camera_view;
-mod incident_view;
 mod drone_view;
+mod incident_view;
 mod plugins;
 mod windows;
 
 use eframe::{run_native, App, CreationContext, NativeOptions};
 use egui::{CentralPanel, RichText, TextStyle};
-use plugins::{cameras, incidents, ClickWatcher, ImagesPluginData, drones};
+use plugins::*;
 use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
 use walkers::{sources::OpenStreetMap, Map, MapMemory, Position, Texture, Tiles};
-use windows::{add_camera_window, add_incident_window, zoom, add_disconnect_window, add_drone_window};
+use windows::*;
 
 struct MyMap {
     tiles: Tiles,
@@ -98,7 +98,7 @@ impl MyApp {
                         self.ip.clone(),
                         self.port.clone(),
                     ];
-                    if args[2].is_empty() && args [3].is_empty(){
+                    if args[2].is_empty() && args[3].is_empty() {
                         "127.0.0.1".clone_into(&mut args[2]);
                         "5000".clone_into(&mut args[3]);
                     }
@@ -123,6 +123,7 @@ impl MyApp {
 
     fn handle_map(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         CentralPanel::default().show(ctx, |ui| {
+            let last_clicked = self.map.click_watcher.clicked_at;
             ui.add(
                 Map::new(
                     Some(&mut self.map.tiles),
@@ -130,9 +131,21 @@ impl MyApp {
                     Position::from_lon_lat(-58.368925, -34.61716),
                 )
                 .with_plugin(&mut self.map.click_watcher)
-                .with_plugin(cameras(&mut self.map.cameras, self.map.zoom_level))
-                .with_plugin(incidents(&mut self.map.incidents, self.map.zoom_level))
-                .with_plugin(drones(&mut self.map.drones, self.map.zoom_level)),
+                .with_plugin(cameras(
+                    &mut self.map.cameras,
+                    self.map.zoom_level,
+                    last_clicked,
+                ))
+                .with_plugin(incidents(
+                    &mut self.map.incidents,
+                    self.map.zoom_level,
+                    last_clicked,
+                ))
+                .with_plugin(drones(
+                    &mut self.map.drones,
+                    self.map.zoom_level,
+                    last_clicked,
+                )),
             );
             zoom(ui, &mut self.map.map_memory, &mut self.map.zoom_level);
 
@@ -141,11 +154,10 @@ impl MyApp {
                 add_incident_window(ui, &mut self.map, monitoring_app);
                 add_drone_window(ui, &mut self.map, monitoring_app);
                 add_disconnect_window(ui, &mut self.map, monitoring_app, &mut self.connected);
-
+                add_remove_window(ui, &mut self.map, monitoring_app)
             }
         });
     }
-
 }
 
 impl App for MyApp {
@@ -200,7 +212,7 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
             incident_icon,
             camera_radius: circle_icon,
             drones: vec![],
-            drone_icon: drone_icon,
+            drone_icon,
             zoom_level: 1.0,
         },
         monitoring_app: None,
