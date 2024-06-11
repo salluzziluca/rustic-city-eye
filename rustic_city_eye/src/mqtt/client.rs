@@ -11,8 +11,8 @@ use std::{
 use crate::{
     mqtt::{
         broker_message::BrokerMessage, client_message::ClientMessage,
-        connect::connect_config::ConnectConfig, error::ClientError,
-        messages_config::MessagesConfig, protocol_error::ProtocolError, will_properties::WillProperties,
+        connect::connect_config::ConnectConfig, connect::will_properties::WillProperties,
+        error::ClientError, messages_config::MessagesConfig, protocol_error::ProtocolError,
     },
     utils::threadpool::ThreadPool,
 };
@@ -47,8 +47,8 @@ impl Client {
             last_will_flag: connect_config.last_will_flag,
             last_will_qos: connect_config.last_will_qos,
             last_will_retain: connect_config.last_will_retain,
-            username: connect_config.username,
-            password: connect_config.password,
+            username: "juan".to_string(),
+            password: "juanceto".to_string(),
             keep_alive: connect_config.keep_alive,
             properties: connect_config.properties,
             client_id: connect_config.client_id,

@@ -3,8 +3,8 @@ use crate::utils::payload_types::PayloadTypes;
 use std::io::{BufWriter, Error, ErrorKind, Read, Write};
 
 use crate::mqtt::connect::connect_properties::ConnectProperties;
+use crate::mqtt::connect::will_properties::*;
 use crate::mqtt::publish_properties::{PublishProperties, TopicProperties};
-use crate::mqtt::will_properties::*;
 use crate::utils::{reader::*, writer::*};
 
 use super::payload::Payload;

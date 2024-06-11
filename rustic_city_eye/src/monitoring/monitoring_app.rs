@@ -9,7 +9,8 @@ use crate::mqtt::messages_config::MessagesConfig;
 use crate::mqtt::publish_config::PublishConfig;
 use crate::mqtt::publish_properties::{PublishProperties, TopicProperties};
 use crate::mqtt::{
-    client::Client, connect::connect_properties, protocol_error::ProtocolError, will_properties,
+    client::Client, connect::connect_properties, connect::will_properties,
+    protocol_error::ProtocolError,
 };
 use crate::surveilling::camera::Camera;
 use crate::surveilling::camera_system::*;
@@ -32,7 +33,7 @@ impl MonitoringApp {
     /// Crea el cliente de la app de monitoreo y lo conecta al broker
     /// Crea un sistema de cámaras y agrega una cámara al sistema
     pub fn new(args: Vec<String>) -> Result<MonitoringApp, ProtocolError> {
-        let will_properties = will_properties::WillProperties::new(
+        let _will_properties = will_properties::WillProperties::new(
             1,
             1,
             1,
@@ -73,8 +74,8 @@ impl MonitoringApp {
             None,
             None,
             None,
-            args[0].clone(),
-            args[1].clone(),
+            Some(args[0].clone()),
+            None,
         );
 
         let camera_system = CameraSystem::new(camera_system_args)?;

@@ -44,7 +44,6 @@
         ]
     },
     "last_will_topic": "camera system",
-    "last_will_message": "soy el monitoring y me desconecte",
     "username": "args[2]",
     "password": [1, 2, 3]
 }

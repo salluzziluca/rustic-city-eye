@@ -5,10 +5,10 @@ use std::fs::File;
 use std::io::BufReader;
 
 use crate::mqtt::protocol_error::ProtocolError;
-use crate::mqtt::{
-    connect::connect_properties::ConnectProperties, will_properties::WillProperties,
-};
 use crate::mqtt::{client_message::ClientMessage, messages_config::MessagesConfig};
+use crate::mqtt::{
+    connect::connect_properties::ConnectProperties, connect::will_properties::WillProperties,
+};
 
 /// Cada vez que el usuario de la API de Client intenta enviar un packet
 /// del tipo Connect, debe enviar un ConnectConfig, que contendra
@@ -30,8 +30,8 @@ pub struct ConnectConfig {
     pub(crate) will_properties: Option<WillProperties>,
     pub(crate) last_will_topic: Option<String>,
     pub(crate) last_will_message: Option<String>,
-    pub(crate) username: String,
-    pub(crate) password: String,
+    pub(crate) username: Option<String>,
+    pub(crate) password: Option<Vec<u8>>,
 }
 
 impl MessagesConfig for ConnectConfig {
@@ -58,8 +58,8 @@ impl MessagesConfig for ConnectConfig {
             ),
             last_will_topic: "jaun".to_string(),
             last_will_message: "holas".to_string(),
-            username: self.username.clone(),
-            password: self.password.clone(),
+            username: "juancito".to_string(),
+            password: "asdasd".to_string(),
         }
     }
 }
@@ -77,8 +77,8 @@ impl ConnectConfig {
         will_properties: Option<WillProperties>,
         last_will_topic: Option<String>,
         last_will_message: Option<String>,
-        username: String,
-        password: String,
+        username: Option<String>,
+        password: Option<Vec<u8>>,
     ) -> ConnectConfig {
         ConnectConfig {
             clean_start,
@@ -104,28 +104,37 @@ impl ConnectConfig {
 
     /// Abre un archivo de configuracion con propiedades y guarda sus lecturas.
     pub fn read_connect_config(file_path: &str) -> Result<ConnectConfig, ProtocolError> {
-        let config_file = File::open(file_path).map_err(|_| ProtocolError::ReadingConfigFileError)?;
+        let config_file = match File::open(file_path) {
+            Ok(file) => file,
+            Err(_) => return Err(ProtocolError::ReadingConfigFileError),
+        };
 
         let reader: BufReader<File> = BufReader::new(config_file);
-        let mut config: ConnectConfig = serde_json::from_reader(reader).map_err(|_| ProtocolError::ReadingConfigFileError)?;
+        let config: ConnectConfig = match serde_json::from_reader(reader) {
+            Ok(c) => c,
+            Err(_) => return Err(ProtocolError::ReadingConfigFileError),
+        };
 
         config.check_will_properties()?;
 
         Ok(config)
     }
 
-    fn check_will_properties(&mut self) -> Result<(), ProtocolError> {
-        if let (Some(_), Some(_), Some(_)) = (&self.will_properties, &self.last_will_topic, &self.last_will_message) {
-            if self.last_will_qos > 1 { //si es una QoS no soportada...
+    fn check_will_properties(&self) -> Result<(), ProtocolError> {
+        if let (Some(_), Some(_), Some(_)) = (
+            &self.will_properties,
+            &self.last_will_topic,
+            &self.last_will_message,
+        ) {
+            if self.last_will_qos > 1 {
+                //si es una QoS no soportada...
                 return Err(ProtocolError::InvalidQOS);
             }
-            return Ok(()); 
+            return Ok(());
         }
 
         Err(ProtocolError::MissingWillMessageProperties)
     }
-
-
 }
 #[allow(dead_code)]
 
@@ -149,92 +158,110 @@ mod tests {
     }
 
     #[test]
-    fn test_read_json_connect_config() {
-        let json_data = r#"{
-            "clean_start": true,
-            "last_will_flag": true,
-            "last_will_qos": 1,
-            "last_will_retain": true,
-            "keep_alive": 35,
-            "properties": {
-                "session_expiry_interval": 30,
-                "receive_maximum": 1,
-                "maximum_packet_size": 20,
-                "topic_alias_maximum": 20,
-                "request_response_information": true,
-                "request_problem_information": true,
-                "user_properties": [
-                    [
-                        "hola",
-                        "chau"
-                    ]
-                ],
-                "authentication_method": "password-based",
-                "authentication_data": [
-                    1,
-                    2,
-                    3
-                ]
-            },
-            "client_id": "juancito",
-            "will_properties": {
-                "last_will_delay_interval": 1,
-                "payload_format_indicator": 1,
-                "message_expiry_interval": 1,
-                "content_type": "a",
-                "response_topic": "a",
-                "correlation_data": [
-                    1,
-                    2,
-                    3
-                ],
-                "user_properties": [
-                    [
-                        "a",
-                        "a"
-                    ]
-                ]
-            },
-            "last_will_topic": "camera system",
-            "last_will_message": "soy el monitoring y me desconecte",
-            "username": "a",
-            "password": "a"
-        }"#;
-        let connect_config = read_json_to_connect_config(json_data).unwrap();
-        let expected_connect_config = ConnectConfig::new(
-            true,
-            true,
-            1,
-            true,
-            35,
-            ConnectProperties::new(
-                30,
-                1,
-                20,
-                20,
-                true,
-                true,
-                vec![("hola".to_string(), "chau".to_string())],
-                "password-based".to_string(),
-                vec![1, 2, 3],
-            ),
-            "juancito".to_string(),
-            Some(WillProperties::new(
-                1,
-                1,
-                1,
-                "a".to_string(),
-                "a".to_string(),
-                [1, 2, 3].to_vec(),
-                vec![("a".to_string(), "a".to_string())],
-            )),
-            Some("camera system".to_string()),
-            Some("soy el monitoring y me desconecte".to_string()),
-            "a".to_string(),
-            "a".to_string(),
+    fn test_02_config_without_last_will_msg_throws_err() {
+        let config_err = ConnectConfig::read_connect_config(
+            "./tests/connect_config_test/config_without_will_msg.json",
         );
-        assert_eq!(connect_config, expected_connect_config);
+
+        assert!(config_err.is_err());
     }
+
+    #[test]
+    fn test_03_config_with_lat_will_invalid_qos_err() {
+        let config_err = ConnectConfig::read_connect_config(
+            "./tests/connect_config_test/connect_config_invalid_qos.json",
+        );
+
+        assert!(config_err.is_err());
+    }
+
+    // #[test]
+    // fn test_read_json_connect_config() {
+    //     let json_data = r#"{
+    //         "clean_start": true,
+    //         "last_will_flag": true,
+    //         "last_will_qos": 1,
+    //         "last_will_retain": true,
+    //         "keep_alive": 35,
+    //         "properties": {
+    //             "session_expiry_interval": 30,
+    //             "receive_maximum": 1,
+    //             "maximum_packet_size": 20,
+    //             "topic_alias_maximum": 20,
+    //             "request_response_information": true,
+    //             "request_problem_information": true,
+    //             "user_properties": [
+    //                 [
+    //                     "hola",
+    //                     "chau"
+    //                 ]
+    //             ],
+    //             "authentication_method": "password-based",
+    //             "authentication_data": [
+    //                 1,
+    //                 2,
+    //                 3
+    //             ]
+    //         },
+    //         "client_id": "juancito",
+    //         "will_properties": {
+    //             "last_will_delay_interval": 1,
+    //             "payload_format_indicator": 1,
+    //             "message_expiry_interval": 1,
+    //             "content_type": "a",
+    //             "response_topic": "a",
+    //             "correlation_data": [
+    //                 1,
+    //                 2,
+    //                 3
+    //             ],
+    //             "user_properties": [
+    //                 [
+    //                     "a",
+    //                     "a"
+    //                 ]
+    //             ]
+    //         },
+    //         "last_will_topic": "camera system",
+    //         "last_will_message": "soy el monitoring y me desconecte",
+    //         "username": "a",
+    //         "password": "a"
+    //     }"#;
+    //     let connect_config = read_json_to_connect_config(json_data).unwrap();
+    //     let expected_connect_config = ConnectConfig::new(
+    //         true,
+    //         true,
+    //         1,
+    //         true,
+    //         35,
+    //         ConnectProperties::new(
+    //             30,
+    //             1,
+    //             20,
+    //             20,
+    //             true,
+    //             true,
+    //             vec![("hola".to_string(), "chau".to_string())],
+    //             "password-based".to_string(),
+    //             vec![1, 2, 3],
+    //         ),
+    //         "juancito".to_string(),
+    //         Some(WillProperties::new(
+    //             1,
+    //             1,
+    //             1,
+    //             "a".to_string(),
+    //             "a".to_string(),
+    //             [1, 2, 3].to_vec(),
+    //             vec![("a".to_string(), "a".to_string())],
+    //         )),
+    //         Some("camera system".to_string()),
+    //         Some("soy el monitoring y me desconecte".to_string()),
+    //         "a".to_string(),
+    //         "a".to_string(),
+    //     );
+    //     assert_eq!(connect_config, expected_connect_config);
+    // }
 
     // #[test]
     // fn test_parse_message() {

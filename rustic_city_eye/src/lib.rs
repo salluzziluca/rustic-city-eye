@@ -8,6 +8,7 @@ pub mod mqtt {
     pub mod connect {
         pub mod connect_config;
         pub mod connect_properties;
+        pub mod will_properties;
     }
 
     pub mod messages_config;
@@ -23,7 +24,6 @@ pub mod mqtt {
     pub mod reason_code;
     pub mod subscribe_properties;
     pub mod topic;
-    pub mod will_properties;
 
     pub mod broker;
     pub mod broker_config;

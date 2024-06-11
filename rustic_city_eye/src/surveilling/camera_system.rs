@@ -3,9 +3,8 @@ use std::sync::mpsc::{self, Sender};
 use crate::{
     mqtt::{
         client::Client, connect::connect_config::ConnectConfig, connect::connect_properties,
-        messages_config::MessagesConfig, protocol_error::ProtocolError,
+        connect::will_properties, messages_config::MessagesConfig, protocol_error::ProtocolError,
         subscribe_config::SubscribeConfig, subscribe_properties::SubscribeProperties,
-        will_properties,
     },
     surveilling::camera::Camera,
     utils::location::Location,
@@ -21,7 +20,7 @@ pub struct CameraSystem {
 impl CameraSystem {
     pub fn new(args: Vec<String>) -> Result<CameraSystem, ProtocolError> {
         let address = args[0].clone() + ":" + &args[1];
-        let will_properties = will_properties::WillProperties::new(
+        let _will_properties = will_properties::WillProperties::new(
             1,
             1,
             1,
@@ -54,8 +53,8 @@ impl CameraSystem {
             None,
             None,
             None,
-            args[2].clone(),
-            args[3].clone(),
+            Some(args[2].clone()),
+            None,
         );
 
         let (tx, rx) = mpsc::channel();
