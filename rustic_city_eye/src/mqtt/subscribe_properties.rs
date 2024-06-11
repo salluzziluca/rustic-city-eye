@@ -1,6 +1,8 @@
 use crate::utils::{reader::*, writer::*};
 use std::io::{Error, Read, Write};
 
+use super::protocol_error::ProtocolError;
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct SubscribeProperties {
     pub sub_id: u8,
@@ -21,7 +23,7 @@ impl SubscribeProperties {
         }
     }
 
-    pub fn write_properties(&self, stream: &mut dyn Write) -> Result<(), Error> {
+    pub fn write_properties(&self, stream: &mut dyn Write) -> Result<(), ProtocolError> {
         write_u8(stream, &self.sub_id)?;
         write_string_pairs(stream, &self.user_properties)?;
         write_bin_vec(stream, &self.payload)?;

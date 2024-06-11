@@ -11,13 +11,12 @@ use std::{
 use crate::{
     mqtt::{
         broker_message::BrokerMessage, client_message::ClientMessage,
-        connect_config::ConnectConfig, error::ClientError, messages_config::MessagesConfig,
-        protocol_error::ProtocolError,
+        messages_config::MessagesConfig, protocol_error::ProtocolError,
     },
     utils::threadpool::ThreadPool,
 };
 
-use super::client_return::ClientReturn;
+use super::{client_message, client_return::ClientReturn, error::ClientError};
 
 #[derive(Debug)]
 pub struct Client {
@@ -35,27 +34,14 @@ impl Client {
     pub fn new(
         receiver_channel: Receiver<Box<dyn MessagesConfig + Send>>,
         address: String,
-        connect_config: ConnectConfig,
+        connect: client_message::Connect,
     ) -> Result<Client, ProtocolError> {
         let mut stream = match TcpStream::connect(address) {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::ConectionError),
         };
 
-        let connect = ClientMessage::Connect {
-            clean_start: connect_config.clean_start,
-            last_will_flag: connect_config.last_will_flag,
-            last_will_qos: connect_config.last_will_qos,
-            last_will_retain: connect_config.last_will_retain,
-            username: connect_config.username,
-            password: connect_config.password,
-            keep_alive: connect_config.keep_alive,
-            properties: connect_config.properties,
-            client_id: connect_config.client_id,
-            will_properties: connect_config.will_properties,
-            last_will_topic: connect_config.last_will_topic,
-            last_will_message: connect_config.last_will_message,
-        };
+        let connect = ClientMessage::Connect(connect);
 
         println!("Enviando connect message to broker");
         match connect.write_to(&mut stream) {
@@ -296,20 +282,7 @@ impl Client {
                     let message = message_config.parse_message(packet_id);
 
                     match message {
-                        ClientMessage::Connect {
-                            clean_start: _,
-                            last_will_flag: _,
-                            last_will_qos: _,
-                            last_will_retain: _,
-                            keep_alive: _,
-                            properties: _,
-                            client_id: _,
-                            will_properties: _,
-                            last_will_topic: _,
-                            last_will_message: _,
-                            username: _,
-                            password: _,
-                        } => todo!(),
+                        ClientMessage::Connect { 0: _ } => todo!(),
                         ClientMessage::Publish {
                             packet_id,
                             topic_name,

@@ -20,7 +20,7 @@ pub enum ReasonCode {
     ImplementationSpecificError { reason_code: u8 },
     NotAuthorized { reason_code: u8 },
     TopicNameInvalid { reason_code: u8 },
-    PacketIdentifierInUse { reason_code: u8 },  
+    PacketIdentifierInUse { reason_code: u8 },
     QuotaExceeded { reason_code: u8 },
     PayloadFormatInvalid { reason_code: u8 },
     SubIdDup { reason_code: u8 },

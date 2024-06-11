@@ -9,7 +9,8 @@ const SESSION_EXPIRY_INTERVAL_ID: u8 = 0x11;
 const REASON_STRING_ID: u8 = 0x1F;
 const USER_PROPERTY_ID: u8 = 0x26;
 use super::{
-    connack_properties::ConnackProperties, payload::Payload, publish_properties::PublishProperties,
+    connack_properties::ConnackProperties, payload::Payload, protocol_error::ProtocolError,
+    publish_properties::PublishProperties,
 };
 use crate::utils::{
     reader::{read_string, read_u8},
@@ -67,7 +68,7 @@ pub enum BrokerMessage {
 }
 #[allow(dead_code)]
 impl BrokerMessage {
-    pub fn write_to(&self, stream: &mut dyn Write) -> std::io::Result<()> {
+    pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), ProtocolError> {
         let mut writer = BufWriter::new(stream);
         match self {
             BrokerMessage::Connack {
@@ -76,12 +77,14 @@ impl BrokerMessage {
                 properties,
             } => {
                 let byte_1: u8 = 0x20_u8.to_le(); //00100000
-                writer.write_all(&[byte_1])?;
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_| ProtocolError::WriteError);
 
                 write_bool(&mut writer, session_present)?;
                 write_u8(&mut writer, reason_code)?;
                 properties.write_to(&mut writer)?;
-                writer.flush()?;
+                let _ = writer.flush().map_err(|_| ProtocolError::WriteError);
 
                 Ok(())
             }
@@ -93,7 +96,9 @@ impl BrokerMessage {
                 //fixed header
                 let byte_1: u8 = 0x40_u8.to_le(); //01000000
 
-                writer.write_all(&[byte_1])?;
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_| ProtocolError::WriteError);
 
                 //variable header
                 //packet_id
@@ -103,7 +108,7 @@ impl BrokerMessage {
                 //reason code
                 write_u8(&mut writer, reason_code)?;
 
-                writer.flush()?;
+                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
 
                 Ok(())
             }
@@ -116,7 +121,9 @@ impl BrokerMessage {
                 //fixed header
                 let byte_1: u8 = 0x90_u8.to_le(); //10010000
 
-                writer.write_all(&[byte_1])?;
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_e| ProtocolError::WriteError);
 
                 //variable header
                 //let byte_2: u8 = 0x00_u8.to_le(); //00000000
@@ -133,7 +140,7 @@ impl BrokerMessage {
 
                 //sub_id
                 write_u8(&mut writer, sub_id)?;
-                writer.flush()?;
+                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
 
                 Ok(())
             }
@@ -148,7 +155,9 @@ impl BrokerMessage {
             } => {
                 //fixed header -> es uno de juguete, hay que pensarlo mejor
                 let byte_1: u8 = 0x00_u8.to_le();
-                writer.write_all(&[byte_1])?;
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_e| ProtocolError::WriteError);
 
                 //variable header
                 //packet_id
@@ -174,7 +183,7 @@ impl BrokerMessage {
                 //properties
                 properties.write_properties(&mut writer)?;
 
-                writer.flush()?;
+                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
 
                 Ok(())
             }
@@ -186,7 +195,9 @@ impl BrokerMessage {
                 //fixed header
                 let byte_1: u8 = 0xB0_u8.to_le(); //10110000
 
-                writer.write_all(&[byte_1])?;
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_e| ProtocolError::WriteError);
 
                 //variable header
                 //packet_id
@@ -194,7 +205,7 @@ impl BrokerMessage {
                 write_u8(&mut writer, packet_id_lsb)?;
                 write_u8(&mut writer, reason_code)?;
 
-                writer.flush()?;
+                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
 
                 Ok(())
             }
@@ -218,13 +229,15 @@ impl BrokerMessage {
 
                 write_u8(&mut writer, &USER_PROPERTY_ID)?;
                 write_string_pairs(&mut writer, user_properties)?;
-                writer.flush()?;
+                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
                 Ok(())
             }
             BrokerMessage::Pingresp => {
                 let byte_1: u8 = 0xD0_u8.to_le();
-                writer.write_all(&[byte_1])?;
-                writer.flush()?;
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_e| ProtocolError::WriteError);
+                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
 
                 Ok(())
             }

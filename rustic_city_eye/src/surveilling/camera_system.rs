@@ -2,10 +2,9 @@ use std::sync::mpsc::{self, Sender};
 
 use crate::{
     mqtt::{
-        client::Client, connect_config::ConnectConfig, connect_properties,
-        messages_config::MessagesConfig, protocol_error::ProtocolError,
-        subscribe_config::SubscribeConfig, subscribe_properties::SubscribeProperties,
-        will_properties,
+        client::Client, client_message, messages_config::MessagesConfig,
+        protocol_error::ProtocolError, subscribe_config::SubscribeConfig,
+        subscribe_properties::SubscribeProperties,
     },
     surveilling::camera::Camera,
     utils::location::Location,
@@ -20,43 +19,10 @@ pub struct CameraSystem {
 
 impl CameraSystem {
     pub fn new(args: Vec<String>) -> Result<CameraSystem, ProtocolError> {
+        let connect_config =
+            client_message::Connect::read_connect_config("./src/surveilling/connect_config.json")?;
+
         let address = args[0].clone() + ":" + &args[1];
-        let will_properties = will_properties::WillProperties::new(
-            1,
-            1,
-            1,
-            "a".to_string(),
-            "a".to_string(),
-            [1, 2, 3].to_vec(),
-            vec![("a".to_string(), "a".to_string())],
-        );
-
-        let connect_properties = connect_properties::ConnectProperties::new(
-            30,
-            1,
-            20,
-            20,
-            true,
-            true,
-            vec![("hola".to_string(), "chau".to_string())],
-            "auth".to_string(),
-            vec![1, 2, 3],
-        );
-
-        let connect_config = ConnectConfig::new(
-            true,
-            true,
-            1,
-            true,
-            35,
-            connect_properties,
-            "juancito".to_string(),
-            will_properties,
-            "camera system".to_string(),
-            "soy el monitoring y me desconecte".to_string(),
-            args[2].clone(),
-            args[3].clone(),
-        );
 
         let (tx, rx) = mpsc::channel();
 
@@ -97,33 +63,3 @@ impl CameraSystem {
         Ok(())
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use std::net::TcpListener;
-
-//     use crate::mqtt::broker_message::BrokerMessage;
-
-//     use super::*;
-
-//     #[test]
-//     fn test_camera_system() {
-//         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-//         let addr: std::net::SocketAddr = listener.local_addr().unwrap();
-
-//         let connack = BrokerMessage::Connack {
-//             session_present: false,
-//             reason_code: 0,
-//             properties:
-//         };
-//         let args = vec![
-//             addr.ip().to_string(),
-//             addr.port().to_string(),
-//             "user".to_string(),
-//             "pass".to_string(),
-//         ];
-
-//         let camera_system = CameraSystem::new(args).unwrap();
-//         assert_eq!(camera_system.get_cameras().len(), 0);
-//     }
-// }

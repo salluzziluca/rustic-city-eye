@@ -4,13 +4,11 @@
 use std::sync::mpsc::{self, Sender};
 
 use crate::monitoring::incident::Incident;
-use crate::mqtt::connect_config::ConnectConfig;
+use crate::mqtt::client_message;
 use crate::mqtt::messages_config::MessagesConfig;
 use crate::mqtt::publish_config::PublishConfig;
 use crate::mqtt::publish_properties::{PublishProperties, TopicProperties};
-use crate::mqtt::{
-    client::Client, connect_properties, protocol_error::ProtocolError, will_properties,
-};
+use crate::mqtt::{client::Client, protocol_error::ProtocolError};
 use crate::surveilling::camera::Camera;
 use crate::surveilling::camera_system::*;
 use crate::utils::incident_payload::IncidentPayload;
@@ -32,27 +30,8 @@ impl MonitoringApp {
     /// Crea el cliente de la app de monitoreo y lo conecta al broker
     /// Crea un sistema de cámaras y agrega una cámara al sistema
     pub fn new(args: Vec<String>) -> Result<MonitoringApp, ProtocolError> {
-        let will_properties = will_properties::WillProperties::new(
-            1,
-            1,
-            1,
-            "a".to_string(),
-            "a".to_string(),
-            [1, 2, 3].to_vec(),
-            vec![("a".to_string(), "a".to_string())],
-        );
-
-        let connect_properties = connect_properties::ConnectProperties::new(
-            30,
-            1,
-            20,
-            20,
-            true,
-            true,
-            vec![("hola".to_string(), "chau".to_string())],
-            "password-based".to_string(),
-            vec![1, 2, 3],
-        );
+        let connect_config =
+            client_message::Connect::read_connect_config("./src/monitoring/connect_config.json")?;
 
         let address = args[2].to_string() + ":" + &args[3].to_string();
         let camera_system_args = vec![
@@ -61,21 +40,6 @@ impl MonitoringApp {
             "camera_system".to_string(),
             "CamareandoCamaritas123".to_string(),
         ];
-
-        let connect_config = ConnectConfig::new(
-            true,
-            true,
-            1,
-            true,
-            35,
-            connect_properties,
-            "kvtr33".to_string(),
-            will_properties,
-            "camera system".to_string(),
-            "soy el monitoring y me desconecte".to_string(),
-            args[0].clone(),
-            args[1].clone(),
-        );
 
         let camera_system = CameraSystem::new(camera_system_args)?;
         let (tx, rx) = mpsc::channel();

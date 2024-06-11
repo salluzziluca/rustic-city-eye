@@ -2,6 +2,8 @@ use std::io::{Error, Read, Write};
 
 use crate::utils::{reader::*, writer::*};
 
+use super::protocol_error::ProtocolError;
+
 //PROPERTIES IDs
 const PAYLOAD_FORMAT_INDICATOR_ID: u8 = 0x01;
 const MESSAGE_EXPIRY_INTERVAL_ID: u8 = 0x02;
@@ -55,7 +57,7 @@ impl PublishProperties {
         }
     }
 
-    pub fn write_properties(&self, stream: &mut dyn Write) -> std::io::Result<()> {
+    pub fn write_properties(&self, stream: &mut dyn Write) -> Result<(), ProtocolError> {
         //payload format indicator
         write_u8(stream, &PAYLOAD_FORMAT_INDICATOR_ID)?;
         write_u8(stream, &self.payload_format_indicator)?;
