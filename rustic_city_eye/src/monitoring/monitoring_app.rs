@@ -8,10 +8,7 @@ use crate::mqtt::connect::connect_config::ConnectConfig;
 use crate::mqtt::messages_config::MessagesConfig;
 use crate::mqtt::publish_config::PublishConfig;
 use crate::mqtt::publish_properties::{PublishProperties, TopicProperties};
-use crate::mqtt::{
-    client::Client, connect::connect_properties, connect::will_properties,
-    protocol_error::ProtocolError,
-};
+use crate::mqtt::{client::Client, protocol_error::ProtocolError};
 use crate::surveilling::camera::Camera;
 use crate::surveilling::camera_system::*;
 use crate::utils::incident_payload::IncidentPayload;
@@ -33,27 +30,8 @@ impl MonitoringApp {
     /// Crea el cliente de la app de monitoreo y lo conecta al broker
     /// Crea un sistema de cámaras y agrega una cámara al sistema
     pub fn new(args: Vec<String>) -> Result<MonitoringApp, ProtocolError> {
-        let _will_properties = will_properties::WillProperties::new(
-            1,
-            1,
-            1,
-            "a".to_string(),
-            "a".to_string(),
-            [1, 2, 3].to_vec(),
-            vec![("a".to_string(), "a".to_string())],
-        );
-
-        let connect_properties = connect_properties::ConnectProperties::new(
-            30,
-            1,
-            20,
-            20,
-            true,
-            true,
-            vec![("hola".to_string(), "chau".to_string())],
-            "password-based".to_string(),
-            vec![1, 2, 3],
-        );
+        let connect_config =
+            ConnectConfig::read_connect_config("./src/monitoring/connect_config.json")?;
 
         let address = args[2].to_string() + ":" + &args[3].to_string();
         let camera_system_args = vec![
@@ -62,21 +40,6 @@ impl MonitoringApp {
             "camera_system".to_string(),
             "CamareandoCamaritas123".to_string(),
         ];
-
-        let connect_config = ConnectConfig::new(
-            true,
-            true,
-            1,
-            true,
-            35,
-            connect_properties,
-            "kvtr33".to_string(),
-            None,
-            None,
-            None,
-            Some(args[0].clone()),
-            None,
-        );
 
         let camera_system = CameraSystem::new(camera_system_args)?;
         let (tx, rx) = mpsc::channel();

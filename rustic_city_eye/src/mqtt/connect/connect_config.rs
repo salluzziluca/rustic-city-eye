@@ -17,23 +17,23 @@ use crate::utils::writer::*;
 /// la informacion con la que se va a armar el packet de Connect.
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct ConnectConfig {
-    pub(crate) clean_start: bool,
-    pub(crate) last_will_flag: bool,
-    pub(crate) last_will_qos: u8,
-    pub(crate) last_will_retain: bool,
-    pub(crate) keep_alive: u16,
-    pub(crate) properties: ConnectProperties,
+    clean_start: bool,
+    last_will_flag: bool,
+    last_will_qos: u8,
+    last_will_retain: bool,
+    keep_alive: u16,
+    properties: ConnectProperties,
 
-    /// Payload
+    /// Connect Payload
     /// Ayuda a que el servidor identifique al cliente. Siempre debe ser
     /// el primer campo del payload del packet Connect.
     pub(crate) client_id: String,
 
-    pub(crate) will_properties: Option<WillProperties>,
-    pub(crate) last_will_topic: Option<String>,
-    pub(crate) last_will_message: Option<String>,
-    pub(crate) username: Option<String>,
-    pub(crate) password: Option<Vec<u8>>,
+    will_properties: Option<WillProperties>,
+    last_will_topic: Option<String>,
+    last_will_message: Option<String>,
+    username: Option<String>,
+    password: Option<Vec<u8>>,
 }
 
 impl MessagesConfig for ConnectConfig {
@@ -48,43 +48,6 @@ impl MessagesConfig for ConnectConfig {
 }
 
 impl ConnectConfig {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        clean_start: bool,
-        last_will_flag: bool,
-        last_will_qos: u8,
-        last_will_retain: bool,
-        keep_alive: u16,
-        properties: ConnectProperties,
-        client_id: String,
-        will_properties: Option<WillProperties>,
-        last_will_topic: Option<String>,
-        last_will_message: Option<String>,
-        username: Option<String>,
-        password: Option<Vec<u8>>,
-    ) -> ConnectConfig {
-        ConnectConfig {
-            clean_start,
-            last_will_flag,
-            last_will_qos,
-            last_will_retain,
-            keep_alive,
-            properties,
-            client_id,
-            will_properties,
-            last_will_topic,
-            last_will_message,
-            username,
-            password,
-        }
-    }
-
-    pub fn build(file_path: &str) -> Result<ConnectConfig, ProtocolError> {
-        let config = ConnectConfig::read_connect_config(file_path)?;
-
-        Ok(config)
-    }
-
     /// Abre un archivo de configuracion con propiedades y guarda sus lecturas.
     pub fn read_connect_config(file_path: &str) -> Result<ConnectConfig, ProtocolError> {
         let config_file = match File::open(file_path) {

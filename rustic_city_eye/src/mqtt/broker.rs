@@ -235,9 +235,7 @@ pub fn handle_messages(
         Err(_) => return Err(ProtocolError::StreamError),
     };
     match mensaje {
-        ClientMessage::Connect {
-            connect_config,
-        } => {
+        ClientMessage::Connect { connect_config } => {
             println!("Recibí un Connect");
 
             if clients_ids.contains(&connect_config.client_id) {

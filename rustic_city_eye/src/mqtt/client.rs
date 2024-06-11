@@ -10,12 +10,9 @@ use std::{
 
 use crate::{
     mqtt::{
-        broker_message::BrokerMessage,
-        client_message::ClientMessage,
-        connect::connect_config::ConnectConfig,
-        error::ClientError,
-        messages_config::MessagesConfig,
-        protocol_error::ProtocolError,
+        broker_message::BrokerMessage, client_message::ClientMessage,
+        connect::connect_config::ConnectConfig, error::ClientError,
+        messages_config::MessagesConfig, protocol_error::ProtocolError,
     },
     utils::threadpool::ThreadPool,
 };
@@ -45,9 +42,7 @@ impl Client {
             Err(_) => return Err(ProtocolError::ConectionError),
         };
 
-        let connect = ClientMessage::Connect {
-            connect_config,
-        };
+        let connect = ClientMessage::Connect { connect_config };
 
         println!("Enviando connect message to broker");
         match connect.write_to(&mut stream) {
