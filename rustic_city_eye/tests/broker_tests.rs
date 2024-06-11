@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use rustic_city_eye::monitoring::incident::Incident;
-    use rustic_city_eye::mqtt::connect::connect_config::ConnectConfig;
+    use rustic_city_eye::mqtt::client_message;
     use rustic_city_eye::mqtt::publish_properties::{PublishProperties, TopicProperties};
     use rustic_city_eye::mqtt::subscribe_properties::SubscribeProperties;
     use rustic_city_eye::mqtt::{
@@ -50,9 +50,10 @@ mod tests {
         let addr = listener.local_addr().unwrap();
 
         let connect_config =
-            ConnectConfig::read_connect_config("./src/monitoring/connect_config.json").unwrap();
+            client_message::Connect::read_connect_config("./src/monitoring/connect_config.json")
+                .unwrap();
 
-        let connect = ClientMessage::Connect { connect_config };
+        let connect = ClientMessage::Connect(connect_config.clone());
 
         thread::spawn(move || {
             let mut stream = TcpStream::connect(addr).unwrap();
@@ -81,9 +82,10 @@ mod tests {
         let addr = listener.local_addr().unwrap();
 
         let connect_config =
-            ConnectConfig::read_connect_config("./src/monitoring/connect_config.json").unwrap();
+            client_message::Connect::read_connect_config("./src/monitoring/connect_config.json")
+                .unwrap();
 
-        let connect = ClientMessage::Connect { connect_config };
+        let connect = ClientMessage::Connect(connect_config.clone());
 
         thread::spawn(move || {
             let mut stream = TcpStream::connect(addr).unwrap();

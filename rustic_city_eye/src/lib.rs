@@ -6,7 +6,6 @@ pub mod utils;
 
 pub mod mqtt {
     pub mod connect {
-        pub mod connect_config;
         pub mod connect_properties;
         pub mod will_properties;
     }

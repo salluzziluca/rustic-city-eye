@@ -235,10 +235,10 @@ pub fn handle_messages(
         Err(_) => return Err(ProtocolError::StreamError),
     };
     match mensaje {
-        ClientMessage::Connect { connect_config } => {
+        ClientMessage::Connect { 0: connect } => {
             println!("Recibí un Connect");
 
-            if clients_ids.contains(&connect_config.client_id) {
+            if clients_ids.contains(&connect.client_id) {
                 let disconnect = BrokerMessage::Disconnect {
                     reason_code: 0,
                     session_expiry_interval: 0,
@@ -254,7 +254,7 @@ pub fn handle_messages(
                     Err(err) => println!("Error al enviar Disconnect: {:?}", err),
                 }
             }
-            Arc::make_mut(&mut clients_ids).push(connect_config.client_id);
+            Arc::make_mut(&mut clients_ids).push(connect.client_id);
             let properties = ConnackProperties {
                 session_expiry_interval: 0,
                 receive_maximum: 0,

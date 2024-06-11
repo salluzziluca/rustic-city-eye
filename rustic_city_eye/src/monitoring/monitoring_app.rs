@@ -4,7 +4,7 @@
 use std::sync::mpsc::{self, Sender};
 
 use crate::monitoring::incident::Incident;
-use crate::mqtt::connect::connect_config::ConnectConfig;
+use crate::mqtt::client_message;
 use crate::mqtt::messages_config::MessagesConfig;
 use crate::mqtt::publish_config::PublishConfig;
 use crate::mqtt::publish_properties::{PublishProperties, TopicProperties};
@@ -31,7 +31,7 @@ impl MonitoringApp {
     /// Crea un sistema de cámaras y agrega una cámara al sistema
     pub fn new(args: Vec<String>) -> Result<MonitoringApp, ProtocolError> {
         let connect_config =
-            ConnectConfig::read_connect_config("./src/monitoring/connect_config.json")?;
+            client_message::Connect::read_connect_config("./src/monitoring/connect_config.json")?;
 
         let address = args[2].to_string() + ":" + &args[3].to_string();
         let camera_system_args = vec![

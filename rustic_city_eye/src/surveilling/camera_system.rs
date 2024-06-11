@@ -2,7 +2,7 @@ use std::sync::mpsc::{self, Sender};
 
 use crate::{
     mqtt::{
-        client::Client, connect::connect_config::ConnectConfig, messages_config::MessagesConfig,
+        client::Client, client_message, messages_config::MessagesConfig,
         protocol_error::ProtocolError, subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
     },
@@ -20,7 +20,7 @@ pub struct CameraSystem {
 impl CameraSystem {
     pub fn new(args: Vec<String>) -> Result<CameraSystem, ProtocolError> {
         let connect_config =
-            ConnectConfig::read_connect_config("./src/surveilling/connect_config.json")?;
+            client_message::Connect::read_connect_config("./src/surveilling/connect_config.json")?;
 
         let address = args[0].clone() + ":" + &args[1];
 

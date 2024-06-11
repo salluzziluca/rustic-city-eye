@@ -11,13 +11,12 @@ use std::{
 use crate::{
     mqtt::{
         broker_message::BrokerMessage, client_message::ClientMessage,
-        connect::connect_config::ConnectConfig, error::ClientError,
         messages_config::MessagesConfig, protocol_error::ProtocolError,
     },
     utils::threadpool::ThreadPool,
 };
 
-use super::client_return::ClientReturn;
+use super::{client_message, client_return::ClientReturn, error::ClientError};
 
 #[derive(Debug)]
 pub struct Client {
@@ -35,14 +34,14 @@ impl Client {
     pub fn new(
         receiver_channel: Receiver<Box<dyn MessagesConfig + Send>>,
         address: String,
-        connect_config: ConnectConfig,
+        connect: client_message::Connect,
     ) -> Result<Client, ProtocolError> {
         let mut stream = match TcpStream::connect(address) {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::ConectionError),
         };
 
-        let connect = ClientMessage::Connect { connect_config };
+        let connect = ClientMessage::Connect(connect);
 
         println!("Enviando connect message to broker");
         match connect.write_to(&mut stream) {
@@ -283,7 +282,7 @@ impl Client {
                     let message = message_config.parse_message(packet_id);
 
                     match message {
-                        ClientMessage::Connect { connect_config: _ } => todo!(),
+                        ClientMessage::Connect { 0: _ } => todo!(),
                         ClientMessage::Publish {
                             packet_id,
                             topic_name,
