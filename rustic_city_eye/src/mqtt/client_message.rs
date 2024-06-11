@@ -28,18 +28,6 @@ pub enum ClientMessage {
     ///
     /// finalmente, si el cliente envia un username y un password, estos se escriben en el payload.
     Connect {
-        // clean_start: bool,
-        // last_will_flag: bool,
-        // last_will_qos: u8,
-        // last_will_retain: bool,
-        // keep_alive: u16,
-        // properties: ConnectProperties,
-        // client_id: String,
-        // will_properties: WillProperties,
-        // last_will_topic: String,
-        // last_will_message: String,
-        // username: String,
-        // password: String,
         connect_config: ConnectConfig,
     },
 
@@ -124,18 +112,6 @@ impl ClientMessage {
         let mut writer = BufWriter::new(stream);
         match self {
             ClientMessage::Connect {
-                // client_id,
-                // clean_start,
-                // last_will_flag,
-                // last_will_qos,
-                // last_will_retain,
-                // keep_alive,
-                // properties,
-                // will_properties,
-                // last_will_topic,
-                // last_will_message,
-                // username,
-                // password,
                 connect_config,
             } => {
                 //fixed header
@@ -155,55 +131,7 @@ impl ClientMessage {
                     .map_err(|_e| ProtocolError::WriteError);
 
                 connect_config.write_to(&mut writer)?;
-                // //connection flags
-                // let mut connect_flags: u8 = 0x00;
-                // if *clean_start {
-                //     connect_flags |= 1 << 1; //set bit 1 to 1
-                // }
-
-                // if *last_will_flag {
-                //     connect_flags |= 1 << 2;
-                // }
-                // if *last_will_qos > 1 {
-                //     return Err(ProtocolError::InvalidQOS);
-                // }
-                // connect_flags |= (last_will_qos & 0b11) << 3;
-
-                // if *last_will_retain {
-                //     connect_flags |= 1 << 5;
-                // }
-
-                // if !password.is_empty() {
-                //     connect_flags |= 1 << 6;
-                // }
-
-                // if !username.is_empty() {
-                //     connect_flags |= 1 << 7;
-                // }
-
-                // let _ = writer
-                //     .write_all(&[connect_flags])
-                //     .map_err(|_e| ProtocolError::WriteError);
-
-                // //keep alive
-                // write_u16(&mut writer, keep_alive)?;
-                // write_string(&mut writer, client_id)?;
-
-                // will_properties.write_to(&mut writer)?;
-
-                // if *last_will_flag {
-                //     write_string(&mut writer, last_will_topic)?;
-                //     write_string(&mut writer, last_will_message)?;
-                // }
-
-                // if !username.is_empty() {
-                //     write_string(&mut writer, username)?;
-                // }
-                // if !password.is_empty() {
-                //     write_string(&mut writer, password)?;
-                // }
-                // properties.write_to(&mut writer)?;
-
+                
                 let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
                 Ok(())
             }
@@ -430,54 +358,9 @@ impl ClientMessage {
                 }
 
                 let connect_config = ConnectConfig::read_from(stream)?;
-                // //connect flags
-                // let connect_flags = read_u8(stream)?;
-                // let clean_start = (connect_flags & (1 << 1)) != 0;
-                // let last_will_flag = (connect_flags & (1 << 2)) != 0;
-                // let last_will_qos = (connect_flags >> 3) & 0b11;
-                // let last_will_retain = (connect_flags & (1 << 5)) != 0;
 
-                // //keep alive
-                // let keep_alive = read_u16(stream)?;
-                // //properties
-                // //payload
-                // //client ID
-                // let client_id = read_string(stream)?;
-                // let will_properties = WillProperties::read_from(stream)?;
-
-                // let mut last_will_topic = String::new();
-                // let mut will_message = String::new();
-                // if last_will_flag {
-                //     last_will_topic = read_string(stream)?;
-                //     will_message = read_string(stream)?;
-                // }
-
-                // let hay_user = (connect_flags & (1 << 7)) != 0;
-                // let mut user = String::new();
-                // if hay_user {
-                //     user = read_string(stream)?;
-                // }
-
-                // let hay_pass = (connect_flags & (1 << 6)) != 0;
-                // let mut pass = String::new();
-                // if hay_pass {
-                //     pass = read_string(stream)?;
-                // }
-
-                // let properties: ConnectProperties = ConnectProperties::read_from(stream)?;
                 Ok(ClientMessage::Connect {
-                    connect_config, // client_id: client_id.to_string(),
-                                    // clean_start,
-                                    // last_will_flag,
-                                    // last_will_qos,
-                                    // last_will_retain,
-                                    // keep_alive,
-                                    // properties,
-                                    // will_properties,
-                                    // last_will_topic: last_will_topic.to_string(),
-                                    // last_will_message: will_message.to_string(),
-                                    // username: user.to_string(),
-                                    // password: pass.to_string(),
+                    connect_config,
                 })
             }
             0x30 => {
