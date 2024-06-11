@@ -514,6 +514,7 @@ mod tests {
 
     use crate::{
         monitoring::incident::Incident,
+        mqtt::connect::{connect_properties::ConnectProperties, will_properties::WillProperties},
         utils::{incident_payload::IncidentPayload, location::Location},
     };
 
@@ -546,60 +547,60 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn test_02_connect_without_props_err() {
-    //     let connect_properties = ConnectProperties {
-    //         session_expiry_interval: 0,
-    //         receive_maximum: 0,
-    //         maximum_packet_size: 0,
-    //         topic_alias_maximum: 0,
-    //         request_response_information: false,
-    //         request_problem_information: false,
-    //         user_properties: vec![],
-    //         authentication_method: "".to_string(),
-    //         authentication_data: vec![],
-    //     };
+    #[test]
+    fn test_02_connect_without_props_err() {
+        let connect = ClientMessage::Connect {
+            connect_config: ConnectConfig::new(
+                true,
+                true,
+                1,
+                true,
+                35,
+                ConnectProperties::new(
+                    30,
+                    1,
+                    20,
+                    20,
+                    true,
+                    true,
+                    vec![("hola".to_string(), "chau".to_string())],
+                    "password-based".to_string(),
+                    vec![1, 2, 3],
+                ),
+                "kvtr33".to_string(),
+                WillProperties::new(
+                    1,
+                    1,
+                    1,
+                    "a".to_string(),
+                    "a".to_string(),
+                    [1, 2, 3].to_vec(),
+                    vec![("a".to_string(), "a".to_string())],
+                ),
+                "camera system".to_string(),
+                "soy el monitoring y me desconecte".to_string(),
+                "a".to_string(),
+                "a".to_string(),
+            ),
+        };
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+        match connect.write_to(&mut cursor) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("no se pudo escribir en el cursor {:?}", e);
+            }
+        }
+        cursor.set_position(0);
 
-    //     let connect = ClientMessage::Connect {
-    //         clean_start: true,
-    //         last_will_flag: true,
-    //         last_will_qos: 1,
-    //         last_will_retain: true,
-    //         keep_alive: 35,
-    //         properties: connect_properties,
-    //         client_id: "kvtr33".to_string(),
-    //         will_properties: WillProperties::new(
-    //             0,
-    //             1,
-    //             0,
-    //             "".to_string(),
-    //             "".to_string(),
-    //             vec![],
-    //             vec![],
-    //         ),
-    //         last_will_topic: "topic".to_string(),
-    //         last_will_message: "chauchis".to_string(),
-    //         username: "prueba".to_string(),
-    //         password: "".to_string(),
-    //     };
-    //     let mut cursor = Cursor::new(Vec::<u8>::new());
-    //     match connect.write_to(&mut cursor) {
-    //         Ok(_) => {}
-    //         Err(e) => {
-    //             panic!("no se pudo escribir en el cursor {:?}", e);
-    //         }
-    //     }
-    //     cursor.set_position(0);
-
-    //     match ClientMessage::read_from(&mut cursor) {
-    //         Ok(read_connect) => {
-    //             assert_eq!(connect, read_connect);
-    //         }
-    //         Err(e) => {
-    //             panic!("no se pudo leer del cursor {:?}", e);
-    //         }
-    //     }
-    // }
+        match ClientMessage::read_from(&mut cursor) {
+            Ok(read_connect) => {
+                assert_eq!(connect, read_connect);
+            }
+            Err(e) => {
+                panic!("no se pudo leer del cursor {:?}", e);
+            }
+        }
+    }
 
     #[test]
     fn test_03_publish_message_ok() {
@@ -735,51 +736,51 @@ mod tests {
         assert_eq!(auth, read_auth);
     }
 
-    // #[test]
-    // fn test_07_connect_with_invalid_qos_throws_err() -> std::io::Result<()> {
-    //     let connect_properties = ConnectProperties {
-    //         session_expiry_interval: 0,
-    //         receive_maximum: 0,
-    //         maximum_packet_size: 0,
-    //         topic_alias_maximum: 0,
-    //         request_response_information: false,
-    //         request_problem_information: false,
-    //         user_properties: vec![],
-    //         authentication_method: "".to_string(),
-    //         authentication_data: vec![],
-    //     };
+    #[test]
+    fn test_07_connect_with_invalid_qos_throws_err() -> std::io::Result<()> {
+        let connect = ClientMessage::Connect {
+            connect_config: ConnectConfig::new(
+                true,
+                true,
+                1,
+                true,
+                35,
+                ConnectProperties::new(
+                    30,
+                    1,
+                    20,
+                    20,
+                    true,
+                    true,
+                    vec![("hola".to_string(), "chau".to_string())],
+                    "password-based".to_string(),
+                    vec![1, 2, 3],
+                ),
+                "kvtr33".to_string(),
+                WillProperties::new(
+                    1,
+                    1,
+                    1,
+                    "a".to_string(),
+                    "a".to_string(),
+                    [1, 2, 3].to_vec(),
+                    vec![("a".to_string(), "a".to_string())],
+                ),
+                "camera system".to_string(),
+                "soy el monitoring y me desconecte".to_string(),
+                "a".to_string(),
+                "a".to_string(),
+            ),
+        };
+        let mut cursor = Cursor::new(Vec::<u8>::new());
 
-    //     let connect = ClientMessage::Connect {
-    //         clean_start: true,
-    //         last_will_flag: true,
-    //         last_will_qos: 2,
-    //         last_will_retain: true,
-    //         keep_alive: 35,
-    //         properties: connect_properties,
-    //         client_id: "kvtr33".to_string(),
-    //         will_properties: WillProperties::new(
-    //             0,
-    //             1,
-    //             0,
-    //             "".to_string(),
-    //             "".to_string(),
-    //             vec![],
-    //             vec![],
-    //         ),
-    //         last_will_topic: "topic".to_string(),
-    //         last_will_message: "chauchis".to_string(),
-    //         username: "prueba".to_string(),
-    //         password: "".to_string(),
-    //     };
-    //     let mut cursor = Cursor::new(Vec::<u8>::new());
-
-    //     match connect.write_to(&mut cursor) {
-    //         Ok(_) => Ok(()),
-    //         Err(e) => {
-    //             println!("QoS invalida");
-    //             assert_eq!(e, ProtocolError::InvalidQOS);
-    //             Ok(())
-    //         }
-    //     }
-    // }
+        match connect.write_to(&mut cursor) {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                println!("QoS invalida");
+                assert_eq!(e, ProtocolError::InvalidQOS);
+                Ok(())
+            }
+        }
+    }
 }
