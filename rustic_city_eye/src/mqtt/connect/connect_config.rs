@@ -233,7 +233,13 @@ impl ConnectConfig {
         })
     }
 }
-
+#[allow(dead_code)]
+fn read_json_to_connect_config(
+    json_data: &str,
+) -> Result<ConnectConfig, Box<dyn std::error::Error>> {
+    let connect_config: ConnectConfig = serde_json::from_str(json_data)?;
+    Ok(connect_config)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -294,7 +300,7 @@ mod tests {
                     3
                 ]
             },
-            "client_id": "juancito",
+            "client_id": "kvtr33",
             "will_properties": {
                 "last_will_delay_interval": 1,
                 "payload_format_indicator": 1,
@@ -316,9 +322,9 @@ mod tests {
             "last_will_topic": "camera system",
             "last_will_message": "soy el monitoring y me desconecte",
             "username": "a",
-            "password": "a"
+            "password": [97]
         }"#;
-        let connect_config = ConnectConfig::read_connect_config(json_data).unwrap();
+        let connect_config = read_json_to_connect_config(json_data).unwrap();
         let expected_connect_config = ConnectConfig::new(
             true,
             true,
@@ -336,7 +342,7 @@ mod tests {
                 "password-based".to_string(),
                 vec![1, 2, 3],
             ),
-            "juancito".to_string(),
+            "kvtr33".to_string(),
             WillProperties::new(
                 1,
                 1,

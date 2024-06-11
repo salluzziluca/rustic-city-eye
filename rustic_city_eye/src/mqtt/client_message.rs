@@ -111,9 +111,7 @@ impl ClientMessage {
     pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), ProtocolError> {
         let mut writer = BufWriter::new(stream);
         match self {
-            ClientMessage::Connect {
-                connect_config,
-            } => {
+            ClientMessage::Connect { connect_config } => {
                 //fixed header
                 let byte_1: u8 = 0x10_u8.to_le(); //00010000
                 let _ = writer
@@ -131,7 +129,7 @@ impl ClientMessage {
                     .map_err(|_e| ProtocolError::WriteError);
 
                 connect_config.write_to(&mut writer)?;
-                
+
                 let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
                 Ok(())
             }
@@ -359,9 +357,7 @@ impl ClientMessage {
 
                 let connect_config = ConnectConfig::read_from(stream)?;
 
-                Ok(ClientMessage::Connect {
-                    connect_config,
-                })
+                Ok(ClientMessage::Connect { connect_config })
             }
             0x30 => {
                 let topic_properties = TopicProperties {
