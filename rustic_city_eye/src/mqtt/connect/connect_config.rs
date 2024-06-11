@@ -1,14 +1,16 @@
 use serde::{Deserialize, Serialize};
 
-use std::error::Error;
 use std::fs::File;
-use std::io::BufReader;
+use std::io::Error;
+use std::io::{BufReader, Read, Write};
 
 use crate::mqtt::protocol_error::ProtocolError;
 use crate::mqtt::{client_message::ClientMessage, messages_config::MessagesConfig};
 use crate::mqtt::{
     connect::connect_properties::ConnectProperties, connect::will_properties::WillProperties,
 };
+use crate::utils::reader::*;
+use crate::utils::writer::*;
 
 /// Cada vez que el usuario de la API de Client intenta enviar un packet
 /// del tipo Connect, debe enviar un ConnectConfig, que contendra
@@ -40,26 +42,7 @@ impl MessagesConfig for ConnectConfig {
     /// siempre un mensaje del tipo Connect.
     fn parse_message(&self, _packet_id: u16) -> ClientMessage {
         ClientMessage::Connect {
-            clean_start: self.clean_start,
-            last_will_flag: self.last_will_flag,
-            last_will_qos: self.last_will_qos,
-            last_will_retain: self.last_will_retain,
-            keep_alive: self.keep_alive,
-            properties: self.properties.clone(),
-            client_id: self.client_id.clone(),
-            will_properties: WillProperties::new(
-                120,
-                1,
-                30,
-                "plain".to_string(),
-                "topic".to_string(),
-                vec![1, 2, 3, 4, 5],
-                vec![("propiedad".to_string(), "valor".to_string())],
-            ),
-            last_will_topic: "jaun".to_string(),
-            last_will_message: "holas".to_string(),
-            username: "juancito".to_string(),
-            password: "asdasd".to_string(),
+            connect_config: self.clone(),
         }
     }
 }
@@ -135,14 +118,134 @@ impl ConnectConfig {
 
         Err(ProtocolError::MissingWillMessageProperties)
     }
+
+    pub fn write_to(&self, writer: &mut dyn Write) -> Result<(), ProtocolError> {
+        //connection flags
+        let mut connect_flags: u8 = 0x00;
+        if self.clean_start {
+            connect_flags |= 1 << 1; //set bit 1 to 1
+        }
+
+        if self.last_will_flag {
+            connect_flags |= 1 << 2;
+        }
+        if self.last_will_qos > 1 {
+            return Err(ProtocolError::InvalidQOS);
+        }
+        connect_flags |= (self.last_will_qos & 0b11) << 3;
+
+        if self.last_will_retain {
+            connect_flags |= 1 << 5;
+        }
+
+        if let Some(password) = self.password.as_ref() {
+            if !password.is_empty() {
+                connect_flags |= 1 << 6;
+            }
+        }
+
+        if let Some(username) = self.username.as_ref() {
+            if !username.is_empty() {
+                connect_flags |= 1 << 7;
+            }
+        }
+
+        let _ = writer
+            .write_all(&[connect_flags])
+            .map_err(|_e| ProtocolError::WriteError);
+
+        //keep alive
+        write_u16(writer, &self.keep_alive)?;
+        write_string(writer, &self.client_id)?;
+
+        if let (Some(will_properties), Some(last_will_topic), Some(last_will_message)) = (
+            self.will_properties.clone(),
+            self.last_will_topic.clone(),
+            self.last_will_message.clone(),
+        ) {
+            if self.last_will_flag {
+                will_properties.write_to(writer)?;
+                write_string(writer, &last_will_topic)?;
+                write_string(writer, &last_will_message)?;
+            }
+        }
+
+        if let Some(username) = self.username.as_ref() {
+            if !username.is_empty() {
+                write_string(writer, username)?;
+            }
+        }
+
+        if let Some(password) = self.password.as_ref() {
+            if !password.is_empty() {
+                write_bin_vec(writer, password)?;
+            }
+        }
+
+        self.properties.write_to(writer)?;
+
+        Ok(())
+    }
+
+    pub fn read_from(stream: &mut impl Read) -> Result<ConnectConfig, Error> {
+        //connect flags
+        let connect_flags = read_u8(stream)?;
+        let clean_start = (connect_flags & (1 << 1)) != 0;
+        let last_will_flag = (connect_flags & (1 << 2)) != 0;
+        let last_will_qos = (connect_flags >> 3) & 0b11;
+        let last_will_retain = (connect_flags & (1 << 5)) != 0;
+
+        //keep alive
+        let keep_alive = read_u16(stream)?;
+        //payload
+        //client ID
+        let client_id = read_string(stream)?;
+
+        let mut last_will_topic = String::new();
+        let mut will_message = String::new();
+
+        let will_properties = WillProperties::read_from(stream)?;
+        if last_will_flag {
+            last_will_topic = read_string(stream)?;
+            will_message = read_string(stream)?;
+        }
+
+        let hay_user = (connect_flags & (1 << 7)) != 0;
+        let mut user = String::new();
+        if hay_user {
+            user = read_string(stream)?;
+        }
+
+        let hay_pass = (connect_flags & (1 << 6)) != 0;
+        let mut pass = Vec::new();
+        if hay_pass {
+            pass = read_bin_vec(stream)?;
+        }
+
+        //properties
+        let properties: ConnectProperties = ConnectProperties::read_from(stream)?;
+
+        Ok(ConnectConfig {
+            clean_start,
+            last_will_flag,
+            last_will_qos,
+            last_will_retain,
+            keep_alive,
+            properties,
+            client_id,
+            will_properties: Some(will_properties),
+            last_will_topic: Some(last_will_topic),
+            last_will_message: Some(will_message),
+            username: Some(user),
+            password: Some(pass),
+        })
+    }
 }
 #[allow(dead_code)]
-
-fn read_json_to_connect_config(json_data: &str) -> Result<ConnectConfig, Box<dyn Error>> {
-    let connect_config: ConnectConfig = serde_json::from_str(json_data)?;
-    Ok(connect_config)
-}
-
+// fn read_json_to_connect_config(json_data: &str) -> Result<ConnectConfig, Box<dyn Error>> {
+//     let connect_config: ConnectConfig = serde_json::from_str(json_data)?;
+//     Ok(connect_config)
+// }
 #[cfg(test)]
 mod tests {
     use super::*;
