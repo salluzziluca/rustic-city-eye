@@ -4,12 +4,12 @@
 use std::sync::mpsc::{self, Sender};
 
 use crate::monitoring::incident::Incident;
-use crate::mqtt::connect_config::ConnectConfig;
+use crate::mqtt::connect::connect_config::ConnectConfig;
 use crate::mqtt::messages_config::MessagesConfig;
 use crate::mqtt::publish_config::PublishConfig;
 use crate::mqtt::publish_properties::{PublishProperties, TopicProperties};
 use crate::mqtt::{
-    client::Client, connect_properties, protocol_error::ProtocolError, will_properties,
+    client::Client, connect::connect_properties, protocol_error::ProtocolError, will_properties,
 };
 use crate::surveilling::camera::Camera;
 use crate::surveilling::camera_system::*;

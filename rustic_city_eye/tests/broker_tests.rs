@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use rustic_city_eye::monitoring::incident::Incident;
-    use rustic_city_eye::mqtt::connect_properties::ConnectProperties;
+    use rustic_city_eye::mqtt::connect::connect_properties::ConnectProperties;
     use rustic_city_eye::mqtt::publish_properties::{PublishProperties, TopicProperties};
     use rustic_city_eye::mqtt::subscribe_properties::SubscribeProperties;
     use rustic_city_eye::mqtt::will_properties::WillProperties;

@@ -2,7 +2,7 @@ use std::sync::mpsc::{self, Sender};
 
 use crate::{
     mqtt::{
-        client::Client, connect_config::ConnectConfig, connect_properties,
+        client::Client, connect::connect_config::ConnectConfig, connect::connect_properties,
         messages_config::MessagesConfig, protocol_error::ProtocolError,
         subscribe_config::SubscribeConfig, subscribe_properties::SubscribeProperties,
         will_properties,

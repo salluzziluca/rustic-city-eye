@@ -1,11 +1,11 @@
-use crate::utils::{reader::*, writer::*};
+use serde::{Deserialize, Serialize};
 
 use std::io::{BufReader, BufWriter, Error, ErrorKind, Read, Write};
 
-use serde::{Deserialize, Serialize};
+use crate::mqtt::protocol_error::ProtocolError;
+use crate::utils::{reader::*, writer::*};
 
-use super::protocol_error::ProtocolError;
-
+/// Contiene las propiedades de un Connect packet.
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct ConnectProperties {
     pub session_expiry_interval: u32,

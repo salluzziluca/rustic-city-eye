@@ -5,7 +5,11 @@ pub mod utils;
 #[doc = include_str!("doc/marco_teorico.md")]
 
 pub mod mqtt {
-    pub mod connect_config;
+    pub mod connect {
+        pub mod connect_config;
+        pub mod connect_properties;
+    }
+
     pub mod messages_config;
     pub mod publish_config;
     pub mod subscribe_config;
@@ -14,7 +18,6 @@ pub mod mqtt {
     pub mod client;
     pub mod client_message;
     pub mod connack_properties;
-    pub mod connect_properties;
     pub mod protocol_error;
     pub mod publish_properties;
     pub mod reason_code;
