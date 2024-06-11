@@ -70,9 +70,9 @@ impl MonitoringApp {
             35,
             connect_properties,
             "kvtr33".to_string(),
-            will_properties,
-            "camera system".to_string(),
-            "soy el monitoring y me desconecte".to_string(),
+            None,
+            None,
+            None,
             args[0].clone(),
             args[1].clone(),
         );

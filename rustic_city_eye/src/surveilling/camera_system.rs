@@ -51,9 +51,9 @@ impl CameraSystem {
             35,
             connect_properties,
             "juancito".to_string(),
-            will_properties,
-            "camera system".to_string(),
-            "soy el monitoring y me desconecte".to_string(),
+            None,
+            None,
+            None,
             args[2].clone(),
             args[3].clone(),
         );

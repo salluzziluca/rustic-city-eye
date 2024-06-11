@@ -12,7 +12,7 @@ use crate::{
     mqtt::{
         broker_message::BrokerMessage, client_message::ClientMessage,
         connect::connect_config::ConnectConfig, error::ClientError,
-        messages_config::MessagesConfig, protocol_error::ProtocolError,
+        messages_config::MessagesConfig, protocol_error::ProtocolError, will_properties::WillProperties,
     },
     utils::threadpool::ThreadPool,
 };
@@ -52,9 +52,17 @@ impl Client {
             keep_alive: connect_config.keep_alive,
             properties: connect_config.properties,
             client_id: connect_config.client_id,
-            will_properties: connect_config.will_properties,
-            last_will_topic: connect_config.last_will_topic,
-            last_will_message: connect_config.last_will_message,
+            will_properties: WillProperties::new(
+                120,
+                1,
+                30,
+                "plain".to_string(),
+                "topic".to_string(),
+                vec![1, 2, 3, 4, 5],
+                vec![("propiedad".to_string(), "valor".to_string())],
+            ),
+            last_will_topic: "juan".to_string(),
+            last_will_message: "juan crack".to_string(),
         };
 
         println!("Enviando connect message to broker");

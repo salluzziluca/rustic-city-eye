@@ -17,6 +17,7 @@ pub enum ProtocolError {
     PubackWithoutPendingID,
     WriteError,
     ReadingConfigFileError,
+    MissingWillMessageProperties
 }
 
 impl fmt::Display for ProtocolError {
@@ -25,6 +26,9 @@ impl fmt::Display for ProtocolError {
             ProtocolError::ConectionError => write!(f, "Error al conectar al broker."),
             ProtocolError::ReadingConfigFileError => {
                 write!(f, "Error al leer el archivo de configuracion del connect.")
+            },
+            ProtocolError::MissingWillMessageProperties => {
+                write!(f, "Error: faltan propiedades del will message.")
             }
             ProtocolError::WriteError => write!(f, "Error escribir el mensaje."),
             ProtocolError::InvalidQOS => write!(f, "Error: Valor de QoS inválido. Debe ser 0 o 1."),
