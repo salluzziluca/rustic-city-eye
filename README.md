@@ -1,10 +1,10 @@
 # Taller de Programacion - Agentes Autonomos de Prevencion
 
 ## Grupo: Rustic City Eye
-- Ignacio Demarchi.
-- Juan Ignacio Giacobbe.
-- Lihuen Carranza.
-- Luca Salluzzi.
+- Carranza, Lihuén.
+- Demarchi, Ignacio.
+- Giacobbe, Juan Ignacio.
+- Salluzzi, Luca.
 
 ## Requisitos previos
 - Rust y Cargo instalados en su sistema. Puede instalar Cargo y Rust desde [aqui](https://www.rust-lang.org/tools/install)
