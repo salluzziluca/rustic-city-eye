@@ -41,7 +41,6 @@ pub struct Connect {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-
 pub enum ClientMessage {
     ///El Connect Message es el primer mensaje que el cliente envia cuando se conecta al broker. Este contiene toda la informacion necesaria para que el broker identifique al cliente y pueda establecer una sesion con los parametros establecidos.
     ///

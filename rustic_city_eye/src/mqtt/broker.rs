@@ -1,11 +1,8 @@
 use std::{
-    collections::HashMap,
-    net::{TcpListener, TcpStream},
-    sync::{Arc, RwLock},
+    collections::HashMap, fs::File, io::{BufRead, BufReader}, net::{TcpListener, TcpStream}, sync::{Arc, RwLock}
 };
 
 use crate::mqtt::{
-    broker_config::BrokerConfig,
     broker_message::BrokerMessage,
     client_message::ClientMessage,
     connack_properties::ConnackProperties,
@@ -37,6 +34,11 @@ pub struct Broker {
     subs: Vec<u32>,
 
     clients_ids: Arc<Vec<String>>,
+
+    /// Los clientes se guardan en un HashMap en el cual
+    /// las claves son los client_ids, y los valores son
+    /// tuplas que contienen el username y password.
+    clients_auth_info: HashMap<String, (String, String)>,
 }
 
 impl Broker {
@@ -50,19 +52,89 @@ impl Broker {
 
         let address = "0.0.0.0:".to_owned() + &args[1];
 
-        let broker_config = BrokerConfig::new(address)?;
-
-        let (address, topics) = broker_config.get_broker_config();
+        let topics = Broker::get_broker_starting_topics("./monitoring/topics.txt")?;
+        let clients_auth_info = Broker::process_clients_file("./src/monitoring/clients.txt")?;
 
         let packets = HashMap::new();
 
         Ok(Broker {
             address,
             topics,
+            clients_auth_info,
             packets: Arc::new(RwLock::new(packets)),
             subs: Vec::new(),
             clients_ids: Arc::new(Vec::new()),
         })
+    }
+
+    pub fn get_broker_starting_topics(file_path: &str) -> Result<HashMap<String, Topic>, ProtocolError> {
+        let mut topics = HashMap::new();
+        let topic_readings = Broker::process_topic_config_file(file_path)?;
+
+        for topic in topic_readings {
+            topics.insert(topic, Topic::new());
+        }
+
+        Ok(topics)
+    }
+
+    ///Abro y devuelvo las lecturas del archivo de topics.
+    fn process_topic_config_file(file_path: &str) -> Result<Vec<String>, ProtocolError> {
+        let file = match File::open(file_path) {
+            Ok(file) => file,
+            Err(_) => return Err(ProtocolError::ReadingTopicConfigFileError),
+        };
+
+        let readings = Broker::read_topic_config_file(&file)?;
+
+        Ok(readings)
+    }
+
+    ///Devuelvo las lecturas que haga en el archivo de topics.
+    fn read_topic_config_file(file: &File) -> Result<Vec<String>, ProtocolError> {
+        let reader = BufReader::new(file).lines();
+        let mut readings = Vec::new();
+
+        for line in reader {
+            match line {
+                Ok(line) => readings.push(line),
+                Err(_err) => return Err(ProtocolError::ReadingTopicConfigFileError),
+            }
+        }
+
+        Ok(readings)
+    }
+
+    ///Abro y devuelvo las lecturas del archivo de clients.
+    pub fn process_clients_file(
+        file_path: &str,
+    ) -> Result<HashMap<String, (String, String)>, ProtocolError> {
+        let file = match File::open(file_path) {
+            Ok(file) => file,
+            Err(_) => return Err(ProtocolError::ReadingClientsFileError),
+        };
+
+        let readings = Broker::read_clients_file(&file)?;
+
+        Ok(readings)
+    }
+
+    ///Devuelvo las lecturas que haga en el archivo de clients.
+    fn read_clients_file(file: &File) -> Result<HashMap<String, (String, String)>, ProtocolError> {
+        let reader = BufReader::new(file).lines();
+        let mut readings = HashMap::new();
+
+        for line in reader.map_while(Result::ok) {
+            let parts: Vec<&str> = line.split(',').collect();
+            if parts.len() == 3 {
+                let client_id = parts[0].trim().to_string();
+                let username = parts[1].trim().to_string();
+                let password = parts[2].trim().to_string();
+                readings.insert(client_id, (username, password));
+            }
+        }
+
+        Ok(readings)
     }
 
     /// Ejecuta el servidor.
@@ -82,7 +154,6 @@ impl Broker {
                     let clients_ids_clone = self.clients_ids.clone();
 
                     threadpool.execute(move || {
-                        // Use the cloned reference
                         let _ = Broker::handle_client(
                             stream,
                             topics_clone,
@@ -501,6 +572,54 @@ mod tests {
     use std::io::Write;
     use std::sync::{Arc, RwLock};
     use std::thread;
+
+    #[test]
+    fn test_01_creating_broker_config_ok() -> std::io::Result<()> {
+        let topics = Broker::get_broker_starting_topics("./src/monitoring/topics.txt").unwrap();
+        let clients_auth_info = Broker::process_clients_file("./src/monitoring/clients.txt").unwrap();
+
+        let mut expected_topics = HashMap::new();
+        let mut expected_clients = HashMap::new();
+
+        expected_topics.insert("accidente".to_string(), Topic::new());
+        expected_topics.insert("mensajes para juan".to_string(), Topic::new());
+        expected_topics.insert("messi".to_string(), Topic::new());
+        expected_topics.insert("fulbito".to_string(), Topic::new());
+        expected_topics.insert("incidente".to_string(), Topic::new());
+
+        expected_clients.insert(
+            "monitoring_app".to_string(),
+            (
+                "monitoreo".to_string(),
+                "monitoreando_la_vida2004".to_string(),
+            ),
+        );
+
+        let topics_to_check = vec![
+            "accidente",
+            "mensajes para juan",
+            "messi",
+            "fulbito",
+            "incidente",
+        ];
+
+        for topic in topics_to_check {
+            assert!(topics.contains_key(topic));
+        }
+
+        assert_eq!(expected_clients, clients_auth_info);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_02_reading_config_files_err() {
+        let topics = Broker::get_broker_starting_topics("./aca/estan/los/topics");
+        let clients_auth_info = Broker::process_clients_file("./ahperoacavanlosclientesno");
+
+        assert!(topics.is_err());
+        assert!(clients_auth_info.is_err());
+    }
 
     #[test]
     fn test_handle_client() {

@@ -18,6 +18,7 @@ pub enum ProtocolError {
     WriteError,
     ReadingConfigFileError,
     MissingWillMessageProperties,
+    ReadingClientsFileError
 }
 
 impl fmt::Display for ProtocolError {
@@ -26,6 +27,9 @@ impl fmt::Display for ProtocolError {
             ProtocolError::ConectionError => write!(f, "Error al conectar al broker."),
             ProtocolError::ReadingConfigFileError => {
                 write!(f, "Error al leer el archivo de configuracion del connect.")
+            },
+            ProtocolError::ReadingClientsFileError => {
+                write!(f, "Error al leer el archivo de clientes.")
             }
             ProtocolError::MissingWillMessageProperties => {
                 write!(f, "Error: faltan propiedades del will message.")
