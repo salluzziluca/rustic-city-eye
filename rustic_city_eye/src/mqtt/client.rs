@@ -588,6 +588,16 @@ pub fn handle_message(
                 println!("Recibi un mensaje {:?}", message);
                 Ok(ClientReturn::PingrespRecieved)
             }
+            BrokerMessage::Auth {
+                reason_code: _,
+                authentication_method: _,
+                authentication_data: _,
+                reason_string: _,
+                user_properties: _,
+            } => {
+                println!("recibi un auth!");
+                Ok(ClientReturn::AuthRecieved)
+            }
         }
     } else {
         Err(ProtocolError::StreamError)

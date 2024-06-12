@@ -1,5 +1,9 @@
 use std::{
-    collections::HashMap, fs::File, io::{BufRead, BufReader}, net::{TcpListener, TcpStream}, sync::{Arc, RwLock}
+    collections::HashMap,
+    fs::File,
+    io::{BufRead, BufReader},
+    net::{TcpListener, TcpStream},
+    sync::{Arc, RwLock},
 };
 
 use crate::mqtt::{
@@ -20,6 +24,7 @@ static SERVER_ARGS: usize = 2;
 const THREADPOOL_SIZE: usize = 20;
 
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct Broker {
     address: String,
 
@@ -67,7 +72,9 @@ impl Broker {
         })
     }
 
-    pub fn get_broker_starting_topics(file_path: &str) -> Result<HashMap<String, Topic>, ProtocolError> {
+    pub fn get_broker_starting_topics(
+        file_path: &str,
+    ) -> Result<HashMap<String, Topic>, ProtocolError> {
         let mut topics = HashMap::new();
         let topic_readings = Broker::process_topic_config_file(file_path)?;
 
@@ -576,7 +583,8 @@ mod tests {
     #[test]
     fn test_01_creating_broker_config_ok() -> std::io::Result<()> {
         let topics = Broker::get_broker_starting_topics("./src/monitoring/topics.txt").unwrap();
-        let clients_auth_info = Broker::process_clients_file("./src/monitoring/clients.txt").unwrap();
+        let clients_auth_info =
+            Broker::process_clients_file("./src/monitoring/clients.txt").unwrap();
 
         let mut expected_topics = HashMap::new();
         let mut expected_clients = HashMap::new();

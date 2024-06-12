@@ -108,7 +108,8 @@ pub enum ClientMessage {
     },
     Pingreq,
 
-    /// Sirve para autenticar usuarios. Se puede enviar desde el cliente al server, o desde el server al cliente.
+    /// Sirve para autenticar usuarios. Tanto el Broker como el Client pueden enviar estos packets(van a ser iguales).
+    ///
     /// La idea es utilizar propiedades que se definen dentro de los packets del tipo Connect, y poder realizar la
     /// autenticacion correctamente.
     Auth {

@@ -65,6 +65,28 @@ pub enum BrokerMessage {
         user_properties: Vec<(String, String)>,
     },
     Pingresp,
+
+    /// Sirve para autenticar usuarios. Tanto el Broker como el Client pueden enviar estos packets(van a ser iguales).
+    ///
+    /// La idea es utilizar propiedades que se definen dentro de los packets del tipo Connect, y poder realizar la
+    /// autenticacion correctamente.
+    Auth {
+        /// Nos indica el estado de nuestra autenticacion.
+        reason_code: u8,
+
+        /// Indica el metodo de autenticacion a seguir.
+        authentication_method: String,
+
+        /// Contiene data binaria sobre la autenticacion.
+        authentication_data: Vec<u8>,
+
+        /// Aca se muestra mas a detalle la razon de la desconexion. La idea es mostrarle
+        /// al usuario a traves de un texto legible el por que el broker decidio desconectarlo.
+        reason_string: String,
+
+        /// Para diagnosticos e informacion adicionales.
+        user_properties: Vec<(String, String)>,
+    },
 }
 #[allow(dead_code)]
 impl BrokerMessage {
@@ -241,6 +263,48 @@ impl BrokerMessage {
 
                 Ok(())
             }
+            BrokerMessage::Auth {
+                reason_code,
+                authentication_method,
+                authentication_data,
+                reason_string,
+                user_properties,
+            } => {
+                let byte_1 = 0xF0_u8;
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_e| ProtocolError::WriteError);
+
+                write_u8(&mut writer, reason_code)?;
+
+                let authentication_method_id: u8 = 0x15_u8;
+                let _ = writer
+                    .write_all(&[authentication_method_id])
+                    .map_err(|_e| ProtocolError::WriteError);
+                write_string(&mut writer, authentication_method)?;
+
+                let authentication_data_id: u8 = 0x16_u8;
+                let _ = writer
+                    .write_all(&[authentication_data_id])
+                    .map_err(|_e| ProtocolError::WriteError);
+                write_bin_vec(&mut writer, authentication_data)?;
+
+                let reason_string_id: u8 = 0x1F_u8;
+                let _ = writer
+                    .write_all(&[reason_string_id])
+                    .map_err(|_e| ProtocolError::WriteError);
+                write_string(&mut writer, reason_string)?;
+
+                let user_properties_id: u8 = 0x26_u8; // 38
+                let _ = writer
+                    .write_all(&[user_properties_id])
+                    .map_err(|_e| ProtocolError::WriteError);
+                write_tuple_vec(&mut writer, user_properties)?;
+
+                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
+
+                Ok(())
+            }
         }
     }
 
@@ -404,6 +468,14 @@ impl BrokerMessage {
             BrokerMessage::Disconnect {
                 reason_code: _,
                 session_expiry_interval: _,
+                reason_string: _,
+                user_properties: _,
+            } => true,
+
+            BrokerMessage::Auth {
+                reason_code: _,
+                authentication_method: _,
+                authentication_data: _,
                 reason_string: _,
                 user_properties: _,
             } => true,
