@@ -1,8 +1,11 @@
+use serde::{Deserialize, Serialize};
+
 use std::io::BufWriter;
 use std::io::Error;
 use std::io::Read;
 use std::io::Write;
 
+use crate::mqtt::protocol_error::ProtocolError;
 use crate::utils::{reader::*, writer::*};
 
 const WILL_DELAY_INTERVAL_ID: u8 = 0x18;
@@ -12,8 +15,6 @@ const CONTENT_TYPE_ID: u8 = 0x03;
 const RESPONSE_TOPIC_ID: u8 = 0x08;
 const CORRELATION_DATA_ID: u8 = 0x09;
 const USER_PROPERTIES_ID: u8 = 0x26;
-
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 /// last_will_delay_interval especifica el tiempo en segundos que el broker debe esperar antes de publicar el will message.
@@ -56,7 +57,7 @@ impl WillProperties {
             user_properties,
         }
     }
-    pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), Error> {
+    pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), ProtocolError> {
         let mut writer = BufWriter::new(stream);
         //will properties
         write_u8(&mut writer, &WILL_DELAY_INTERVAL_ID)?;

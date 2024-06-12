@@ -1,75 +1,103 @@
-use std::io::{Error, Write};
+use std::io::Write;
+
+use crate::mqtt::protocol_error::ProtocolError;
 
 ///Recibe un string y el stream al que escribir ese stream
 ///
 /// Calcula su largo y luego escribe el largo y el string en el stream
-pub fn write_string(stream: &mut dyn Write, string: &str) -> Result<(), Error> {
+pub fn write_string(stream: &mut dyn Write, string: &str) -> Result<(), ProtocolError> {
     let length = string.len() as u16;
     let length_bytes = length.to_be_bytes();
-    stream.write_all(&length_bytes)?;
-    stream.write_all(string.as_bytes())?;
+    let _ = stream
+        .write_all(&length_bytes)
+        .map_err(|_e| ProtocolError::WriteError);
+    let _ = stream
+        .write_all(string.as_bytes())
+        .map_err(|_e| ProtocolError::WriteError);
     Ok(())
 }
 
-pub fn write_tuple_vec(stream: &mut dyn Write, vec: &Vec<(String, String)>) -> Result<(), Error> {
+pub fn write_tuple_vec(
+    stream: &mut dyn Write,
+    vec: &Vec<(String, String)>,
+) -> Result<(), ProtocolError> {
     let length = vec.len() as u16;
     let length_bytes = length.to_be_bytes();
-    stream.write_all(&length_bytes)?;
+    let _ = stream
+        .write_all(&length_bytes)
+        .map_err(|_e| ProtocolError::WriteError);
     for item in vec {
-        write_string_tuple(stream, item)?;
+        let _ = write_string_tuple(stream, item).map_err(|_e| ProtocolError::WriteError);
     }
     Ok(())
 }
 
-pub fn write_bin_vec(stream: &mut dyn Write, vec: &Vec<u8>) -> Result<(), Error> {
+pub fn write_bin_vec(stream: &mut dyn Write, vec: &Vec<u8>) -> Result<(), ProtocolError> {
     let length = vec.len() as u16;
     let length_bytes = length.to_be_bytes();
-    stream.write_all(&length_bytes)?;
+    let _ = stream
+        .write_all(&length_bytes)
+        .map_err(|_e| ProtocolError::WriteError);
     for byte in vec {
-        stream.write_all(&[*byte])?;
+        let _ = stream
+            .write_all(&[*byte])
+            .map_err(|_e| ProtocolError::WriteError);
     }
     Ok(())
 }
 
-pub fn write_string_tuple(stream: &mut dyn Write, value: &(String, String)) -> Result<(), Error> {
-    write_string(stream, &value.0)?;
-    write_string(stream, &value.1)?;
+pub fn write_string_tuple(
+    stream: &mut dyn Write,
+    value: &(String, String),
+) -> Result<(), ProtocolError> {
+    let _ = write_string(stream, &value.0).map_err(|_e| ProtocolError::WriteError);
+    let _ = write_string(stream, &value.1).map_err(|_| ProtocolError::WriteError);
     Ok(())
 }
 
-pub fn write_u8(stream: &mut dyn Write, value: &u8) -> Result<(), Error> {
-    stream.write_all(&[*value])?;
+pub fn write_u8(stream: &mut dyn Write, value: &u8) -> Result<(), ProtocolError> {
+    let _ = stream
+        .write_all(&[*value])
+        .map_err(|_| ProtocolError::WriteError);
     Ok(())
 }
 
-pub fn write_u16(stream: &mut dyn Write, value: &u16) -> Result<(), Error> {
+pub fn write_u16(stream: &mut dyn Write, value: &u16) -> Result<(), ProtocolError> {
     let value_bytes = value.to_be_bytes();
-    stream.write_all(&value_bytes)?;
+    let _ = stream
+        .write_all(&value_bytes)
+        .map_err(|_| ProtocolError::WriteError);
     Ok(())
 }
 
-pub fn write_u32(stream: &mut dyn Write, value: &u32) -> Result<(), Error> {
+pub fn write_u32(stream: &mut dyn Write, value: &u32) -> Result<(), ProtocolError> {
     let value_bytes = value.to_be_bytes();
-    stream.write_all(&value_bytes)?;
+    let _ = stream
+        .write_all(&value_bytes)
+        .map_err(|_e| ProtocolError::WriteError);
     Ok(())
 }
 
-pub fn write_bool(stream: &mut dyn Write, value: &bool) -> Result<(), Error> {
+pub fn write_bool(stream: &mut dyn Write, value: &bool) -> Result<(), ProtocolError> {
     let value_bytes = if *value { 1u8 } else { 0u8 };
-    stream.write_all(&[value_bytes])?;
+    let _ = stream
+        .write_all(&[value_bytes])
+        .map_err(|_e| ProtocolError::WriteError);
     Ok(())
 }
 
 pub fn write_string_pairs(
     stream: &mut dyn Write,
     vec: &Vec<(String, String)>,
-) -> Result<(), Error> {
+) -> Result<(), ProtocolError> {
     let length = vec.len() as u16;
     let length_bytes = length.to_be_bytes();
-    stream.write_all(&length_bytes)?;
+    let _ = stream
+        .write_all(&length_bytes)
+        .map_err(|_e| ProtocolError::WriteError);
     for pair in vec {
-        write_string(stream, &pair.0)?;
-        write_string(stream, &pair.1)?;
+        let _ = write_string(stream, &pair.0).map_err(|_| ProtocolError::WriteError);
+        let _ = write_string(stream, &pair.1).map_err(|_e| ProtocolError::WriteError);
     }
     Ok(())
 }

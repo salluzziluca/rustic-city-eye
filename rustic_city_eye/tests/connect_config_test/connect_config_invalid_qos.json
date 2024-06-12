@@ -1,7 +1,7 @@
 {
     "clean_start": true,
     "last_will_flag": true,
-    "last_will_qos": 1,
+    "last_will_qos": 15,
     "last_will_retain": true,
     "keep_alive": 35,
     "properties": {
