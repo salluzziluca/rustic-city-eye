@@ -7,6 +7,13 @@ edition = "2021"
 
 [dependencies]
 rand = "0.8.5"
+gtk = "0.18.1"
+walkers = "=0.22.0"
+webkit2gtk = "2.0.1"
+osmgpsmap = "0.2.16"
+serde_json = "=1.0.117"
+threadpool ="1.0"
+serde = { version = "1.0", features = ["derive"] }
 mockall = "0.12.1"
 egui = "0.27.2"
 eframe = "0.27.2"
