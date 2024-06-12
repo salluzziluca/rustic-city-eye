@@ -1,4 +1,4 @@
-use std::io::{BufWriter, Error, Read, Write};
+use std::io::{BufWriter, Error, ErrorKind, Read, Write};
 
 use crate::{
     utils::payload_types::PayloadTypes,
@@ -65,6 +65,28 @@ pub enum BrokerMessage {
         user_properties: Vec<(String, String)>,
     },
     Pingresp,
+
+    /// Sirve para autenticar usuarios. Tanto el Broker como el Client pueden enviar estos packets(van a ser iguales).
+    ///
+    /// La idea es utilizar propiedades que se definen dentro de los packets del tipo Connect, y poder realizar la
+    /// autenticacion correctamente.
+    Auth {
+        /// Nos indica el estado de nuestra autenticacion.
+        reason_code: u8,
+
+        /// Indica el metodo de autenticacion a seguir.
+        authentication_method: String,
+
+        /// Contiene data binaria sobre la autenticacion.
+        authentication_data: Vec<u8>,
+
+        /// Aca se muestra mas a detalle la razon de la desconexion. La idea es mostrarle
+        /// al usuario a traves de un texto legible el por que el broker decidio desconectarlo.
+        reason_string: String,
+
+        /// Para diagnosticos e informacion adicionales.
+        user_properties: Vec<(String, String)>,
+    },
 }
 #[allow(dead_code)]
 impl BrokerMessage {
@@ -125,13 +147,7 @@ impl BrokerMessage {
                     .write_all(&[byte_1])
                     .map_err(|_e| ProtocolError::WriteError);
 
-                //variable header
-                //let byte_2: u8 = 0x00_u8.to_le(); //00000000
-                //writer.write(&[byte_2])?;
 
-                //payload
-                //let byte_3: u8 = 0x01_u8.to_le(); //00000001
-                //writer.write(&[byte_3])?;
                 write_u8(&mut writer, packet_id_msb)?;
                 write_u8(&mut writer, packet_id_lsb)?;
 
@@ -237,6 +253,48 @@ impl BrokerMessage {
                 let _ = writer
                     .write_all(&[byte_1])
                     .map_err(|_e| ProtocolError::WriteError);
+                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
+
+                Ok(())
+            }
+            BrokerMessage::Auth {
+                reason_code,
+                authentication_method,
+                authentication_data,
+                reason_string,
+                user_properties,
+            } => {
+                let byte_1 = 0xF0_u8;
+                let _ = writer
+                    .write_all(&[byte_1])
+                    .map_err(|_e| ProtocolError::WriteError);
+
+                write_u8(&mut writer, reason_code)?;
+
+                let authentication_method_id: u8 = 0x15_u8;
+                let _ = writer
+                    .write_all(&[authentication_method_id])
+                    .map_err(|_e| ProtocolError::WriteError);
+                write_string(&mut writer, authentication_method)?;
+
+                let authentication_data_id: u8 = 0x16_u8;
+                let _ = writer
+                    .write_all(&[authentication_data_id])
+                    .map_err(|_e| ProtocolError::WriteError);
+                write_bin_vec(&mut writer, authentication_data)?;
+
+                let reason_string_id: u8 = 0x1F_u8;
+                let _ = writer
+                    .write_all(&[reason_string_id])
+                    .map_err(|_e| ProtocolError::WriteError);
+                write_string(&mut writer, reason_string)?;
+
+                let user_properties_id: u8 = 0x26_u8; // 38
+                let _ = writer
+                    .write_all(&[user_properties_id])
+                    .map_err(|_e| ProtocolError::WriteError);
+                write_tuple_vec(&mut writer, user_properties)?;
+
                 let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
 
                 Ok(())
@@ -352,6 +410,62 @@ impl BrokerMessage {
                 })
             }
             0xD0 => Ok(BrokerMessage::Pingresp),
+            0xF0 => {
+                let reason_code = read_u8(stream)?;
+                let mut authentication_method: Option<String> = None;
+                let mut authentication_data: Option<Vec<u8>> = None;
+                let mut reason_string: Option<String> = None;
+                let mut user_properties: Option<Vec<(String, String)>> = None;
+
+                let mut count = 0;
+                while let Ok(property_id) = read_u8(stream) {
+                    match property_id {
+                        0x15 => {
+                            let value = read_string(stream)?;
+                            authentication_method = Some(value);
+                        }
+                        0x16 => {
+                            let value = read_bin_vec(stream)?;
+                            authentication_data = Some(value);
+                        }
+                        0x26 => {
+                            let value = read_tuple_vec(stream)?;
+                            user_properties = Some(value);
+                        }
+                        0x1F => {
+                            let value = read_string(stream)?;
+                            reason_string = Some(value);
+                        }
+                        _ => {
+                            return Err(Error::new(ErrorKind::InvalidData, "Property ID inválido"));
+                        }
+                    }
+                    count += 1;
+                    if count == 4 {
+                        break;
+                    }
+                }
+
+                Ok(BrokerMessage::Auth {
+                    reason_code,
+                    user_properties: user_properties.ok_or(Error::new(
+                        ErrorKind::InvalidData,
+                        "Missing user_properties property",
+                    ))?,
+                    authentication_method: authentication_method.ok_or(Error::new(
+                        ErrorKind::InvalidData,
+                        "Missing authentication_method property",
+                    ))?,
+                    authentication_data: authentication_data.ok_or(Error::new(
+                        ErrorKind::InvalidData,
+                        "Missing authentication_data property",
+                    ))?,
+                    reason_string: reason_string.ok_or(Error::new(
+                        ErrorKind::InvalidData,
+                        "Missing reason_string property",
+                    ))?,
+                })
+            }
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
@@ -404,6 +518,14 @@ impl BrokerMessage {
             BrokerMessage::Disconnect {
                 reason_code: _,
                 session_expiry_interval: _,
+                reason_string: _,
+                user_properties: _,
+            } => true,
+
+            BrokerMessage::Auth {
+                reason_code: _,
+                authentication_method: _,
+                authentication_data: _,
                 reason_string: _,
                 user_properties: _,
             } => true,

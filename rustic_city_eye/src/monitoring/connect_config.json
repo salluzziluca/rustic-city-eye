@@ -24,7 +24,7 @@
             3
         ]
     },
-    "client_id": "kvtr33",
+    "client_id": "monitoring_app",
     "will_properties": {
         "last_will_delay_interval": 1,
         "payload_format_indicator": 1,
@@ -45,6 +45,6 @@
     },
     "last_will_topic": "camera system",
     "last_will_message": "soy el monitoring y me desconecte",
-    "username": "args[2]",
-    "password": [1, 2, 3]
+    "username": "monitoreo",
+    "password": [109, 111, 110, 105, 116, 111, 114, 101, 97, 110, 100, 111, 95, 108, 97, 95, 118, 105, 100, 97, 50, 48, 48, 52]
 }

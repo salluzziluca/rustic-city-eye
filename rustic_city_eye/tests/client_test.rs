@@ -238,7 +238,6 @@ mod tests {
     }
 
     #[test]
-
     fn test_recibir_pingresp() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
@@ -260,5 +259,36 @@ mod tests {
         }
 
         assert_eq!(result.unwrap(), ClientReturn::PingrespRecieved);
+    }
+
+    #[test]
+    fn test_recibir_auth() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let auth = BrokerMessage::Auth {
+            reason_code: 0x00_u8,
+            authentication_method: "password-based".to_string(),
+            authentication_data: vec![0x00_u8, 0x01_u8],
+            reason_string: "success".to_string(),
+            user_properties: vec![("juan".to_string(), "hola".to_string())],
+        };
+
+        thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            let mut buffer = vec![];
+            auth.write_to(&mut buffer).unwrap();
+            stream.write_all(&buffer).unwrap();
+        });
+
+        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
+
+        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
+        let pending_messages: Vec<u16> = Vec::new();
+        if let Ok((stream, _)) = listener.accept() {
+            result = handle_message(stream, subscriptions, pending_messages)
+        }
+
+        assert_eq!(result.unwrap(), ClientReturn::AuthRecieved);
     }
 }
