@@ -43,7 +43,7 @@ pub struct Broker {
     /// Los clientes se guardan en un HashMap en el cual
     /// las claves son los client_ids, y los valores son
     /// tuplas que contienen el username y password.
-    clients_auth_info: HashMap<String, (String, String)>,
+    clients_auth_info: HashMap<String, (String, Vec<u8>)>,
 }
 
 impl Broker {
@@ -57,7 +57,7 @@ impl Broker {
 
         let address = "0.0.0.0:".to_owned() + &args[1];
 
-        let topics = Broker::get_broker_starting_topics("./monitoring/topics.txt")?;
+        let topics = Broker::get_broker_starting_topics("./src/monitoring/topics.txt")?;
         let clients_auth_info = Broker::process_clients_file("./src/monitoring/clients.txt")?;
 
         let packets = HashMap::new();
@@ -115,7 +115,7 @@ impl Broker {
     ///Abro y devuelvo las lecturas del archivo de clients.
     pub fn process_clients_file(
         file_path: &str,
-    ) -> Result<HashMap<String, (String, String)>, ProtocolError> {
+    ) -> Result<HashMap<String, (String, Vec<u8>)>, ProtocolError> {
         let file = match File::open(file_path) {
             Ok(file) => file,
             Err(_) => return Err(ProtocolError::ReadingClientsFileError),
@@ -127,7 +127,7 @@ impl Broker {
     }
 
     ///Devuelvo las lecturas que haga en el archivo de clients.
-    fn read_clients_file(file: &File) -> Result<HashMap<String, (String, String)>, ProtocolError> {
+    fn read_clients_file(file: &File) -> Result<HashMap<String, (String, Vec<u8>)>, ProtocolError> {
         let reader = BufReader::new(file).lines();
         let mut readings = HashMap::new();
 
@@ -136,7 +136,7 @@ impl Broker {
             if parts.len() == 3 {
                 let client_id = parts[0].trim().to_string();
                 let username = parts[1].trim().to_string();
-                let password = parts[2].trim().to_string();
+                let password = parts[2].trim().to_string().into_bytes();
                 readings.insert(client_id, (username, password));
             }
         }
@@ -159,6 +159,7 @@ impl Broker {
                     let packets_clone = self.packets.clone();
                     let subs_clone = self.subs.clone();
                     let clients_ids_clone = self.clients_ids.clone();
+                    let clients_auth_info_clone = self.clients_auth_info.clone();
 
                     threadpool.execute(move || {
                         let _ = Broker::handle_client(
@@ -167,6 +168,7 @@ impl Broker {
                             packets_clone,
                             subs_clone,
                             clients_ids_clone,
+                            clients_auth_info_clone,
                         );
                     });
                 }
@@ -183,6 +185,7 @@ impl Broker {
         packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
         _subs: Vec<u32>,
         clients_ids: Arc<Vec<String>>,
+        clients_auth_info: HashMap<String, (String, Vec<u8>)>,
     ) -> Result<(), ProtocolError> {
         loop {
             let cloned_stream = match stream.try_clone() {
@@ -195,6 +198,7 @@ impl Broker {
                 packets.clone(),
                 _subs.clone(),
                 clients_ids.clone(),
+                clients_auth_info.clone(),
             ) {
                 Ok(return_val) => {
                     if return_val == ProtocolReturn::DisconnectRecieved {
@@ -307,6 +311,7 @@ pub fn handle_messages(
     packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
     _subs: Vec<u32>,
     mut clients_ids: Arc<Vec<String>>,
+    clients_auth_info: HashMap<String, (String, Vec<u8>)>,
 ) -> Result<ProtocolReturn, ProtocolError> {
     let mensaje = match ClientMessage::read_from(&mut stream) {
         Ok(mensaje) => mensaje,
@@ -332,7 +337,19 @@ pub fn handle_messages(
                     Err(err) => println!("Error al enviar Disconnect: {:?}", err),
                 }
             }
-            Arc::make_mut(&mut clients_ids).push(connect.client_id);
+            Arc::make_mut(&mut clients_ids).push(connect.client_id.clone());
+
+            let connack_reason_code = match authenticate_client(
+                connect.properties.authentication_method,
+                connect.client_id,
+                connect.username,
+                connect.password,
+                clients_auth_info,
+            ) {
+                Ok(r) => r,
+                Err(e) => return Err(e),
+            };
+
             let properties = ConnackProperties {
                 session_expiry_interval: 0,
                 receive_maximum: 0,
@@ -352,16 +369,19 @@ pub fn handle_messages(
                 server_reference: "none".to_string(),
                 retain_available: false,
             };
+
             let connack = BrokerMessage::Connack {
                 session_present: false,
-                reason_code: 0,
+                reason_code: connack_reason_code,
                 properties,
             };
+
             println!("Enviando un Connack");
             match connack.write_to(&mut stream) {
                 Ok(_) => return Ok(ProtocolReturn::ConnackSent),
                 Err(err) => {
                     println!("{:?}", err);
+                    return Err(err);
                 }
             }
         }
@@ -523,54 +543,56 @@ pub fn handle_messages(
         }
         ClientMessage::Auth {
             reason_code: _,
-            authentication_method,
-            authentication_data,
-            reason_string,
-            user_properties,
+            authentication_method: _,
+            authentication_data: _,
+            reason_string: _,
+            user_properties: _,
         } => {
             println!("Recibi un auth");
 
-            match authentication_method.as_str() {
-                "password-based" => return Ok(ProtocolReturn::AuthRecieved),
-                _ => {
-                    let properties = ConnackProperties {
-                        session_expiry_interval: 0,
-                        receive_maximum: 0,
-                        maximum_packet_size: 0,
-                        topic_alias_maximum: 0,
-                        user_properties,
-                        authentication_method,
-                        authentication_data,
-                        assigned_client_identifier: "none".to_string(),
-                        maximum_qos: true,
-                        reason_string,
-                        wildcard_subscription_available: false,
-                        subscription_identifier_available: false,
-                        shared_subscription_available: false,
-                        server_keep_alive: 0,
-                        response_information: "none".to_string(),
-                        server_reference: "none".to_string(),
-                        retain_available: false,
-                    };
-
-                    let connack = BrokerMessage::Connack {
-                        session_present: false,
-                        reason_code: 0x8C, //Bad auth method
-                        properties,
-                    };
-                    println!("Parece que intentaste autenticarte con un metodo no soportado por el broker :(");
-
-                    match connack.write_to(&mut stream) {
-                        Ok(_) => return Ok(ProtocolReturn::ConnackSent),
-                        Err(err) => {
-                            println!("{:?}", err);
-                        }
-                    }
-                }
-            }
+            return Ok(ProtocolReturn::AuthRecieved);
         }
     }
     Err(ProtocolError::UnspecifiedError)
+}
+
+
+/// Aca se realiza la autenticacion del cliente. Solo se debe llamar apenas llega un packet del tipo
+/// Connect.
+/// 
+/// Le ingresan como parametros el auth_method(solo vamos a soportar el metodo password-based),
+/// el username, client_id y password que vienen definidos en el packet Connect que envia el usuario.
+/// 
+/// Devuele en caso exitoso un u8 que representa el reason code del packet Connack que el Broker va a 
+/// enviarle al Client.
+pub fn authenticate_client(
+    authentication_method: String,
+    client_id: String,
+    username: Option<String>,
+    password: Option<Vec<u8>>,
+    clients_auth_info: HashMap<String, (String, Vec<u8>)>,
+) -> Result<u8, ProtocolError> {
+    let mut connack_reason_code = 0x00_u8; //success :D
+
+    match authentication_method.as_str() {
+        "password-based" => {
+            match clients_auth_info.get(&client_id) {
+                Some(value) => {
+                    if let (Some(username), Some(password)) = (username, password) {
+                        if value == &(username, password) {
+                            return Ok(connack_reason_code);
+                        }
+                        connack_reason_code = 0x86_u8; //bad username or password
+                    } else {
+                        connack_reason_code = 0x86_u8;
+                    }
+                }
+                None => connack_reason_code = 0x85_u8, //client_id not valid
+            }
+        }
+        _ => connack_reason_code = 0x8C_u8,
+    }
+    Ok(connack_reason_code)
 }
 
 #[cfg(test)]
@@ -599,7 +621,15 @@ mod tests {
             "monitoring_app".to_string(),
             (
                 "monitoreo".to_string(),
-                "monitoreando_la_vida2004".to_string(),
+                "monitoreando_la_vida2004".to_string().into_bytes(),
+            ),
+        );
+
+        expected_clients.insert(
+            "camera_system".to_string(),
+            (
+                "sistema_camaras".to_string(),
+                "CamareandoCamaritasForever".to_string().into_bytes(),
             ),
         );
 
@@ -645,6 +675,7 @@ mod tests {
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let subs = vec![];
         let clients_ids = Arc::new(vec![]);
+        let clients_auth_info = HashMap::new();
 
         // Write a ClientMessage to the stream.
         // You'll need to replace this with a real ClientMessage.
@@ -653,7 +684,14 @@ mod tests {
         // Accept the connection and pass the stream to the function.
         if let Ok((stream, _)) = listener.accept() {
             // Perform your assertions here
-            result = Broker::handle_client(stream, topics, packets, subs, clients_ids);
+            result = Broker::handle_client(
+                stream,
+                topics,
+                packets,
+                subs,
+                clients_ids,
+                clients_auth_info,
+            );
         }
 
         // Check that the function returned Ok.

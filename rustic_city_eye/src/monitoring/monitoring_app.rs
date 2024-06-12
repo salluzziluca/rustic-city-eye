@@ -38,12 +38,11 @@ impl MonitoringApp {
             args[2].clone(),
             args[3].clone(),
             "camera_system".to_string(),
-            "CamareandoCamaritas123".to_string(),
+            "CamareandoCamaritasForever".to_string(),
         ];
 
         let camera_system = CameraSystem::new(camera_system_args)?;
         let (tx, rx) = mpsc::channel();
-
         let monitoring_app = MonitoringApp {
             send_to_client_channel: tx,
             incidents: Vec::new(),

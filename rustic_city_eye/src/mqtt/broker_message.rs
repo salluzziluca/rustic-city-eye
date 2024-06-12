@@ -1,4 +1,4 @@
-use std::io::{BufWriter, Error, Read, Write};
+use std::io::{BufWriter, Error, ErrorKind, Read, Write};
 
 use crate::{
     utils::payload_types::PayloadTypes,
@@ -147,13 +147,7 @@ impl BrokerMessage {
                     .write_all(&[byte_1])
                     .map_err(|_e| ProtocolError::WriteError);
 
-                //variable header
-                //let byte_2: u8 = 0x00_u8.to_le(); //00000000
-                //writer.write(&[byte_2])?;
 
-                //payload
-                //let byte_3: u8 = 0x01_u8.to_le(); //00000001
-                //writer.write(&[byte_3])?;
                 write_u8(&mut writer, packet_id_msb)?;
                 write_u8(&mut writer, packet_id_lsb)?;
 
@@ -416,6 +410,62 @@ impl BrokerMessage {
                 })
             }
             0xD0 => Ok(BrokerMessage::Pingresp),
+            0xF0 => {
+                let reason_code = read_u8(stream)?;
+                let mut authentication_method: Option<String> = None;
+                let mut authentication_data: Option<Vec<u8>> = None;
+                let mut reason_string: Option<String> = None;
+                let mut user_properties: Option<Vec<(String, String)>> = None;
+
+                let mut count = 0;
+                while let Ok(property_id) = read_u8(stream) {
+                    match property_id {
+                        0x15 => {
+                            let value = read_string(stream)?;
+                            authentication_method = Some(value);
+                        }
+                        0x16 => {
+                            let value = read_bin_vec(stream)?;
+                            authentication_data = Some(value);
+                        }
+                        0x26 => {
+                            let value = read_tuple_vec(stream)?;
+                            user_properties = Some(value);
+                        }
+                        0x1F => {
+                            let value = read_string(stream)?;
+                            reason_string = Some(value);
+                        }
+                        _ => {
+                            return Err(Error::new(ErrorKind::InvalidData, "Property ID inválido"));
+                        }
+                    }
+                    count += 1;
+                    if count == 4 {
+                        break;
+                    }
+                }
+
+                Ok(BrokerMessage::Auth {
+                    reason_code,
+                    user_properties: user_properties.ok_or(Error::new(
+                        ErrorKind::InvalidData,
+                        "Missing user_properties property",
+                    ))?,
+                    authentication_method: authentication_method.ok_or(Error::new(
+                        ErrorKind::InvalidData,
+                        "Missing authentication_method property",
+                    ))?,
+                    authentication_data: authentication_data.ok_or(Error::new(
+                        ErrorKind::InvalidData,
+                        "Missing authentication_data property",
+                    ))?,
+                    reason_string: reason_string.ok_or(Error::new(
+                        ErrorKind::InvalidData,
+                        "Missing reason_string property",
+                    ))?,
+                })
+            }
             _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
