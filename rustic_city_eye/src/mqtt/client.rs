@@ -28,6 +28,7 @@ pub struct Client {
     // las subscriptions son un hashmap de topic y sub_id
     pub subscriptions: Arc<Mutex<HashMap<String, u8>>>,
     // user_id: u32,
+    packets_ids: Arc<Mutex<Vec<u16>>>,
 }
 
 impl Client {
@@ -79,6 +80,7 @@ impl Client {
             receiver_channel: Arc::new(Mutex::new(receiver_channel)),
             stream,
             subscriptions: Arc::new(Mutex::new(HashMap::new())),
+            packets_ids: Arc::new(Mutex::new(Vec::new())),
         })
     }
 
@@ -214,9 +216,11 @@ impl Client {
         let threadpool = ThreadPool::new(5);
 
         let subscriptions_clone = self.subscriptions.clone();
+        let packet_id_clones = self.packets_ids.clone();
 
         let _write_messages = threadpool.execute(move || {
             Client::write_messages(
+                packet_id_clones,
                 stream_clone_one,
                 receiver_channel,
                 desconectar,
@@ -267,6 +271,7 @@ impl Client {
     }
 
     fn write_messages(
+        packet_ids: Arc<Mutex<Vec<u16>>>,
         stream: TcpStream,
         receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
         mut desconectar: bool,
@@ -277,7 +282,7 @@ impl Client {
             loop {
                 let lock = receiver_channel.lock().unwrap();
                 if let Ok(message_config) = lock.recv() {
-                    let packet_id = Client::assign_packet_id();
+                    let packet_id = Client::assign_packet_id(packet_ids.clone());
 
                     let message = message_config.parse_message(packet_id);
 
@@ -466,13 +471,18 @@ impl Client {
     }
 
     ///Asigna un id random
-    fn assign_packet_id() -> u16 {
+    fn assign_packet_id(packet_ids: Arc<Mutex<Vec<u16>>>) -> u16 {
         let mut rng = rand::thread_rng();
+        let mut packet_ids = match packet_ids.lock() {
+            Ok(packet_ids) => packet_ids,
+            Err(_) => return 0,
+        };
 
         let mut packet_id: u16;
         loop {
             packet_id = rng.gen();
-            if packet_id != 0 {
+            if packet_id != 0 && !packet_ids.contains(&packet_id) {
+                packet_ids.push(packet_id);
                 break;
             }
         }
@@ -602,7 +612,26 @@ mod tests {
 
     #[test]
     fn test_assign_packet_id() {
-        let packet_id = Client::assign_packet_id();
+        let packet_ids = Vec::new();
+        let packet_ids = Arc::new(Mutex::new(packet_ids));
+        let packet_id = Client::assign_packet_id(packet_ids);
+        assert_ne!(packet_id, 0);
+    }
+
+    #[test]
+    fn test_si_el_id_de_paquete_es_unico() {
+        let packet_ids = Vec::new();
+        let packet_ids = Arc::new(Mutex::new(packet_ids));
+        let packet_id = Client::assign_packet_id(packet_ids.clone());
+        let packet_id_2 = Client::assign_packet_id(packet_ids.clone());
+        assert_ne!(packet_id, packet_id_2);
+    }
+
+    #[test]
+    fn test_si_el_id_de_paquete_es_distinto_de_cero() {
+        let packet_ids = Vec::new();
+        let packet_ids = Arc::new(Mutex::new(packet_ids));
+        let packet_id = Client::assign_packet_id(packet_ids);
         assert_ne!(packet_id, 0);
     }
 
