@@ -390,27 +390,44 @@ pub fn handle_messages(
             payload,
         } => {
             println!("Recibí un Unsubscribe");
+            let msg = ClientMessage::Unsubscribe {
+                packet_id,
+                properties: properties.clone(),
+                payload: payload.clone(),
+            };
+            Broker::save_packet(packets.clone(), msg, packet_id);
 
             let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-            let mut reason_code_mut = Vec::new();
+            let mut reason_code_vec = Vec::new();
 
             for p in payload {
                 let reason_code =
                     Broker::handle_unsubscribe(topics.clone(), p.topic.clone(), p.clone())?;
-                reason_code_mut.push(reason_code);
+                reason_code_vec.push(reason_code);
             }
 
-            let mut reason_code = SUCCESS_HEX;
-
-            if reason_code_mut.iter().any(|&x| x != SUCCESS_HEX) {
-                let reason_code = UNSPECIFIED_ERROR_HEX;
+            if reason_code_vec.iter().any(|&x| x != SUCCESS_HEX) {
+                let suback = BrokerMessage::Suback {
+                    packet_id_msb: packet_id_bytes[0],
+                    packet_id_lsb: packet_id_bytes[1],
+                    reason_code: UNSPECIFIED_ERROR_HEX,
+                };
+                println!("Enviando un Suback");
+                match suback.write_to(&mut stream) {
+                    Ok(_) => {
+                        println!("Suback enviado");
+                        return Ok(ProtocolReturn::SubackSent);
+                    }
+                    Err(err) => println!("Error al enviar suback: {:?}", err),
+                }
             }
+            
 
             let unsuback = BrokerMessage::Unsuback {
                 packet_id_msb: packet_id_bytes[0],
                 packet_id_lsb: packet_id_bytes[1],
-                reason_code: reason_code,
+                reason_code: SUCCESS_HEX,
             };
             println!("Enviando un Unsuback");
             match unsuback.write_to(&mut stream) {
