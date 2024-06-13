@@ -89,7 +89,6 @@ impl Client {
             println!("soy el client y no pude leer el mensaje");
         };
 
-        
         let client_id = connect_config.client_id;
 
         Ok(Client {

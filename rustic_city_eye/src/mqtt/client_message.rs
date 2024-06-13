@@ -240,7 +240,7 @@ impl ClientMessage {
                 write_u32(&mut writer, &payload_length)?;
                 for subscription in payload {
                     write_string(&mut writer, &subscription.topic)?;
-                    write_string(&mut writer, &subscription.client_id)?; 
+                    write_string(&mut writer, &subscription.client_id)?;
                     write_u8(&mut writer, &subscription.qos)?;
                 }
 
@@ -263,7 +263,7 @@ impl ClientMessage {
                 write_u32(&mut writer, &payload_length)?;
                 for subscription in payload {
                     write_string(&mut writer, &subscription.topic)?;
-                    write_string(&mut writer, &subscription.client_id)?; 
+                    write_string(&mut writer, &subscription.client_id)?;
                     write_u8(&mut writer, &subscription.qos)?;
                 }
 
