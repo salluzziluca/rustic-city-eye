@@ -181,6 +181,10 @@ impl WillProperties {
             user_properties,
         })
     }
+
+    pub fn get_last_will_delay_interval(&self) -> u32 {
+        self.last_will_delay_interval
+    }
 }
 #[allow(dead_code)]
 fn read_json_to_will_properties(json_data: &str) -> Result<WillProperties, Error> {

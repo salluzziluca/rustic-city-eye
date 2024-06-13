@@ -13,7 +13,7 @@ use super::connect::will_properties::WillProperties;
 use super::messages_config::MessagesConfig;
 use super::payload::Payload;
 use super::protocol_error::ProtocolError;
-
+use crate::mqtt::connect::last_will::LastWill;
 const PROTOCOL_VERSION: u8 = 5;
 const SESSION_EXPIRY_INTERVAL_ID: u8 = 0x11;
 const REASON_STRING_ID: u8 = 0x1F;
@@ -169,6 +169,19 @@ impl Connect {
             username: Some(username),
             password: Some(password.into_bytes()),
         }
+    }
+    pub fn give_will_message(self) -> Option<LastWill> {
+        if !self.last_will_flag {
+            return None;
+        }
+
+        Some(LastWill::new(
+            self.last_will_topic.unwrap(),
+            self.last_will_message.unwrap(),
+            self.last_will_qos,
+            self.last_will_retain,
+            self.will_properties.unwrap(),
+        ))
     }
     /// Abre un archivo de configuracion con propiedades y guarda sus lecturas.
     pub fn read_connect_config(file_path: &str) -> Result<Connect, ProtocolError> {
