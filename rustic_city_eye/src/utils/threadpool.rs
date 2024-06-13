@@ -36,7 +36,8 @@ impl Worker {
                 }
             };
 
-            job();        });
+            job();
+        });
 
         Worker { id, thread }
     }
@@ -81,7 +82,9 @@ impl ThreadPool {
             }
         });
 
-        if let Err(_) = senderr.send(job) {}
+        if let Err(err) = senderr.send(job) {
+            println!("Failed to send job: {:?}", err);
+        }
 
         rx
     }

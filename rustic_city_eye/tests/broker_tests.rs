@@ -291,12 +291,20 @@ mod tests {
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let subs = vec![];
         let clients_ids = Arc::new(vec![]);
+        let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, subs, clients_ids);
+            result = handle_messages(
+                stream,
+                topics,
+                packets,
+                subs,
+                clients_ids,
+                clients_auth_info,
+            );
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::NoAckSent);

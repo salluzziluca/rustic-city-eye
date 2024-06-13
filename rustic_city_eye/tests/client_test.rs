@@ -305,8 +305,9 @@ mod tests {
 
         let subscriptions = Arc::new(Mutex::new(HashMap::new()));
         let pending_messages: Vec<u16> = Vec::new();
+        let (sender, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, subscriptions, pending_messages)
+            result = handle_message(stream, subscriptions, pending_messages, sender)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::AuthRecieved);

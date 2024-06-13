@@ -2,7 +2,6 @@ use rand::Rng;
 use std::{
     collections::HashMap,
     net::TcpStream,
-    os::unix::raw::pid_t,
     sync::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,
