@@ -1,5 +1,7 @@
 use std::{
+    clone,
     collections::HashMap,
+    hash::Hash,
     net::{TcpListener, TcpStream},
     sync::{Arc, RwLock},
 };
@@ -7,16 +9,16 @@ use std::{
 use crate::mqtt::{
     broker_config::BrokerConfig,
     broker_message::BrokerMessage,
+    client,
     client_message::ClientMessage,
     connack_properties::ConnackProperties,
     protocol_error::ProtocolError,
     protocol_return::ProtocolReturn,
-    reason_code::{
-        NO_MATCHING_SUBSCRIBERS_HEX, SUB_ID_DUP_HEX, SUCCESS_HEX, UNSPECIFIED_ERROR_HEX,
-    },
+    reason_code::{SUB_ID_DUP_HEX, SUCCESS_HEX, UNSPECIFIED_ERROR_HEX},
+    subscription::Subscription,
     topic::Topic,
-    user_subscription::UserSubscription,
 };
+
 use crate::utils::threadpool::ThreadPool;
 
 static SERVER_ARGS: usize = 2;
@@ -35,9 +37,8 @@ pub struct Broker {
     /// de esa clave se guarda el package.
     packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
 
-    subs: Vec<u32>,
-
-    clients_ids: Arc<Vec<String>>,
+    // Contiene los clientes conectados al broker.
+    clients_ids: Arc<RwLock<HashMap<String, TcpStream>>>,
 }
 
 impl Broker {
@@ -61,8 +62,7 @@ impl Broker {
             address,
             topics,
             packets: Arc::new(RwLock::new(packets)),
-            subs: Vec::new(),
-            clients_ids: Arc::new(Vec::new()),
+            clients_ids: Arc::new(RwLock::new(HashMap::new())),
         })
     }
 
@@ -79,7 +79,6 @@ impl Broker {
                 Ok(stream) => {
                     let topics_clone = self.topics.clone();
                     let packets_clone = self.packets.clone();
-                    let subs_clone = self.subs.clone();
                     let clients_ids_clone = self.clients_ids.clone();
 
                     threadpool.execute(move || {
@@ -88,7 +87,6 @@ impl Broker {
                             stream,
                             topics_clone,
                             packets_clone,
-                            subs_clone,
                             clients_ids_clone,
                         );
                     });
@@ -104,8 +102,7 @@ impl Broker {
         stream: TcpStream,
         topics: HashMap<String, Topic>,
         packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
-        _subs: Vec<u32>,
-        clients_ids: Arc<Vec<String>>,
+        clients_ids: Arc<RwLock<HashMap<String, TcpStream>>>,
     ) -> Result<(), ProtocolError> {
         loop {
             let cloned_stream = match stream.try_clone() {
@@ -116,7 +113,6 @@ impl Broker {
                 cloned_stream,
                 topics.clone(),
                 packets.clone(),
-                _subs.clone(),
                 clients_ids.clone(),
             ) {
                 Ok(return_val) => {
@@ -132,14 +128,13 @@ impl Broker {
     }
 
     fn handle_subscribe(
-        stream: TcpStream,
         mut topics: HashMap<String, Topic>,
         topic_name: String,
-        usersubscription: UserSubscription,
+        subscription: Subscription,
     ) -> Result<u8, ProtocolError> {
         let reason_code;
         if let Some(topic) = topics.get_mut(&topic_name) {
-            match topic.add_user_to_topic(stream, usersubscription) {
+            match topic.add_user_to_topic(subscription) {
                 0 => {
                     println!("Subscripcion exitosa");
                     reason_code = SUCCESS_HEX;
@@ -178,16 +173,12 @@ impl Broker {
     fn handle_unsubscribe(
         mut topics: HashMap<String, Topic>,
         topic_name: String,
-        sub_id: u8,
+        usersubscription: Subscription,
     ) -> Result<u8, ProtocolError> {
-        if sub_id == 0 {
-            return Ok(NO_MATCHING_SUBSCRIBERS_HEX);
-        }
-
         let reason_code;
 
         if let Some(topic) = topics.get_mut(&topic_name) {
-            match topic.remove_user_from_topic(sub_id) {
+            match topic.remove_user_from_topic(usersubscription) {
                 0 => {
                     println!("Unsubscribe exitoso");
                     reason_code = SUCCESS_HEX;
@@ -225,8 +216,7 @@ pub fn handle_messages(
     mut stream: TcpStream,
     topics: HashMap<String, Topic>,
     packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
-    _subs: Vec<u32>,
-    mut clients_ids: Arc<Vec<String>>,
+    clients_ids: Arc<RwLock<HashMap<String, TcpStream>>>,
 ) -> Result<ProtocolReturn, ProtocolError> {
     let mensaje = match ClientMessage::read_from(&mut stream) {
         Ok(mensaje) => mensaje,
@@ -249,7 +239,7 @@ pub fn handle_messages(
         } => {
             println!("Recibí un Connect");
 
-            if clients_ids.contains(&client_id) {
+            if clients_ids.read().unwrap().contains_key(&client_id) {
                 let disconnect = BrokerMessage::Disconnect {
                     reason_code: 0,
                     session_expiry_interval: 0,
@@ -265,7 +255,18 @@ pub fn handle_messages(
                     Err(err) => println!("Error al enviar Disconnect: {:?}", err),
                 }
             }
-            Arc::make_mut(&mut clients_ids).push(client_id);
+
+            //clona stream con ok err
+            let cloned_stream = match stream.try_clone() {
+                Ok(stream) => stream,
+                Err(_) => return Err(ProtocolError::StreamError),
+            };
+
+            clients_ids
+                .write()
+                .unwrap()
+                .insert(client_id.clone(), cloned_stream);
+
             let properties = ConnackProperties {
                 session_expiry_interval: 0,
                 receive_maximum: 0,
@@ -346,7 +347,7 @@ pub fn handle_messages(
             properties,
             payload,
         } => {
-            println!("Recibi un Subscribe");
+            println!("Recibí un Subscribe");
             let msg = ClientMessage::Subscribe {
                 packet_id,
                 properties: properties.clone(),
@@ -356,21 +357,11 @@ pub fn handle_messages(
 
             let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-            let stream_for_topic = match stream.try_clone() {
-                Ok(stream) => stream,
-                Err(_) => return Err(ProtocolError::StreamError),
-            };
-
-            let user_id = 0;
             let mut reason_code_vec = Vec::new();
 
             for p in payload {
-                let topic = p.topic;
-                let qos = p.qos;
-                let new_sub = UserSubscription { user_id, qos };
-
                 let reason_code =
-                    Broker::handle_subscribe(stream_for_topic, topics.clone(), p.topic, new_sub)?;
+                    Broker::handle_subscribe(topics.clone(), p.topic.clone(), p.clone())?;
 
                 reason_code_vec.push(reason_code);
             }
@@ -395,22 +386,32 @@ pub fn handle_messages(
         }
         ClientMessage::Unsubscribe {
             packet_id,
-            topic_name,
             properties,
+            payload,
         } => {
             println!("Recibí un Unsubscribe");
 
             let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-            let reason_code =
-                Broker::handle_unsubscribe(topics.clone(), topic_name, properties.sub_id)?;
+            let mut reason_code_mut = Vec::new();
+
+            for p in payload {
+                let reason_code =
+                    Broker::handle_unsubscribe(topics.clone(), p.topic.clone(), p.clone())?;
+                reason_code_mut.push(reason_code);
+            }
+
+            let mut reason_code = SUCCESS_HEX;
+
+            if reason_code_mut.iter().any(|&x| x != SUCCESS_HEX) {
+                let reason_code = UNSPECIFIED_ERROR_HEX;
+            }
 
             let unsuback = BrokerMessage::Unsuback {
                 packet_id_msb: packet_id_bytes[0],
                 packet_id_lsb: packet_id_bytes[1],
-                reason_code,
+                reason_code: reason_code,
             };
-
             println!("Enviando un Unsuback");
             match unsuback.write_to(&mut stream) {
                 Ok(_) => {
@@ -517,8 +518,8 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
-        let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
 
         // Write a ClientMessage to the stream.
         // You'll need to replace this with a real ClientMessage.
@@ -527,7 +528,7 @@ mod tests {
         // Accept the connection and pass the stream to the function.
         if let Ok((stream, _)) = listener.accept() {
             // Perform your assertions here
-            result = Broker::handle_client(stream, topics, packets, subs, clients_ids);
+            result = Broker::handle_client(stream, topics, packets, clients_ids);
         }
 
         // Check that the function returned Ok.
