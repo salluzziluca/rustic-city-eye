@@ -2,13 +2,13 @@ use walkers::Position;
 
 use crate::ImagesPluginData;
 
-pub struct IncidentView {
+pub struct DroneView {
     pub image: ImagesPluginData,
     pub position: Position,
     pub clicked: bool,
 }
 
-impl IncidentView {
+impl DroneView {
     pub fn select(&mut self, position: Option<Position>) -> bool {
         if let Some(position) = position {
             self.clicked = self.distance(position) < 0.001;

@@ -33,6 +33,16 @@ pub struct Client {
 }
 
 impl Client {
+    /// Se intenta connectar al servidor corriendo en address.
+    ///
+    /// Si la conexion es exitosa, inmediatamente envia un packet del tipo Connect(que
+    /// ingresa como parametro).
+    ///
+    /// Si el enviado del Connect es exitoso, se espera una respuesta del Broker, la cual
+    /// debe ser un Connack packet.
+    ///
+    /// Al recibir un Connack, se ve su reason_code, y si este es 0x00(conexion exitosa), se crea la instancia
+    /// del Client.
     pub fn new(
         receiver_channel: Receiver<Box<dyn MessagesConfig + Send>>,
         address: String,
@@ -62,27 +72,28 @@ impl Client {
 
                     match reason_code {
                         0x00_u8 => {
-                            println!("todo salio bien!");
+                            println!("Conexion exitosa!");
+
+                            let _user_id = Client::assign_user_id();
+
+                            Ok(Client {
+                                receiver_channel: Arc::new(Mutex::new(receiver_channel)),
+                                stream,
+                                subscriptions: Arc::new(Mutex::new(HashMap::new())),
+                                packets_ids: Arc::new(Mutex::new(Vec::new())),
+                            })
                         }
                         _ => {
-                            println!("malio sal");
+                            println!("Connack con reason code {}", reason_code);
+                            Err(ProtocolError::AuthError)
                         }
                     }
                 }
-                _ => println!("no recibi un Connack :("),
+                _ => Err(ProtocolError::ExpectedConnack),
             }
         } else {
-            println!("soy el client y no pude leer el mensaje");
-        };
-
-        let _user_id = Client::assign_user_id();
-
-        Ok(Client {
-            receiver_channel: Arc::new(Mutex::new(receiver_channel)),
-            stream,
-            subscriptions: Arc::new(Mutex::new(HashMap::new())),
-            packets_ids: Arc::new(Mutex::new(Vec::new())),
-        })
+            Err(ProtocolError::NotReceivedMessageError)
+        }
     }
 
     /// Publica un mensaje en un topic determinado.
@@ -631,6 +642,16 @@ pub fn handle_message(
             BrokerMessage::Pingresp => {
                 println!("Recibi un mensaje {:?}", message);
                 Ok(ClientReturn::PingrespRecieved)
+            }
+            BrokerMessage::Auth {
+                reason_code: _,
+                authentication_method: _,
+                authentication_data: _,
+                reason_string: _,
+                user_properties: _,
+            } => {
+                println!("recibi un auth!");
+                Ok(ClientReturn::AuthRecieved)
             }
         }
     } else {

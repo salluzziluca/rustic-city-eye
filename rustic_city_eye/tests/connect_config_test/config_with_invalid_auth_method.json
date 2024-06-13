@@ -17,14 +17,14 @@
                 "chau"
             ]
         ],
-        "authentication_method": "password-based",
+        "authentication_method": "metodo de juan",
         "authentication_data": [
             1,
             2,
             3
         ]
     },
-    "client_id": "camera_system",
+    "client_id": "kvtr33",
     "will_properties": {
         "last_will_delay_interval": 1,
         "payload_format_indicator": 1,
@@ -45,6 +45,6 @@
     },
     "last_will_topic": "camera system",
     "last_will_message": "soy el monitoring y me desconecte",
-    "username": "sistema_camaras",
-    "password": [67, 97, 109, 97, 114, 101, 97, 110, 100, 111, 67, 97, 109, 97, 114, 105, 116, 97, 115, 70, 111, 114, 101, 118, 101, 114]
+    "username": "args[2]",
+    "password": [1, 2, 3]
 }

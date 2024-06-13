@@ -18,15 +18,15 @@ const PROTOCOL_VERSION: u8 = 5;
 const SESSION_EXPIRY_INTERVAL_ID: u8 = 0x11;
 const REASON_STRING_ID: u8 = 0x1F;
 const USER_PROPERTY_ID: u8 = 0x26;
-#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct Connect {
     clean_start: bool,
     last_will_flag: bool,
     last_will_qos: u8,
     last_will_retain: bool,
     keep_alive: u16,
-    properties: ConnectProperties,
+    pub(crate) properties: ConnectProperties,
 
     /// Connect Payload
     /// Ayuda a que el servidor identifique al cliente. Siempre debe ser
@@ -36,12 +36,11 @@ pub struct Connect {
     will_properties: Option<WillProperties>,
     last_will_topic: Option<String>,
     last_will_message: Option<String>,
-    username: Option<String>,
-    password: Option<Vec<u8>>,
+    pub(crate) username: Option<String>,
+    pub(crate) password: Option<Vec<u8>>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
-
 pub enum ClientMessage {
     ///El Connect Message es el primer mensaje que el cliente envia cuando se conecta al broker. Este contiene toda la informacion necesaria para que el broker identifique al cliente y pueda establecer una sesion con los parametros establecidos.
     ///
@@ -109,7 +108,8 @@ pub enum ClientMessage {
     },
     Pingreq,
 
-    /// Sirve para autenticar usuarios. Se puede enviar desde el cliente al server, o desde el server al cliente.
+    /// Sirve para autenticar usuarios. Tanto el Broker como el Client pueden enviar estos packets(van a ser iguales).
+    ///
     /// La idea es utilizar propiedades que se definen dentro de los packets del tipo Connect, y poder realizar la
     /// autenticacion correctamente.
     Auth {
@@ -408,8 +408,7 @@ impl ClientMessage {
                     byte_1 |= 1 << 1;
                     byte_1 |= 0 << 2;
                 } else if *qos != 0x00 && *qos != 0x01 {
-                    //we should throw a DISCONNECT with reason code 0x81(Malformed packet).
-                    println!("Qos inválido");
+                    return Err(ProtocolError::InvalidQOS);
                 }
 
                 if *dup_flag == 1 {
