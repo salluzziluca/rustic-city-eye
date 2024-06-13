@@ -6,6 +6,8 @@ use std::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,
     },
+    thread,
+    time::Duration,
 };
 
 use crate::{
@@ -292,6 +294,10 @@ impl Client {
         }
     }
 
+    /// Esta funcion se encarga de la escritura de mensajes que recibe mediante el channel.
+    ///
+    ///
+    /// Si el mensaje es un publish con qos 1, se envia el mensaje y se espera un puback. Si no se recibe, espera 0.5 segundos y reenvia el mensaje. aumentando en 1 el dup_flag, indicando que es al vez numero n que se envia el publish.
     fn write_messages(
         packet_ids: Arc<Mutex<Vec<u16>>>,
         stream: TcpStream,
@@ -338,7 +344,9 @@ impl Client {
                                         Ok(_) => {
                                             if let Ok(puback_recieved) = receiver.try_recv() {
                                                 if !puback_recieved {
-                                                    //resend the message with dup_flag +=  1
+                                                    //reenviar el msj con un dup_flag + 1
+
+                                                    thread::sleep(Duration::from_millis(500));
                                                     let _publish = ClientMessage::Publish {
                                                         packet_id,
                                                         topic_name,
