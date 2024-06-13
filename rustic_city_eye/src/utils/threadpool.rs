@@ -24,9 +24,10 @@ impl Worker {
     fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
         let thread = thread::spawn(move || loop {
             let job = match receiver.lock() {
-                Ok(lock) => match lock.try_recv() {
+                Ok(lock) => match lock.recv() {
                     Ok(job) => job,
-                    Err(_) => {
+                    Err(err) => {
+                        println!("Failed to receive job: {:?}", err);
                         continue;
                     }
                 },
