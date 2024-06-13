@@ -62,7 +62,8 @@ mod tests {
 
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
-        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
+        let subscriptions = Arc::new(Mutex::new(Vec::new()));
+
         let pending_messages: Vec<u16> = Vec::new();
         if let Ok((stream, _)) = listener.accept() {
             result = handle_message(stream, subscriptions, pending_messages)
@@ -91,7 +92,7 @@ mod tests {
 
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
-        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
+        let subscriptions = Arc::new(Mutex::new(Vec::new()));
         let pending_messages: Vec<u16> = Vec::new();
         if let Ok((stream, _)) = listener.accept() {
             result = handle_message(stream, subscriptions, pending_messages)
@@ -120,7 +121,7 @@ mod tests {
 
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
-        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
+        let subscriptions = Arc::new(Mutex::new(Vec::new()));
         let pending_messages: Vec<u16> = Vec::new();
         if let Ok((stream, _)) = listener.accept() {
             result = handle_message(stream, subscriptions, pending_messages)
@@ -148,7 +149,7 @@ mod tests {
 
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
-        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
+        let subscriptions = Arc::new(Mutex::new(Vec::new()));
         let pending_messages: Vec<u16> = Vec::new();
         if let Ok((stream, _)) = listener.accept() {
             result = handle_message(stream, subscriptions, pending_messages)
@@ -196,7 +197,7 @@ mod tests {
 
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
-        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
+        let subscriptions = Arc::new(Mutex::new(Vec::new()));
         let pending_messages: Vec<u16> = Vec::new();
         //agregar id 1 a pending messages
         //pending_messages.push(1);
@@ -227,7 +228,7 @@ mod tests {
 
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
-        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
+        let subscriptions = Arc::new(Mutex::new(Vec::new()));
         let pending_messages: Vec<u16> = Vec::new();
         if let Ok((stream, _)) = listener.accept() {
             result = handle_message(stream, subscriptions, pending_messages)
@@ -252,7 +253,7 @@ mod tests {
 
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
-        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
+        let subscriptions = Arc::new(Mutex::new(Vec::new()));
         let pending_messages: Vec<u16> = Vec::new();
         if let Ok((stream, _)) = listener.accept() {
             result = handle_message(stream, subscriptions, pending_messages)

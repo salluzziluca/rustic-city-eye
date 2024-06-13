@@ -4,6 +4,7 @@ mod tests {
     use rustic_city_eye::mqtt::connect_properties::ConnectProperties;
     use rustic_city_eye::mqtt::publish_properties::{PublishProperties, TopicProperties};
     use rustic_city_eye::mqtt::subscribe_properties::SubscribeProperties;
+    use rustic_city_eye::mqtt::subscription::Subscription;
     use rustic_city_eye::mqtt::will_properties::WillProperties;
     use rustic_city_eye::mqtt::{
         broker::handle_messages, client_message::ClientMessage, protocol_error::ProtocolError,
@@ -32,14 +33,13 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
-        let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
 
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, subs, clients_ids);
+            result = handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert!(result.is_err());
@@ -97,18 +97,19 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
-        let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, subs, clients_ids);
+            result = handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
     }
+
     #[test]
     fn test_envio_connect_con_id_repetido_y_desconecta() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -161,20 +162,14 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
-        let subs = vec![];
-        let clients_ids = Arc::new(vec!["kvtr33".to_string()]);
+
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(
-                stream,
-                topics.clone(),
-                packets.clone(),
-                subs.clone(),
-                clients_ids.clone(),
-            );
+            result = handle_messages(stream, topics.clone(), packets.clone(), clients_ids.clone());
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::DisconnectSent);
@@ -190,15 +185,23 @@ mod tests {
             response_topic: "String".to_string(),
         };
 
+        let properties = SubscribeProperties::new(
+            1,
+            vec![("propiedad".to_string(), "valor".to_string())],
+            vec![0, 1, 2, 3],
+        );
+
+        let subscription =
+            Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string(), 1);
+
+        let payload = vec![subscription];
+
         let sub = ClientMessage::Subscribe {
             packet_id: 1,
-            topic_name: "topico".to_string(),
-            properties: SubscribeProperties::new(
-                1,
-                vec![("propiedad".to_string(), "valor".to_string())],
-                vec![0, 1, 2, 3],
-            ),
+            properties,
+            payload,
         };
+
         thread::spawn(move || {
             let mut stream = TcpStream::connect(addr).unwrap();
             let mut buffer = vec![];
@@ -208,14 +211,13 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
-        let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
 
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, subs, clients_ids);
+            result = handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::SubackSent);
@@ -260,14 +262,14 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
-        let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, subs, clients_ids);
+            result = handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::PubackSent);
@@ -278,14 +280,20 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
 
+        let properties = SubscribeProperties::new(
+            1,
+            vec![("propiedad".to_string(), "valor".to_string())],
+            vec![0, 1, 2, 3],
+        );
+
+        let subscription =
+            Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string(), 1);
+        let payload = vec![subscription];
+
         let unsub = ClientMessage::Unsubscribe {
             packet_id: 1,
-            topic_name: "topico".to_string(),
-            properties: SubscribeProperties::new(
-                1,
-                vec![("propiedad".to_string(), "valor".to_string())],
-                vec![0, 1, 2, 3],
-            ),
+            properties,
+            payload,
         };
 
         thread::spawn(move || {
@@ -297,14 +305,14 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
-        let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, subs, clients_ids);
+            result = handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::UnsubackSent);
@@ -329,14 +337,14 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
-        let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, subs, clients_ids);
+            result = handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::DisconnectRecieved);
@@ -358,13 +366,13 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
-        let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, subs, clients_ids);
+            result = handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::PingrespSent);
@@ -392,13 +400,13 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
-        let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, subs, clients_ids);
+            result = handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::AuthRecieved);
@@ -426,13 +434,13 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
-        let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, subs, clients_ids);
+            result = handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
