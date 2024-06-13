@@ -121,7 +121,6 @@ impl Topic {
 
 #[cfg(test)]
 mod tests {
-    use std::net::TcpListener;
 
     use super::*;
 
