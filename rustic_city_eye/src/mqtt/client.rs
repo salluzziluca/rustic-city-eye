@@ -1,4 +1,6 @@
 use rand::Rng;
+
+
 use std::{
     collections::HashMap,
     net::TcpStream,
@@ -218,14 +220,9 @@ impl Client {
 
         let desconectar = false;
 
-        let stream_clone_one = match self.stream.try_clone() {
-            Ok(stream) => stream,
-            Err(_) => return Err(ProtocolError::StreamError),
-        };
-        let stream_clone_two = match self.stream.try_clone() {
-            Ok(stream) => stream,
-            Err(_) => return Err(ProtocolError::StreamError),
-        };
+        let stream_clone_one = self.stream.try_clone().map_err(|_| ProtocolError::StreamError)?;
+        let stream_clone_two = self.stream.try_clone().map_err(|_| ProtocolError::StreamError)?;
+
 
         let threadpool = ThreadPool::new(5);
 

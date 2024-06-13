@@ -19,6 +19,9 @@ image = { version = "0.25.1", features = ["jpeg", "png"] }
 walkers = "0.22.0"
 usvg = "0.42.0"
 tiny-skia = "0.11.4"
+rustls = "0.23.9"
+webpki-roots = "0.26.2"
+webpki = "0.22.4"
 
 [[bin]]
 name = "broker"
