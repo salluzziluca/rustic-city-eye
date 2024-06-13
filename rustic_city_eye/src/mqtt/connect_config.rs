@@ -1,7 +1,7 @@
 use crate::mqtt::{connect_properties::ConnectProperties, will_properties::WillProperties};
 
 use super::{client_message::ClientMessage, messages_config::MessagesConfig};
-
+#[derive(Clone)]
 pub struct ConnectConfig {
     pub(crate) clean_start: bool,
     pub(crate) last_will_flag: bool,

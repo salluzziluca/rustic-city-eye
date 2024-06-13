@@ -53,7 +53,7 @@ impl Client {
             password: connect_config.password,
             keep_alive: connect_config.keep_alive,
             properties: connect_config.properties,
-            client_id: connect_config.client_id,
+            client_id: connect_config.client_id.clone(),
             will_properties: connect_config.will_properties,
             last_will_topic: connect_config.last_will_topic,
             last_will_message: connect_config.last_will_message,
@@ -89,6 +89,7 @@ impl Client {
             println!("soy el client y no pude leer el mensaje");
         };
 
+        
         let client_id = connect_config.client_id;
 
         Ok(Client {
@@ -122,14 +123,6 @@ impl Client {
         }
     }
 
-    fn assign_subscription_id() -> u8 {
-        let mut rng = rand::thread_rng();
-
-        let sub_id: u8 = rng.gen();
-
-        sub_id
-    }
-
     pub fn unsubscribe(
         message: ClientMessage,
         mut stream: TcpStream,
@@ -139,6 +132,14 @@ impl Client {
             Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
+    }
+
+    fn assign_subscription_id() -> u8 {
+        let mut rng = rand::thread_rng();
+
+        let sub_id: u8 = rng.gen();
+
+        sub_id
     }
 
     ///recibe un string que indica la razón de la desconexión y un stream y envia un disconnect message al broker
@@ -343,16 +344,18 @@ impl Client {
                                 let subscribe = ClientMessage::Subscribe {
                                     packet_id,
                                     properties,
-                                    payload,
+                                    payload: payload.clone(),
                                 };
 
-                                for subscription in payload {
-                                    if let Ok(packet_id) =
-                                        Client::subscribe(subscribe, packet_id, stream_clone)
-                                    {
+                                for p in payload {
+                                    if let Ok(packet_id) = Client::subscribe(
+                                        subscribe.clone(),
+                                        packet_id,
+                                        stream_clone.try_clone().unwrap(),
+                                    ) {
                                         match sender.send(packet_id) {
                                             Ok(_) => {
-                                                let topic_new = subscription.topic.to_string();
+                                                let topic_new = p.topic.to_string();
                                                 match subscriptions_clone.lock() {
                                                     Ok(mut guard) => {
                                                         guard.push(topic_new);
@@ -379,35 +382,40 @@ impl Client {
                         },
                         ClientMessage::Unsubscribe {
                             packet_id,
-                            topic_name,
                             properties,
+                            payload,
                         } => match stream.try_clone() {
                             Ok(stream_clone) => {
                                 let unsubscribe = ClientMessage::Unsubscribe {
                                     packet_id,
-                                    topic_name: topic_name.clone(),
                                     properties,
+                                    payload: payload.clone(),
                                 };
 
-                                if let Ok(packet_id) =
-                                    Client::unsubscribe(unsubscribe, stream_clone, packet_id)
-                                {
-                                    match sender.send(packet_id) {
-                                        Ok(_) => {
-                                            let topic_new = topic_name.to_string();
-                                            match subscriptions_clone.lock() {
-                                                Ok(mut guard) => {
-                                                    guard.retain(|x| x != &topic_new);
-                                                }
-                                                Err(e) => {
-                                                    println!("Error al obtener el bloqueo: {}", e);
-                                                }
+                                for p in payload {
+                                    if let Ok(packet_id) = Client::unsubscribe(
+                                        unsubscribe.clone(),
+                                        stream_clone.try_clone().unwrap(),
+                                        packet_id,
+                                    ) {
+                                        match sender.send(packet_id) {
+                                            Ok(_) => {
+                                                let topic = p.topic.clone().to_string();
+                                                // let topic_new = subscription.to_string();
+                                                // match subscriptions_clone.lock() {
+                                                //     Ok(mut guard) => {
+                                                //         guard.retain(|x| x != &topic_new);
+                                                //     }
+                                                //     Err(_) => {
+                                                //         return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                                                //     }
+                                                // }
                                             }
-                                        }
-                                        Err(_) => {
-                                            println!(
-                                                    "Error al enviar el packet_id del unsuback al receiver"
-                                                )
+                                            Err(_) => {
+                                                return Err::<(), ProtocolError>(
+                                                    ProtocolError::StreamError,
+                                                );
+                                            }
                                         }
                                     }
                                 }
