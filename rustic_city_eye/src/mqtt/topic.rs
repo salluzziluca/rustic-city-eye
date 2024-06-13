@@ -110,7 +110,7 @@ mod tests {
 
     use crate::{
         monitoring::incident::Incident,
-        mqtt::publish_properties::{PublishProperties, TopicProperties},
+        mqtt::publish::publish_properties::{PublishProperties, TopicProperties},
         utils::{incident_payload, location::Location, payload_types::PayloadTypes},
     };
 

@@ -10,7 +10,7 @@ const REASON_STRING_ID: u8 = 0x1F;
 const USER_PROPERTY_ID: u8 = 0x26;
 use super::{
     connack_properties::ConnackProperties, payload::Payload, protocol_error::ProtocolError,
-    publish_properties::PublishProperties,
+    publish::publish_properties::PublishProperties,
 };
 use crate::utils::{
     reader::{read_string, read_u8},
@@ -146,7 +146,6 @@ impl BrokerMessage {
                 let _ = writer
                     .write_all(&[byte_1])
                     .map_err(|_e| ProtocolError::WriteError);
-
 
                 write_u8(&mut writer, packet_id_msb)?;
                 write_u8(&mut writer, packet_id_lsb)?;

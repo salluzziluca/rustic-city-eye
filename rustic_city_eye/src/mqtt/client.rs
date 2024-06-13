@@ -6,6 +6,8 @@ use std::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,
     },
+    thread,
+    time::Duration,
 };
 
 use crate::{
@@ -28,18 +30,18 @@ pub struct Client {
     // las subscriptions son un hashmap de topic y sub_id
     pub subscriptions: Arc<Mutex<HashMap<String, u8>>>,
     // user_id: u32,
+    packets_ids: Arc<Mutex<Vec<u16>>>,
 }
 
 impl Client {
-
     /// Se intenta connectar al servidor corriendo en address.
-    /// 
+    ///
     /// Si la conexion es exitosa, inmediatamente envia un packet del tipo Connect(que
     /// ingresa como parametro).
-    /// 
+    ///
     /// Si el enviado del Connect es exitoso, se espera una respuesta del Broker, la cual
     /// debe ser un Connack packet.
-    /// 
+    ///
     /// Al recibir un Connack, se ve su reason_code, y si este es 0x00(conexion exitosa), se crea la instancia
     /// del Client.
     pub fn new(
@@ -72,12 +74,14 @@ impl Client {
                     match reason_code {
                         0x00_u8 => {
                             println!("Conexion exitosa!");
+
                             let _user_id = Client::assign_user_id();
 
                             Ok(Client {
                                 receiver_channel: Arc::new(Mutex::new(receiver_channel)),
                                 stream,
                                 subscriptions: Arc::new(Mutex::new(HashMap::new())),
+                                packets_ids: Arc::new(Mutex::new(Vec::new())),
                             })
                         }
                         _ => {
@@ -207,7 +211,8 @@ impl Client {
     ///
     /// El thread de lectura (read_messages) se encarga de leer los mensajes que le llegan del broker.
     pub fn client_run(&mut self) -> Result<(), ProtocolError> {
-        let (sender, receiver) = mpsc::channel();
+        let (write_sender, recieve_receiver) = mpsc::channel();
+        let (reciever_sender, write_receiver) = mpsc::channel();
 
         let receiver_channel = self.receiver_channel.clone();
 
@@ -225,20 +230,28 @@ impl Client {
         let threadpool = ThreadPool::new(5);
 
         let subscriptions_clone = self.subscriptions.clone();
+        let packet_id_clones = self.packets_ids.clone();
 
         let _write_messages = threadpool.execute(move || {
             Client::write_messages(
+                packet_id_clones,
                 stream_clone_one,
                 receiver_channel,
                 desconectar,
-                sender,
+                write_sender,
                 subscriptions_clone,
+                write_receiver,
             )
         });
 
         let subscriptions_clone = self.subscriptions.clone();
         let _read_messages = threadpool.execute(move || {
-            Client::receive_messages(stream_clone_two, receiver, subscriptions_clone)
+            Client::receive_messages(
+                stream_clone_two,
+                recieve_receiver,
+                subscriptions_clone,
+                reciever_sender,
+            )
         });
 
         Ok(())
@@ -248,12 +261,15 @@ impl Client {
         stream: TcpStream,
         receiver: Receiver<u16>,
         subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
+        sender: Sender<bool>,
     ) -> Result<(), ProtocolError> {
         let mut pending_messages = Vec::new();
 
         loop {
             if let Ok(packet) = receiver.try_recv() {
-                pending_messages.push(packet);
+                if !pending_messages.contains(&packet) {
+                    pending_messages.push(packet);
+                }
             }
 
             if let Ok(stream_clone) = stream.try_clone() {
@@ -261,6 +277,7 @@ impl Client {
                     stream_clone,
                     subscriptions_clone.clone(),
                     pending_messages.clone(),
+                    sender.clone(),
                 ) {
                     Ok(return_val) => {
                         if return_val == ClientReturn::DisconnectRecieved {
@@ -277,18 +294,24 @@ impl Client {
         }
     }
 
+    /// Esta funcion se encarga de la escritura de mensajes que recibe mediante el channel.
+    ///
+    ///
+    /// Si el mensaje es un publish con qos 1, se envia el mensaje y se espera un puback. Si no se recibe, espera 0.5 segundos y reenvia el mensaje. aumentando en 1 el dup_flag, indicando que es al vez numero n que se envia el publish.
     fn write_messages(
+        packet_ids: Arc<Mutex<Vec<u16>>>,
         stream: TcpStream,
         receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
         mut desconectar: bool,
         sender: Sender<u16>,
         subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
+        receiver: Receiver<bool>,
     ) -> Result<(), ProtocolError> {
         while !desconectar {
             loop {
                 let lock = receiver_channel.lock().unwrap();
                 if let Ok(message_config) = lock.recv() {
-                    let packet_id = Client::assign_packet_id();
+                    let packet_id = Client::assign_packet_id(packet_ids.clone());
 
                     let message = message_config.parse_message(packet_id);
 
@@ -306,23 +329,42 @@ impl Client {
                             Ok(stream_clone) => {
                                 let publish = ClientMessage::Publish {
                                     packet_id,
-                                    topic_name,
+                                    topic_name: topic_name.clone(),
                                     qos,
                                     retain_flag,
-                                    payload,
+                                    payload: payload.clone(),
                                     dup_flag,
-                                    properties,
+                                    properties: properties.clone(),
                                 };
 
                                 if let Ok(packet_id) =
                                     Client::publish_message(publish, stream_clone, packet_id)
                                 {
-                                    match sender.send(packet_id) {
-                                        Ok(_) => continue,
-                                        Err(_) => {
-                                            println!(
+                                    if qos == 1 {
+                                        match sender.send(packet_id) {
+                                            Ok(_) => {
+                                                if let Ok(puback_recieved) = receiver.try_recv() {
+                                                    if !puback_recieved {
+                                                        //reenviar el msj con un dup_flag + 1
+
+                                                        thread::sleep(Duration::from_millis(500));
+                                                        let _publish = ClientMessage::Publish {
+                                                            packet_id,
+                                                            topic_name,
+                                                            qos,
+                                                            retain_flag,
+                                                            payload,
+                                                            dup_flag: dup_flag + 1,
+                                                            properties,
+                                                        };
+                                                    }
+                                                }
+                                            }
+                                            Err(_) => {
+                                                println!(
                                                 "Error al enviar packet_id de puback al receiver"
                                             )
+                                            }
                                         }
                                     }
                                 }
@@ -477,13 +519,18 @@ impl Client {
     }
 
     ///Asigna un id random
-    fn assign_packet_id() -> u16 {
+    fn assign_packet_id(packet_ids: Arc<Mutex<Vec<u16>>>) -> u16 {
         let mut rng = rand::thread_rng();
+        let mut packet_ids = match packet_ids.lock() {
+            Ok(packet_ids) => packet_ids,
+            Err(_) => return 0,
+        };
 
         let mut packet_id: u16;
         loop {
             packet_id = rng.gen();
-            if packet_id != 0 {
+            if packet_id != 0 && !packet_ids.contains(&packet_id) {
+                packet_ids.push(packet_id);
                 break;
             }
         }
@@ -498,6 +545,7 @@ pub fn handle_message(
     mut stream: TcpStream,
     subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
     pending_messages: Vec<u16>,
+    sender: Sender<bool>,
 ) -> Result<ClientReturn, ProtocolError> {
     if let Ok(message) = BrokerMessage::read_from(&mut stream) {
         match message {
@@ -518,8 +566,13 @@ pub fn handle_message(
                     let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
                     if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {}
                 }
-                println!("puback {:?}", message);
-                Ok(ClientReturn::PubackRecieved)
+                match sender.send(true) {
+                    Ok(_) => {
+                        println!("puback {:?}", message);
+                        Ok(ClientReturn::PubackRecieved)
+                    }
+                    Err(_) => Err(ProtocolError::ChanellError),
+                }
             }
             BrokerMessage::Disconnect {
                 reason_code: _,
@@ -623,7 +676,26 @@ mod tests {
 
     #[test]
     fn test_assign_packet_id() {
-        let packet_id = Client::assign_packet_id();
+        let packet_ids = Vec::new();
+        let packet_ids = Arc::new(Mutex::new(packet_ids));
+        let packet_id = Client::assign_packet_id(packet_ids);
+        assert_ne!(packet_id, 0);
+    }
+
+    #[test]
+    fn test_si_el_id_de_paquete_es_unico() {
+        let packet_ids = Vec::new();
+        let packet_ids = Arc::new(Mutex::new(packet_ids));
+        let packet_id = Client::assign_packet_id(packet_ids.clone());
+        let packet_id_2 = Client::assign_packet_id(packet_ids.clone());
+        assert_ne!(packet_id, packet_id_2);
+    }
+
+    #[test]
+    fn test_si_el_id_de_paquete_es_distinto_de_cero() {
+        let packet_ids = Vec::new();
+        let packet_ids = Arc::new(Mutex::new(packet_ids));
+        let packet_id = Client::assign_packet_id(packet_ids);
         assert_ne!(packet_id, 0);
     }
 

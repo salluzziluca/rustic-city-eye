@@ -412,7 +412,7 @@ pub fn handle_messages(
 
             let reason_code = Broker::handle_publish(msg, topics.clone(), topic_name)?;
 
-            if qos == 1 {
+            if qos == 1 && dup_flag == 0 {
                 let puback = BrokerMessage::Puback {
                     packet_id_msb: packet_id_bytes[0],
                     packet_id_lsb: packet_id_bytes[1],
@@ -426,6 +426,8 @@ pub fn handle_messages(
                     }
                     Err(err) => println!("Error al enviar Puback: {:?}", err),
                 }
+            } else {
+                return Ok(ProtocolReturn::NoAckSent);
             }
         }
         ClientMessage::Subscribe {

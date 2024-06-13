@@ -8,9 +8,12 @@ pub mod mqtt {
         pub mod connect_properties;
         pub mod will_properties;
     }
+    pub mod publish {
+        pub mod publish_config;
+        pub mod publish_properties;
+    }
 
     pub mod messages_config;
-    pub mod publish_config;
     pub mod subscribe_config;
 
     pub mod broker_message;
@@ -18,7 +21,6 @@ pub mod mqtt {
     pub mod client_message;
     pub mod connack_properties;
     pub mod protocol_error;
-    pub mod publish_properties;
     pub mod reason_code;
     pub mod subscribe_properties;
     pub mod topic;

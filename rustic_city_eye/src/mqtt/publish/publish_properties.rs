@@ -2,7 +2,7 @@ use std::io::{Error, Read, Write};
 
 use crate::utils::{reader::*, writer::*};
 
-use super::protocol_error::ProtocolError;
+use crate::mqtt::protocol_error::ProtocolError;
 
 //PROPERTIES IDs
 const PAYLOAD_FORMAT_INDICATOR_ID: u8 = 0x01;

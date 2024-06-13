@@ -8,7 +8,7 @@ mod tests {
             client_return::ClientReturn,
             connack_properties::ConnackProperties,
             protocol_error::ProtocolError,
-            publish_properties::{PublishProperties, TopicProperties},
+            publish::publish_properties::{PublishProperties, TopicProperties},
         },
         utils::{
             incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes,
@@ -18,7 +18,7 @@ mod tests {
         collections::HashMap,
         io::Write,
         net::{TcpListener, TcpStream},
-        sync::{Arc, Mutex},
+        sync::{mpsc::channel, Arc, Mutex},
         thread,
     };
 
@@ -64,8 +64,9 @@ mod tests {
 
         let subscriptions = Arc::new(Mutex::new(HashMap::new()));
         let pending_messages: Vec<u16> = Vec::new();
+        let (sender, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, subscriptions, pending_messages)
+            result = handle_message(stream, subscriptions, pending_messages, sender)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::ConnackReceived);
@@ -91,10 +92,19 @@ mod tests {
 
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
-        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
+        let subscriptions: Arc<Mutex<HashMap<String, u8>>> = Arc::new(Mutex::new(HashMap::new()));
         let pending_messages: Vec<u16> = Vec::new();
+        let (sender, recibidor) = channel();
+
+        thread::spawn(move || loop {
+            if let Ok(recibido) = recibidor.try_recv() {
+                if recibido {
+                    break;
+                }
+            }
+        });
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, subscriptions, pending_messages)
+            result = handle_message(stream, subscriptions, pending_messages, sender)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::PubackRecieved);
@@ -122,8 +132,9 @@ mod tests {
 
         let subscriptions = Arc::new(Mutex::new(HashMap::new()));
         let pending_messages: Vec<u16> = Vec::new();
+        let (sender, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, subscriptions, pending_messages)
+            result = handle_message(stream, subscriptions, pending_messages, sender)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::DisconnectRecieved);
@@ -151,8 +162,9 @@ mod tests {
 
         let subscriptions = Arc::new(Mutex::new(HashMap::new()));
         let pending_messages: Vec<u16> = Vec::new();
+        let (sender, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, subscriptions, pending_messages)
+            result = handle_message(stream, subscriptions, pending_messages, sender)
         }
         assert_eq!(result.unwrap(), ClientReturn::SubackRecieved);
     }
@@ -201,8 +213,14 @@ mod tests {
         let pending_messages: Vec<u16> = Vec::new();
         //agregar id 1 a pending messages
         //pending_messages.push(1);
+        let (sender, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, subscriptions.clone(), pending_messages.clone())
+            result = handle_message(
+                stream,
+                subscriptions.clone(),
+                pending_messages.clone(),
+                sender,
+            )
         }
 
         assert_eq!(result.unwrap(), ClientReturn::PublishDeliveryRecieved);
@@ -230,8 +248,9 @@ mod tests {
 
         let subscriptions = Arc::new(Mutex::new(HashMap::new()));
         let pending_messages: Vec<u16> = Vec::new();
+        let (sender, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, subscriptions, pending_messages)
+            result = handle_message(stream, subscriptions, pending_messages, sender)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::UnsubackRecieved);
@@ -254,8 +273,9 @@ mod tests {
 
         let subscriptions = Arc::new(Mutex::new(HashMap::new()));
         let pending_messages: Vec<u16> = Vec::new();
+        let (sender, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, subscriptions, pending_messages)
+            result = handle_message(stream, subscriptions, pending_messages, sender)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::PingrespRecieved);
@@ -285,8 +305,9 @@ mod tests {
 
         let subscriptions = Arc::new(Mutex::new(HashMap::new()));
         let pending_messages: Vec<u16> = Vec::new();
+        let (sender, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, subscriptions, pending_messages)
+            result = handle_message(stream, subscriptions, pending_messages, sender)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::AuthRecieved);

@@ -5,7 +5,7 @@ use crate::utils::payload_types::PayloadTypes;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Error, ErrorKind, Read, Write};
 
-use crate::mqtt::publish_properties::{PublishProperties, TopicProperties};
+use crate::mqtt::publish::publish_properties::{PublishProperties, TopicProperties};
 use crate::utils::{reader::*, writer::*};
 
 use super::connect::connect_properties::ConnectProperties;
