@@ -1,7 +1,5 @@
 use std::{
-    clone,
     collections::HashMap,
-    hash::Hash,
     net::{TcpListener, TcpStream},
     sync::{Arc, RwLock},
 };
@@ -9,7 +7,6 @@ use std::{
 use crate::mqtt::{
     broker_config::BrokerConfig,
     broker_message::BrokerMessage,
-    client,
     client_message::ClientMessage,
     connack_properties::ConnackProperties,
     protocol_error::ProtocolError,
@@ -422,7 +419,6 @@ pub fn handle_messages(
                     Err(err) => println!("Error al enviar suback: {:?}", err),
                 }
             }
-            
 
             let unsuback = BrokerMessage::Unsuback {
                 packet_id_msb: packet_id_bytes[0],
