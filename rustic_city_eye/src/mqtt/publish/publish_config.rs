@@ -1,7 +1,7 @@
 use crate::{
     mqtt::{
         client_message::ClientMessage, messages_config::MessagesConfig,
-        publish_properties::PublishProperties,
+        publish::publish_properties::PublishProperties,
     },
     utils::payload_types::PayloadTypes,
 };
@@ -55,7 +55,7 @@ mod tests {
     use super::*;
     use crate::{
         monitoring::incident::Incident,
-        mqtt::{client_message::ClientMessage, publish_properties::TopicProperties},
+        mqtt::{client_message::ClientMessage, publish::publish_properties::TopicProperties},
         utils::{incident_payload, location::Location},
     };
 

@@ -2,7 +2,7 @@
 mod tests {
     use rustic_city_eye::monitoring::incident::Incident;
     use rustic_city_eye::mqtt::client_message;
-    use rustic_city_eye::mqtt::publish_properties::{PublishProperties, TopicProperties};
+    use rustic_city_eye::mqtt::publish::publish_properties::{PublishProperties, TopicProperties};
     use rustic_city_eye::mqtt::subscribe_properties::SubscribeProperties;
     use rustic_city_eye::mqtt::{
         broker::handle_messages, client_message::ClientMessage, protocol_error::ProtocolError,

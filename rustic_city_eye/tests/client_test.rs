@@ -8,7 +8,7 @@ mod tests {
             client_return::ClientReturn,
             connack_properties::ConnackProperties,
             protocol_error::ProtocolError,
-            publish_properties::{PublishProperties, TopicProperties},
+            publish::publish_properties::{PublishProperties, TopicProperties},
         },
         utils::{
             incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes,
