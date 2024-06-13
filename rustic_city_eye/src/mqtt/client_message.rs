@@ -80,8 +80,8 @@ pub enum ClientMessage {
     },
     Unsubscribe {
         packet_id: u16,
-        topic_name: String,
         properties: SubscribeProperties,
+        payload: Vec<Subscription>,
     },
     /// Es el ultimo mensaje que el cliente envia antes de desconectarse, este mensaje contiene informacion sobre la razon de la desconexión y propiedades adicionales.
     /// reason_code es el codigo de la razon de la desconexión.
@@ -227,7 +227,7 @@ impl ClientMessage {
             ClientMessage::Subscribe {
                 packet_id: _,
                 properties: _,
-                payload: _,
+                payload,
             } => {
                 // fixed header
                 self.write_first_packet_byte(&mut writer)?;
@@ -235,16 +235,38 @@ impl ClientMessage {
                 // variable header
                 self.write_packet_properties(&mut writer)?;
 
+                //payload
+                let payload_length = payload.len() as u32;
+                write_u32(&mut writer, &payload_length)?;
+                for subscription in payload {
+                    write_string(&mut writer, &subscription.topic)?;
+                    write_string(&mut writer, &subscription.client_id)?; 
+                    write_u8(&mut writer, &subscription.qos)?;
+                }
+
                 writer.flush()?;
                 Ok(())
             }
             ClientMessage::Unsubscribe {
                 packet_id: _,
-                topic_name: _,
                 properties: _,
+                payload,
             } => {
+                // fixed header
                 self.write_first_packet_byte(&mut writer)?;
+
+                // variable header
                 self.write_packet_properties(&mut writer)?;
+
+                //payload
+                let payload_length = payload.len() as u32;
+                write_u32(&mut writer, &payload_length)?;
+                for subscription in payload {
+                    write_string(&mut writer, &subscription.topic)?;
+                    write_string(&mut writer, &subscription.client_id)?; 
+                    write_u8(&mut writer, &subscription.qos)?;
+                }
+
                 writer.flush()?;
                 Ok(())
             }
@@ -366,8 +388,8 @@ impl ClientMessage {
             }
             ClientMessage::Unsubscribe {
                 packet_id: _,
-                topic_name: _,
                 properties: _,
+                payload: _,
             } => {
                 let byte_1: u8 = 0xA2_u8;
                 writer.write_all(&[byte_1])?;
@@ -445,7 +467,6 @@ impl ClientMessage {
                 properties.write_properties(writer)?;
 
                 // payload
-
                 for subscription in payload {
                     write_string(writer, &subscription.topic)?;
                     write_u8(writer, &subscription.qos)?;
@@ -453,15 +474,20 @@ impl ClientMessage {
             }
             ClientMessage::Unsubscribe {
                 packet_id,
-                topic_name,
                 properties,
+                payload,
             } => {
                 write_u16(writer, packet_id)?;
 
-                write_string(writer, topic_name)?;
-
-                //Properties
+                // variable header
                 properties.write_properties(writer)?;
+
+                //payload
+
+                for subscription in payload {
+                    write_string(writer, &subscription.topic)?;
+                    write_u8(writer, &subscription.qos)?;
+                }
             }
             ClientMessage::Disconnect {
                 reason_code,
@@ -669,12 +695,19 @@ impl ClientMessage {
             }
             0xA2 => {
                 let packet_id = read_u16(stream)?;
-                let topic = read_string(stream)?;
                 let properties = SubscribeProperties::read_properties(stream)?;
+                let topic = read_string(stream)?;
+                let client_id = read_string(stream)?;
+                let qos = read_u8(stream)?;
+
                 Ok(ClientMessage::Unsubscribe {
                     packet_id,
-                    topic_name: topic,
                     properties,
+                    payload: vec![Subscription {
+                        topic,
+                        client_id,
+                        qos,
+                    }],
                 })
             }
             0xE0 => {
