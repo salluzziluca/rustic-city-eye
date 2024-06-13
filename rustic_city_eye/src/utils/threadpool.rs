@@ -37,8 +37,7 @@ impl Worker {
                 }
             };
 
-            job();
-        });
+            job();        });
 
         Worker { id, thread }
     }

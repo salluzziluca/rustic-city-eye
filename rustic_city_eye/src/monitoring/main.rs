@@ -1,23 +1,28 @@
 mod camera_view;
+mod drone_view;
 mod incident_view;
 mod plugins;
 mod windows;
 
 use eframe::{run_native, App, CreationContext, NativeOptions};
 use egui::{CentralPanel, RichText, TextStyle};
-use plugins::{cameras, incidents, ClickWatcher, ImagesPluginData};
+use plugins::*;
 use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
 use walkers::{sources::OpenStreetMap, Map, MapMemory, Position, Texture, Tiles};
-use windows::{add_camera_window, add_incident_window, zoom};
+use windows::*;
+
 struct MyMap {
     tiles: Tiles,
     map_memory: MapMemory,
     click_watcher: ClickWatcher,
     camera_icon: ImagesPluginData,
     cameras: Vec<camera_view::CameraView>,
+    camera_radius: ImagesPluginData,
     incident_icon: ImagesPluginData,
     incidents: Vec<incident_view::IncidentView>,
-    camera_radius: ImagesPluginData,
+    drones: Vec<drone_view::DroneView>,
+    drone_icon: ImagesPluginData,
+    zoom_level: f32,
 }
 
 struct MyApp {
@@ -30,6 +35,18 @@ struct MyApp {
     monitoring_app: Option<MonitoringApp>,
 }
 
+impl ImagesPluginData {
+    /// recibe el zoom level inicial y la escala para cada una de las imagenes
+    fn new(texture: Texture, initial_zoom_level: f32, original_scale: f32) -> Self {
+        let scale = initial_zoom_level * original_scale;
+        Self {
+            texture,
+            x_scale: scale,
+            y_scale: scale,
+            original_scale,
+        }
+    }
+}
 impl MyApp {
     fn handle_form(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         CentralPanel::default().show(ctx, |ui| {
@@ -75,12 +92,16 @@ impl MyApp {
                 );
 
                 if ui.button("Submit").clicked() {
-                    let args = vec![
+                    let mut args = vec![
                         self.username.clone(),
                         self.password.clone(),
                         self.ip.clone(),
                         self.port.clone(),
                     ];
+                    if args[2].is_empty() && args[3].is_empty() {
+                        "127.0.0.1".clone_into(&mut args[2]);
+                        "5000".clone_into(&mut args[3]);
+                    }
                     match MonitoringApp::new(args) {
                         Ok(mut monitoring_app) => {
                             let _ = monitoring_app.run_client();
@@ -102,6 +123,7 @@ impl MyApp {
 
     fn handle_map(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         CentralPanel::default().show(ctx, |ui| {
+            let last_clicked = self.map.click_watcher.clicked_at;
             ui.add(
                 Map::new(
                     Some(&mut self.map.tiles),
@@ -109,13 +131,30 @@ impl MyApp {
                     Position::from_lon_lat(-58.368925, -34.61716),
                 )
                 .with_plugin(&mut self.map.click_watcher)
-                .with_plugin(cameras(&mut self.map.cameras))
-                .with_plugin(incidents(&mut self.map.incidents)),
+                .with_plugin(cameras(
+                    &mut self.map.cameras,
+                    self.map.zoom_level,
+                    last_clicked,
+                ))
+                .with_plugin(incidents(
+                    &mut self.map.incidents,
+                    self.map.zoom_level,
+                    last_clicked,
+                ))
+                .with_plugin(drones(
+                    &mut self.map.drones,
+                    self.map.zoom_level,
+                    last_clicked,
+                )),
             );
-            zoom(ui, &mut self.map.map_memory);
+            zoom(ui, &mut self.map.map_memory, &mut self.map.zoom_level);
+
             if let Some(monitoring_app) = &mut self.monitoring_app {
                 add_camera_window(ui, &mut self.map, monitoring_app);
                 add_incident_window(ui, &mut self.map, monitoring_app);
+                add_drone_window(ui, &mut self.map, monitoring_app);
+                add_disconnect_window(ui, &mut self.map, monitoring_app, &mut self.connected);
+                add_remove_window(ui, &mut self.map, monitoring_app)
             }
         });
     }
@@ -135,30 +174,25 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
     egui_extras::install_image_loaders(&cc.egui_ctx);
     let camera_bytes = include_bytes!("assets/Camera.png");
     let camera_icon = match Texture::new(camera_bytes, &cc.egui_ctx) {
-        Ok(t) => ImagesPluginData {
-            texture: t,
-            x_scale: 0.2,
-            y_scale: 0.2,
-        },
+        Ok(t) => ImagesPluginData::new(t, 1.0, 0.1), // Initialize with zoom level 1.0
         Err(_) => todo!(),
     };
+
     let incident_bytes = include_bytes!("assets/Incident.png");
     let incident_icon = match Texture::new(incident_bytes, &cc.egui_ctx) {
-        Ok(t) => ImagesPluginData {
-            texture: t,
-            x_scale: 0.15,
-            y_scale: 0.15,
-        },
+        Ok(t) => ImagesPluginData::new(t, 1.0, 0.15), // Initialize with zoom level 1.0
+        Err(_) => todo!(),
+    };
+
+    let drone_bytes = include_bytes!("assets/Drone.png");
+    let drone_icon = match Texture::new(drone_bytes, &cc.egui_ctx) {
+        Ok(t) => ImagesPluginData::new(t, 1.0, 0.08), // Initialize with zoom level 1.0
         Err(_) => todo!(),
     };
 
     let circle_bytes = include_bytes!("assets/circle.png");
     let circle_icon = match Texture::new(circle_bytes, &cc.egui_ctx) {
-        Ok(t) => ImagesPluginData {
-            texture: t,
-            x_scale: 0.2,
-            y_scale: 0.2,
-        },
+        Ok(t) => ImagesPluginData::new(t, 1.0, 0.2), // Initialize with zoom level 1.0
         Err(_) => todo!(),
     };
 
@@ -177,6 +211,9 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
             camera_icon,
             incident_icon,
             camera_radius: circle_icon,
+            drones: vec![],
+            drone_icon,
+            zoom_level: 1.0,
         },
         monitoring_app: None,
     })

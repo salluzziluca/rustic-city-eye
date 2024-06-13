@@ -4,8 +4,8 @@ use walkers::{
     Plugin, Position, Projector,
 };
 
-use crate::camera_view::CameraView;
 use crate::incident_view::IncidentView;
+use crate::{camera_view::CameraView, drone_view::DroneView};
 
 #[derive(Default, Clone)]
 pub struct ClickWatcher {
@@ -52,33 +52,90 @@ pub struct ImagesPluginData {
     pub texture: Texture,
     pub x_scale: f32,
     pub y_scale: f32,
+    pub original_scale: f32,
 }
 
 // Creates a built-in `Images` plugin with an example image.
-pub fn cameras(cameras: &mut Vec<CameraView>) -> impl Plugin {
+pub fn cameras(
+    cameras: &mut Vec<CameraView>,
+    zoom_level: f32,
+    last_clicked: Option<Position>,
+) -> impl Plugin {
     let mut images_vec = vec![];
 
     for camera in cameras {
         let mut radius = Image::new(camera.radius.texture.clone(), camera.position);
-        radius.scale(camera.radius.x_scale, camera.radius.y_scale);
+        radius.scale(
+            camera.radius.x_scale * zoom_level,
+            camera.radius.y_scale * zoom_level,
+        );
         images_vec.push(radius);
 
         let mut image = Image::new(camera.image.texture.clone(), camera.position);
-        image.scale(camera.image.x_scale, camera.image.y_scale);
+        if camera.select(last_clicked) {
+            image.scale(
+                camera.image.x_scale * zoom_level * 1.5,
+                camera.image.y_scale * zoom_level * 1.5,
+            );
+        } else {
+            image.scale(
+                camera.image.x_scale * zoom_level,
+                camera.image.y_scale * zoom_level,
+            );
+        }
         images_vec.push(image);
     }
-
     Images::new(images_vec)
 }
 
-pub fn incidents(incidents: &mut Vec<IncidentView>) -> impl Plugin {
+pub fn incidents(
+    incidents: &mut Vec<IncidentView>,
+    zoom_level: f32,
+    last_clicked: Option<Position>,
+) -> impl Plugin {
     let mut images_vec = vec![];
 
     for incident in incidents {
         let mut image = Image::new(incident.image.texture.clone(), incident.position);
-        image.scale(incident.image.x_scale, incident.image.y_scale);
+
+        if incident.select(last_clicked) {
+            image.scale(
+                incident.image.x_scale * zoom_level * 1.5,
+                incident.image.y_scale * zoom_level * 1.5,
+            );
+        } else {
+            image.scale(
+                incident.image.x_scale * zoom_level,
+                incident.image.y_scale * zoom_level,
+            );
+        }
         images_vec.push(image);
     }
+    Images::new(images_vec)
+}
 
+pub fn drones(
+    drones: &mut Vec<DroneView>,
+    zoom_level: f32,
+    last_clicked: Option<Position>,
+) -> impl Plugin {
+    let mut images_vec = vec![];
+
+    for drone in drones {
+        let mut image = Image::new(drone.image.texture.clone(), drone.position);
+
+        if drone.select(last_clicked) {
+            image.scale(
+                drone.image.x_scale * zoom_level * 1.5,
+                drone.image.y_scale * zoom_level * 1.5,
+            );
+        } else {
+            image.scale(
+                drone.image.x_scale * zoom_level,
+                drone.image.y_scale * zoom_level,
+            );
+        }
+        images_vec.push(image);
+    }
     Images::new(images_vec)
 }
