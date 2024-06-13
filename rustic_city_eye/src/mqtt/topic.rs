@@ -41,7 +41,7 @@ impl Topic {
         match self.users.read() {
             Ok(guard) => {
                 if guard.contains(&subscription) {
-                    let mut lock = match self.users.write() {
+                    match self.users.write() {
                         Ok(mut guard2) => {
                             guard2.retain(|x| x != &subscription);
                             guard2
