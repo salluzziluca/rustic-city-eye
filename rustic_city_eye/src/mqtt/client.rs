@@ -340,29 +340,31 @@ impl Client {
                                 if let Ok(packet_id) =
                                     Client::publish_message(publish, stream_clone, packet_id)
                                 {
-                                    match sender.send(packet_id) {
-                                        Ok(_) => {
-                                            if let Ok(puback_recieved) = receiver.try_recv() {
-                                                if !puback_recieved {
-                                                    //reenviar el msj con un dup_flag + 1
+                                    if qos == 1 {
+                                        match sender.send(packet_id) {
+                                            Ok(_) => {
+                                                if let Ok(puback_recieved) = receiver.try_recv() {
+                                                    if !puback_recieved {
+                                                        //reenviar el msj con un dup_flag + 1
 
-                                                    thread::sleep(Duration::from_millis(500));
-                                                    let _publish = ClientMessage::Publish {
-                                                        packet_id,
-                                                        topic_name,
-                                                        qos,
-                                                        retain_flag,
-                                                        payload,
-                                                        dup_flag: dup_flag + 1,
-                                                        properties,
-                                                    };
+                                                        thread::sleep(Duration::from_millis(500));
+                                                        let _publish = ClientMessage::Publish {
+                                                            packet_id,
+                                                            topic_name,
+                                                            qos,
+                                                            retain_flag,
+                                                            payload,
+                                                            dup_flag: dup_flag + 1,
+                                                            properties,
+                                                        };
+                                                    }
                                                 }
                                             }
-                                        }
-                                        Err(_) => {
-                                            println!(
+                                            Err(_) => {
+                                                println!(
                                                 "Error al enviar packet_id de puback al receiver"
                                             )
+                                            }
                                         }
                                     }
                                 }
