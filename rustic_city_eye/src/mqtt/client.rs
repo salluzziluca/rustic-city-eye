@@ -2,6 +2,7 @@ use rand::Rng;
 use std::{
     collections::HashMap,
     net::TcpStream,
+    os::unix::raw::pid_t,
     sync::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,
@@ -198,7 +199,8 @@ impl Client {
     ///
     /// El thread de lectura (read_messages) se encarga de leer los mensajes que le llegan del broker.
     pub fn client_run(&mut self) -> Result<(), ProtocolError> {
-        let (sender, receiver) = mpsc::channel();
+        let (write_sender, recieve_receiver) = mpsc::channel();
+        let (reciever_sender, write_receiver) = mpsc::channel();
 
         let receiver_channel = self.receiver_channel.clone();
 
@@ -224,14 +226,20 @@ impl Client {
                 stream_clone_one,
                 receiver_channel,
                 desconectar,
-                sender,
+                write_sender,
                 subscriptions_clone,
+                write_receiver,
             )
         });
 
         let subscriptions_clone = self.subscriptions.clone();
         let _read_messages = threadpool.execute(move || {
-            Client::receive_messages(stream_clone_two, receiver, subscriptions_clone)
+            Client::receive_messages(
+                stream_clone_two,
+                recieve_receiver,
+                subscriptions_clone,
+                reciever_sender,
+            )
         });
 
         Ok(())
@@ -241,12 +249,15 @@ impl Client {
         stream: TcpStream,
         receiver: Receiver<u16>,
         subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
+        sender: Sender<bool>,
     ) -> Result<(), ProtocolError> {
         let mut pending_messages = Vec::new();
 
         loop {
             if let Ok(packet) = receiver.try_recv() {
-                pending_messages.push(packet);
+                if !pending_messages.contains(&packet) {
+                    pending_messages.push(packet);
+                }
             }
 
             if let Ok(stream_clone) = stream.try_clone() {
@@ -254,6 +265,7 @@ impl Client {
                     stream_clone,
                     subscriptions_clone.clone(),
                     pending_messages.clone(),
+                    sender.clone(),
                 ) {
                     Ok(return_val) => {
                         if return_val == ClientReturn::DisconnectRecieved {
@@ -277,6 +289,7 @@ impl Client {
         mut desconectar: bool,
         sender: Sender<u16>,
         subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
+        receiver: Receiver<bool>,
     ) -> Result<(), ProtocolError> {
         while !desconectar {
             loop {
@@ -300,19 +313,34 @@ impl Client {
                             Ok(stream_clone) => {
                                 let publish = ClientMessage::Publish {
                                     packet_id,
-                                    topic_name,
+                                    topic_name: topic_name.clone(),
                                     qos,
                                     retain_flag,
-                                    payload,
+                                    payload: payload.clone(),
                                     dup_flag,
-                                    properties,
+                                    properties: properties.clone(),
                                 };
 
                                 if let Ok(packet_id) =
                                     Client::publish_message(publish, stream_clone, packet_id)
                                 {
                                     match sender.send(packet_id) {
-                                        Ok(_) => continue,
+                                        Ok(_) => {
+                                            if let Ok(puback_recieved) = receiver.try_recv() {
+                                                if !puback_recieved {
+                                                    //resend the message with dup_flag +=  1
+                                                    let _publish = ClientMessage::Publish {
+                                                        packet_id,
+                                                        topic_name,
+                                                        qos,
+                                                        retain_flag,
+                                                        payload,
+                                                        dup_flag: dup_flag + 1,
+                                                        properties,
+                                                    };
+                                                }
+                                            }
+                                        }
                                         Err(_) => {
                                             println!(
                                                 "Error al enviar packet_id de puback al receiver"
@@ -497,6 +525,7 @@ pub fn handle_message(
     mut stream: TcpStream,
     subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
     pending_messages: Vec<u16>,
+    sender: Sender<bool>,
 ) -> Result<ClientReturn, ProtocolError> {
     if let Ok(message) = BrokerMessage::read_from(&mut stream) {
         match message {
@@ -517,8 +546,13 @@ pub fn handle_message(
                     let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
                     if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {}
                 }
-                println!("puback {:?}", message);
-                Ok(ClientReturn::PubackRecieved)
+                match sender.send(true) {
+                    Ok(_) => {
+                        println!("puback {:?}", message);
+                        Ok(ClientReturn::PubackRecieved)
+                    }
+                    Err(_) => Err(ProtocolError::ChanellError),
+                }
             }
             BrokerMessage::Disconnect {
                 reason_code: _,

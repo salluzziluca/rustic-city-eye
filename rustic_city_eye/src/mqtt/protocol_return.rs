@@ -11,6 +11,7 @@ pub enum ProtocolReturn {
     PlaceHolder,
     DisconnectSent,
     AuthRecieved,
+    NoAckSent,
 }
 
 impl fmt::Display for ProtocolReturn {
@@ -25,6 +26,7 @@ impl fmt::Display for ProtocolReturn {
             ProtocolReturn::PlaceHolder => write!(f, "Placeholder."),
             ProtocolReturn::DisconnectSent => write!(f, "Disconnect Enviado."),
             ProtocolReturn::AuthRecieved => write!(f, "Auth Recibido."),
+            ProtocolReturn::NoAckSent => write!(f, "No Ack Enviado."),
         }
     }
 }

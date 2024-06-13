@@ -18,6 +18,7 @@ pub enum ProtocolError {
     WriteError,
     ReadingConfigFileError,
     MissingWillMessageProperties,
+    ChanellError,
 }
 
 impl fmt::Display for ProtocolError {
@@ -52,6 +53,9 @@ impl fmt::Display for ProtocolError {
             }
             ProtocolError::UnspecifiedError => {
                 write!(f, "Error no especificado")
+            }
+            ProtocolError::ChanellError => {
+                write!(f, "Error al enviar o recibir mensajes por el canal.")
             }
         }
     }
