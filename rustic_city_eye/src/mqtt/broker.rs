@@ -558,14 +558,13 @@ pub fn handle_messages(
     Err(ProtocolError::UnspecifiedError)
 }
 
-
 /// Aca se realiza la autenticacion del cliente. Solo se debe llamar apenas llega un packet del tipo
 /// Connect.
-/// 
+///
 /// Le ingresan como parametros el auth_method(solo vamos a soportar el metodo password-based),
 /// el username, client_id y password que vienen definidos en el packet Connect que envia el usuario.
-/// 
-/// Devuele en caso exitoso un u8 que representa el reason code del packet Connack que el Broker va a 
+///
+/// Devuele en caso exitoso un u8 que representa el reason code del packet Connack que el Broker va a
 /// enviarle al Client.
 pub fn authenticate_client(
     authentication_method: String,

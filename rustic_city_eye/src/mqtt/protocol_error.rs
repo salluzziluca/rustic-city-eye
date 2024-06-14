@@ -23,6 +23,7 @@ pub enum ProtocolError {
     NotReceivedMessageError,
     ExpectedConnack,
     AuthError,
+    ReadingPEMCertsError,
 }
 
 impl fmt::Display for ProtocolError {
@@ -31,6 +32,12 @@ impl fmt::Display for ProtocolError {
             ProtocolError::ConectionError => write!(f, "Error al conectar al broker."),
             ProtocolError::ReadingConfigFileError => {
                 write!(f, "Error al leer el archivo de configuracion del connect.")
+            }
+            ProtocolError::ReadingPEMCertsError => {
+                write!(
+                    f,
+                    "Error al intentar leer las certificaciones PEM del protocolo."
+                )
             }
             ProtocolError::NotReceivedMessageError => {
                 write!(f, "Error: no ha llegado ningun mensaje.")

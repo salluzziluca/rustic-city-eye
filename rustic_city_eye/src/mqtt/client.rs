@@ -1,9 +1,15 @@
 use rand::Rng;
-
+use rustls::{
+    pki_types::{CertificateDer, ServerName},
+    ClientConfig, ClientConnection, RootCertStore,
+};
 
 use std::{
     collections::HashMap,
+    fs::File,
+    io::BufReader,
     net::TcpStream,
+    path::Path,
     sync::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,
@@ -58,6 +64,21 @@ impl Client {
 
         let connect = ClientMessage::Connect(connect);
 
+        let pem_certs = Client::load_pem_certs(Path::new("./src/mqtt/cert/ca_bundle.pem"))?;
+
+        let mut root_store = RootCertStore::empty();
+        root_store.add_parsable_certificates(pem_certs);
+
+        let client_config = ClientConfig::builder()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
+
+        let server_name = ServerName::try_from("rustic_city_eye")
+            .expect("error")
+            .to_owned();
+
+        let _tls_connection = ClientConnection::new(Arc::new(client_config), server_name);
+
         println!("Enviando connect message to broker");
         match connect.write_to(&mut stream) {
             Ok(()) => println!("Connect message enviado"),
@@ -97,6 +118,24 @@ impl Client {
         } else {
             Err(ProtocolError::NotReceivedMessageError)
         }
+    }
+
+    /// lee las certificaciones PEM(contiene los certificados digitales y claves publicas
+    /// y privadas del protocolo).
+    fn load_pem_certs(path: &Path) -> Result<Vec<CertificateDer<'static>>, ProtocolError> {
+        let certs_file = match File::open(path) {
+            Ok(file) => file,
+            Err(_) => return Err(ProtocolError::ReadingPEMCertsError),
+        };
+
+        let mut reader = BufReader::new(certs_file);
+
+        rustls_pemfile::certs(&mut reader)
+            .map(|result| match result {
+                Ok(der) => Ok(der),
+                Err(_) => Err(ProtocolError::ReadingPEMCertsError),
+            })
+            .collect()
     }
 
     /// Publica un mensaje en un topic determinado.
@@ -220,9 +259,14 @@ impl Client {
 
         let desconectar = false;
 
-        let stream_clone_one = self.stream.try_clone().map_err(|_| ProtocolError::StreamError)?;
-        let stream_clone_two = self.stream.try_clone().map_err(|_| ProtocolError::StreamError)?;
-
+        let stream_clone_one = self
+            .stream
+            .try_clone()
+            .map_err(|_| ProtocolError::StreamError)?;
+        let stream_clone_two = self
+            .stream
+            .try_clone()
+            .map_err(|_| ProtocolError::StreamError)?;
 
         let threadpool = ThreadPool::new(5);
 
