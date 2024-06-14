@@ -4,3 +4,4 @@ pub mod payload_types;
 pub mod reader;
 pub mod threadpool;
 pub mod writer;
+pub mod load_pem_certs;

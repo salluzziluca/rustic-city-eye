@@ -1,12 +1,10 @@
 use std::{
-    collections::HashMap,
-    fs::File,
-    io::{BufRead, BufReader},
-    net::{TcpListener, TcpStream},
-    sync::{Arc, RwLock},
+    collections::HashMap, fs::File, io::{BufRead, BufReader}, net::{TcpListener, TcpStream}, path::Path, sync::{Arc, RwLock}
 };
 
-use crate::mqtt::{
+use rustls::ServerConfig;
+
+use crate::{mqtt::{
     broker_message::BrokerMessage,
     client_message::ClientMessage,
     connack_properties::ConnackProperties,
@@ -16,7 +14,7 @@ use crate::mqtt::{
         NO_MATCHING_SUBSCRIBERS_HEX, SUB_ID_DUP_HEX, SUCCESS_HEX, UNSPECIFIED_ERROR_HEX,
     },
     topic::Topic,
-};
+}, utils::load_pem_certs};
 use crate::utils::threadpool::ThreadPool;
 
 static SERVER_ARGS: usize = 2;
@@ -61,6 +59,10 @@ impl Broker {
         let clients_auth_info = Broker::process_clients_file("./src/monitoring/clients.txt")?;
 
         let packets = HashMap::new();
+
+        // todo: configurar el server
+        // let pem_certs = load_pem_certs::load_pem_certs(Path::new("./src/mqtt/cert/ca_bundle.pem"))?;
+        // let server_config = ServerConfig::builder().with_no_client_auth().with_single_cert(pem_certs, key_der)?;
 
         Ok(Broker {
             address,

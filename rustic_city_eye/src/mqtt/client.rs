@@ -1,21 +1,14 @@
 use rand::Rng;
 use rustls::{
-    pki_types::{CertificateDer, ServerName},
-    ClientConfig, ClientConnection, RootCertStore,
+    pki_types::ServerName,
+    ClientConfig, ClientConnection, RootCertStore, Stream,
 };
 
 use std::{
-    collections::HashMap,
-    fs::File,
-    io::BufReader,
-    net::TcpStream,
-    path::Path,
-    sync::{
+    collections::HashMap, io::Write, net::TcpStream, path::Path, sync::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,
-    },
-    thread,
-    time::Duration,
+    }, thread, time::Duration
 };
 
 use crate::{
@@ -23,7 +16,7 @@ use crate::{
         broker_message::BrokerMessage, client_message::ClientMessage,
         messages_config::MessagesConfig, protocol_error::ProtocolError,
     },
-    utils::threadpool::ThreadPool,
+    utils::{threadpool::ThreadPool, load_pem_certs::load_pem_certs},
 };
 
 use super::{client_message, client_return::ClientReturn, error::ClientError};
@@ -64,7 +57,7 @@ impl Client {
 
         let connect = ClientMessage::Connect(connect);
 
-        let pem_certs = Client::load_pem_certs(Path::new("./src/mqtt/cert/ca_bundle.pem"))?;
+        let pem_certs = load_pem_certs(Path::new("./src/mqtt/cert/ca_bundle.pem"))?;
 
         let mut root_store = RootCertStore::empty();
         root_store.add_parsable_certificates(pem_certs);
@@ -77,7 +70,12 @@ impl Client {
             .expect("error")
             .to_owned();
 
-        let _tls_connection = ClientConnection::new(Arc::new(client_config), server_name);
+        let mut tls_connection = match ClientConnection::new(Arc::new(client_config), server_name) {
+            Ok(conn) => conn,
+            Err(_) => return Err(ProtocolError::ConectionError),
+        };
+
+        let mut _tls_stream: Stream<ClientConnection, TcpStream> = Stream::new(&mut tls_connection, &mut stream);
 
         println!("Enviando connect message to broker");
         match connect.write_to(&mut stream) {
@@ -120,31 +118,13 @@ impl Client {
         }
     }
 
-    /// lee las certificaciones PEM(contiene los certificados digitales y claves publicas
-    /// y privadas del protocolo).
-    fn load_pem_certs(path: &Path) -> Result<Vec<CertificateDer<'static>>, ProtocolError> {
-        let certs_file = match File::open(path) {
-            Ok(file) => file,
-            Err(_) => return Err(ProtocolError::ReadingPEMCertsError),
-        };
-
-        let mut reader = BufReader::new(certs_file);
-
-        rustls_pemfile::certs(&mut reader)
-            .map(|result| match result {
-                Ok(der) => Ok(der),
-                Err(_) => Err(ProtocolError::ReadingPEMCertsError),
-            })
-            .collect()
-    }
-
     /// Publica un mensaje en un topic determinado.
     pub fn publish_message(
         message: ClientMessage,
-        mut stream: TcpStream,
+        stream: &mut dyn Write,
         packet_id: u16,
     ) -> Result<u16, ClientError> {
-        match message.write_to(&mut stream) {
+        match message.write_to(stream) {
             Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
@@ -154,7 +134,7 @@ impl Client {
         message: ClientMessage,
         packet_id: u16,
         topic: &str,
-        mut stream: TcpStream,
+        stream: &mut dyn Write,
         subscriptions: Arc<Mutex<HashMap<String, u8>>>,
     ) -> Result<u16, ClientError> {
         let sub_id = Client::assign_subscription_id();
@@ -164,7 +144,7 @@ impl Client {
 
         subscriptions.lock().unwrap().insert(topic.clone(), sub_id);
 
-        match message.write_to(&mut stream) {
+        match message.write_to(stream) {
             Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
@@ -187,10 +167,10 @@ impl Client {
 
     pub fn unsubscribe(
         message: ClientMessage,
-        mut stream: TcpStream,
+        stream: &mut dyn Write,
         packet_id: u16,
     ) -> Result<u16, ClientError> {
-        match message.write_to(&mut stream) {
+        match message.write_to(stream) {
             Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
@@ -200,7 +180,7 @@ impl Client {
     /// segun el str reason recibido, modifica el reason_code y el reason_string del mensaje
     ///
     /// devuelve el packet_id del mensaje enviado o un ClientError en caso de error
-    pub fn disconnect(reason: &str, mut stream: TcpStream) -> Result<u16, ClientError> {
+    pub fn disconnect(reason: &str, stream: &mut dyn Write) -> Result<u16, ClientError> {
         let packet_id = 1;
         let reason_code: u8;
         let reason_string: String;
@@ -228,7 +208,7 @@ impl Client {
             user_properties: vec![("propiedad".to_string(), "valor".to_string())],
         };
 
-        match disconnect.write_to(&mut stream) {
+        match disconnect.write_to(stream) {
             Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
@@ -367,7 +347,7 @@ impl Client {
                             dup_flag,
                             properties,
                         } => match stream.try_clone() {
-                            Ok(stream_clone) => {
+                            Ok(mut stream_clone) => {
                                 let publish = ClientMessage::Publish {
                                     packet_id,
                                     topic_name: topic_name.clone(),
@@ -379,7 +359,7 @@ impl Client {
                                 };
 
                                 if let Ok(packet_id) =
-                                    Client::publish_message(publish, stream_clone, packet_id)
+                                    Client::publish_message(publish, &mut stream_clone, packet_id)
                                 {
                                     if qos == 1 {
                                         match sender.send(packet_id) {
@@ -429,7 +409,7 @@ impl Client {
                             }
 
                             match stream.try_clone() {
-                                Ok(stream_clone) => {
+                                Ok(mut stream_clone) => {
                                     let subscribe = ClientMessage::Subscribe {
                                         packet_id,
                                         topic_name: topic_name.clone(),
@@ -439,7 +419,7 @@ impl Client {
                                         subscribe,
                                         packet_id,
                                         &topic_name,
-                                        stream_clone,
+                                        &mut stream_clone,
                                         subscriptions_clone.clone(),
                                     ) {
                                         match sender.send(packet_id) {
@@ -469,7 +449,7 @@ impl Client {
                             topic_name,
                             properties,
                         } => match stream.try_clone() {
-                            Ok(stream_clone) => {
+                            Ok(mut stream_clone) => {
                                 let unsubscribe = ClientMessage::Unsubscribe {
                                     packet_id,
                                     topic_name: topic_name.clone(),
@@ -477,7 +457,7 @@ impl Client {
                                 };
 
                                 if let Ok(packet_id) =
-                                    Client::unsubscribe(unsubscribe, stream_clone, packet_id)
+                                    Client::unsubscribe(unsubscribe, &mut stream_clone, packet_id)
                                 {
                                     match sender.send(packet_id) {
                                         Ok(_) => {
@@ -506,8 +486,8 @@ impl Client {
                             let reason = "normal";
 
                             match stream.try_clone() {
-                                Ok(stream_clone) => {
-                                    if let Ok(packet_id) = Client::disconnect(reason, stream_clone)
+                                Ok(mut stream_clone) => {
+                                    if let Ok(packet_id) = Client::disconnect(reason, &mut stream_clone)
                                     {
                                         match sender.send(packet_id) {
                                             Ok(_) => continue,
