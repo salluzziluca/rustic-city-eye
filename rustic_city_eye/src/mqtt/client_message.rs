@@ -466,9 +466,14 @@ impl ClientMessage {
                 //Properties
                 properties.write_properties(writer)?;
 
+                // escribir largo del payload
+                let payload_length = payload.len() as u32;
+                write_u32(writer, &payload_length)?;
+
                 // payload
                 for subscription in payload {
                     write_string(writer, &subscription.topic)?;
+                    write_string(writer, &subscription.client_id)?;
                     write_u8(writer, &subscription.qos)?;
                 }
             }
@@ -676,21 +681,31 @@ impl ClientMessage {
             }
             0x82 => {
                 let packet_id = read_u16(stream)?;
-                let topic = read_string(stream)?;
-                let client_id = read_string(stream)?;
-                if topic == "" {
-                    return Err(Error::new(std::io::ErrorKind::Other, "Invalid topic name"));
-                }
 
                 let properties = SubscribeProperties::read_properties(stream)?;
+
+                let payload_length = read_u32(stream)?;
+                let mut payload = Vec::with_capacity(payload_length as usize);
+
+                for _ in 0..payload_length {
+                    let topic = read_string(stream)?;
+                    if topic == "" {
+                        return Err(Error::new(std::io::ErrorKind::Other, "Invalid topic name"));
+                    }
+                    let client_id = read_string(stream)?;
+                    let qos = read_u8(stream)?;
+
+                    payload.push(Subscription {
+                        topic,
+                        client_id,
+                        qos,
+                    });
+                }
+
                 Ok(ClientMessage::Subscribe {
                     packet_id,
                     properties,
-                    payload: vec![Subscription {
-                        topic: topic,
-                        client_id: client_id,
-                        qos: read_u8(stream)?,
-                    }],
+                    payload,
                 })
             }
             0xA2 => {
@@ -1017,6 +1032,9 @@ mod tests {
                 panic!("no se pudo leer del cursor {:?}", e);
             }
         };
+
+        println!("{:?}", read_sub);
+        println!("{:?}", sub);
         assert_eq!(sub, read_sub);
     }
 
