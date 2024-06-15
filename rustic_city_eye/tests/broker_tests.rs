@@ -5,6 +5,7 @@ mod tests {
     use rustic_city_eye::mqtt::publish_properties::{PublishProperties, TopicProperties};
     use rustic_city_eye::mqtt::subscribe_properties::SubscribeProperties;
     use rustic_city_eye::mqtt::subscription::Subscription;
+    use rustic_city_eye::mqtt::topic::Topic;
     use rustic_city_eye::mqtt::will_properties::WillProperties;
     use rustic_city_eye::mqtt::{
         broker::handle_messages, client_message::ClientMessage, protocol_error::ProtocolError,
@@ -180,16 +181,9 @@ mod tests {
         // Set up a listener on a local port.
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
-        let _ = TopicProperties {
-            topic_alias: 10,
-            response_topic: "String".to_string(),
-        };
 
-        let properties = SubscribeProperties::new(
-            1,
-            vec![("propiedad".to_string(), "valor".to_string())],
-            vec![0, 1, 2, 3],
-        );
+        let properties =
+            SubscribeProperties::new(1, vec![("propiedad".to_string(), "valor".to_string())]);
 
         let subscription =
             Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string(), 1);
@@ -217,7 +211,7 @@ mod tests {
             Err(ProtocolError::UnspecifiedError);
 
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, clients_ids);
+            result = handle_messages(stream, topics.clone(), packets, clients_ids);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::SubackSent);
@@ -275,48 +269,53 @@ mod tests {
         assert_eq!(result.unwrap(), ProtocolReturn::PubackSent);
     }
 
-    // #[test]
-    // fn test_unsubcribe() {
-    //     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    //     let addr = listener.local_addr().unwrap();
+    #[test]
+    fn test_unsubcribe() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
 
-    //     let properties = SubscribeProperties::new(
-    //         1,
-    //         vec![("propiedad".to_string(), "valor".to_string())],
-    //         vec![0, 1, 2, 3],
-    //     );
+        let properties =
+            SubscribeProperties::new(1, vec![("propiedad".to_string(), "valor".to_string())]);
 
-    //     let subscription =
-    //         Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string(), 1);
-    //     let payload = vec![subscription];
+        let subscription = Subscription::new("topic".to_string(), "kvtr33".to_string(), 1);
+        let payload = vec![subscription];
 
-    //     let unsub = ClientMessage::Unsubscribe {
-    //         packet_id: 1,
-    //         properties,
-    //         payload,
-    //     };
+        let sub = ClientMessage::Unsubscribe {
+            packet_id: 1,
+            properties,
+            payload,
+        };
 
-    //     thread::spawn(move || {
-    //         let mut stream = TcpStream::connect(addr).unwrap();
-    //         let mut buffer = vec![];
-    //         unsub.write_to(&mut buffer).unwrap();
-    //         stream.write_all(&buffer).unwrap();
-    //     });
+        thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            let mut buffer = vec![];
+            sub.write_to(&mut buffer).unwrap();
+            stream.write_all(&buffer).unwrap();
+        });
 
-    //     let topics = HashMap::new();
-    //     let packets = Arc::new(RwLock::new(HashMap::new()));
+        let packets = Arc::new(RwLock::new(HashMap::new()));
 
-    //     let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        //creo topic
+        let t = Topic::new();
+        let mut topics = HashMap::new();
+        topics.insert("topic".to_string(), t);
 
-    //     let mut result: Result<ProtocolReturn, ProtocolError> =
-    //         Err(ProtocolError::UnspecifiedError);
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        // insertar client con un tcp stream
+        clients_ids
+            .write()
+            .unwrap()
+            .insert("kvtr33".to_string(), TcpStream::connect(addr).unwrap());
 
-    //     if let Ok((stream, _)) = listener.accept() {
-    //         result = handle_messages(stream, topics, packets, clients_ids);
-    //     }
+        let mut result: Result<ProtocolReturn, ProtocolError> =
+            Err(ProtocolError::UnspecifiedError);
 
-    //     assert_eq!(result.unwrap(), ProtocolReturn::UnsubackSent);
-    // }
+        if let Ok((stream, _)) = listener.accept() {
+            result = handle_messages(stream, topics, packets, clients_ids);
+        }
+
+        assert_eq!(result.unwrap(), ProtocolReturn::UnsubackSent);
+    }
 
     #[test]
     fn test_disconnect() {

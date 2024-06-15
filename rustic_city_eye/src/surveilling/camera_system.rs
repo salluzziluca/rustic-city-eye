@@ -68,11 +68,7 @@ impl CameraSystem {
         let subscribe_config = SubscribeConfig::new(
             "cameras".to_string(),
             1,
-            SubscribeProperties::new(
-                1,
-                vec![("key".to_string(), "value".to_string())],
-                vec![1, 2, 3, 4],
-            ),
+            SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]),
         );
 
         let _ = tx.send(Box::new(subscribe_config));

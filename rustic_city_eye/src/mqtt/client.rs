@@ -1,6 +1,5 @@
 use rand::Rng;
 use std::{
-    collections::HashMap,
     net::TcpStream,
     sync::{
         mpsc::{self, Receiver, Sender},
@@ -17,7 +16,7 @@ use crate::{
     utils::threadpool::ThreadPool,
 };
 
-use super::{client_return::ClientReturn, subscription::Subscription};
+use super::client_return::ClientReturn;
 
 #[derive(Debug)]
 pub struct Client {
@@ -133,7 +132,7 @@ impl Client {
         }
     }
 
-    fn assign_subscription_id() -> u8 {
+    fn _assign_subscription_id() -> u8 {
         let mut rng = rand::thread_rng();
 
         let sub_id: u8 = rng.gen();
@@ -226,10 +225,8 @@ impl Client {
             )
         });
 
-        let subscriptions_clone = self.subscriptions.clone();
-        let _read_messages = threadpool.execute(move || {
-            Client::receive_messages(stream_clone_two, receiver, subscriptions_clone)
-        });
+        let _read_messages =
+            threadpool.execute(move || Client::receive_messages(stream_clone_two, receiver));
 
         Ok(())
     }
@@ -237,7 +234,6 @@ impl Client {
     pub fn receive_messages(
         stream: TcpStream,
         receiver: Receiver<u16>,
-        subscriptions_clone: Arc<Mutex<Vec<String>>>,
     ) -> Result<(), ProtocolError> {
         let mut pending_messages = Vec::new();
 
@@ -247,11 +243,7 @@ impl Client {
             }
 
             if let Ok(stream_clone) = stream.try_clone() {
-                match handle_message(
-                    stream_clone,
-                    subscriptions_clone.clone(),
-                    pending_messages.clone(),
-                ) {
+                match handle_message(stream_clone, pending_messages.clone()) {
                     Ok(return_val) => {
                         if return_val == ClientReturn::DisconnectRecieved {
                             return Ok(());
@@ -399,16 +391,17 @@ impl Client {
                                     ) {
                                         match sender.send(packet_id) {
                                             Ok(_) => {
-                                                let topic = p.topic.clone().to_string();
-                                                // let topic_new = subscription.to_string();
-                                                // match subscriptions_clone.lock() {
-                                                //     Ok(mut guard) => {
-                                                //         guard.retain(|x| x != &topic_new);
-                                                //     }
-                                                //     Err(_) => {
-                                                //         return Err::<(), ProtocolError>(ProtocolError::StreamError);
-                                                //     }
-                                                // }
+                                                let topic_new = p.topic.to_string();
+                                                match subscriptions_clone.lock() {
+                                                    Ok(mut guard) => {
+                                                        guard.retain(|x| x != &topic_new);
+                                                    }
+                                                    Err(_) => {
+                                                        return Err::<(), ProtocolError>(
+                                                            ProtocolError::StreamError,
+                                                        );
+                                                    }
+                                                }
                                             }
                                             Err(_) => {
                                                 return Err::<(), ProtocolError>(
@@ -504,7 +497,6 @@ impl Client {
 /// O ProtocolError en caso de error
 pub fn handle_message(
     mut stream: TcpStream,
-    subscriptions_clone: Arc<Mutex<Vec<String>>>,
     pending_messages: Vec<u16>,
 ) -> Result<ClientReturn, ProtocolError> {
     if let Ok(message) = BrokerMessage::read_from(&mut stream) {
@@ -614,7 +606,7 @@ mod tests {
 
     #[test]
     fn test_assign_subscription_id() {
-        let sub_id = Client::assign_subscription_id();
+        let sub_id = Client::_assign_subscription_id();
         assert_ne!(sub_id, 0);
     }
 }

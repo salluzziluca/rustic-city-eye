@@ -1026,7 +1026,6 @@ mod tests {
             properties: SubscribeProperties::new(
                 1,
                 vec![("propiedad".to_string(), "valor".to_string())],
-                vec![0, 1, 2, 3],
             ),
             payload: vector,
         };
@@ -1064,7 +1063,6 @@ mod tests {
             properties: SubscribeProperties::new(
                 1,
                 vec![("propiedad".to_string(), "valor".to_string())],
-                vec![0, 1, 2, 3],
             ),
             payload: vector,
         };

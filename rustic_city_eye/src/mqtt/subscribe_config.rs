@@ -46,11 +46,8 @@ mod tests {
     #[test]
     fn test_new_subscribe_config() {
         let topic_name = "topic".to_string();
-        let properties = SubscribeProperties::new(
-            1,
-            vec![("key".to_string(), "value".to_string())],
-            vec![1, 2, 3, 4],
-        );
+        let properties =
+            SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]);
         let qos = 1;
         let subscribe_config = SubscribeConfig::new(topic_name.clone(), qos, properties.clone());
         assert_eq!(subscribe_config.topic_name, topic_name);
@@ -61,11 +58,8 @@ mod tests {
     #[test]
     fn test_parse_message() {
         let topic_name = "topic".to_string();
-        let properties = SubscribeProperties::new(
-            1,
-            vec![("key".to_string(), "value".to_string())],
-            vec![1, 2, 3, 4],
-        );
+        let properties =
+            SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]);
 
         let qos = 1;
         let subscribe_config = SubscribeConfig::new(topic_name.clone(), qos, properties.clone());
