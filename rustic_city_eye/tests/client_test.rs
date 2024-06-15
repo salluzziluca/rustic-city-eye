@@ -15,10 +15,8 @@ mod tests {
         },
     };
     use std::{
-        collections::HashMap,
         io::Write,
         net::{TcpListener, TcpStream},
-        sync::{Arc, Mutex},
         thread,
     };
 

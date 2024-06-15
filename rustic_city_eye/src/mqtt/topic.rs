@@ -10,7 +10,7 @@ use super::subscription::Subscription;
 
 use super::reason_code;
 
-/// Estructura que representa un tópic.
+/// Estructura que representa un topic.
 #[derive(Debug, Clone)]
 pub struct Topic {
     /// Hashmap de subscriptores.
@@ -26,16 +26,17 @@ impl Default for Topic {
 }
 
 impl Topic {
+    /// Crea un nuevo topic sin subscriptores
     pub fn new() -> Self {
         Self {
             users: Arc::new(RwLock::new(Vec::new())),
         }
     }
 
-    // Agrega un usuario a un tópic
-    // Si el usuario ya existe en el tópic, lo elimina y lo vuelve a agregar
-    // Si el usuario no existe en el tópic, lo agrega
-    // Retorna el reason code de la operación
+    /// Agrega un usuario a un topic
+    /// Si el usuario no existe en el tópic, lo agrega
+    /// Si el usuario ya existe en el tópic, no lo agrega pero la operacion es exitosa de todas maneras ya que el objetivo era concretar la subscription
+    /// Retorna el reason code de la operación
     pub fn add_user_to_topic(&mut self, subscription: Subscription) -> u8 {
         //verificar si el user_id ya existe en topic users
         let mut existe = false;
@@ -60,6 +61,9 @@ impl Topic {
         reason_code::SUCCESS_HEX
     }
 
+    /// Elimina un usuario de un topic
+    /// Si el usuario no existe en el topic, no hace nada
+    /// Retorna el reason code de la operación
     pub fn remove_user_from_topic(&mut self, subscription: Subscription) -> u8 {
         let mut lock = match self.users.write() {
             Ok(guard) => guard,

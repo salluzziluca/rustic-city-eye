@@ -94,7 +94,7 @@ impl Broker {
         Ok(())
     }
 
-    ///Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
+    /// Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
     pub fn handle_client(
         stream: TcpStream,
         topics: HashMap<String, Topic>,
@@ -124,6 +124,9 @@ impl Broker {
         }
     }
 
+    /// Maneja la subscripcion de un cliente a un topic.
+    /// Devuelve el reason code correspondiente a si la subscripcion fue exitosa o no.
+    /// Si el reason code es 0, el cliente se ha suscrito exitosamente.
     fn handle_subscribe(
         mut topics: HashMap<String, Topic>,
         topic_name: String,
@@ -167,6 +170,9 @@ impl Broker {
         Ok(0x80_u8) //Unspecified Error reason code
     }
 
+    /// Maneja la desubscripcion de un cliente a un topic
+    /// Devuelve el reason code correspondiente a si la desubscripcion fue exitosa o no
+    /// Si el reason code es 0, el cliente se ha desuscrito exitosamente.
     fn handle_unsubscribe(
         mut topics: HashMap<String, Topic>,
         topic_name: String,

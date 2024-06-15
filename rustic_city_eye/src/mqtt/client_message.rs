@@ -72,6 +72,7 @@ pub enum ClientMessage {
 
     /// El Subscribe Message se utiliza para suscribirse a uno o más topics. El cliente puede enviar un mensaje de subscribe con un packet id y una lista de topics a los que se quiere suscribir. El broker responde con un mensaje de suback con el mismo packet id y una lista de return codes que indican si la suscripcion fue exitosa o no.
     Subscribe {
+        /// packet_id es un identificador unico que el cliente asigna a cada mensaje que envia.
         packet_id: u16,
         /// properties es un struct que contiene las propiedades del mensaje de subscribe.
         properties: SubscribeProperties,
@@ -94,8 +95,8 @@ pub enum ClientMessage {
         reason_string: String,
         user_properties: Vec<(String, String)>,
     },
+    /// El Pingreq Message es un mensaje que el cliente envia al broker para mantener la conexion activa.
     Pingreq,
-
     /// Sirve para autenticar usuarios. Se puede enviar desde el cliente al server, o desde el server al cliente.
     /// La idea es utilizar propiedades que se definen dentro de los packets del tipo Connect, y poder realizar la
     /// autenticacion correctamente.
