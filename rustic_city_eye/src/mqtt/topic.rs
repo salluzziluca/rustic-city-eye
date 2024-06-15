@@ -57,7 +57,6 @@ impl Topic {
             lock.push(subscription);
         }
 
-        
         reason_code::SUCCESS_HEX
     }
 

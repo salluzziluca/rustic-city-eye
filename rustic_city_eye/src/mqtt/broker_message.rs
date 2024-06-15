@@ -278,7 +278,6 @@ impl BrokerMessage {
                 let packet_id_msb = read_u8(stream)?;
                 let packet_id_lsb = read_u8(stream)?;
                 let reason_code = read_u8(stream)?;
-                let sub_id = read_u8(stream)?;
                 Ok(BrokerMessage::Suback {
                     packet_id_msb,
                     packet_id_lsb,

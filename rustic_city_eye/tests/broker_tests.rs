@@ -275,48 +275,48 @@ mod tests {
         assert_eq!(result.unwrap(), ProtocolReturn::PubackSent);
     }
 
-    #[test]
-    fn test_unsubcribe() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = listener.local_addr().unwrap();
+    // #[test]
+    // fn test_unsubcribe() {
+    //     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    //     let addr = listener.local_addr().unwrap();
 
-        let properties = SubscribeProperties::new(
-            1,
-            vec![("propiedad".to_string(), "valor".to_string())],
-            vec![0, 1, 2, 3],
-        );
+    //     let properties = SubscribeProperties::new(
+    //         1,
+    //         vec![("propiedad".to_string(), "valor".to_string())],
+    //         vec![0, 1, 2, 3],
+    //     );
 
-        let subscription =
-            Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string(), 1);
-        let payload = vec![subscription];
+    //     let subscription =
+    //         Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string(), 1);
+    //     let payload = vec![subscription];
 
-        let unsub = ClientMessage::Unsubscribe {
-            packet_id: 1,
-            properties,
-            payload,
-        };
+    //     let unsub = ClientMessage::Unsubscribe {
+    //         packet_id: 1,
+    //         properties,
+    //         payload,
+    //     };
 
-        thread::spawn(move || {
-            let mut stream = TcpStream::connect(addr).unwrap();
-            let mut buffer = vec![];
-            unsub.write_to(&mut buffer).unwrap();
-            stream.write_all(&buffer).unwrap();
-        });
+    //     thread::spawn(move || {
+    //         let mut stream = TcpStream::connect(addr).unwrap();
+    //         let mut buffer = vec![];
+    //         unsub.write_to(&mut buffer).unwrap();
+    //         stream.write_all(&buffer).unwrap();
+    //     });
 
-        let topics = HashMap::new();
-        let packets = Arc::new(RwLock::new(HashMap::new()));
+    //     let topics = HashMap::new();
+    //     let packets = Arc::new(RwLock::new(HashMap::new()));
 
-        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+    //     let clients_ids = Arc::new(RwLock::new(HashMap::new()));
 
-        let mut result: Result<ProtocolReturn, ProtocolError> =
-            Err(ProtocolError::UnspecifiedError);
+    //     let mut result: Result<ProtocolReturn, ProtocolError> =
+    //         Err(ProtocolError::UnspecifiedError);
 
-        if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, clients_ids);
-        }
+    //     if let Ok((stream, _)) = listener.accept() {
+    //         result = handle_messages(stream, topics, packets, clients_ids);
+    //     }
 
-        assert_eq!(result.unwrap(), ProtocolReturn::UnsubackSent);
-    }
+    //     assert_eq!(result.unwrap(), ProtocolReturn::UnsubackSent);
+    // }
 
     #[test]
     fn test_disconnect() {

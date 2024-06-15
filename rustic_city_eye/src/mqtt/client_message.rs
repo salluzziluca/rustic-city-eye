@@ -487,10 +487,14 @@ impl ClientMessage {
                 // variable header
                 properties.write_properties(writer)?;
 
-                //payload
+                // escribir largo del payload
+                let payload_length = payload.len() as u32;
+                write_u32(writer, &payload_length)?;
 
+                //payload
                 for subscription in payload {
                     write_string(writer, &subscription.topic)?;
+                    write_string(writer, &subscription.client_id)?;
                     write_u8(writer, &subscription.qos)?;
                 }
             }
@@ -710,19 +714,28 @@ impl ClientMessage {
             }
             0xA2 => {
                 let packet_id = read_u16(stream)?;
+
                 let properties = SubscribeProperties::read_properties(stream)?;
-                let topic = read_string(stream)?;
-                let client_id = read_string(stream)?;
-                let qos = read_u8(stream)?;
+
+                let payload_length = read_u32(stream)?;
+                let mut payload = Vec::with_capacity(payload_length as usize);
+
+                for _ in 0..payload_length {
+                    let topic = read_string(stream)?;
+                    let client_id = read_string(stream)?;
+                    let qos = read_u8(stream)?;
+
+                    payload.push(Subscription {
+                        topic,
+                        client_id,
+                        qos,
+                    });
+                }
 
                 Ok(ClientMessage::Unsubscribe {
                     packet_id,
                     properties,
-                    payload: vec![Subscription {
-                        topic,
-                        client_id,
-                        qos,
-                    }],
+                    payload,
                 })
             }
             0xE0 => {
@@ -1039,7 +1052,43 @@ mod tests {
     }
 
     #[test]
-    fn test_05_disconnect_ok() {
+    fn test_05_unsubscribe_ok() {
+        let vector = vec![Subscription {
+            topic: "topic".to_string(),
+            client_id: "client".to_string(),
+            qos: 1,
+        }];
+
+        let unsub = ClientMessage::Unsubscribe {
+            packet_id: 1,
+            properties: SubscribeProperties::new(
+                1,
+                vec![("propiedad".to_string(), "valor".to_string())],
+                vec![0, 1, 2, 3],
+            ),
+            payload: vector,
+        };
+
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+        match unsub.write_to(&mut cursor) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("no se pudo escribir en el cursor {:?}", e);
+            }
+        }
+        cursor.set_position(0);
+        let read_unsub = match ClientMessage::read_from(&mut cursor) {
+            Ok(unsub) => unsub,
+            Err(e) => {
+                panic!("no se pudo leer del cursor {:?}", e);
+            }
+        };
+
+        assert_eq!(unsub, read_unsub);
+    }
+
+    #[test]
+    fn test_06_disconnect_ok() {
         let disconect = ClientMessage::Disconnect {
             reason_code: 1,
             session_expiry_interval: 1,
@@ -1065,7 +1114,7 @@ mod tests {
     }
 
     #[test]
-    fn test_06_auth_ok() {
+    fn test_07_auth_ok() {
         let auth = ClientMessage::Auth {
             reason_code: 0x00_u8,
             authentication_method: "password-based".to_string(),
