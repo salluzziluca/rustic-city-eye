@@ -272,4 +272,31 @@ mod tests {
 
         assert_eq!(will_properties, read_will_properties);
     }
+
+    #[test]
+    fn test_to_publish_properties() {
+        let will_properties = WillProperties::new(
+            120,
+            1,
+            30,
+            "plain".to_string(),
+            "topic".to_string(),
+            vec![1, 2, 3, 4, 5],
+            vec![("propiedad".to_string(), "valor".to_string())],
+        );
+        let publish_properties = will_properties.to_publish_properties();
+        let expected_publish_properties = PublishProperties::new(
+            1,
+            30,
+            TopicProperties {
+                topic_alias: 10,
+                response_topic: "String".to_string(),
+            },
+            vec![1, 2, 3, 4, 5],
+            "propiedad".to_string(),
+            3,
+            "topic".to_string(),
+        );
+        assert_eq!(publish_properties, expected_publish_properties);
+    }
 }
