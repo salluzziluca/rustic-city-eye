@@ -4,7 +4,7 @@ use std::{
     fs::File,
     io::{BufRead, BufReader, Write},
     net::{TcpListener, TcpStream},
-    sync::{mpsc, Arc, RwLock},
+    sync::{mpsc, Arc, Mutex, RwLock},
     thread,
     time::Duration,
 };
@@ -184,6 +184,8 @@ impl Broker {
                         }
                     });
 
+                    let broker = Arc::new(Mutex::new(self.clone()));
+
                     threadpool.execute({
                         let client_id = Arc::clone(&client_id);
                         let clients_ids_clone = Arc::clone(&self.clients_ids);
@@ -197,10 +199,11 @@ impl Broker {
                                 ))
                             }
                         };
+                        let broker = Arc::clone(&broker);
                         move || {
                             let result = match Broker::handle_client(
                                 stream,
-                                topics_clone,
+                                topics_clone.clone(),
                                 packets_clone,
                                 subs_clone,
                                 clients_ids_clone,
@@ -225,7 +228,11 @@ impl Broker {
                                             clients_ids_guard.get(&*client_id_guard)
                                         {
                                             if let Some(will_message) = will_message {
-                                                send_last_will(stream_clone, will_message);
+                                                send_last_will(
+                                                    stream_clone,
+                                                    will_message,
+                                                    topics_clone,
+                                                );
                                             }
                                         }
                                     }
@@ -378,7 +385,9 @@ impl Broker {
 /// Se encarga de la logica necesaria segun los parametros del Last Will y sus properties
 ///
 /// Si hay un delay en el envio del mensaje (delay_interval), se encarga de esperar el tiempo correspondiente.
-fn send_last_will(mut stream: TcpStream, will_message: &LastWill) {
+///
+/// Convierte el mensaje en un Publish y lo envia al broker.
+fn send_last_will(mut stream: TcpStream, will_message: &LastWill, topics: HashMap<String, Topic>) {
     let properties = will_message.get_properties();
     let interval = properties.get_last_will_delay_interval();
     thread::sleep(std::time::Duration::from_secs(interval as u64));
@@ -402,9 +411,8 @@ fn send_last_will(mut stream: TcpStream, will_message: &LastWill) {
             .clone()
             .to_publish_properties(),
     };
-    will_publish.write_to(&mut stream).unwrap();
+    Broker::handle_publish(will_publish, topics, will_topic.to_string());
 }
-
 /// Lee del stream un mensaje y lo procesa
 /// Devuelve un ProtocolReturn con informacion del mensaje recibido
 /// O ProtocolError en caso de error
