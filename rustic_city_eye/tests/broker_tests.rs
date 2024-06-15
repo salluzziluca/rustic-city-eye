@@ -84,7 +84,7 @@ mod tests {
         let (id_sender, reciever) = mpsc::channel();
 
         thread::spawn(move || loop {
-            if let Ok(reciever) = reciever.try_recv() {
+            if let Ok(_) = reciever.try_recv() {
                 break;
             }
         });

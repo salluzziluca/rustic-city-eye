@@ -1,12 +1,10 @@
 use std::{
-    any::Any,
     collections::HashMap,
     fs::File,
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader},
     net::{TcpListener, TcpStream},
-    sync::{mpsc, Arc, Mutex, RwLock},
+    sync::{mpsc, Arc, RwLock},
     thread,
-    time::Duration,
 };
 
 use crate::utils::threadpool::ThreadPool;
@@ -15,8 +13,6 @@ use crate::{
         broker_message::BrokerMessage,
         client_message::ClientMessage,
         connack_properties::ConnackProperties,
-        connect::will_properties,
-        payload::Payload,
         protocol_error::ProtocolError,
         protocol_return::ProtocolReturn,
         reason_code::{
@@ -184,22 +180,11 @@ impl Broker {
                         }
                     });
 
-                    let broker = Arc::new(Mutex::new(self.clone()));
-
                     threadpool.execute({
                         let client_id = Arc::clone(&client_id);
                         let clients_ids_clone = Arc::clone(&self.clients_ids);
                         let clients_ids_clone2 = Arc::clone(&clients_ids_clone);
-                        let stream_clone = match stream.try_clone() {
-                            Ok(stream) => stream,
-                            Err(_) => {
-                                return Err(std::io::Error::new(
-                                    std::io::ErrorKind::Other,
-                                    "Error al clonar el stream",
-                                ))
-                            }
-                        };
-                        let broker = Arc::clone(&broker);
+
                         move || {
                             let result = match Broker::handle_client(
                                 stream,
@@ -224,15 +209,11 @@ impl Broker {
                                             Ok(clients_ids_guard) => clients_ids_guard,
                                             Err(_) => return Err(err),
                                         };
-                                        if let Some(will_message) =
+                                        if let Some(last_will) =
                                             clients_ids_guard.get(&*client_id_guard)
                                         {
-                                            if let Some(will_message) = will_message {
-                                                send_last_will(
-                                                    stream_clone,
-                                                    will_message,
-                                                    topics_clone,
-                                                );
+                                            if let Some(will_message) = last_will {
+                                                send_last_will(will_message, topics_clone);
                                             }
                                         }
                                     }
@@ -387,7 +368,7 @@ impl Broker {
 /// Si hay un delay en el envio del mensaje (delay_interval), se encarga de esperar el tiempo correspondiente.
 ///
 /// Convierte el mensaje en un Publish y lo envia al broker.
-fn send_last_will(mut stream: TcpStream, will_message: &LastWill, topics: HashMap<String, Topic>) {
+fn send_last_will(will_message: &LastWill, topics: HashMap<String, Topic>) {
     let properties = will_message.get_properties();
     let interval = properties.get_last_will_delay_interval();
     thread::sleep(std::time::Duration::from_secs(interval as u64));
@@ -401,7 +382,7 @@ fn send_last_will(mut stream: TcpStream, will_message: &LastWill, topics: HashMa
     //publish
     let will_publish = ClientMessage::Publish {
         packet_id: 0,
-        topic_name: will_topic.to_string(),
+        topic_name: will_topic.to_string(), //TODO: aca habria que ver bien cual topic le cargamos
         qos: will_qos as usize,
         retain_flag: will_retain as usize,
         payload: will_payload,
@@ -411,7 +392,7 @@ fn send_last_will(mut stream: TcpStream, will_message: &LastWill, topics: HashMa
             .clone()
             .to_publish_properties(),
     };
-    Broker::handle_publish(will_publish, topics, will_topic.to_string());
+    _ = Broker::handle_publish(will_publish, topics, will_topic.to_string());
 }
 /// Lee del stream un mensaje y lo procesa
 /// Devuelve un ProtocolReturn con informacion del mensaje recibido
@@ -431,7 +412,7 @@ pub fn handle_messages(
     };
     match mensaje {
         ClientMessage::Connect { 0: connect } => {
-            id_sender.send(connect.client_id.clone());
+            _ = id_sender.send(connect.client_id.clone());
             println!("Recibí un Connect");
 
             let connect_clone = connect.clone();
