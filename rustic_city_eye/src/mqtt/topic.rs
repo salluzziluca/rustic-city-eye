@@ -38,16 +38,11 @@ impl Topic {
     // Retorna el reason code de la operación
     pub fn add_user_to_topic(&mut self, subscription: Subscription) -> u8 {
         //verificar si el user_id ya existe en topic users
+        let mut existe = false;
         match self.users.read() {
             Ok(guard) => {
                 if guard.contains(&subscription) {
-                    match self.users.write() {
-                        Ok(mut guard2) => {
-                            guard2.retain(|x| x != &subscription);
-                            guard2
-                        }
-                        Err(_) => return reason_code::UNSPECIFIED_ERROR_HEX,
-                    };
+                    existe = true;
                 }
             }
             Err(_) => return reason_code::UNSPECIFIED_ERROR_HEX,
@@ -58,7 +53,11 @@ impl Topic {
             Err(_) => return reason_code::UNSPECIFIED_ERROR_HEX,
         };
 
-        lock.push(subscription);
+        if !existe {
+            lock.push(subscription);
+        }
+
+        
         reason_code::SUCCESS_HEX
     }
 
