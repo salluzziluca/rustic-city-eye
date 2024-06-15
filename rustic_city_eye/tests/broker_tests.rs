@@ -277,7 +277,9 @@ mod tests {
         let properties =
             SubscribeProperties::new(1, vec![("propiedad".to_string(), "valor".to_string())]);
 
-        let subscription = Subscription::new("topic".to_string(), "kvtr33".to_string(), 1);
+        let subscription =
+            Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string(), 1);
+
         let payload = vec![subscription];
 
         let sub = ClientMessage::Unsubscribe {
@@ -293,19 +295,13 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
+        let mut topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
 
-        //creo topic
-        let t = Topic::new();
-        let mut topics = HashMap::new();
-        topics.insert("topic".to_string(), t);
-
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));
-        // insertar client con un tcp stream
-        clients_ids
-            .write()
-            .unwrap()
-            .insert("kvtr33".to_string(), TcpStream::connect(addr).unwrap());
+
+        let t = Topic::new();
+        topics.insert("mensajes para juan".to_string(), t);
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
