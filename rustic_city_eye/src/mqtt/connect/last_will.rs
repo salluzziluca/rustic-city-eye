@@ -4,7 +4,7 @@ pub struct LastWill {
     topic: String,
     message: String,
     qos: u8,
-    retain: u8,
+    retain: bool,
     properties: WillProperties,
 }
 
@@ -13,7 +13,7 @@ impl LastWill {
         topic: String,
         message: String,
         qos: u8,
-        retain: u8,
+        retain: bool,
         properties: WillProperties,
     ) -> LastWill {
         LastWill {
@@ -37,7 +37,7 @@ impl LastWill {
         self.qos
     }
 
-    pub fn get_retain(&self) -> u8 {
+    pub fn get_retain(&self) -> bool {
         self.retain
     }
 

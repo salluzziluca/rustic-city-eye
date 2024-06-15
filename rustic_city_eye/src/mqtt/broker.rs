@@ -1,26 +1,31 @@
 use std::{
+    any::Any,
     collections::HashMap,
     fs::File,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Write},
     net::{TcpListener, TcpStream},
     sync::{mpsc, Arc, RwLock},
     thread,
     time::Duration,
 };
 
-use crate::mqtt::{
-    broker_message::BrokerMessage,
-    client_message::ClientMessage,
-    connack_properties::ConnackProperties,
-    connect::will_properties,
-    protocol_error::ProtocolError,
-    protocol_return::ProtocolReturn,
-    reason_code::{
-        NO_MATCHING_SUBSCRIBERS_HEX, SUB_ID_DUP_HEX, SUCCESS_HEX, UNSPECIFIED_ERROR_HEX,
-    },
-    topic::Topic,
-};
 use crate::utils::threadpool::ThreadPool;
+use crate::{
+    mqtt::{
+        broker_message::BrokerMessage,
+        client_message::ClientMessage,
+        connack_properties::ConnackProperties,
+        connect::will_properties,
+        payload::Payload,
+        protocol_error::ProtocolError,
+        protocol_return::ProtocolReturn,
+        reason_code::{
+            NO_MATCHING_SUBSCRIBERS_HEX, SUB_ID_DUP_HEX, SUCCESS_HEX, UNSPECIFIED_ERROR_HEX,
+        },
+        topic::Topic,
+    },
+    utils::payload_types::PayloadTypes,
+};
 
 use super::connect::last_will::LastWill;
 
@@ -165,14 +170,14 @@ impl Broker {
                     let subs_clone = self.subs.clone();
                     let clients_auth_info_clone = self.clients_auth_info.clone();
 
-                    let mut client_id = Arc::new(String::new());
+                    let client_id = Arc::new(String::new());
                     let (id_sender, id_receiver) = mpsc::channel();
                     threadpool.execute({
                         let mut client_id: Arc<String> = Arc::clone(&client_id);
 
                         move || loop {
                             if let Ok(id) = id_receiver.try_recv() {
-                                let mut client_id_guard = Arc::make_mut(&mut client_id);
+                                let client_id_guard = Arc::make_mut(&mut client_id);
                                 *client_id_guard = id;
                                 break;
                             }
@@ -183,48 +188,52 @@ impl Broker {
                         let client_id = Arc::clone(&client_id);
                         let clients_ids_clone = Arc::clone(&self.clients_ids);
                         let clients_ids_clone2 = Arc::clone(&clients_ids_clone);
-                        move || {
-                            let result = std::panic::catch_unwind(|| {
-                                let _ = Broker::handle_client(
-                                    stream,
-                                    topics_clone,
-                                    packets_clone,
-                                    subs_clone,
-                                    clients_ids_clone,
-                                    clients_auth_info_clone,
-                                    id_sender,
-                                );
-                            });
-                            if let Err(_) = result {
-                                //busco a ver si hay un will message asociado al cliente
-                                let client_id_guard = client_id;
-                                let clients_ids_guard = clients_ids_clone2.read().unwrap();
-                                if let Some(will_message) = clients_ids_guard.get(&*client_id_guard)
-                                {
-                                    if let Some(will_message) = will_message {
-                                        let properties = will_message.get_properties();
-                                        let interval = properties.get_last_will_delay_interval();
-                                        thread::sleep(std::time::Duration::from_secs(
-                                            interval as u64,
-                                        ));
-                                        let will_topic = will_message.get_topic();
-                                        let message = will_message.get_message();
-                                        let will_qos = will_message.get_qos();
-                                        let will_retain = will_message.get_retain();
-
-                                        //publish
-                                        let will_publish = ClientMessage::Publish {
-                                            packet_id: 0,
-                                            topic_name: will_topic.to_string(),
-                                            qos: will_qos as usize,
-                                            retain_flag: will_retain as usize,
-                                            payload: message.to_string().into_bytes(),
-                                            dup_flag: 0,
-                                            properties: will_message.get_properties().clone(),
-                                        };
-                                    }
-                                }
+                        let stream_clone = match stream.try_clone() {
+                            Ok(stream) => stream,
+                            Err(_) => {
+                                return Err(std::io::Error::new(
+                                    std::io::ErrorKind::Other,
+                                    "Error al clonar el stream",
+                                ))
                             }
+                        };
+                        move || {
+                            let result = match Broker::handle_client(
+                                stream,
+                                topics_clone,
+                                packets_clone,
+                                subs_clone,
+                                clients_ids_clone,
+                                clients_auth_info_clone,
+                                id_sender,
+                            ) {
+                                Ok(_) => Ok(()),
+                                Err(err) => {
+                                    println!("Error en el hilo del cliente, {:?}", err);
+                                    //busco a ver si hay un will message asociado al cliente
+                                    if err == ProtocolError::StreamError
+                                        || err == ProtocolError::AbnormalDisconnection
+                                    {
+                                        let client_id_guard = client_id;
+                                        let clients_ids_guard: std::sync::RwLockReadGuard<
+                                            HashMap<String, Option<LastWill>>,
+                                        > = match clients_ids_clone2.read() {
+                                            Ok(clients_ids_guard) => clients_ids_guard,
+                                            Err(_) => return Err(err),
+                                        };
+                                        if let Some(will_message) =
+                                            clients_ids_guard.get(&*client_id_guard)
+                                        {
+                                            if let Some(will_message) = will_message {
+                                                send_last_will(stream_clone, will_message);
+                                            }
+                                        }
+                                    }
+
+                                    Err(err)
+                                }
+                            };
+                            result
                         }
                     });
                 }
@@ -249,6 +258,10 @@ impl Broker {
                 Ok(stream) => stream,
                 Err(_) => return Err(ProtocolError::StreamError),
             };
+            match stream.peek(&mut [0]) {
+                Ok(_) => {}
+                Err(_) => return Err(ProtocolError::AbnormalDisconnection),
+            }
             match handle_messages(
                 cloned_stream,
                 topics.clone(),
@@ -358,6 +371,38 @@ impl Broker {
 
         lock.insert(packet_id, message);
     }
+}
+
+///Envia el mensaje de Last Will al cliente.
+///
+/// Se encarga de la logica necesaria segun los parametros del Last Will y sus properties
+///
+/// Si hay un delay en el envio del mensaje (delay_interval), se encarga de esperar el tiempo correspondiente.
+fn send_last_will(mut stream: TcpStream, will_message: &LastWill) {
+    let properties = will_message.get_properties();
+    let interval = properties.get_last_will_delay_interval();
+    thread::sleep(std::time::Duration::from_secs(interval as u64));
+    let will_topic = will_message.get_topic();
+    let message = will_message.get_message();
+    let will_qos = will_message.get_qos();
+    let will_retain = will_message.get_retain();
+
+    let will_payload = PayloadTypes::WillPayload(message.to_string());
+
+    //publish
+    let will_publish = ClientMessage::Publish {
+        packet_id: 0,
+        topic_name: will_topic.to_string(),
+        qos: will_qos as usize,
+        retain_flag: will_retain as usize,
+        payload: will_payload,
+        dup_flag: 0,
+        properties: will_message
+            .get_properties()
+            .clone()
+            .to_publish_properties(),
+    };
+    will_publish.write_to(&mut stream).unwrap();
 }
 
 /// Lee del stream un mensaje y lo procesa

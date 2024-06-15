@@ -23,6 +23,7 @@ pub enum ProtocolError {
     NotReceivedMessageError,
     ExpectedConnack,
     AuthError,
+    AbnormalDisconnection,
 }
 
 impl fmt::Display for ProtocolError {
@@ -72,6 +73,9 @@ impl fmt::Display for ProtocolError {
             }
             ProtocolError::ChanellError => {
                 write!(f, "Error al enviar o recibir mensajes por el canal.")
+            }
+            ProtocolError::AbnormalDisconnection => {
+                write!(f, "Error: desconexión anormal.")
             }
         }
     }

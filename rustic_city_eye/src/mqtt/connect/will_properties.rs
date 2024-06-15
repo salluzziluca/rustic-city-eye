@@ -6,6 +6,8 @@ use std::io::Read;
 use std::io::Write;
 
 use crate::mqtt::protocol_error::ProtocolError;
+use crate::mqtt::publish::publish_properties::PublishProperties;
+use crate::mqtt::publish::publish_properties::TopicProperties;
 use crate::utils::{reader::*, writer::*};
 
 const WILL_DELAY_INTERVAL_ID: u8 = 0x18;
@@ -184,6 +186,22 @@ impl WillProperties {
 
     pub fn get_last_will_delay_interval(&self) -> u32 {
         self.last_will_delay_interval
+    }
+    pub fn to_publish_properties(&self) -> PublishProperties {
+        let topic_properties = TopicProperties {
+            topic_alias: 10,
+            response_topic: "String".to_string(),
+        };
+        let first_property = self.user_properties.first().unwrap();
+        PublishProperties::new(
+            self.payload_format_indicator,
+            self.message_expiry_interval as u32,
+            topic_properties,
+            self.correlation_data.clone(),
+            first_property.0.clone(),
+            3,
+            self.response_topic.clone(),
+        )
     }
 }
 #[allow(dead_code)]
