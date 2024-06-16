@@ -3,6 +3,7 @@
 
 use std::sync::mpsc::{self, Sender};
 
+use crate::drone_system::drone_system::DroneSystem;
 use crate::monitoring::incident::Incident;
 use crate::mqtt::client_message;
 use crate::mqtt::messages_config::MessagesConfig;
@@ -22,6 +23,7 @@ pub struct MonitoringApp {
     monitoring_app_client: Client,
     camera_system: CameraSystem,
     incidents: Vec<Incident>,
+    drone_system: DroneSystem,
 }
 
 #[allow(dead_code)]
@@ -42,7 +44,12 @@ impl MonitoringApp {
         ];
 
         let camera_system = CameraSystem::new(camera_system_args)?;
+        let drone_system = DroneSystem::new(
+            "src/drone_system/drone_config.json".to_string(),
+            address.clone(),
+        );
         let (tx, rx) = mpsc::channel();
+
         let monitoring_app = MonitoringApp {
             send_to_client_channel: tx,
             incidents: Vec::new(),
@@ -51,6 +58,7 @@ impl MonitoringApp {
                 Ok(client) => client,
                 Err(err) => return Err(err),
             },
+            drone_system,
         };
 
         Ok(monitoring_app)
@@ -91,7 +99,22 @@ impl MonitoringApp {
 
         let _ = self.send_to_client_channel.send(Box::new(publish_config));
     }
+    pub fn add_drone(
+        &mut self,
+        location: Location,
+        drone_center_id: u32,
+    ) -> Result<(), ProtocolError> {
+        let result = match self.drone_system.add_drone(location, drone_center_id) {
+            Ok(()) => Ok(()),
+            Err(e) => Err(ProtocolError::DroneError(e.to_string())),
+        };
 
+        result
+    }
+
+    pub fn add_drone_center(&mut self, location: Location) {
+        self.drone_system.add_drone_center(location);
+    }
     pub fn get_cameras(&self) -> Vec<Camera> {
         self.camera_system.get_cameras().clone()
     }

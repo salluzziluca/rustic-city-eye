@@ -22,6 +22,7 @@ struct MyMap {
     incidents: Vec<incident_view::IncidentView>,
     drones: Vec<drone_view::DroneView>,
     drone_icon: ImagesPluginData,
+    drone_center_icon: ImagesPluginData,
     zoom_level: f32,
 }
 
@@ -153,6 +154,7 @@ impl MyApp {
                 add_camera_window(ui, &mut self.map, monitoring_app);
                 add_incident_window(ui, &mut self.map, monitoring_app);
                 add_drone_window(ui, &mut self.map, monitoring_app);
+                add_drone_center_window(ui, &mut self.map, monitoring_app);
                 add_disconnect_window(ui, &mut self.map, monitoring_app, &mut self.connected);
                 add_remove_window(ui, &mut self.map, monitoring_app)
             }
@@ -190,6 +192,12 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
         Err(_) => todo!(),
     };
 
+    let drone_center_bytes = include_bytes!("assets/DroneCenter.png");
+    let drone_center_icon = match Texture::new(drone_center_bytes, &cc.egui_ctx) {
+        Ok(t) => ImagesPluginData::new(t, 1.0, 0.1), // Initialize with zoom level 1.0
+        Err(_) => todo!(),
+    };
+
     let circle_bytes = include_bytes!("assets/circle.png");
     let circle_icon = match Texture::new(circle_bytes, &cc.egui_ctx) {
         Ok(t) => ImagesPluginData::new(t, 1.0, 0.2), // Initialize with zoom level 1.0
@@ -213,6 +221,7 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
             camera_radius: circle_icon,
             drones: vec![],
             drone_icon,
+            drone_center_icon,
             zoom_level: 1.0,
         },
         monitoring_app: None,
