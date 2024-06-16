@@ -64,6 +64,7 @@ impl DroneCenter {
         &self.drones
     }
 
+    /// Retorna un dron aleatorio del centro de drones
     pub fn get_drone(&self) -> Option<&Drone> {
         let keys: Vec<&u32> = self.drones.keys().collect();
         if keys.is_empty() {
@@ -73,6 +74,8 @@ impl DroneCenter {
             self.drones.get(keys[idx])
         }
     }
+
+    /// Retorna un dron del centro de drones segun su ID
     pub fn get_drone_by_id(&self, id: u32) -> Option<&Drone> {
         let drone = self.drones.get(&id);
         let drone = match drone {

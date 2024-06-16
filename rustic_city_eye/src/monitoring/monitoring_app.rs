@@ -99,21 +99,22 @@ impl MonitoringApp {
 
         let _ = self.send_to_client_channel.send(Box::new(publish_config));
     }
+
     pub fn add_drone(
         &mut self,
         location: Location,
         drone_center_id: u32,
     ) -> Result<(), ProtocolError> {
-        let result = match self.drone_system.add_drone(location, drone_center_id) {
-            Ok(()) => Ok(()),
+        let id = match self.drone_system.add_drone(location, drone_center_id) {
+            Ok(_) => Ok(()),
             Err(e) => Err(ProtocolError::DroneError(e.to_string())),
         };
 
-        result
+        id
     }
 
     pub fn add_drone_center(&mut self, location: Location) {
-        self.drone_system.add_drone_center(location);
+        let _ = self.drone_system.add_drone_center(location);
     }
     pub fn get_cameras(&self) -> Vec<Camera> {
         self.camera_system.get_cameras().clone()

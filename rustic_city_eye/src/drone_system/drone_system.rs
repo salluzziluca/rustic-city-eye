@@ -1,3 +1,6 @@
+use egui::ahash::HashMap;
+use rand::Rng;
+
 use crate::drone_system::drone_center::DroneCenter;
 use crate::utils::location::Location;
 
@@ -5,7 +8,7 @@ use super::drone_error::DroneError;
 
 #[derive(Debug)]
 pub struct DroneSystem {
-    drone_centers: Vec<DroneCenter>,
+    drone_centers: HashMap<u32, DroneCenter>,
     drone_config_path: String,
     address: String,
 }
@@ -16,36 +19,49 @@ impl DroneSystem {
     /// Creates a new instance of `DroneSystem`.
     pub fn new(drone_config_path: String, address: String) -> DroneSystem {
         Self {
-            drone_centers: Vec::new(),
+            drone_centers: HashMap::default(),
             drone_config_path,
             address,
         }
     }
 
-    pub fn add_drone_center(&mut self, location: Location) {
-        let id = self.drone_centers.len() as u32;
+    /// Agrega un nuevo centro de drones al sistema de drones.
+    ///
+    /// Devuelve su id o DroneError en caso de error.
+    pub fn add_drone_center(&mut self, location: Location) -> Result<u32, DroneError> {
+        let mut rng = rand::thread_rng();
+
+        let mut id = rng.gen();
+
+        while self.drone_centers.contains_key(&id) {
+            id = rng.gen();
+        }
+
         let drone_center = DroneCenter::new(
             id,
             location,
             self.drone_config_path.to_string(),
             self.address.to_string(),
         );
-        self.drone_centers.push(drone_center);
+        self.drone_centers.insert(id, drone_center);
+        Ok(id)
     }
 
+    /// Agrega un nuevo dron al centro de drones especificado segun ID
+    ///
+    /// Devuelve el id del drone o DroneError en caso de error.
     pub fn add_drone(
         &mut self,
         location: Location,
         drone_center_id: u32,
-    ) -> Result<(), DroneError> {
-        if let Some(drone_center) = self
-            .drone_centers
-            .iter_mut()
-            .find(|dc| dc.get_id() == drone_center_id)
-        {
-            let _ = drone_center.add_drone(location)?;
-        }
-        Ok(())
+    ) -> Result<u32, DroneError> {
+        let drone_center = match self.drone_centers.get_mut(&drone_center_id) {
+            Some(drone_center) => drone_center,
+            None => return Err(DroneError::DroneCenterNotFound),
+        };
+
+        let id = drone_center.add_drone(location)?;
+        Ok(id)
     }
 }
 
@@ -88,12 +104,12 @@ mod tests {
             let _ = drone_system.add_drone_center(location);
 
             let location = location::Location::new(0.0, 0.0);
-            let _ = match drone_system.add_drone(location, 0) {
-                Ok(_) => (),
+            let id = match drone_system.add_drone(location, 0) {
+                Ok(id) => id,
                 Err(e) => panic!("Error adding drone: {:?}", e),
             };
 
-            assert_eq!(drone_system.drone_centers[0].get_drones().len(), 1);
+            assert_eq!(drone_system.drone_centers[&id].get_drones().len(), 1);
         });
     }
 
