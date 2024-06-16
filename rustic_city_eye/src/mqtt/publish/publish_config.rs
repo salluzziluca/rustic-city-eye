@@ -1,3 +1,5 @@
+use serde::Deserialize;
+
 use crate::{
     mqtt::{
         client_message::ClientMessage, messages_config::MessagesConfig,
@@ -6,6 +8,7 @@ use crate::{
     utils::payload_types::PayloadTypes,
 };
 
+#[derive(Deserialize)]
 pub struct PublishConfig {
     pub(crate) dup_flag: usize,
     pub(crate) qos: usize,
@@ -28,7 +31,6 @@ impl MessagesConfig for PublishConfig {
         }
     }
 }
-
 impl PublishConfig {
     pub fn new(
         dup_flag: usize,
@@ -45,6 +47,18 @@ impl PublishConfig {
             topic_name,
             payload,
             publish_properties,
+        }
+    }
+
+    pub fn read_json_to_publish_config(payload: PayloadTypes, json_data: &str) -> PublishConfig {
+        let config: PublishConfig = serde_json::from_str(json_data).unwrap();
+        PublishConfig {
+            dup_flag: config.dup_flag,
+            qos: config.qos,
+            retain_flag: config.retain_flag,
+            topic_name: config.topic_name,
+            payload: payload,
+            publish_properties: config.publish_properties,
         }
     }
 }

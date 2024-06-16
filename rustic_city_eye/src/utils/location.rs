@@ -1,3 +1,5 @@
+use serde::Deserialize;
+
 /// Contiene una localizacion especifica en el mapa.
 ///
 /// La idea es que implemente el trait de Payload que nos provee la API del cliente,
@@ -5,7 +7,7 @@
 /// del tipo Publish con la localizacion del incidente como Payload,
 /// para que las distintas unidades de la aplicacion sepan donde se encuentran
 /// los incidentes a resolver.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct Location {
     pub long: f64,
     pub lat: f64,

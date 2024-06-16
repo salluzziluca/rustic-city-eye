@@ -392,7 +392,6 @@ impl Connect {
     }
 }
 
-#[allow(dead_code)]
 impl ClientMessage {
     pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), ProtocolError> {
         let mut writer = BufWriter::new(stream);
