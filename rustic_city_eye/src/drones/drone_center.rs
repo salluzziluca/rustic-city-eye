@@ -1,7 +1,7 @@
 use egui::ahash::HashMap;
 use rand::Rng;
 
-use crate::drone_system::drone::Drone;
+use crate::drones::drone::Drone;
 use crate::utils::location::Location;
 
 use super::drone_error::DroneError;
@@ -78,10 +78,7 @@ impl DroneCenter {
     /// Retorna un dron del centro de drones segun su ID
     pub fn get_drone_by_id(&self, id: u32) -> Option<&Drone> {
         let drone = self.drones.get(&id);
-        let drone = match drone {
-            Some(drone) => Some(drone),
-            None => None,
-        };
+
         drone
     }
 }
@@ -121,7 +118,7 @@ mod tests {
                 addr.to_string(),
             );
 
-            let _ = match drone_center.add_drone(location) {
+            match drone_center.add_drone(location) {
                 Ok(_) => {}
                 Err(e) => {
                     panic!("Error adding drone to drone center: {:?}", e)
@@ -161,10 +158,7 @@ mod tests {
 
             let id = drone_center.add_drone(location).unwrap();
 
-            let drone = match drone_center.get_drone_by_id(id) {
-                Some(drone) => Some(drone),
-                None => None,
-            };
+            let drone = drone_center.get_drone_by_id(id);
 
             assert!(drone.is_some());
         });
@@ -197,10 +191,7 @@ mod tests {
 
             let id = drone_center.add_drone(location).unwrap();
 
-            let drone = match drone_center.get_drone_by_id(id) {
-                Some(drone) => Some(drone),
-                None => None,
-            };
+            let drone = drone_center.get_drone_by_id(id);
 
             assert!(drone.is_none());
         });

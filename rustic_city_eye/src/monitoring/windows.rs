@@ -110,7 +110,7 @@ pub fn add_drone_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitorin
                 if ui.button(RichText::new("🛸").heading()).clicked() {
                     if let Some(position) = map.click_watcher.clicked_at {
                         let location = Location::new(position.lat(), position.lon());
-                        let _ = match monitoring_app.add_drone(location, 1) {
+                        match monitoring_app.add_drone(location, 1) {
                             Ok(result) => result,
                             Err(e) => {
                                 println!("Error adding drone: {}", e);

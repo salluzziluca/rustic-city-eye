@@ -3,7 +3,7 @@
 
 use std::sync::mpsc::{self, Sender};
 
-use crate::drone_system::drone_system::DroneSystem;
+use crate::drones::drone_system::DroneSystem;
 use crate::monitoring::incident::Incident;
 use crate::mqtt::client_message;
 use crate::mqtt::messages_config::MessagesConfig;
@@ -105,12 +105,10 @@ impl MonitoringApp {
         location: Location,
         drone_center_id: u32,
     ) -> Result<(), ProtocolError> {
-        let id = match self.drone_system.add_drone(location, drone_center_id) {
+        match self.drone_system.add_drone(location, drone_center_id) {
             Ok(_) => Ok(()),
             Err(e) => Err(ProtocolError::DroneError(e.to_string())),
-        };
-
-        id
+        }
     }
 
     pub fn add_drone_center(&mut self, location: Location) {

@@ -74,7 +74,7 @@ impl Drone {
     pub fn run_drone(&mut self) -> Result<(), DroneError> {
         let (tx, rx) = mpsc::channel();
         let drone_state = self.drone_config.run_drone(self.location.clone(), tx);
-        let _ = match self.drone_client.client_run() {
+        match self.drone_client.client_run() {
             Ok(client) => client,
             Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
         };

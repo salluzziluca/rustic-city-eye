@@ -57,7 +57,7 @@ impl PublishConfig {
             qos: config.qos,
             retain_flag: config.retain_flag,
             topic_name: config.topic_name,
-            payload: payload,
+            payload,
             publish_properties: config.publish_properties,
         }
     }

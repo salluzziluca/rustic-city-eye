@@ -46,7 +46,7 @@ pub mod surveilling {
     pub mod camera_system;
 }
 
-pub mod drone_system {
+pub mod drones {
     pub mod drone;
     pub mod drone_center;
     pub mod drone_config;

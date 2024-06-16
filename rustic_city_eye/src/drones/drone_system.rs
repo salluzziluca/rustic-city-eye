@@ -1,7 +1,7 @@
 use egui::ahash::HashMap;
 use rand::Rng;
 
-use crate::drone_system::drone_center::DroneCenter;
+use crate::drones::drone_center::DroneCenter;
 use crate::utils::location::Location;
 
 use super::drone_error::DroneError;
@@ -136,7 +136,7 @@ mod tests {
             let _ = drone_system.add_drone_center(location);
 
             let location = location::Location::new(0.0, 0.0);
-            let _ = match drone_system.add_drone(location, 1) {
+            match drone_system.add_drone(location, 1) {
                 Ok(_) => (),
                 Err(e) => assert_eq!(e, DroneError::DroneCenterNotFound),
             };
