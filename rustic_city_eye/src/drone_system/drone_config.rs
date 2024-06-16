@@ -8,6 +8,8 @@ use std::{
     sync::{mpsc::Sender, Arc, RwLock},
 };
 
+use crate::utils::location::{self, Location};
+
 use super::{drone_error::DroneError, drone_state::DroneState};
 
 /// Sirve para levantar la configuracion del Drone a partir del JSON.
@@ -75,9 +77,8 @@ impl DroneConfig {
     /// y otro que se encarga de mover al Drone(siempre y cuando tenga bateria).
     pub fn run_drone(
         &mut self,
-        latitude: f64,
-        longitude: f64,
-        location_sender: Sender<(f64, f64)>,
+        location: Location,
+        location_sender: Sender<Location>,
     ) -> DroneState {
         let battery_clone_one = self.battery_level.clone();
         let battery_clone_two = self.battery_level.clone();
@@ -91,8 +92,7 @@ impl DroneConfig {
 
         let move_drone = std::thread::spawn(move || {
             DroneConfig::drone_movement(
-                latitude,
-                longitude,
+                location,
                 battery_clone_two,
                 radius,
                 location_sender,
@@ -154,20 +154,19 @@ impl DroneConfig {
     /// Se utiliza la tasa de movimiento del Drone, que viene definida en la configuracion:
     /// la idea es que el Drone se mueva cada cierto intervalo de tiempo definido por esta tasa de movimiento.
     fn drone_movement(
-        starting_lat: f64,
-        starting_long: f64,
+        location: Location,
         battery_level: Arc<RwLock<i64>>,
         radius: f64,
-        location_sender: Sender<(f64, f64)>,
+        location_sender: Sender<Location>,
         movement_rate: i64,
     ) {
         // cuando se pone a correr al drone, se toma a su posicion inicial
         // como el centro de su area de operacion(es un circulo!)
-        let center_lat = starting_lat;
-        let center_long = starting_long;
+        let center_lat = location.lat;
+        let center_long = location.long;
 
-        let mut current_lat = starting_lat;
-        let mut current_long = starting_long;
+        let mut current_lat = location.lat;
+        let mut current_long = location.long;
         let mut last_move_time = Utc::now();
         let mut rng = rand::thread_rng();
 
@@ -207,7 +206,9 @@ impl DroneConfig {
                     current_lat = new_lat;
                     current_long = new_long;
 
-                    let _ = location_sender.send((new_lat, new_long));
+                    let location = location::Location::new(new_lat, new_long);
+
+                    let _ = location_sender.send(location);
 
                     last_move_time = current_time;
                 }
@@ -269,8 +270,8 @@ mod tests {
         let (tx, _rx) = mpsc::channel();
         let mut config =
             DroneConfig::read_drone_config("./src/drone_system/drone_config.json").unwrap();
-
-        let final_drone_state = config.run_drone(1.1, 12.1, tx);
+        let location = location::Location::new(1.1, 12.1);
+        let final_drone_state = config.run_drone(location, tx);
 
         assert_eq!(final_drone_state, DroneState::LowBatteryLevel);
 
@@ -284,5 +285,12 @@ mod tests {
         let final_state = config.charge_battery().unwrap();
 
         assert_eq!(final_state, DroneState::Waiting);
+    }
+
+    #[test]
+    fn test_04_bad_config_file() {
+        let config = DroneConfig::read_drone_config("este/es/un/path/feo");
+
+        assert!(config.is_err());
     }
 }

@@ -4,9 +4,10 @@ use super::{drone_config::DroneConfig, drone_error::DroneError, drone_state::Dro
 
 #[derive(Debug)]
 pub struct Drone {
-    /// latitude y longitude nos indican la posicion actual del Drone.
-    latitude: f64,
-    longitude: f64,
+    // ID unico para cada Drone.
+    id: u32,
+    ///posicion actual del Drone.
+    location: Location,
 
     /// La configuracion del Drone contiene el nivel de bateria del mismo y
     /// el radio de operacion.
@@ -24,12 +25,17 @@ pub struct Drone {
 
 impl Drone {
     /// levanto su configuracion, y me guardo su posicion inicial.
-    pub fn new(latitude: f64, longitude: f64, config_file_path: &str) -> Result<Drone, DroneError> {
+    pub fn new(
+        id: u32,
+        location: Location,
+        config_file_path: &str,
+        address: String,
+    ) -> Result<Drone, DroneError> {
         let drone_config = DroneConfig::new(config_file_path)?;
 
         Ok(Drone {
-            longitude,
-            latitude,
+            id,
+            location,
             drone_config,
             drone_state: DroneState::Waiting,
         })

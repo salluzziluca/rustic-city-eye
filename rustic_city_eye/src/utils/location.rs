@@ -15,6 +15,14 @@ impl Location {
     pub fn new(lat: f64, long: f64) -> Location {
         Location { lat, long }
     }
+
+    pub fn get_latitude(&self) -> f64 {
+        self.lat
+    }
+
+    pub fn get_longitude(&self) -> f64 {
+        self.long
+    }
 }
 
 #[cfg(test)]
