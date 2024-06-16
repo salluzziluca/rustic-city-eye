@@ -114,7 +114,7 @@ mod tests {
             let mut drone_center = DroneCenter::new(
                 1,
                 location.clone(),
-                "./src/drone_system/drone_config.json".to_string(),
+                "./src/drones/drone_config.json".to_string(),
                 addr.to_string(),
             );
 
@@ -152,7 +152,7 @@ mod tests {
             let mut drone_center = DroneCenter::new(
                 1,
                 location.clone(),
-                "./src/drone_system/drone_config.json".to_string(),
+                "./src/drones/drone_config.json".to_string(),
                 addr.to_string(),
             );
 
@@ -185,7 +185,7 @@ mod tests {
             let mut drone_center = DroneCenter::new(
                 1,
                 location.clone(),
-                "./src/drone_system/drone_config.json".to_string(),
+                "./src/drones/drone_config.json".to_string(),
                 addr.to_string(),
             );
 
@@ -218,7 +218,7 @@ mod tests {
             let drone_center = DroneCenter::new(
                 1,
                 location.clone(),
-                "./src/drone_system/drone_config.json".to_string(),
+                "./src/drones/drone_config.json".to_string(),
                 addr.to_string(),
             );
 
@@ -249,7 +249,7 @@ mod tests {
             let mut drone_center = DroneCenter::new(
                 1,
                 location.clone(),
-                "./src/drone_system/drone_config.json".to_string(),
+                "./src/drones/drone_config.json".to_string(),
                 addr.to_string(),
             );
 

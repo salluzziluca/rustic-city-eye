@@ -47,7 +47,7 @@ impl Drone {
     ) -> Result<Drone, DroneError> {
         let drone_config = DroneConfig::new(config_file_path)?;
         let connect_config = match client_message::Connect::read_connect_config(
-            "./src/drone_system/connect_config.json",
+            "./src/drones/connect_config.json",
         ) {
             Ok(config) => config,
             Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
@@ -157,7 +157,7 @@ mod tests {
             let mut drone = Drone::new(
                 1,
                 location,
-                "./src/drone_system/drone_config.json",
+                "./src/drones/drone_config.json",
                 "127.0.0.1:5000".to_string(),
             )
             .unwrap();

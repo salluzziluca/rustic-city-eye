@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn test_01_config_creation_cases() {
-        let config_ok = DroneConfig::new("./src/drone_system/drone_config.json");
+        let config_ok = DroneConfig::new("./src/drones/drone_config.json");
 
         let config_err = DroneConfig::new("este/es/un/path/feo");
 
@@ -268,8 +268,7 @@ mod tests {
     #[test]
     fn test_02_running_drone_and_discharges_battery_ok() -> std::io::Result<()> {
         let (tx, _rx) = mpsc::channel();
-        let mut config =
-            DroneConfig::read_drone_config("./src/drone_system/drone_config.json").unwrap();
+        let mut config = DroneConfig::read_drone_config("./src/drones/drone_config.json").unwrap();
         let location = location::Location::new(1.1, 12.1);
         let final_drone_state = config.run_drone(location, tx);
 
