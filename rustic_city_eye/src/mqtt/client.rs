@@ -30,7 +30,7 @@ pub struct Client {
     // las subscriptions son un hashmap de topic y sub_id
     pub subscriptions: Arc<Mutex<HashMap<String, u8>>>,
     // user_id: u32,
-    packets_ids: Arc<Mutex<Vec<u16>>>,
+    pub packets_ids: Arc<Mutex<Vec<u16>>>,
 }
 
 impl Client {
@@ -103,9 +103,23 @@ impl Client {
         mut stream: TcpStream,
         packet_id: u16,
     ) -> Result<u16, ClientError> {
+        //chequeo si el mensaje es de tipo publish
+        if let ClientMessage::Publish {
+            packet_id: _,
+            topic_name: _,
+            qos: _,
+            retain_flag: _,
+            payload: _,
+            dup_flag: _,
+            properties: _,
+        } = message
+        {
         match message.write_to(&mut stream) {
             Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
+        }
+        } else {
+            Err(ClientError::new("El mensaje no es de tipo publish"))
         }
     }
 
@@ -519,7 +533,7 @@ impl Client {
     }
 
     ///Asigna un id random
-    fn assign_packet_id(packet_ids: Arc<Mutex<Vec<u16>>>) -> u16 {
+    pub fn assign_packet_id(packet_ids: Arc<Mutex<Vec<u16>>>) -> u16 {
         let mut rng = rand::thread_rng();
         let mut packet_ids = match packet_ids.lock() {
             Ok(packet_ids) => packet_ids,

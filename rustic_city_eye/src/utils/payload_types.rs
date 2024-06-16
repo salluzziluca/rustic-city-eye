@@ -21,6 +21,7 @@ use super::writer::{write_string, write_u8};
 pub enum PayloadTypes {
     IncidentLocation(IncidentPayload),
     WillPayload(String),
+    LocationPayload(Location),
 }
 
 impl Payload for PayloadTypes {
@@ -132,5 +133,15 @@ mod tests {
         let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
 
         assert_eq!(payload.clone(), payload);
+    }
+
+    #[test]
+    fn test_eq() {
+        let location = Location::new(1.0, 2.0);
+        let incident = Incident::new(location.clone());
+        let incident_payload = IncidentPayload::new(incident.clone());
+        let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
+
+        assert_eq!(payload, payload);
     }
 }

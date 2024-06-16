@@ -16,7 +16,7 @@ use super::{drone_error::DroneError, drone_state::DroneState};
 /// Pone a correr al Drone:
 ///     - Simula su descarga de bateria.
 ///     - Hace que se mueva dentro de su area de operacion.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[allow(dead_code)]
 pub struct DroneConfig {
     /// Indica el nivel de bateria del Drone. Se va descargando con el paso del tiempo.
