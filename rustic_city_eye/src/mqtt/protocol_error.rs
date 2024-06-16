@@ -24,6 +24,7 @@ pub enum ProtocolError {
     ExpectedConnack,
     AuthError,
     AbnormalDisconnection,
+    DroneError(String),
 }
 
 impl fmt::Display for ProtocolError {
@@ -77,13 +78,15 @@ impl fmt::Display for ProtocolError {
             ProtocolError::AbnormalDisconnection => {
                 write!(f, "Error: desconexión anormal.")
             }
+            ProtocolError::DroneError(ref err) => {
+                write!(f, "Error de protocolo: {}", err)
+            }
         }
     }
 }
 
 #[cfg(test)]
 #[test]
-
 fn test_display_protocol_error() {
     assert_eq!(
         ProtocolError::ConectionError.to_string(),
