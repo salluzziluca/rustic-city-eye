@@ -6,11 +6,11 @@ use crate::{
         client::Client,
         client_message, messages_config,
         publish::{
-            publish_config::{self, PublishConfig},
+            publish_config::PublishConfig,
             publish_properties::{PublishProperties, TopicProperties},
         },
     },
-    utils::{incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes},
+    utils::{location::Location, payload_types::PayloadTypes},
 };
 #[derive(Debug)]
 pub struct Drone {
@@ -74,6 +74,10 @@ impl Drone {
     pub fn run_drone(&mut self) -> Result<(), DroneError> {
         let (tx, rx) = mpsc::channel();
         let drone_state = self.drone_config.run_drone(self.location.clone(), tx);
+        let _ = match self.drone_client.client_run() {
+            Ok(client) => client,
+            Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
+        };
 
         while let Ok(location) = rx.recv() {
             self.location = location;
@@ -93,7 +97,11 @@ impl Drone {
                 "a".to_string(),
             );
 
-            let _ = PublishConfig::new(1, 1, 0, "incidente".to_string(), payload, properties);
+            let publish_config =
+                PublishConfig::new(1, 1, 0, "incidente".to_string(), payload, properties);
+
+            let _ = self.send_to_client_channel.send(Box::new(publish_config));
+
             self.drone_state = drone_state.clone();
 
             if self.drone_state == DroneState::LowBatteryLevel {
