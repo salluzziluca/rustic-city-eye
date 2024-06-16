@@ -209,12 +209,10 @@ impl Broker {
                                             Ok(clients_ids_guard) => clients_ids_guard,
                                             Err(_) => return Err(err),
                                         };
-                                        if let Some(last_will) =
+                                        if let Some(Some(will_message)) =
                                             clients_ids_guard.get(&*client_id_guard)
                                         {
-                                            if let Some(will_message) = last_will {
-                                                send_last_will(will_message, topics_clone);
-                                            }
+                                            send_last_will(will_message, topics_clone);
                                         }
                                     }
 
