@@ -1,16 +1,7 @@
-use chrono::Utc;
-use rand::Rng;
 use serde::Deserialize;
 
-use std::{
-    fs::File,
-    io::BufReader,
-    sync::{mpsc::Sender, Arc, RwLock},
-};
-
-use crate::utils::location::{self, Location};
-
-use super::{drone_error::DroneError, drone_state::DroneState};
+use super::drone_error::DroneError;
+use std::{fs::File, io::BufReader};
 
 /// Sirve para levantar la configuracion del Drone a partir del JSON.
 /// Pone a correr al Drone:
@@ -93,7 +84,6 @@ impl DroneConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::mpsc;
 
     use super::*;
 
@@ -106,27 +96,6 @@ mod tests {
         assert!(config_ok.is_ok());
         assert!(config_err.is_err());
     }
-
-    // #[test]
-    // fn test_02_running_drone_and_discharges_battery_ok() -> std::io::Result<()> {
-    //     let (tx, _rx) = mpsc::channel();
-    //     let mut config = DroneConfig::read_drone_config("./src/drones/drone_config.json").unwrap();
-    //     let location = location::Location::new(1.1, 12.1);
-    //     let final_drone_state = config.run_drone(location, tx);
-
-    //     assert_eq!(final_drone_state, DroneState::LowBatteryLevel);
-
-    //     Ok(())
-    // }
-
-    // #[test]
-    // fn test_03_drone_charge_ok() {
-    //     let mut config = DroneConfig::read_drone_config("./tests/drone_config_test.json").unwrap();
-
-    //     let final_state = config.charge_battery().unwrap();
-
-    //     assert_eq!(final_state, DroneState::Waiting);
-    // }
 
     #[test]
     fn test_04_bad_config_file() {

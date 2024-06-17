@@ -78,7 +78,7 @@ impl Drone {
         })
     }
 
-    /// Esta funcion ejecuta el dron, crando dos hilos:
+    /// Esta funcion ejecuta el dron, creando dos hilos:
     /// Uno para la descarga de bateria y otro para el movimiento del dron.
     /// Cuando la bateria se descarga por completo dentro del thread de descarga de bateria,
     /// se cambia el estado del dron a LowBatteryLevel. Y, en el thread de movimiento, se
@@ -266,7 +266,10 @@ impl Drone {
                             }
                         }
                         match self.charge_battery() {
-                            Ok(_) => (),
+                            Ok(state) => {
+                                self.drone_state = state;
+                                return Ok(());
+                            }
                             Err(e) => {
                                 println!("Error charging drone: {:?}", e);
                             }
@@ -287,7 +290,7 @@ impl Drone {
 mod tests {
     use std::{thread, time::Duration};
 
-    use crate::{drones::drone, mqtt::broker::Broker, utils::location};
+    use crate::{mqtt::broker::Broker, utils::location};
 
     use super::*;
 
@@ -655,6 +658,44 @@ mod tests {
             assert!(result.is_ok());
             let new_location = drone.location;
             assert!(new_location.lat == 1.0 || new_location.long != 1.0);
+        });
+    }
+
+    #[test]
+    fn test_drone_movement_out_of_bounds() {
+        let args = vec!["127.0.0.1".to_string(), "5000".to_string()];
+        let mut broker = match Broker::new(args) {
+            Ok(broker) => broker,
+            Err(e) => {
+                panic!("Error creating broker: {:?}", e)
+            }
+        };
+        thread::spawn(move || {
+            let _ = broker.server_run();
+        });
+        thread::spawn(move || {
+            let mut drone = setup_test_drone();
+            drone.location = Location {
+                lat: 0.0,
+                long: 0.0,
+            };
+            let target_location = Location {
+                lat: 1.0,
+                long: 1.0,
+            };
+            let result = drone.drone_movement(
+                drone.location.clone(),
+                0.005,
+                drone.drone_config.get_movement_rate(),
+                target_location,
+            );
+
+            assert!(result.is_ok());
+            let new_location = drone.location;
+
+            let distance_from_center =
+                ((new_location.lat - 0.0).powi(2) + (new_location.long - 0.0).powi(2)).sqrt();
+            assert!(distance_from_center <= 0.005);
         });
     }
 
