@@ -745,21 +745,29 @@ mod tests {
                 let _ = drone_clone.battery_discharge();
             });
 
-            let movimiento = thread::spawn(move || {
+            let mut drone_clone = drone.clone();
+            let drone_clone2 = drone.clone();
+            let _ = thread::spawn(move || {
+                let mut terminado = false;
                 let target_location = location::Location::new(0.001, 0.001);
-                let radius = 0.005;
-                let former_location = drone.location.clone();
-                let drone_clone = drone.clone();
-                let _ = drone.drone_movement(
-                    drone.location.clone(),
-                    radius,
-                    100,
-                    target_location.clone(),
-                );
-                if (drone.get_state() == DroneState::LowBatteryLevel) {
-                    assert_ne!(drone_clone.location, target_location.clone());
-                }
+                let _ = drone.location.clone();
 
+                while !terminado {
+                    let target_location = location::Location::new(0.001, 0.001);
+                    let _ = drone_clone.location.clone();
+                    let radius: f64 = 0.005;
+
+                    let _ = drone_clone.drone_movement(
+                        drone_clone.location.clone(),
+                        radius,
+                        100,
+                        target_location.clone(),
+                    );
+                    if drone_clone2.clone().get_state() == DroneState::LowBatteryLevel {
+                        assert_ne!(drone_clone.location, target_location.clone());
+                        terminado = true;
+                    }
+                }
                 assert_eq!(drone_clone.location, target_location.clone());
             });
         });
