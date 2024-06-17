@@ -43,7 +43,6 @@ impl ImagesPluginData {
             texture,
             x_scale: scale,
             y_scale: scale,
-            original_scale,
         }
     }
 }
