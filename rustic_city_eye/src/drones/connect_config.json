@@ -12,7 +12,10 @@
         "request_response_information": true,
         "request_problem_information": true,
         "user_properties": [
-            []
+            [
+                "hola",
+                "chau"
+            ]
         ],
         "authentication_method": "password-based",
         "authentication_data": [
@@ -21,49 +24,29 @@
             3
         ]
     },
-    "client_id": "monitoring_app",
+    "client_id": "kvtr33",
     "will_properties": {
         "last_will_delay_interval": 1,
         "payload_format_indicator": 1,
         "message_expiry_interval": 1,
-        "content_type": "txt",
-        "response_topic": "response/monitoring",
+        "content_type": "a",
+        "response_topic": "a",
         "correlation_data": [
             1,
             2,
             3
         ],
         "user_properties": [
-            []
+            [
+                "a",
+                "a"
+            ]
         ]
     },
-    "last_will_topic": "monitoring",
+    "last_will_topic": "camera system",
     "last_will_message": "soy el monitoring y me desconecte",
-    "username": "monitoreo",
+    "username": "a",
     "password": [
-        109,
-        111,
-        110,
-        105,
-        116,
-        111,
-        114,
-        101,
-        97,
-        110,
-        100,
-        111,
-        95,
-        108,
-        97,
-        95,
-        118,
-        105,
-        100,
-        97,
-        50,
-        48,
-        48,
-        52
+        97
     ]
 }

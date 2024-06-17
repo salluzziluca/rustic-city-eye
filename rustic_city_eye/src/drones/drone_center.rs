@@ -6,6 +6,10 @@ use crate::utils::location::Location;
 
 use super::drone_error::DroneError;
 #[derive(Debug)]
+
+///Un drone cententer esta compuesto por sus diferentes drones.
+/// Tiene su ID unico, su ubicación, la dirección a la que se conecta
+/// y el path de su configuración.
 pub struct DroneCenter {
     id: u32,
     location: Location,
@@ -53,6 +57,7 @@ impl DroneCenter {
         let drone = Drone::new(
             id,
             location,
+            self.location.clone(),
             &self.drone_config_path.to_string(),
             self.address.to_string(),
         )?;

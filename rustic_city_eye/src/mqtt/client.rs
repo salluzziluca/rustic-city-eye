@@ -20,12 +20,12 @@ use crate::{
 
 use super::{client_message, client_return::ClientReturn, error::ClientError};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Client {
     receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
 
     // stream es el socket que se conecta al broker
-    stream: TcpStream,
+    stream: Arc<Mutex<TcpStream>>,
 
     // las subscriptions son un hashmap de topic y sub_id
     pub subscriptions: Arc<Mutex<HashMap<String, u8>>>,
@@ -50,19 +50,23 @@ impl Client {
         connect: client_message::Connect,
     ) -> Result<Client, ProtocolError> {
         let mut stream = match TcpStream::connect(address) {
-            Ok(stream) => stream,
+            Ok(stream) => Arc::new(Mutex::new(stream)),
             Err(_) => return Err(ProtocolError::ConectionError),
         };
-
+        let mut stream_lock = match stream.lock() {
+            Ok(stream) => stream,
+            Err(_) => return Err(ProtocolError::StreamError),
+        };
         let connect = ClientMessage::Connect(connect);
 
         println!("Enviando connect message to broker");
-        match connect.write_to(&mut stream) {
+
+        match connect.write_to(&mut *stream_lock) {
             Ok(()) => println!("Connect message enviado"),
             Err(_) => println!("Error al enviar connect message"),
         }
 
-        if let Ok(message) = BrokerMessage::read_from(&mut stream) {
+        if let Ok(message) = BrokerMessage::read_from(&mut *stream_lock) {
             match message {
                 BrokerMessage::Connack {
                     session_present: _,
@@ -70,6 +74,7 @@ impl Client {
                     properties: _,
                 } => {
                     println!("Recibí un Connack");
+                    let stream_clone = Arc::clone(&stream);
 
                     match reason_code {
                         0x00_u8 => {
@@ -79,7 +84,7 @@ impl Client {
 
                             Ok(Client {
                                 receiver_channel: Arc::new(Mutex::new(receiver_channel)),
-                                stream,
+                                stream: stream_clone,
                                 subscriptions: Arc::new(Mutex::new(HashMap::new())),
                                 packets_ids: Arc::new(Mutex::new(Vec::new())),
                             })
@@ -231,12 +236,16 @@ impl Client {
         let receiver_channel = self.receiver_channel.clone();
 
         let desconectar = false;
-
-        let stream_clone_one = match self.stream.try_clone() {
+        let mut stream_lock = match self.stream.lock() {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
         };
-        let stream_clone_two = match self.stream.try_clone() {
+
+        let stream_clone_one = match stream_lock.try_clone() {
+            Ok(stream) => stream,
+            Err(_) => return Err(ProtocolError::StreamError),
+        };
+        let stream_clone_two = match stream_lock.try_clone() {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
         };
