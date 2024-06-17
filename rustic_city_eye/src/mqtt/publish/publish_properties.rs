@@ -1,5 +1,7 @@
 use std::io::{Error, Read, Write};
 
+use serde::Deserialize;
+
 use crate::utils::{reader::*, writer::*};
 
 use crate::mqtt::protocol_error::ProtocolError;
@@ -14,7 +16,7 @@ const USER_PROPERTY_ID: u8 = 0x26;
 const SUBSCRIPTION_IDENTIFIER_ID: u8 = 0x0B;
 const CONTENT_TYPE_ID: u8 = 0x03;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Deserialize)]
 pub struct PublishProperties {
     /// Si vale 0, indica que el payload tiene bytes unspecified -> es equivalente a no enviar un payload format indicator.
     /// Si vale 1 indica que el payload esta encodeado en UTF-8
@@ -30,7 +32,8 @@ pub struct PublishProperties {
     pub content_type: String,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Deserialize)]
+
 pub struct TopicProperties {
     pub topic_alias: u16,
     pub response_topic: String,

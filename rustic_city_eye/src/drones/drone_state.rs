@@ -5,7 +5,7 @@
 /// - LowBatteryLevel: el Drone se quedo sin bateria, por lo que va a su central a cargarse, y no va a volver a
 ///                    funcionar hasta que tenga el nivel de bateria completo(al terminar de cargarse, vuelve a
 ///                    tener el estado Waiting).
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum DroneState {
     Waiting,
     AttendingIncident,

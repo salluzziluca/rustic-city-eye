@@ -3,6 +3,8 @@ use std::{
     io::{Error, ErrorKind},
 };
 
+use serde::Deserialize;
+
 use crate::{
     monitoring::incident::Incident,
     mqtt::{payload::Payload, protocol_error::ProtocolError},
@@ -17,10 +19,11 @@ use super::writer::{write_string, write_u8};
 
 /// Aqui se definen los distintos tipos de payload que va a soportar nuestra aplicacion.
 /// La idea es que implemente el trait de Payload, de forma tal que sepa escribirse sobre un stream dado.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Deserialize)]
 pub enum PayloadTypes {
     IncidentLocation(IncidentPayload),
     WillPayload(String),
+    LocationPayload(Location),
 }
 
 impl Payload for PayloadTypes {
@@ -34,6 +37,13 @@ impl Payload for PayloadTypes {
             PayloadTypes::WillPayload(payload) => {
                 write_u8(stream, &2)?;
                 write_string(stream, payload)?;
+
+                Ok(())
+            }
+            PayloadTypes::LocationPayload(payload) => {
+                write_u8(stream, &3)?;
+                write_string(stream, &payload.get_latitude().to_string())?;
+                write_string(stream, &payload.get_longitude().to_string())?;
 
                 Ok(())
             }
@@ -132,5 +142,15 @@ mod tests {
         let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
 
         assert_eq!(payload.clone(), payload);
+    }
+
+    #[test]
+    fn test_eq() {
+        let location = Location::new(1.0, 2.0);
+        let incident = Incident::new(location.clone());
+        let incident_payload = IncidentPayload::new(incident.clone());
+        let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
+
+        assert_eq!(payload, payload);
     }
 }

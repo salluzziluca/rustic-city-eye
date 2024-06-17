@@ -1,8 +1,10 @@
+use serde::Deserialize;
+
 use crate::{
     monitoring::incident::Incident, mqtt::protocol_error::ProtocolError, utils::writer::write_u8,
 };
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct IncidentPayload {
     id: u8,
     incident: Incident,
