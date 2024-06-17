@@ -187,6 +187,7 @@ impl WillProperties {
     pub fn get_last_will_delay_interval(&self) -> u32 {
         self.last_will_delay_interval
     }
+    /// Convierte las will properties en publish properties
     pub fn to_publish_properties(&self) -> PublishProperties {
         let topic_properties = TopicProperties {
             topic_alias: 10,

@@ -52,7 +52,6 @@ pub struct ImagesPluginData {
     pub texture: Texture,
     pub x_scale: f32,
     pub y_scale: f32,
-    pub original_scale: f32,
 }
 
 // Creates a built-in `Images` plugin with an example image.
