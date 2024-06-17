@@ -14,7 +14,7 @@ mod tests {
     use std::collections::HashMap;
     use std::io::Write;
     use std::net::{TcpListener, TcpStream};
-    use std::sync::{Arc, RwLock};
+    use std::sync::{mpsc, Arc, RwLock};
     use std::thread;
 
     #[test]
@@ -32,11 +32,12 @@ mod tests {
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
+        let (id_sender, _) = mpsc::channel();
 
         if let Ok((stream, _)) = listener.accept() {
             result = handle_messages(
@@ -46,6 +47,7 @@ mod tests {
                 subs,
                 clients_ids,
                 clients_auth_info,
+                id_sender,
             );
         }
 
@@ -74,12 +76,18 @@ mod tests {
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
+        let (id_sender, reciever) = mpsc::channel();
 
+        thread::spawn(move || loop {
+            if reciever.try_recv().is_ok() {
+                break;
+            }
+        });
         if let Ok((stream, _)) = listener.accept() {
             result = match handle_messages(
                 stream,
@@ -88,6 +96,7 @@ mod tests {
                 subs,
                 clients_ids,
                 clients_auth_info,
+                id_sender,
             ) {
                 Ok(r) => Ok(r),
                 Err(e) => return Err(e),
@@ -120,12 +129,17 @@ mod tests {
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let subs = vec![];
-        let clients_ids = Arc::new(vec!["monitoring_app".to_string()]);
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        //add an id to the clients_ids
+        clients_ids
+            .write()
+            .unwrap()
+            .insert("monitoring_app".to_string(), None);
         let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
-
+        let (id_sender, _) = mpsc::channel();
         if let Ok((stream, _)) = listener.accept() {
             result = handle_messages(
                 stream,
@@ -134,6 +148,7 @@ mod tests {
                 subs,
                 clients_ids,
                 clients_auth_info,
+                id_sender,
             );
         }
 
@@ -169,12 +184,12 @@ mod tests {
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
-
+        let (id_sender, _) = mpsc::channel();
         if let Ok((stream, _)) = listener.accept() {
             result = handle_messages(
                 stream,
@@ -183,6 +198,7 @@ mod tests {
                 subs,
                 clients_ids,
                 clients_auth_info,
+                id_sender,
             );
         }
 
@@ -229,11 +245,13 @@ mod tests {
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
+
+        let (id_sender, _) = mpsc::channel();
 
         if let Ok((stream, _)) = listener.accept() {
             result = handle_messages(
@@ -243,6 +261,7 @@ mod tests {
                 subs,
                 clients_ids,
                 clients_auth_info,
+                id_sender,
             );
         }
 
@@ -290,11 +309,13 @@ mod tests {
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
+
+        let (id_sender, _) = mpsc::channel();
 
         if let Ok((stream, _)) = listener.accept() {
             result = handle_messages(
@@ -304,6 +325,7 @@ mod tests {
                 subs,
                 clients_ids,
                 clients_auth_info,
+                id_sender,
             );
         }
 
@@ -335,11 +357,13 @@ mod tests {
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
+
+        let (id_sender, _) = mpsc::channel();
 
         if let Ok((stream, _)) = listener.accept() {
             result = handle_messages(
@@ -349,6 +373,7 @@ mod tests {
                 subs,
                 clients_ids,
                 clients_auth_info,
+                id_sender,
             );
         }
 
@@ -375,11 +400,13 @@ mod tests {
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
+
+        let (id_sender, _) = mpsc::channel();
 
         if let Ok((stream, _)) = listener.accept() {
             result = handle_messages(
@@ -389,6 +416,7 @@ mod tests {
                 subs,
                 clients_ids,
                 clients_auth_info,
+                id_sender,
             );
         }
 
@@ -412,11 +440,13 @@ mod tests {
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
+
+        let (id_sender, _) = mpsc::channel();
 
         if let Ok((stream, _)) = listener.accept() {
             result = handle_messages(
@@ -426,6 +456,7 @@ mod tests {
                 subs,
                 clients_ids,
                 clients_auth_info,
+                id_sender,
             );
         }
 
@@ -455,11 +486,13 @@ mod tests {
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
+
+        let (id_sender, _) = mpsc::channel();
 
         if let Ok((stream, _)) = listener.accept() {
             result = handle_messages(
@@ -469,6 +502,7 @@ mod tests {
                 subs,
                 clients_ids,
                 clients_auth_info,
+                id_sender,
             );
         }
 
@@ -498,11 +532,15 @@ mod tests {
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+        let clients_ids: Arc<
+            RwLock<HashMap<String, Option<rustic_city_eye::mqtt::connect::last_will::LastWill>>>,
+        > = Arc::new(RwLock::new(HashMap::new()));
         let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
+
+        let (id_sender, _) = mpsc::channel();
 
         if let Ok((stream, _)) = listener.accept() {
             result = handle_messages(
@@ -512,6 +550,7 @@ mod tests {
                 subs,
                 clients_ids,
                 clients_auth_info,
+                id_sender,
             );
         }
 

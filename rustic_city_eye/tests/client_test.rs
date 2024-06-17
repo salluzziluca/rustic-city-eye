@@ -127,7 +127,6 @@ mod tests {
             disconnect.write_to(&mut buffer).unwrap();
             stream.write_all(&buffer).unwrap();
         });
-
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
         let subscriptions = Arc::new(Mutex::new(HashMap::new()));

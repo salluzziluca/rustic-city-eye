@@ -3,21 +3,27 @@ use std::{
     fs::File,
     io::{BufRead, BufReader},
     net::{TcpListener, TcpStream},
-    sync::{Arc, RwLock},
+    sync::{mpsc, Arc, RwLock},
+    thread,
 };
 
-use crate::mqtt::{
-    broker_message::BrokerMessage,
-    client_message::ClientMessage,
-    connack_properties::ConnackProperties,
-    protocol_error::ProtocolError,
-    protocol_return::ProtocolReturn,
-    reason_code::{
-        NO_MATCHING_SUBSCRIBERS_HEX, SUB_ID_DUP_HEX, SUCCESS_HEX, UNSPECIFIED_ERROR_HEX,
-    },
-    topic::Topic,
-};
 use crate::utils::threadpool::ThreadPool;
+use crate::{
+    mqtt::{
+        broker_message::BrokerMessage,
+        client_message::ClientMessage,
+        connack_properties::ConnackProperties,
+        protocol_error::ProtocolError,
+        protocol_return::ProtocolReturn,
+        reason_code::{
+            NO_MATCHING_SUBSCRIBERS_HEX, SUB_ID_DUP_HEX, SUCCESS_HEX, UNSPECIFIED_ERROR_HEX,
+        },
+        topic::Topic,
+    },
+    utils::payload_types::PayloadTypes,
+};
+
+use super::connect::last_will::LastWill;
 
 static SERVER_ARGS: usize = 2;
 
@@ -38,7 +44,7 @@ pub struct Broker {
 
     subs: Vec<u32>,
 
-    clients_ids: Arc<Vec<String>>,
+    clients_ids: Arc<RwLock<HashMap<String, Option<LastWill>>>>,
 
     /// Los clientes se guardan en un HashMap en el cual
     /// las claves son los client_ids, y los valores son
@@ -68,7 +74,7 @@ impl Broker {
             clients_auth_info,
             packets: Arc::new(RwLock::new(packets)),
             subs: Vec::new(),
-            clients_ids: Arc::new(Vec::new()),
+            clients_ids: Arc::new(HashMap::new().into()),
         })
     }
 
@@ -158,18 +164,63 @@ impl Broker {
                     let topics_clone = self.topics.clone();
                     let packets_clone = self.packets.clone();
                     let subs_clone = self.subs.clone();
-                    let clients_ids_clone = self.clients_ids.clone();
                     let clients_auth_info_clone = self.clients_auth_info.clone();
 
-                    threadpool.execute(move || {
-                        let _ = Broker::handle_client(
-                            stream,
-                            topics_clone,
-                            packets_clone,
-                            subs_clone,
-                            clients_ids_clone,
-                            clients_auth_info_clone,
-                        );
+                    let client_id = Arc::new(String::new());
+                    let (id_sender, id_receiver) = mpsc::channel();
+                    threadpool.execute({
+                        let mut client_id: Arc<String> = Arc::clone(&client_id);
+
+                        move || loop {
+                            if let Ok(id) = id_receiver.try_recv() {
+                                let client_id_guard = Arc::make_mut(&mut client_id);
+                                *client_id_guard = id;
+                                break;
+                            }
+                        }
+                    });
+
+                    threadpool.execute({
+                        let client_id = Arc::clone(&client_id);
+                        let clients_ids_clone = Arc::clone(&self.clients_ids);
+                        let clients_ids_clone2 = Arc::clone(&clients_ids_clone);
+
+                        move || {
+                            let result = match Broker::handle_client(
+                                stream,
+                                topics_clone.clone(),
+                                packets_clone,
+                                subs_clone,
+                                clients_ids_clone,
+                                clients_auth_info_clone,
+                                id_sender,
+                            ) {
+                                Ok(_) => Ok(()),
+                                Err(err) => {
+                                    println!("Error en el hilo del cliente, {:?}", err);
+                                    //busco a ver si hay un will message asociado al cliente
+                                    if err == ProtocolError::StreamError
+                                        || err == ProtocolError::AbnormalDisconnection
+                                    {
+                                        let client_id_guard = client_id;
+                                        let clients_ids_guard: std::sync::RwLockReadGuard<
+                                            HashMap<String, Option<LastWill>>,
+                                        > = match clients_ids_clone2.read() {
+                                            Ok(clients_ids_guard) => clients_ids_guard,
+                                            Err(_) => return Err(err),
+                                        };
+                                        if let Some(Some(will_message)) =
+                                            clients_ids_guard.get(&*client_id_guard)
+                                        {
+                                            send_last_will(will_message, topics_clone);
+                                        }
+                                    }
+
+                                    Err(err)
+                                }
+                            };
+                            result
+                        }
                     });
                 }
                 Err(err) => return Err(err),
@@ -184,14 +235,19 @@ impl Broker {
         topics: HashMap<String, Topic>,
         packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
         _subs: Vec<u32>,
-        clients_ids: Arc<Vec<String>>,
+        clients_ids: Arc<RwLock<HashMap<String, Option<LastWill>>>>,
         clients_auth_info: HashMap<String, (String, Vec<u8>)>,
+        id_sender: std::sync::mpsc::Sender<String>,
     ) -> Result<(), ProtocolError> {
         loop {
             let cloned_stream = match stream.try_clone() {
                 Ok(stream) => stream,
                 Err(_) => return Err(ProtocolError::StreamError),
             };
+            match stream.peek(&mut [0]) {
+                Ok(_) => {}
+                Err(_) => return Err(ProtocolError::AbnormalDisconnection),
+            }
             match handle_messages(
                 cloned_stream,
                 topics.clone(),
@@ -199,6 +255,7 @@ impl Broker {
                 _subs.clone(),
                 clients_ids.clone(),
                 clients_auth_info.clone(),
+                id_sender.clone(),
             ) {
                 Ok(return_val) => {
                     if return_val == ProtocolReturn::DisconnectRecieved {
@@ -302,6 +359,39 @@ impl Broker {
     }
 }
 
+///Envia el mensaje de Last Will al cliente.
+///
+/// Se encarga de la logica necesaria segun los parametros del Last Will y sus properties
+///
+/// Si hay un delay en el envio del mensaje (delay_interval), se encarga de esperar el tiempo correspondiente.
+///
+/// Convierte el mensaje en un Publish y lo envia al broker.
+fn send_last_will(will_message: &LastWill, topics: HashMap<String, Topic>) {
+    let properties = will_message.get_properties();
+    let interval = properties.get_last_will_delay_interval();
+    thread::sleep(std::time::Duration::from_secs(interval as u64));
+    let will_topic = will_message.get_topic();
+    let message = will_message.get_message();
+    let will_qos = will_message.get_qos();
+    let will_retain = will_message.get_retain();
+
+    let will_payload = PayloadTypes::WillPayload(message.to_string());
+
+    //publish
+    let will_publish = ClientMessage::Publish {
+        packet_id: 0,
+        topic_name: will_topic.to_string(), //TODO: aca habria que ver bien cual topic le cargamos
+        qos: will_qos as usize,
+        retain_flag: will_retain as usize,
+        payload: will_payload,
+        dup_flag: 0,
+        properties: will_message
+            .get_properties()
+            .clone()
+            .to_publish_properties(),
+    };
+    _ = Broker::handle_publish(will_publish, topics, will_topic.to_string());
+}
 /// Lee del stream un mensaje y lo procesa
 /// Devuelve un ProtocolReturn con informacion del mensaje recibido
 /// O ProtocolError en caso de error
@@ -310,8 +400,9 @@ pub fn handle_messages(
     topics: HashMap<String, Topic>,
     packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
     _subs: Vec<u32>,
-    mut clients_ids: Arc<Vec<String>>,
+    clients_ids: Arc<RwLock<HashMap<String, Option<LastWill>>>>,
     clients_auth_info: HashMap<String, (String, Vec<u8>)>,
+    id_sender: std::sync::mpsc::Sender<String>,
 ) -> Result<ProtocolReturn, ProtocolError> {
     let mensaje = match ClientMessage::read_from(&mut stream) {
         Ok(mensaje) => mensaje,
@@ -319,31 +410,47 @@ pub fn handle_messages(
     };
     match mensaje {
         ClientMessage::Connect { 0: connect } => {
+            _ = id_sender.send(connect.client_id.clone());
             println!("Recibí un Connect");
 
-            if clients_ids.contains(&connect.client_id) {
-                let disconnect = BrokerMessage::Disconnect {
-                    reason_code: 0,
-                    session_expiry_interval: 0,
-                    reason_string: "El cliente ya está conectado".to_string(),
-                    user_properties: Vec::new(),
+            let connect_clone = connect.clone();
+            {
+                let clients_ids_read = match clients_ids.read() {
+                    Ok(clients_ids_read) => clients_ids_read,
+                    Err(_) => return Err(ProtocolError::StreamError),
                 };
 
-                match disconnect.write_to(&mut stream) {
-                    Ok(_) => {
-                        println!("Disconnect enviado");
-                        return Ok(ProtocolReturn::DisconnectSent);
+                if clients_ids_read.contains_key(&connect.client_id) {
+                    let disconnect = BrokerMessage::Disconnect {
+                        reason_code: 0,
+                        session_expiry_interval: 0,
+                        reason_string: "El cliente ya está conectado".to_string(),
+                        user_properties: Vec::new(),
+                    };
+
+                    match disconnect.write_to(&mut stream) {
+                        Ok(_) => {
+                            println!("Disconnect enviado");
+                            return Ok(ProtocolReturn::DisconnectSent);
+                        }
+                        Err(err) => println!("Error al enviar Disconnect: {:?}", err),
                     }
-                    Err(err) => println!("Error al enviar Disconnect: {:?}", err),
                 }
             }
-            Arc::make_mut(&mut clients_ids).push(connect.client_id.clone());
+            let will_message = connect.give_will_message();
+            let mut clients_ids_writer: std::sync::RwLockWriteGuard<
+                HashMap<String, Option<LastWill>>,
+            > = match clients_ids.write() {
+                Ok(clients_ids_writer) => clients_ids_writer,
+                Err(_) => return Err(ProtocolError::StreamError),
+            };
+            clients_ids_writer.insert(connect_clone.client_id.clone(), will_message);
 
             let connack_reason_code = match authenticate_client(
-                connect.properties.authentication_method,
-                connect.client_id,
-                connect.username,
-                connect.password,
+                connect_clone.properties.authentication_method,
+                connect_clone.client_id,
+                connect_clone.username,
+                connect_clone.password,
                 clients_auth_info,
             ) {
                 Ok(r) => r,
@@ -558,14 +665,13 @@ pub fn handle_messages(
     Err(ProtocolError::UnspecifiedError)
 }
 
-
 /// Aca se realiza la autenticacion del cliente. Solo se debe llamar apenas llega un packet del tipo
 /// Connect.
-/// 
+///
 /// Le ingresan como parametros el auth_method(solo vamos a soportar el metodo password-based),
 /// el username, client_id y password que vienen definidos en el packet Connect que envia el usuario.
-/// 
-/// Devuele en caso exitoso un u8 que representa el reason code del packet Connack que el Broker va a 
+///
+/// Devuele en caso exitoso un u8 que representa el reason code del packet Connack que el Broker va a
 /// enviarle al Client.
 pub fn authenticate_client(
     authentication_method: String,
@@ -676,7 +782,7 @@ mod tests {
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let subs = vec![];
-        let clients_ids = Arc::new(vec![]);
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let clients_auth_info = HashMap::new();
 
         // Write a ClientMessage to the stream.
@@ -685,6 +791,7 @@ mod tests {
 
         // Accept the connection and pass the stream to the function.
         if let Ok((stream, _)) = listener.accept() {
+            let (id_sender, _) = mpsc::channel();
             // Perform your assertions here
             result = Broker::handle_client(
                 stream,
@@ -693,6 +800,7 @@ mod tests {
                 subs,
                 clients_ids,
                 clients_auth_info,
+                id_sender,
             );
         }
 
