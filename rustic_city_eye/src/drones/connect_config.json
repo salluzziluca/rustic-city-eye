@@ -12,10 +12,7 @@
         "request_response_information": true,
         "request_problem_information": true,
         "user_properties": [
-            [
-                "hola",
-                "chau"
-            ]
+            []
         ],
         "authentication_method": "password-based",
         "authentication_data": [
@@ -29,18 +26,15 @@
         "last_will_delay_interval": 1,
         "payload_format_indicator": 1,
         "message_expiry_interval": 1,
-        "content_type": "a",
-        "response_topic": "a",
+        "content_type": "txt",
+        "response_topic": "response/monitoring",
         "correlation_data": [
             1,
             2,
             3
         ],
         "user_properties": [
-            [
-                "a",
-                "a"
-            ]
+            []
         ]
     },
     "last_will_topic": "monitoring",

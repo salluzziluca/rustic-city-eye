@@ -20,6 +20,17 @@ const REASON_STRING_ID: u8 = 0x1F;
 const USER_PROPERTY_ID: u8 = 0x26;
 
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+///El Connect Message es el primer mensaje que el cliente envia cuando se conecta al broker. Este contiene toda la informacion necesaria para que el broker identifique al cliente y pueda establecer una sesion con los parametros establecidos.
+///
+/// clean_start especifica si se debe limpiar la sesion previa del cliente y arrancar una nueva limpia y desde cero.
+///
+/// last_will_flag especifica si el will message se debe guardar asociado a la sesion, last_will_qos especifica el QoS level utilizado cuando se publique el will message, last_will_retain especifica si el will message se retiene despues de ser publicado.
+///
+/// keep_alive especifica el tiempo en segundos que el broker debe esperar entre mensajes del cliente antes de desconectarlo.
+///
+/// Si el will flag es true, se escriben el will topic y el will message.
+///
+/// finalmente, si el cliente envia un username y un password, estos se escriben en el payload.
 pub struct Connect {
     clean_start: bool,
     last_will_flag: bool,
@@ -42,17 +53,6 @@ pub struct Connect {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ClientMessage {
-    ///El Connect Message es el primer mensaje que el cliente envia cuando se conecta al broker. Este contiene toda la informacion necesaria para que el broker identifique al cliente y pueda establecer una sesion con los parametros establecidos.
-    ///
-    /// clean_start especifica si se debe limpiar la sesion previa del cliente y arrancar una nueva limpia y desde cero.
-    ///
-    /// last_will_flag especifica si el will message se debe guardar asociado a la sesion, last_will_qos especifica el QoS level utilizado cuando se publique el will message, last_will_retain especifica si el will message se retiene despues de ser publicado.
-    ///
-    /// keep_alive especifica el tiempo en segundos que el broker debe esperar entre mensajes del cliente antes de desconectarlo.
-    ///
-    /// Si el will flag es true, se escriben el will topic y el will message.
-    ///
-    /// finalmente, si el cliente envia un username y un password, estos se escriben en el payload.
     Connect(Connect),
 
     /// El paquete Publish es enviado desde un cliente al servidor, o desde un servidor al cliente para transportar un mensaje de aplicacion.

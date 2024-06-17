@@ -82,24 +82,11 @@ impl Drone {
         while let Ok(location) = rx.recv() {
             self.location = location;
             let payload = PayloadTypes::LocationPayload(self.location.clone());
-            let topic_properties = TopicProperties {
-                topic_alias: 10,
-                response_topic: "String".to_string(),
-            };
 
-            let properties = PublishProperties::new(
-                1,
-                10,
-                topic_properties,
-                [1, 2, 3].to_vec(),
-                "a".to_string(),
-                1,
-                "a".to_string(),
+            let publish_config = PublishConfig::read_json_to_publish_config(
+                payload,
+                "src/drones/publish_config.json",
             );
-
-            let publish_config =
-                PublishConfig::new(1, 1, 0, "incidente".to_string(), payload, properties);
-
             let _ = self.send_to_client_channel.send(Box::new(publish_config));
 
             self.drone_state = drone_state.clone();
