@@ -49,7 +49,7 @@ impl Client {
         address: String,
         connect: client_message::Connect,
     ) -> Result<Client, ProtocolError> {
-        let mut stream = match TcpStream::connect(address) {
+        let stream = match TcpStream::connect(address) {
             Ok(stream) => Arc::new(Mutex::new(stream)),
             Err(_) => return Err(ProtocolError::ConectionError),
         };
@@ -236,7 +236,7 @@ impl Client {
         let receiver_channel = self.receiver_channel.clone();
 
         let desconectar = false;
-        let mut stream_lock = match self.stream.lock() {
+        let stream_lock = match self.stream.lock() {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
         };

@@ -1,17 +1,11 @@
 use std::sync::{mpsc, Arc, Mutex};
 
 use chrono::Utc;
-use egui::os::OperatingSystem;
 
 use super::{drone_config::DroneConfig, drone_error::DroneError, drone_state::DroneState};
 use crate::{
     mqtt::{
-        client::Client,
-        client_message, messages_config,
-        publish::{
-            publish_config::PublishConfig,
-            publish_properties::{PublishProperties, TopicProperties},
-        },
+        client::Client, client_message, messages_config, publish::publish_config::PublishConfig,
     },
     utils::{location::Location, payload_types::PayloadTypes},
 };
@@ -447,7 +441,7 @@ mod tests {
             .unwrap();
             let target_location = location::Location::new(0.001, 0.001);
             let radius = 0.005;
-            drone.drone_movement(drone.location.clone(), radius, 100, target_location);
+            let _ = drone.drone_movement(drone.location.clone(), radius, 100, target_location);
 
             let distance_from_center =
                 ((drone.location.lat).powi(2) + (drone.location.long).powi(2)).sqrt();
@@ -500,7 +494,7 @@ mod tests {
             {
                 let mut drone = drone.lock().unwrap();
                 let drone_location = drone.location.clone();
-                drone.drone_movement(drone_location.clone(), 0.005, 100, target_location);
+                let _ = drone.drone_movement(drone_location.clone(), 0.005, 100, target_location);
             }
             let drone = drone_clone2.lock().unwrap();
 
@@ -730,7 +724,7 @@ mod tests {
             let longitude = 0.0;
             let location = location::Location::new(latitude, longitude);
             let center_location = location::Location::new(0.0, 0.0);
-            let mut drone = Drone::new(
+            let drone = Drone::new(
                 1,
                 location,
                 center_location,
