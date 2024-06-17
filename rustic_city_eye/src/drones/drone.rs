@@ -182,7 +182,7 @@ impl Drone {
     ///
     /// Lo que se hace es generar una direccion de movimiento(utilizando rand),
     /// y se intenta generar la nueva posicion, siempre respetando el area de operacion
-    /// del Drone.
+    /// del Drone (center_lat).
     ///
     /// Si se generase una posicion que esta por fuera del area, se van a
     /// generar las direcciones aleatorias que sean necesarias hasta obtener una que nos
@@ -190,19 +190,20 @@ impl Drone {
     ///
     /// Se utiliza la tasa de movimiento del Drone, que viene definida en la configuracion:
     /// la idea es que el Drone se mueva cada cierto intervalo de tiempo definido por esta tasa de movimiento.
+    ///
     fn drone_movement(
         &mut self,
-        location: Location,
+        center_location: Location,
         radius: f64,
         movement_rate: i64,
         target_location: Location,
     ) -> Result<(), DroneError> {
-        let center_lat = location.lat;
-        let center_long = location.long;
+        let center_lat = center_location.lat;
+        let center_long = center_location.long;
         let target_lat = target_location.lat;
         let target_long = target_location.long;
-        let mut current_lat = location.lat;
-        let mut current_long = location.long;
+        let mut current_lat = self.location.lat;
+        let mut current_long = self.location.long;
         let mut last_move_time = Utc::now();
 
         loop {
@@ -254,6 +255,8 @@ impl Drone {
                     let _ = self.send_to_client_channel.send(Box::new(publish_config));
 
                     if self.drone_state == DroneState::LowBatteryLevel {
+                        //en el caso de tener poca bateria, se guarda su ubi actual, va a cagarse y vuelve
+                        let former_location = self.location.clone();
                         match self.drone_movement(
                             self.location.clone(),
                             radius,
@@ -268,7 +271,17 @@ impl Drone {
                         match self.charge_battery() {
                             Ok(state) => {
                                 self.drone_state = state;
-                                return Ok(());
+                                match self.drone_movement(
+                                    self.location.clone(),
+                                    radius,
+                                    movement_rate,
+                                    former_location,
+                                ) {
+                                    Ok(_) => (),
+                                    Err(e) => {
+                                        println!("Error moving drone: {:?}", e);
+                                    }
+                                };
                             }
                             Err(e) => {
                                 println!("Error charging drone: {:?}", e);
@@ -696,6 +709,59 @@ mod tests {
             let distance_from_center =
                 ((new_location.lat - 0.0).powi(2) + (new_location.long - 0.0).powi(2)).sqrt();
             assert!(distance_from_center <= 0.005);
+        });
+    }
+
+    #[test]
+
+    fn test_volver_a_pos_original_despues_de_cargarse() {
+        let args = vec!["127.0.0.1".to_string(), "5000".to_string()];
+        let mut broker = match Broker::new(args) {
+            Ok(broker) => broker,
+            Err(e) => {
+                panic!("Error creating broker: {:?}", e)
+            }
+        };
+        thread::spawn(move || {
+            let _ = broker.server_run();
+        });
+        thread::spawn(move || {
+            let latitude = 0.0;
+            let longitude = 0.0;
+            let location = location::Location::new(latitude, longitude);
+            let center_location = location::Location::new(0.0, 0.0);
+            let mut drone = Drone::new(
+                1,
+                location,
+                center_location,
+                "./src/drones/drone_config.json",
+                "127.0.0.1:5000".to_string(),
+            )
+            .unwrap();
+
+            //thread de descarga de bateria
+            let mut drone_clone = drone.clone();
+            let _ = thread::spawn(move || {
+                let _ = drone_clone.battery_discharge();
+            });
+
+            let movimiento = thread::spawn(move || {
+                let target_location = location::Location::new(0.001, 0.001);
+                let radius = 0.005;
+                let former_location = drone.location.clone();
+                let drone_clone = drone.clone();
+                let _ = drone.drone_movement(
+                    drone.location.clone(),
+                    radius,
+                    100,
+                    target_location.clone(),
+                );
+                if (drone.get_state() == DroneState::LowBatteryLevel) {
+                    assert_ne!(drone_clone.location, target_location.clone());
+                }
+
+                assert_eq!(drone_clone.location, target_location.clone());
+            });
         });
     }
 
