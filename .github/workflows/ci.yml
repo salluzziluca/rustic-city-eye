@@ -16,8 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - name: Install GTK
-      run: sudo apt-get install libgtk-3-dev
     - name: libsoup
       run: |
         sudo apt update
@@ -43,6 +41,9 @@ jobs:
         mkdir -p $HOME/.local/bin
         mkdir -p $HOME/.local/lib/pkgconfig
         echo "PKG_CONFIG_PATH=$HOME/.local/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+      working-directory: rustic_city_eye
+    - name: Clean
+      run: cargo clean
       working-directory: rustic_city_eye
     - name: Build
       run: cargo build --verbose
