@@ -60,9 +60,10 @@ impl Broker {
 
         let packets = HashMap::new();
 
-        // todo: configurar el server
-        // let pem_certs = load_pem_certs::load_pem_certs(Path::new("./src/mqtt/cert/ca_bundle.pem"))?;
-        // let server_config = ServerConfig::builder().with_no_client_auth().with_single_cert(pem_certs, key_der)?;
+        let pem_certs = load_pem_certs::load_pem_certs(Path::new("./src/mqtt/cert/ca_bundle.pem"))?;
+        let private_key = load_pem_certs::load_pem_key(Path::new("./src/mqtt/cert/private_key.pem"))?;
+
+        let _server_config = ServerConfig::builder().with_no_client_auth().with_single_cert(pem_certs, private_key);
 
         Ok(Broker {
             address,

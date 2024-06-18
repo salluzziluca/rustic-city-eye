@@ -1,7 +1,7 @@
 
 use std::{fs::File, io::BufReader, path::Path};
 
-use rustls::pki_types::CertificateDer;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 
 use crate::mqtt::protocol_error::ProtocolError;
 
@@ -21,4 +21,46 @@ pub fn load_pem_certs(path: &Path) -> Result<Vec<CertificateDer<'static>>, Proto
             Err(_) => Err(ProtocolError::ReadingPEMCertsError),
         })
         .collect()
+}
+
+
+pub fn load_pem_key(path: &Path) -> Result<PrivateKeyDer<'static>, ProtocolError> {
+    let certs_file = File::open(path).map_err(|_| ProtocolError::ReadingPEMCertsError)?;
+    let mut reader = BufReader::new(certs_file);
+
+    match rustls_pemfile::private_key(&mut reader) {
+        Ok(key) => {
+            if let Some(k) = key {
+                return Ok(k);
+            }
+        },
+        Err(_) => return Err(ProtocolError::ReadingPEMCertsError),
+    };
+    Err(ProtocolError::ReadingPEMCertsError)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::utils::load_pem_certs;
+use super::*;
+
+    #[test]
+    fn test_01_reading_pem_file_ok() -> Result<(), ProtocolError> {
+        let path = Path::new("./src/mqtt/cert/ca_bundle.pem");
+        let certs = load_pem_certs::load_pem_certs(path);
+
+        assert!(certs.is_ok());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_02_reading_private_key_ok() -> Result<(), ProtocolError> {
+        let path = Path::new("./src/mqtt/cert/private_key.pem");
+        let private_key = load_pem_certs::load_pem_key(path);
+
+       assert!(private_key.is_ok());
+
+        Ok(())
+    }
 }
