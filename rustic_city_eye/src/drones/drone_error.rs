@@ -22,7 +22,10 @@ impl fmt::Display for DroneError {
                 write!(f, "Error: no se ha podido encontrar el centro de drones.")
             }
             DroneError::ProtocolError(ref err) => write!(f, "Error de protocolo: {}", err),
-            DroneError::BatteryEmpty => write!(f, "Error: la bateria del dron está completamente descargada."),
+            DroneError::BatteryEmpty => write!(
+                f,
+                "Error: la bateria del dron está completamente descargada."
+            ),
         }
     }
 }

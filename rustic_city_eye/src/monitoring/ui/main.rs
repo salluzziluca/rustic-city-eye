@@ -1,4 +1,5 @@
 mod camera_view;
+mod drone_center_view;
 mod drone_view;
 mod incident_view;
 mod plugins;
@@ -22,6 +23,7 @@ struct MyMap {
     incidents: Vec<incident_view::IncidentView>,
     drones: Vec<drone_view::DroneView>,
     drone_icon: ImagesPluginData,
+    drone_centers: Vec<drone_center_view::DroneCenterView>,
     drone_center_icon: ImagesPluginData,
     zoom_level: f32,
 }
@@ -145,6 +147,11 @@ impl MyApp {
                     &mut self.map.drones,
                     self.map.zoom_level,
                     last_clicked,
+                ))
+                .with_plugin(drone_centers(
+                    &mut self.map.drone_centers,
+                    self.map.zoom_level,
+                    last_clicked,
                 )),
             );
             zoom(ui, &mut self.map.map_memory, &mut self.map.zoom_level);
@@ -220,6 +227,7 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
             camera_radius: circle_icon,
             drones: vec![],
             drone_icon,
+            drone_centers: vec![],
             drone_center_icon,
             zoom_level: 1.0,
         },

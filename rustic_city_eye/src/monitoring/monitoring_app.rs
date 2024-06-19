@@ -111,10 +111,10 @@ impl MonitoringApp {
         }
     }
 
-    pub fn add_drone_center(&mut self, location: Location) -> u32{
-        match self.drone_system.add_drone_center(location){
+    pub fn add_drone_center(&mut self, location: Location) -> u32 {
+        match self.drone_system.add_drone_center(location) {
             Ok(id) => id,
-            Err(_) => 0
+            Err(_) => 0,
         }
     }
     pub fn get_cameras(&self) -> Vec<Camera> {

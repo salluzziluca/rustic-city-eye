@@ -4,8 +4,8 @@ use walkers::{
     Plugin, Position, Projector,
 };
 
-use crate::incident_view::IncidentView;
 use crate::{camera_view::CameraView, drone_view::DroneView};
+use crate::{drone_center_view::DroneCenterView, incident_view::IncidentView};
 
 #[derive(Default, Clone)]
 pub struct ClickWatcher {
@@ -132,6 +132,32 @@ pub fn drones(
             image.scale(
                 drone.image.x_scale * zoom_level,
                 drone.image.y_scale * zoom_level,
+            );
+        }
+        images_vec.push(image);
+    }
+    Images::new(images_vec)
+}
+
+pub fn drone_centers(
+    drone_centers: &mut Vec<DroneCenterView>,
+    zoom_level: f32,
+    last_clicked: Option<Position>,
+) -> impl Plugin {
+    let mut images_vec = vec![];
+
+    for drone_center in drone_centers {
+        let mut image = Image::new(drone_center.image.texture.clone(), drone_center.position);
+
+        if drone_center.select(last_clicked) {
+            image.scale(
+                drone_center.image.x_scale * zoom_level * 1.5,
+                drone_center.image.y_scale * zoom_level * 1.5,
+            );
+        } else {
+            image.scale(
+                drone_center.image.x_scale * zoom_level,
+                drone_center.image.y_scale * zoom_level,
             );
         }
         images_vec.push(image);
