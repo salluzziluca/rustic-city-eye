@@ -173,31 +173,31 @@ impl App for MyApp {
 
 fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
     egui_extras::install_image_loaders(&cc.egui_ctx);
-    let camera_bytes = include_bytes!("assets/Camera.png");
+    let camera_bytes = include_bytes!("../assets/Camera.png");
     let camera_icon = match Texture::new(camera_bytes, &cc.egui_ctx) {
         Ok(t) => ImagesPluginData::new(t, 1.0, 0.1), // Initialize with zoom level 1.0
         Err(_) => todo!(),
     };
 
-    let incident_bytes = include_bytes!("assets/Incident.png");
+    let incident_bytes = include_bytes!("../assets/Incident.png");
     let incident_icon = match Texture::new(incident_bytes, &cc.egui_ctx) {
         Ok(t) => ImagesPluginData::new(t, 1.0, 0.15), // Initialize with zoom level 1.0
         Err(_) => todo!(),
     };
 
-    let drone_bytes = include_bytes!("assets/Drone.png");
+    let drone_bytes = include_bytes!("../assets/Drone.png");
     let drone_icon = match Texture::new(drone_bytes, &cc.egui_ctx) {
         Ok(t) => ImagesPluginData::new(t, 1.0, 0.08), // Initialize with zoom level 1.0
         Err(_) => todo!(),
     };
 
-    let drone_center_bytes = include_bytes!("assets/DroneCenter.png");
+    let drone_center_bytes = include_bytes!("../assets/DroneCenter.png");
     let drone_center_icon = match Texture::new(drone_center_bytes, &cc.egui_ctx) {
         Ok(t) => ImagesPluginData::new(t, 1.0, 0.1), // Initialize with zoom level 1.0
         Err(_) => todo!(),
     };
 
-    let circle_bytes = include_bytes!("assets/circle.png");
+    let circle_bytes = include_bytes!("../assets/circle.png");
     let circle_icon = match Texture::new(circle_bytes, &cc.egui_ctx) {
         Ok(t) => ImagesPluginData::new(t, 1.0, 0.2), // Initialize with zoom level 1.0
         Err(_) => todo!(),
