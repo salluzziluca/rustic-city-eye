@@ -7,7 +7,7 @@ use rand::Rng;
 
 use crate::{
     mqtt::{
-        client::Client, client_message, messages_config::MessagesConfig, payload,
+        client::Client, client_message, messages_config::MessagesConfig,
         protocol_error::ProtocolError, subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
     },
@@ -101,10 +101,10 @@ impl CameraSystem {
                 topic_name: _,
                 payload,
                 properties: _,
-                packet_id,
-                qos,
-                retain_flag,
-                dup_flag,
+                packet_id: _,
+                qos: _,
+                retain_flag: _,
+                dup_flag: _,
             } => {
                 if let PayloadTypes::IncidentLocation(payload) = payload {
                     let location = payload.get_incident().get_location();
@@ -153,7 +153,6 @@ mod tests {
 
     use crate::mqtt::broker::Broker;
     use crate::mqtt::client_message::ClientMessage;
-    use crate::utils::location;
 
     use super::*;
     #[test]

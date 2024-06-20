@@ -1,7 +1,4 @@
-use std::{
-    env,
-    sync::{mpsc, Arc, Mutex},
-};
+use std::sync::{mpsc, Arc, Mutex};
 
 use chrono::Utc;
 
@@ -43,6 +40,7 @@ pub struct Drone {
 
     send_to_client_channel: mpsc::Sender<Box<dyn messages_config::MessagesConfig + Send>>,
 
+    #[allow(dead_code)]
     recieve_from_client: Arc<Mutex<mpsc::Receiver<ClientMessage>>>,
 }
 
@@ -317,17 +315,11 @@ mod tests {
     use std::{
         sync::{Arc, Condvar, Mutex},
         thread,
-        time::Duration,
     };
 
     use crate::{mqtt::broker::Broker, utils::location};
 
     use super::*;
-
-    // Helper function to wait for the server to start
-    fn wait_for_server_to_start() {
-        thread::sleep(Duration::from_millis(100));
-    }
 
     #[test]
     fn test_01_drone_low_battery_level_state_ok() {

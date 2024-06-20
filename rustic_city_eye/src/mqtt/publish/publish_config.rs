@@ -4,10 +4,8 @@ use serde::Deserialize;
 
 use crate::{
     mqtt::{
-        client_message::{ClientMessage, Connect},
-        messages_config::MessagesConfig,
-        protocol_error::ProtocolError,
-        publish::publish_properties::PublishProperties,
+        client_message::ClientMessage, messages_config::MessagesConfig,
+        protocol_error::ProtocolError, publish::publish_properties::PublishProperties,
     },
     utils::payload_types::PayloadTypes,
 };

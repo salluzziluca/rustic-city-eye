@@ -32,6 +32,7 @@ pub struct Client {
     // user_id: u32,
     pub packets_ids: Arc<Mutex<Vec<u16>>>,
 
+    #[allow(dead_code)]
     sender_channel: Arc<Mutex<Sender<ClientMessage>>>,
 }
 
