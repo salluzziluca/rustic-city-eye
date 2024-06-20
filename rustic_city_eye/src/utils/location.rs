@@ -27,7 +27,6 @@ impl Location {
 
     /// Recive una ubicacion y calcula la distancia euclideana entre esta y la ubicacion de la propia location
     pub fn distance(&self, location: Location) -> f64 {
-        
         ((location.get_latitude() - self.get_latitude()).powi(2)
             + (location.get_longitude() - self.get_longitude()).powi(2))
         .sqrt()
@@ -36,6 +35,8 @@ impl Location {
 
 #[cfg(test)]
 mod tests {
+    use std::f64::consts::SQRT_2;
+
     use super::*;
 
     #[test]
@@ -49,6 +50,6 @@ mod tests {
     fn test_distance() {
         let location = Location::new(1.0, 2.0);
         let location2 = Location::new(2.0, 3.0);
-        assert_eq!(location.distance(location2), 1.4142135623730951);
+        assert_eq!(location.distance(location2), SQRT_2);
     }
 }
