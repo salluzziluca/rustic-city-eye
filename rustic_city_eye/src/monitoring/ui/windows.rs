@@ -90,12 +90,11 @@ pub fn add_drone_center_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Mo
                 if ui.button(RichText::new("📡").heading()).clicked() {
                     if let Some(position) = map.click_watcher.clicked_at {
                         let location = Location::new(position.lat(), position.lon());
-                        let id = monitoring_app.add_drone_center(location);
+                        monitoring_app.add_drone_center(location);
                         map.drone_centers.push(DroneCenterView {
                             image: map.drone_center_icon.clone(),
                             position,
                             clicked: false,
-                            id,
                         });
                     }
                 }
