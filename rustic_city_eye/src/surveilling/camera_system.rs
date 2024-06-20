@@ -95,7 +95,13 @@ impl CameraSystem {
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
         self.camera_system_client.client_run()?;
 
-        let reciever = self.reciev_from_client.recv().unwrap();
+        let reciever = match self.reciev_from_client.try_recv() {
+            Ok(reciever) => reciever,
+            Err(e) => {
+                println!("Error receiving message: {:?}", e);
+                return Err(ProtocolError::ChanellError);
+            }
+        };
         match reciever {
             client_message::ClientMessage::Publish {
                 topic_name: _,
@@ -359,33 +365,23 @@ mod tests {
             );
             let incident_location = Location::new(1.0, 2.0);
             camera_system.activate_cameras(incident_location).unwrap();
-            assert!(
-                camera_system.get_camera_by_id(id).unwrap().get_sleep_mode()
-            );
-            assert!(
-                !camera_system
-                    .get_camera_by_id(id2)
-                    .unwrap()
-                    .get_sleep_mode()
-            );
-            assert!(
-                !camera_system
-                    .get_camera_by_id(id3)
-                    .unwrap()
-                    .get_sleep_mode()
-            );
-            assert!(
-                camera_system
-                    .get_camera_by_id(id4)
-                    .unwrap()
-                    .get_sleep_mode()
-            );
-            assert!(
-                !camera_system
-                    .get_camera_by_id(id5)
-                    .unwrap()
-                    .get_sleep_mode()
-            );
+            assert!(camera_system.get_camera_by_id(id).unwrap().get_sleep_mode());
+            assert!(!camera_system
+                .get_camera_by_id(id2)
+                .unwrap()
+                .get_sleep_mode());
+            assert!(!camera_system
+                .get_camera_by_id(id3)
+                .unwrap()
+                .get_sleep_mode());
+            assert!(camera_system
+                .get_camera_by_id(id4)
+                .unwrap()
+                .get_sleep_mode());
+            assert!(!camera_system
+                .get_camera_by_id(id5)
+                .unwrap()
+                .get_sleep_mode());
         });
         match handle.join() {
             Ok(_) => {}
