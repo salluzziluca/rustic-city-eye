@@ -138,7 +138,11 @@ impl MessagesConfig for Connect {
         ClientMessage::Connect(self.clone())
     }
 }
-
+impl MessagesConfig for ClientMessage {
+    fn parse_message(&self, _packet_id: u16) -> ClientMessage {
+        self.clone()
+    }
+}
 impl Connect {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -1194,5 +1198,13 @@ mod tests {
             connect_message,
             ClientMessage::Connect(connect_config.clone())
         );
+    }
+
+    #[test]
+    fn test_parse_pingreq() {
+        let pingreq = ClientMessage::Pingreq;
+        let pingreq_message = pingreq.parse_message(1);
+
+        assert_eq!(pingreq_message, ClientMessage::Pingreq);
     }
 }

@@ -1,6 +1,7 @@
 //! Se conecta mediante TCP a la dirección asignada por los args que le ingresan
 //! en su constructor.
 
+use std::collections::HashMap;
 use std::sync::mpsc::{self, Sender};
 
 use crate::drones::drone_system::DroneSystem;
@@ -36,14 +37,8 @@ impl MonitoringApp {
             client_message::Connect::read_connect_config("./src/monitoring/connect_config.json")?;
 
         let address = args[2].to_string() + ":" + &args[3].to_string();
-        let camera_system_args = vec![
-            args[2].clone(),
-            args[3].clone(),
-            "camera_system".to_string(),
-            "CamareandoCamaritasForever".to_string(),
-        ];
 
-        let camera_system = CameraSystem::new(camera_system_args)?;
+        let camera_system = CameraSystem::new(address.clone())?;
         let drone_system = DroneSystem::new(
             "src/drone_system/drone_config.json".to_string(),
             address.clone(),
@@ -114,7 +109,7 @@ impl MonitoringApp {
     pub fn add_drone_center(&mut self, location: Location) {
         let _ = self.drone_system.add_drone_center(location);
     }
-    pub fn get_cameras(&self) -> Vec<Camera> {
+    pub fn get_cameras(&self) -> HashMap<u32, Camera> {
         self.camera_system.get_cameras().clone()
     }
 

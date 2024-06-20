@@ -706,8 +706,19 @@ mod tests {
         });
     }
 
+    /// Esta función de prueba simula el comportamiento de un dron cuando su batería se descarga.
+    ///
+    /// La prueba comienza creando un nuevo broker y ejecutándolo en un hilo separado.
+    /// Luego, crea un dron en una ubicación específica e inicia un hilo para simular la descarga de la batería.
+    ///
+    /// En otro hilo, el dron se mueve hacia una ubicación objetivo hasta que su nivel de batería es bajo.
+    /// Cuando el nivel de batería del dron es bajo, verifica que la ubicación del dron no sea la misma que la ubicación objetivo.
+    /// Esto se debe a que el dron deberia estar en camino o yendo hacia el centro de carga debido a su nivel de bateria
+    ///
+    /// Después de que el nivel de batería del dron es bajo, deja de mover el dron y verifica que la ubicación del dron sea la misma que la ubicación objetivo.
+    /// Esto se debe a que el dron debería haber regresado a la ubicación objetivo después de que su batería se descargó.
+    ///
     #[test]
-
     fn test_volver_a_pos_original_despues_de_cargarse() {
         let args = vec!["127.0.0.1".to_string(), "5000".to_string()];
         let mut broker = match Broker::new(args) {
