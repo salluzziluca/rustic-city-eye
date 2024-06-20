@@ -686,7 +686,7 @@ pub fn handle_message(
                         retain_flag,
                         dup_flag,
                         properties,
-                        payload: payload,
+                        payload,
                     })
                     .unwrap();
                 Ok(ClientReturn::PublishDeliveryRecieved)
