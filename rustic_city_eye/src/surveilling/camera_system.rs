@@ -95,7 +95,7 @@ impl CameraSystem {
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
         self.camera_system_client.client_run()?;
 
-        let reciever = match self.reciev_from_client.try_recv() {
+        let reciever = match self.reciev_from_client.recv() {
             Ok(reciever) => reciever,
             Err(e) => {
                 println!("Error receiving message: {:?}", e);
