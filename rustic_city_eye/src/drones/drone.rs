@@ -5,7 +5,10 @@ use chrono::Utc;
 use super::{drone_config::DroneConfig, drone_error::DroneError, drone_state::DroneState};
 use crate::{
     mqtt::{
-        client::Client, client_message, messages_config, publish::publish_config::PublishConfig,
+        client::Client,
+        client_message::{self, ClientMessage},
+        messages_config,
+        publish::publish_config::PublishConfig,
     },
     utils::{location::Location, payload_types::PayloadTypes},
 };
@@ -36,6 +39,8 @@ pub struct Drone {
     battery_level: i64,
 
     send_to_client_channel: mpsc::Sender<Box<dyn messages_config::MessagesConfig + Send>>,
+
+    recieve_from_client: Arc<Mutex<mpsc::Receiver<ClientMessage>>>,
 }
 
 impl Drone {
@@ -55,8 +60,9 @@ impl Drone {
             Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
         };
         let (tx, rx) = mpsc::channel();
+        let (tx2, rx2) = mpsc::channel();
 
-        let drone_client = match Client::new(rx, address, connect_config) {
+        let drone_client = match Client::new(rx, address, connect_config, tx2) {
             Ok(client) => client,
             Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
         };
@@ -69,6 +75,7 @@ impl Drone {
             drone_client,
             battery_level: 100,
             send_to_client_channel: tx,
+            recieve_from_client: Arc::new(Mutex::new(rx2)),
         })
     }
 

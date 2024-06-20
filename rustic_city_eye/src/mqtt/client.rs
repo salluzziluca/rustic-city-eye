@@ -31,6 +31,8 @@ pub struct Client {
     pub subscriptions: Arc<Mutex<HashMap<String, u8>>>,
     // user_id: u32,
     pub packets_ids: Arc<Mutex<Vec<u16>>>,
+
+    sender_channel: Arc<Mutex<Sender<ClientMessage>>>,
 }
 
 impl Client {
@@ -48,6 +50,7 @@ impl Client {
         receiver_channel: Receiver<Box<dyn MessagesConfig + Send>>,
         address: String,
         connect: client_message::Connect,
+        sender_channel: Sender<ClientMessage>,
     ) -> Result<Client, ProtocolError> {
         let stream = match TcpStream::connect(address) {
             Ok(stream) => Arc::new(Mutex::new(stream)),
@@ -87,6 +90,7 @@ impl Client {
                                 stream: stream_clone,
                                 subscriptions: Arc::new(Mutex::new(HashMap::new())),
                                 packets_ids: Arc::new(Mutex::new(Vec::new())),
+                                sender_channel: Arc::new(Mutex::new(sender_channel)),
                             })
                         }
                         _ => {

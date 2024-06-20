@@ -2,11 +2,11 @@
 //! en su constructor.
 
 use std::collections::HashMap;
-use std::sync::mpsc::{self, Sender};
+use std::sync::mpsc::{self, Receiver, Sender};
 
 use crate::drones::drone_system::DroneSystem;
 use crate::monitoring::incident::Incident;
-use crate::mqtt::client_message;
+use crate::mqtt::client_message::{self, ClientMessage};
 use crate::mqtt::messages_config::MessagesConfig;
 use crate::mqtt::publish::publish_config::PublishConfig;
 use crate::mqtt::publish::publish_properties::{PublishProperties, TopicProperties};
@@ -25,6 +25,7 @@ pub struct MonitoringApp {
     camera_system: CameraSystem,
     incidents: Vec<Incident>,
     drone_system: DroneSystem,
+    recieve_from_client: Receiver<ClientMessage>,
 }
 
 #[allow(dead_code)]
@@ -44,16 +45,18 @@ impl MonitoringApp {
             address.clone(),
         );
         let (tx, rx) = mpsc::channel();
+        let (tx2, rx2) = mpsc::channel();
 
         let monitoring_app = MonitoringApp {
             send_to_client_channel: tx,
             incidents: Vec::new(),
             camera_system,
-            monitoring_app_client: match Client::new(rx, address, connect_config) {
+            monitoring_app_client: match Client::new(rx, address, connect_config, tx2) {
                 Ok(client) => client,
                 Err(err) => return Err(err),
             },
             drone_system,
+            recieve_from_client: rx2,
         };
 
         Ok(monitoring_app)
