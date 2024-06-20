@@ -12,7 +12,10 @@
         "request_response_information": true,
         "request_problem_information": true,
         "user_properties": [
-            []
+            [
+                "hola",
+                "chau"
+            ]
         ],
         "authentication_method": "password-based",
         "authentication_data": [
@@ -21,7 +24,7 @@
             3
         ]
     },
-    "client_id": "kvtr33",
+    "client_id": "camera_system",
     "will_properties": {
         "last_will_delay_interval": 1,
         "payload_format_indicator": 1,
@@ -42,8 +45,33 @@
     },
     "last_will_topic": "camera system",
     "last_will_message": "soy el monitoring y me desconecte",
-    "username": "a",
+    "username": "sistema_camaras",
     "password": [
-        97
+        67,
+        97,
+        109,
+        97,
+        114,
+        101,
+        97,
+        110,
+        100,
+        111,
+        67,
+        97,
+        109,
+        97,
+        114,
+        105,
+        116,
+        97,
+        115,
+        70,
+        111,
+        114,
+        101,
+        118,
+        101,
+        114
     ]
 }

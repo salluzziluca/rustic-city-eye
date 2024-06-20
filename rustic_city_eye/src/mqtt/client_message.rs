@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::mqtt::subscribe_properties::SubscribeProperties;
 use crate::utils::payload_types::PayloadTypes;
+use std::env;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Error, ErrorKind, Read, Write};
 
@@ -191,9 +192,14 @@ impl Connect {
     }
     /// Abre un archivo de configuracion con propiedades y guarda sus lecturas.
     pub fn read_connect_config(file_path: &str) -> Result<Connect, ProtocolError> {
+        let current_dir = env::current_dir().unwrap();
+        println!("Current directory: {}", current_dir.display());
         let config_file = match File::open(file_path) {
             Ok(file) => file,
-            Err(_) => return Err(ProtocolError::ReadingConfigFileError),
+            Err(e) => {
+                println!("AAAAAAAAAA{:?}", e);
+                return Err(ProtocolError::ReadingConfigFileError);
+            }
         };
 
         let reader: BufReader<File> = BufReader::new(config_file);

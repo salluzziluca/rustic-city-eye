@@ -148,6 +148,7 @@ impl CameraSystem {
 #[cfg(test)]
 
 mod tests {
+    use std::sync::{Arc, Condvar, Mutex};
     use std::thread;
 
     use crate::mqtt::broker::Broker;
@@ -313,18 +314,33 @@ mod tests {
 
     #[test]
     fn test07_activar_multiples_camaras() {
-        let args = vec!["127.0.0.1".to_string(), "5000".to_string()];
-        let addr = "127.0.0.1:5000";
+        let args = vec!["127.0.0.1".to_string(), "5005".to_string()];
         let mut broker = match Broker::new(args) {
             Ok(broker) => broker,
-            Err(e) => {
-                panic!("Error creating broker: {:?}", e)
-            }
+            Err(e) => panic!("Error creating broker: {:?}", e),
         };
-        let handle1 = thread::spawn(move || {
-            _ = broker.server_run();
+
+        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+        let server_ready_clone = server_ready.clone();
+        thread::spawn(move || {
+            {
+                let (lock, cvar) = &*server_ready_clone;
+                let mut ready = lock.lock().unwrap();
+                *ready = true;
+                cvar.notify_all();
+            }
+            let _ = broker.server_run();
         });
 
+        // Wait for the server to start
+        {
+            let (lock, cvar) = &*server_ready;
+            let mut ready = lock.lock().unwrap();
+            while !*ready {
+                ready = cvar.wait(ready).unwrap();
+            }
+        }
+        let addr = "127.0.0.1:5005";
         let handle = thread::spawn(move || {
             let mut camera_system = CameraSystem::new(addr.to_string()).unwrap();
             let location = Location::new(1.0, 20.0);

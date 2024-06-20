@@ -28,7 +28,7 @@ impl Worker {
                     Ok(job) => job,
                     Err(err) => {
                         println!("Failed to receive job: {:?}", err);
-                        continue;
+                        return;
                     }
                 },
                 Err(err) => {
