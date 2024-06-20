@@ -844,7 +844,7 @@ mod tests {
                 lat: 1.0,
                 long: 1.0,
             };
-            let _ = match drone.drone_movement(
+            match drone.drone_movement(
                 drone.location.clone(),
                 drone.drone_config.get_operation_radius(),
                 drone.drone_config.get_movement_rate(),

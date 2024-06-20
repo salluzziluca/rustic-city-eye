@@ -27,10 +27,10 @@ impl Location {
 
     /// Recive una ubicacion y calcula la distancia euclideana entre esta y la ubicacion de la propia location
     pub fn distance(&self, location: Location) -> f64 {
-        let distancia = ((location.get_latitude() - self.get_latitude()).powi(2)
+        
+        ((location.get_latitude() - self.get_latitude()).powi(2)
             + (location.get_longitude() - self.get_longitude()).powi(2))
-        .sqrt();
-        distancia
+        .sqrt()
     }
 }
 

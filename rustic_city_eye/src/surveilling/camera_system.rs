@@ -134,7 +134,7 @@ impl CameraSystem {
         &mut self,
         message: Box<dyn MessagesConfig + Send>,
     ) -> Result<(), CameraError> {
-        let _ = match self.send_to_client_channel.send(message) {
+        match self.send_to_client_channel.send(message) {
             Ok(_) => {}
             Err(e) => {
                 println!("Error sending message: {:?}", e);
@@ -246,7 +246,7 @@ mod tests {
 
         thread::spawn(move || {
             let mut camera_system = CameraSystem::new(addr.to_string()).unwrap();
-            assert_eq!(camera_system.run_client().is_ok(), true);
+            assert!(camera_system.run_client().is_ok());
         });
     }
 
@@ -306,7 +306,7 @@ mod tests {
             let incident_location = Location::new(1.0, 2.0);
             camera_system.activate_cameras(incident_location).unwrap();
             for camera in camera_system.get_cameras().values() {
-                assert_eq!(camera.get_sleep_mode(), false);
+                assert!(!camera.get_sleep_mode());
             }
         });
     }
@@ -359,37 +359,32 @@ mod tests {
             );
             let incident_location = Location::new(1.0, 2.0);
             camera_system.activate_cameras(incident_location).unwrap();
-            assert_eq!(
-                camera_system.get_camera_by_id(id).unwrap().get_sleep_mode(),
-                true
+            assert!(
+                camera_system.get_camera_by_id(id).unwrap().get_sleep_mode()
             );
-            assert_eq!(
-                camera_system
+            assert!(
+                !camera_system
                     .get_camera_by_id(id2)
                     .unwrap()
-                    .get_sleep_mode(),
-                false
+                    .get_sleep_mode()
             );
-            assert_eq!(
-                camera_system
+            assert!(
+                !camera_system
                     .get_camera_by_id(id3)
                     .unwrap()
-                    .get_sleep_mode(),
-                false
+                    .get_sleep_mode()
             );
-            assert_eq!(
+            assert!(
                 camera_system
                     .get_camera_by_id(id4)
                     .unwrap()
-                    .get_sleep_mode(),
-                true
+                    .get_sleep_mode()
             );
-            assert_eq!(
-                camera_system
+            assert!(
+                !camera_system
                     .get_camera_by_id(id5)
                     .unwrap()
-                    .get_sleep_mode(),
-                false
+                    .get_sleep_mode()
             );
         });
         match handle.join() {
