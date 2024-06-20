@@ -33,9 +33,9 @@ impl DroneSystem {
 
         // let mut id = rng.gen();
 
-        let mut id  = 0;
+        let mut id = 0;
         while self.drone_centers.contains_key(&id) {
-            id = id+1;
+            id = id + 1;
         }
 
         let drone_center = DroneCenter::new(
@@ -159,20 +159,17 @@ mod tests {
         });
 
         let t1 = thread::spawn(move || {
-            let mut drone_system = DroneSystem::new(
-                "src/drone_system/drone_config.json".to_string(),
-                addr.to_string(),
-            );
+            let mut drone_system =
+                DroneSystem::new("src/drones/drone_config.json".to_string(), addr.to_string());
             let location = location::Location::new(0.0, 0.0);
             let id = drone_system.add_drone_center(location);
 
             let location = location::Location::new(0.0, 0.0);
             match drone_system.add_drone(location, id.unwrap()) {
                 Ok(_) => (),
-                Err(e) => panic!("Error adding drone: {:?}", e)
+                Err(e) => panic!("Error adding drone: {:?}", e),
             };
         });
         t1.join().unwrap();
     }
-
 }

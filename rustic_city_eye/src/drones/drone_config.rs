@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 use super::drone_error::DroneError;
-use std::{fs::File, io::BufReader};
+use std::{env, fs::File, io::BufReader};
 
 /// Sirve para levantar la configuracion del Drone a partir del JSON.
 /// Pone a correr al Drone:
@@ -45,7 +45,15 @@ impl DroneConfig {
     fn read_drone_config(file_path: &str) -> Result<DroneConfig, DroneError> {
         let config_file = match File::open(file_path) {
             Ok(file) => file,
-            Err(_) => return Err(DroneError::ReadingConfigFileError),
+            Err(e) => {
+                let current_dir = env::current_dir().unwrap();
+                println!("Current directory: {}", current_dir.display());
+                println!(
+                    "Error al abrir el archivo de configuracion del Drone: {:?}",
+                    e,
+                );
+                return Err(DroneError::ReadingConfigFileError);
+            }
         };
 
         let reader: BufReader<File> = BufReader::new(config_file);
