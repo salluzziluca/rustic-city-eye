@@ -678,17 +678,17 @@ pub fn handle_message(
                     "PublishDelivery con id {} recibido, payload: {:?}",
                     packet_id, payload
                 );
-                sender_chanell
-                    .send(ClientMessage::Publish {
-                        packet_id,
-                        topic_name,
-                        qos,
-                        retain_flag,
-                        dup_flag,
-                        properties,
-                        payload,
-                    })
-                    .unwrap();
+                // sender_chanell
+                //     .send(ClientMessage::Publish {
+                //         packet_id,
+                //         topic_name,
+                //         qos,
+                //         retain_flag,
+                //         dup_flag,
+                //         properties,
+                //         payload,
+                //     })
+                //     .unwrap();
                 Ok(ClientReturn::PublishDeliveryRecieved)
             }
             BrokerMessage::Unsuback {

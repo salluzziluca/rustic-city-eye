@@ -219,10 +219,6 @@ mod tests {
         //agregar id 1 a pending messages
         //pending_messages.push(1);
         let (sender, _) = channel();
-        let (tx, _): (
-            std::sync::mpsc::Sender<bool>,
-            std::sync::mpsc::Receiver<bool>,
-        ) = channel();
 
         let (tx, _) = channel();
 
