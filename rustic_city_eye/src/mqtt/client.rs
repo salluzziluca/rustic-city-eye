@@ -594,7 +594,7 @@ pub fn handle_message(
     subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
     pending_messages: Vec<u16>,
     sender: Sender<bool>,
-    sender_chanell: Sender<ClientMessage>,
+    _sender_chanell_: Sender<ClientMessage>,
 ) -> Result<ClientReturn, ProtocolError> {
     if let Ok(message) = BrokerMessage::read_from(&mut stream) {
         match message {
@@ -667,11 +667,11 @@ pub fn handle_message(
             }
             BrokerMessage::PublishDelivery {
                 packet_id,
-                topic_name,
-                qos,
-                retain_flag,
-                dup_flag,
-                properties,
+                topic_name: _,
+                qos: _,
+                retain_flag: _,
+                dup_flag: _,
+                properties: _,
                 payload,
             } => {
                 println!(

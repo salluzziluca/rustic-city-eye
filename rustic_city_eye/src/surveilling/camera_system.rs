@@ -12,8 +12,7 @@ use crate::{
         subscribe_properties::SubscribeProperties,
     },
     surveilling::camera::Camera,
-    utils::location::Location,
-    utils::payload_types::PayloadTypes,
+    utils::{location::Location, payload_types::PayloadTypes},
 };
 
 const AREA_DE_ALCANCE: f64 = 10.0;
@@ -102,22 +101,18 @@ impl CameraSystem {
                 return Err(ProtocolError::ChanellError);
             }
         };
-        match reciever {
-            client_message::ClientMessage::Publish {
-                topic_name: _,
-                payload,
-                properties: _,
-                packet_id: _,
-                qos: _,
-                retain_flag: _,
-                dup_flag: _,
-            } => {
-                if let PayloadTypes::IncidentLocation(payload) = payload {
-                    let location = payload.get_incident().get_location();
-                    let _ = self.activate_cameras(location);
-                }
-            }
-            _ => {}
+        if let client_message::ClientMessage::Publish {
+            topic_name: _,
+            payload: PayloadTypes::IncidentLocation(payload),
+            properties: _,
+            packet_id: _,
+            qos: _,
+            retain_flag: _,
+            dup_flag: _,
+        } = reciever
+        {
+            let location = payload.get_incident().get_location();
+            let _ = self.activate_cameras(location);
         }
         Ok(())
     }
