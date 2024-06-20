@@ -24,6 +24,7 @@ pub enum PayloadTypes {
     IncidentLocation(IncidentPayload),
     WillPayload(String),
     LocationPayload(Location),
+    DroneLocation(u32, Location),
 }
 
 impl Payload for PayloadTypes {
@@ -44,6 +45,14 @@ impl Payload for PayloadTypes {
                 write_u8(stream, &3)?;
                 write_string(stream, &payload.get_latitude().to_string())?;
                 write_string(stream, &payload.get_longitude().to_string())?;
+
+                Ok(())
+            }
+            PayloadTypes::DroneLocation(drone_id, location) => {
+                write_u8(stream, &4)?;
+                write_string(stream, &drone_id.to_string())?;
+                write_string(stream, &location.get_latitude().to_string())?;
+                write_string(stream, &location.get_longitude().to_string())?;
 
                 Ok(())
             }
@@ -76,6 +85,20 @@ impl PayloadTypes {
                 let incident = Incident::new(location);
 
                 PayloadTypes::IncidentLocation(IncidentPayload::new(incident))
+            }
+            4 => {
+                let drone_id_string = read_string(stream)?;
+                let drone_id = drone_id_string.parse::<u32>().unwrap();
+
+                let longitude_string = read_string(stream)?;
+                let long = longitude_string.parse::<f64>().unwrap();
+
+                let latitude_string = read_string(stream)?;
+                let lat = latitude_string.parse::<f64>().unwrap();
+
+                let location = Location::new(lat, long);
+
+                PayloadTypes::DroneLocation(drone_id, location)
             }
             _ => {
                 return Err(Error::new(

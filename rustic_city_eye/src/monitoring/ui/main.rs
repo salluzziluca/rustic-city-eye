@@ -126,6 +126,8 @@ impl MyApp {
     fn handle_map(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         CentralPanel::default().show(ctx, |ui| {
             let last_clicked = self.map.click_watcher.clicked_at;
+            // self.map.drones = self.monitoring_app.update_drones_location()
+
             ui.add(
                 Map::new(
                     Some(&mut self.map.tiles),

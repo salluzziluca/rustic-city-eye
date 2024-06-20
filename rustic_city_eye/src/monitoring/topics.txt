@@ -3,3 +3,4 @@ mensajes para juan
 messi
 fulbito
 incidente
+drone_locations

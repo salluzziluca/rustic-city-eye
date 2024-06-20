@@ -6,6 +6,7 @@ pub struct DroneView {
     pub image: ImagesPluginData,
     pub position: Position,
     pub clicked: bool,
+    pub id: u32,
 }
 
 impl DroneView {

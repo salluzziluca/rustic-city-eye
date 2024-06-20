@@ -29,12 +29,13 @@ impl DroneSystem {
     ///
     /// Devuelve su id o DroneError en caso de error.
     pub fn add_drone_center(&mut self, location: Location) -> Result<u32, DroneError> {
-        let mut rng = rand::thread_rng();
+        // let mut rng = rand::thread_rng();
 
-        let mut id = rng.gen();
+        // let mut id = rng.gen();
 
+        let mut id  = 0;
         while self.drone_centers.contains_key(&id) {
-            id = rng.gen();
+            id = id+1;
         }
 
         let drone_center = DroneCenter::new(
@@ -142,4 +143,36 @@ mod tests {
             };
         });
     }
+
+    #[test]
+    fn test_04_connect_drone() {
+        let args = vec!["127.0.0.1".to_string(), "5000".to_string()];
+        let addr = "127.0.0.1:5000";
+        let mut broker = match Broker::new(args) {
+            Ok(broker) => broker,
+            Err(e) => {
+                panic!("Error creating broker: {:?}", e)
+            }
+        };
+        thread::spawn(move || {
+            let _ = broker.server_run();
+        });
+
+        let t1 = thread::spawn(move || {
+            let mut drone_system = DroneSystem::new(
+                "src/drone_system/drone_config.json".to_string(),
+                addr.to_string(),
+            );
+            let location = location::Location::new(0.0, 0.0);
+            let id = drone_system.add_drone_center(location);
+
+            let location = location::Location::new(0.0, 0.0);
+            match drone_system.add_drone(location, id.unwrap()) {
+                Ok(_) => (),
+                Err(e) => panic!("Error adding drone: {:?}", e)
+            };
+        });
+        t1.join().unwrap();
+    }
+
 }

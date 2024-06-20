@@ -46,12 +46,13 @@ impl DroneCenter {
     ///
     /// Retorna el ID del dron creado o DroneError en caso de error.
     pub fn add_drone(&mut self, location: Location) -> Result<u32, DroneError> {
-        let mut rng = rand::thread_rng();
+        // let mut rng = rand::thread_rng();
 
-        let mut id = rng.gen();
+        // let mut id = rng.gen();
 
+        let mut id = 0;
         while self.drones.contains_key(&id) {
-            id = rng.gen();
+            id = id +1;
         }
 
         let drone = Drone::new(
