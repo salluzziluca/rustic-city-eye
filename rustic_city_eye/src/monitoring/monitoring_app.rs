@@ -111,8 +111,8 @@ impl MonitoringApp {
         }
     }
 
-    pub fn add_drone_center(&mut self, location: Location) {
-        let _ = self.drone_system.add_drone_center(location);
+    pub fn add_drone_center(&mut self, location: Location) -> u32 {
+        self.drone_system.add_drone_center(location).map_or(0, |id| id)
     }
     pub fn get_cameras(&self) -> Vec<Camera> {
         self.camera_system.get_cameras().clone()

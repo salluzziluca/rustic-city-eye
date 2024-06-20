@@ -8,7 +8,7 @@ pub struct DroneCenterView {
     pub clicked: bool,
 }
 
-impl DroneView {
+impl DroneCenterView {
     pub fn select(&mut self, position: Option<Position>) -> bool {
         if let Some(position) = position {
             self.clicked = self.distance(position) < 0.001;
