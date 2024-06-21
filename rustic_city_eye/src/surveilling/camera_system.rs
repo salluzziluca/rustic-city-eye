@@ -46,6 +46,12 @@ impl<T: ClientTrait + Clone> Clone for CameraSystem<T> {
 }
 
 impl<T: ClientTrait + Clone> CameraSystem<T> {
+    /// Crea un nuevo camera system con un cliente de mqtt
+    ///
+    /// Envia un connect segun la configuracion del archivo connect_config.json
+    ///
+    /// Se subscribe a los mensajes de tipo "accidente"
+    ///
     pub fn new<F>(address: String, client_factory: F) -> Result<CameraSystem<T>, ProtocolError>
     where
         F: FnOnce(
@@ -114,6 +120,12 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
             self.cameras.get(keys[idx])
         }
     }
+
+    /// recibe los diferentes mensajes reenviados por el cliente.
+    ///
+    /// Si el mensaje es un publish con topic accidente, activa las camaras cercanas a la location del incidente.
+    ///
+    /// Si el mensaje es un publish con topic accidenteresuelto, desactiva las camaras cercanas a la location del incidente.
     pub fn run_client(
         &mut self,
         reciever: Option<Receiver<ClientMessage>>,
@@ -179,6 +191,9 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
     /// Recibe una location y activas todas las camaras que esten a menos de AREA_DE_ALCANCE de esta.
     ///
     /// Al activaralas se las pasa de modo ahorro de energia a modo activo
+    ///
+    /// Adicionalmente, cada camara activada despues avisa a las camaras colindantes para que,
+    /// si estan a la distancia requerida, tambien se activen.
     pub fn activate_cameras(&mut self, location: Location) -> Result<(), CameraError> {
         // Collect the locations that need to be activated first
         let locations_to_activate: Vec<Location> = self
@@ -203,6 +218,12 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
         Ok(())
     }
 
+    /// Recibe una location y activas todas las camaras que esten a menos de NIVEL_DE_PROXIMIDAD_MAXIMO de esta.
+    ///
+    /// Al activaralas se las pasa de modo ahorro de energia a modo activo
+    ///
+    /// Adicionalmente, cada camara activada despues avisa a las camaras colindantes para que,
+    /// si estan a la distancia requerida, tambien se activen.
     fn activate_cameras_by_camera_location(
         &mut self,
         location: Location,
@@ -226,6 +247,12 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
         Ok(())
     }
 
+    /// Recibe una location y desactiva todas las camaras que esten a menos de AREA_DE_ALCANCE de esta.
+    ///
+    /// Al desactivarlas se las pasa de modo activo a modo ahorro de energia
+    ///
+    /// Adicionalmente, cada camara desactivada despues avisa a las camaras colindantes para que,
+    /// si estan a la distancia requerida, tambien se desactiven.
     pub fn deactivate_cameras(&mut self, location: Location) -> Result<(), CameraError> {
         // Collect the locations that need to be activated first
         let locations_to_activate: Vec<Location> = self
@@ -250,6 +277,12 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
         Ok(())
     }
 
+    /// Recibe una location y desactiva todas las camaras que esten a menos de NIVEL_DE_PROXIMIDAD_MAXIMO de esta.
+    ///
+    /// Al desactivarlas se las pasa de modo activo a modo ahorro de energia
+    ///
+    /// Adicionalmente, cada camara desactivada despues avisa a las camaras colindantes para que,
+    /// si estan a la distancia requerida, tambien se desactiven.
     fn deactivate_cameras_by_camera_location(
         &mut self,
         location: Location,
@@ -273,6 +306,7 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
         Ok(())
     }
 
+    /// Envia un mensaje mediante el channel para que el cliente lo envie al broker
     pub fn send_message(
         &mut self,
         message: Box<dyn MessagesConfig + Send>,
