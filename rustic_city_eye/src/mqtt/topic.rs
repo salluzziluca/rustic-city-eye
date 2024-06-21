@@ -1,10 +1,5 @@
 use std::fmt::Debug;
-use std::io::Error;
 use std::sync::{Arc, RwLock};
-
-use crate::mqtt::broker_message::BrokerMessage;
-
-use super::client_message::ClientMessage;
 
 use super::subscription::Subscription;
 
@@ -77,47 +72,18 @@ impl Topic {
         reason_code::SUCCESS_HEX
     }
 
-    pub fn deliver_message(&self, message: ClientMessage) -> Result<u8, Error> {
-        let lock = self.users.read().unwrap();
-        let mut puback_reason_code: u8 = 0x00;
-        match message {
-            ClientMessage::Publish {
-                topic_name,
-                payload,
-                packet_id,
-                qos,
-                retain_flag,
-                dup_flag,
-                properties,
-            } => {
-                let delivery_message = BrokerMessage::PublishDelivery {
-                    topic_name,
-                    payload,
-                    packet_id,
-                    qos,
-                    retain_flag,
-                    dup_flag,
-                    properties,
-                };
-
-                if lock.is_empty() {
-                    puback_reason_code = 0x10_u8;
-                    return Ok(puback_reason_code);
-                }
-
-                // for mut subscriber in lock.iter() {
-                //     println!("Enviando un PublishDelivery");
-                //     match delivery_message.write_to(&mut subscriber) {
-                //         Ok(_) => println!("PublishDelivery enviado"),
-                //         Err(err) => println!("Error al enviar PublishDelivery: {:?}", err),
-                //     }
-                // }
-            }
-            _ => {
-                return Ok(0x10);
-            }
+    pub fn get_topic_users(&self) -> Vec<Subscription> {
+        let lock = match self.users.read() {
+            Ok(guard) => guard,
+            Err(_) => return Vec::new(),
         };
-        Ok(puback_reason_code)
+
+        let mut users = Vec::new();
+        for user in lock.iter() {
+            users.push(user.clone());
+        }
+
+        users
     }
 }
 
