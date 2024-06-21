@@ -117,9 +117,10 @@ impl<T: ClientTrait> CameraSystem<T> {
                         payload: PayloadTypes::IncidentLocation(payload),
                         ..
                     }) => {
-                        // if topic_name != "incidente" {
-                        //     continue;
-                        // }
+                        println!("topic_name: {:?}", topic_name);
+                        if topic_name != "accidente" {
+                            continue;
+                        }
                         let location = payload.get_incident().get_location();
                         drop(lock); // Release the lock here
                         self.activate_cameras(location)
@@ -139,7 +140,7 @@ impl<T: ClientTrait> CameraSystem<T> {
                         payload: PayloadTypes::IncidentLocation(payload),
                         ..
                     }) => {
-                        if topic_name != "incidente" {
+                        if topic_name != "accidente" {
                             continue;
                         }
                         let location = payload.get_incident().get_location();
