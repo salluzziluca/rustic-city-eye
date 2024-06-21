@@ -8,7 +8,7 @@ use crate::{
         client::Client,
         client_message::{self, ClientMessage},
         messages_config,
-        publish::publish_config::PublishConfig,
+        publish::publish_config::{self, PublishConfig},
     },
     utils::{location::Location, payload_types::PayloadTypes},
 };
@@ -307,6 +307,19 @@ impl Drone {
                 return Err(DroneError::BatteryEmpty);
             }
         }
+    }
+
+    fn update_current_location(&mut self) {
+        let publish_config = match PublishConfig::read_config(
+            "src/drones/publish_config.json",
+            PayloadTypes::LocationPayload(self.location.clone()),
+        ) {
+            Ok(config) => todo!(),
+            Err(e) => {
+                println!("Error reading publish config: {:?}", e);
+                return;
+            }
+        };
     }
 }
 

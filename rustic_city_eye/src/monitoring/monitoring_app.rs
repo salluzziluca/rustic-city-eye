@@ -136,9 +136,10 @@ impl MonitoringApp {
         self.incidents.clone()
     }
 
-    pub fn update_drone_location(&self) -> Vec<(u32, Location)> {
+    pub fn update_drone_location(&self) -> HashMap<u32, Location> {
+        let mut drone_locations = HashMap::new();
         loop {
-            match self.recieve_from_client.recv() {
+            match self.recieve_from_client.try_recv() {
                 Ok(message) => match message {
                     ClientMessage::Publish {
                         packet_id: _,
@@ -150,8 +151,9 @@ impl MonitoringApp {
                         properties: _,
                     } => {
                         if topic_name == "drone_location" {
-                            if let PayloadTypes::DroneLocation(_id,_drone_locationn) =  payload {
-                                {}
+                            if let PayloadTypes::DroneLocation(id,drone_locationn) =  payload {
+                                drone_locations.insert(id, drone_locationn);
+                                println!("Updated drone location");
                             }
                         }
                     }
@@ -161,7 +163,7 @@ impl MonitoringApp {
                     _ => {}
                 },
                 Err(_) => {
-                    return Vec::new();
+                    return drone_locations;
                 }
             }
         }

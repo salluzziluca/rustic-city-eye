@@ -113,7 +113,7 @@ pub fn add_drone_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitorin
                 if ui.button(RichText::new("🛸").heading()).clicked() {
                     if let Some(position) = map.click_watcher.clicked_at {
                         let location = Location::new(position.lat(), position.lon());
-                        let _id = match monitoring_app.add_drone(location, 0) {
+                        let id = match monitoring_app.add_drone(location, 0) {
                             Ok(result) => result,
                             Err(e) => {
                                 println!("Error adding drone: {}", e);
@@ -121,7 +121,7 @@ pub fn add_drone_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitorin
                             }
                         };
 
-                        map.drones.push(DroneView {
+                        map.drones.insert(id, DroneView {
                             image: map.drone_icon.clone(),
                             position,
                             clicked: false,
@@ -189,7 +189,7 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, _monitoring_app: &mut Monitor
                     // }
                     map.incidents.retain(|incident| !incident.clicked);
 
-                    map.drones.retain(|drone| !drone.clicked);
+                    map.drones.retain(|_id, drone| !drone.clicked);
                     // for drone in &map.drones {
                     //     if drone.clicked {
                     //         let index = map.drones.iter().position(|d| d.position == position);
