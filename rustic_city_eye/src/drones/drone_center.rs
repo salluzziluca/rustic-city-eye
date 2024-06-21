@@ -52,7 +52,7 @@ impl DroneCenter {
 
         let mut id = 0;
         while self.drones.contains_key(&id) {
-            id = id +1;
+            id += 1;
         }
 
         let drone = Drone::new(

@@ -150,11 +150,13 @@ impl MonitoringApp {
                         properties: _,
                     } => {
                         if topic_name == "drone_location" {
-                            match payload {
-                                PayloadTypes::DroneLocation(_id,_drone_locationn) => {}
-                                _ => {}
+                            if let PayloadTypes::DroneLocation(_id,_drone_locationn) =  payload {
+                                {}
                             }
                         }
+                    }
+                    ClientMessage::Auth { reason_code: _, authentication_data: _n_data, reason_string: _, user_properties: _, authentication_method: _ } => {
+                        todo!()
                     }
                     _ => {}
                 },
