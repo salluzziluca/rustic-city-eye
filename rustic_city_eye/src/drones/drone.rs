@@ -54,7 +54,7 @@ impl Drone {
         address: String,
     ) -> Result<Drone, DroneError> {
         let drone_config = DroneConfig::new(config_file_path)?;
-        println!("Drone config: {:?}", drone_config);
+        // println!("Drone config: {:?}", drone_config);
 
         let connect_config =
             match client_message::Connect::read_connect_config("src/drones/connect_config.json") {
@@ -250,15 +250,16 @@ impl Drone {
                     let location = Location::new(new_lat, new_long);
 
                     self.location = location;
-                    let payload = PayloadTypes::LocationPayload(self.location.clone());
+                    // self.update_current_location();
+                    // let payload = PayloadTypes::LocationPayload(self.location.clone());
 
-                    let publish_config =
-                        match PublishConfig::read_config("src/drones/publish_config.json", payload)
-                        {
-                            Ok(config) => config,
-                            Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
-                        };
-                    let _ = self.send_to_client_channel.send(Box::new(publish_config));
+                    // let publish_config =
+                    //     match PublishConfig::read_config("src/drones/publish_config.json", payload)
+                    //     {
+                    //         Ok(config) => config,
+                    //         Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
+                    //     };
+                    // let _ = self.send_to_client_channel.send(Box::new(publish_config));
 
                     if self.drone_state == DroneState::LowBatteryLevel {
                         //en el caso de tener poca bateria, se guarda su ubi actual, va a cagarse y vuelve
@@ -314,12 +315,15 @@ impl Drone {
             "src/drones/publish_config.json",
             PayloadTypes::LocationPayload(self.location.clone()),
         ) {
-            Ok(config) => todo!(),
+            Ok(config) => config,
             Err(e) => {
                 println!("Error reading publish config: {:?}", e);
                 return;
             }
         };
+        self.send_to_client_channel
+            .send(Box::new(publish_config))
+            .unwrap();
     }
 }
 

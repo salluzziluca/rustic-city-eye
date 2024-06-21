@@ -129,7 +129,7 @@ mod tests {
                 Ok(id) => id,
                 Err(e) => panic!("Error adding drone: {:?}", e),
             };
-            println!("{}", id);
+            println!("dron id {}", id);
             assert_eq!(drone_system.drone_centers[&id].get_drones().len(), 1);
         });
 

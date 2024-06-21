@@ -118,7 +118,10 @@ impl MonitoringApp {
         drone_center_id: u32,
     ) -> Result<u32, ProtocolError> {
         match self.drone_system.add_drone(location, drone_center_id) {
-            Ok(id) => Ok(id),
+            Ok(id) => {
+                Ok(id)
+
+            },
             Err(e) => Err(ProtocolError::DroneError(e.to_string())),
         }
     }
