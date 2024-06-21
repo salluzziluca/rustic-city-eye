@@ -126,7 +126,7 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
     /// Si el mensaje es un publish con topic accidente, activa las camaras cercanas a la location del incidente.
     ///
     /// Si el mensaje es un publish con topic accidenteresuelto, desactiva las camaras cercanas a la location del incidente.
-    /// 
+    ///
     /// Recibe un reciever opcional para poder testear la funcion, si este es None, utiliza el propio del broker
     pub fn run_client(
         &mut self,
@@ -346,6 +346,7 @@ mod tests {
     use crate::utils::incident_payload::IncidentPayload;
 
     use super::*;
+
     #[test]
     fn test01_new_camera_system_vacio() {
         let args = vec!["127.0.0.1".to_string(), "5000".to_string()];
@@ -590,7 +591,7 @@ mod tests {
     #[test]
 
     fn test08_camara_lejana_se_activa_por_reaccion_en_cadena() {
-        let args = vec!["127.0.0.1".to_string(), "5007".to_string()];
+        let args = vec!["127.0.0.1".to_string(), "5020".to_string()];
         let mut broker = match Broker::new(args) {
             Ok(broker) => broker,
             Err(e) => panic!("Error creating broker: {:?}", e),
@@ -616,7 +617,7 @@ mod tests {
                 ready = cvar.wait(ready).unwrap();
             }
         }
-        let addr = "127.0.0.1:5007";
+        let addr = "127.0.0.1:5020";
         let handle = thread::spawn(move || {
             let mut camera_system =
                 CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
@@ -640,7 +641,7 @@ mod tests {
 
     #[test]
     fn test09_desactivar_camara() {
-        let args = vec!["127.0.0.1".to_string(), "5010".to_string()];
+        let args = vec!["127.0.0.1".to_string(), "5037".to_string()];
         let mut broker = match Broker::new(args) {
             Ok(broker) => broker,
             Err(e) => panic!("Error creating broker: {:?}", e),
@@ -666,7 +667,7 @@ mod tests {
                 ready = cvar.wait(ready).unwrap();
             }
         }
-        let addr = "127.0.0.1:5010";
+        let addr = "127.0.0.1:5037";
         let handle = thread::spawn(move || {
             let mut camera_system =
                 CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
@@ -694,7 +695,7 @@ mod tests {
 
     #[test]
     fn test_10_deactivate_multiple_cameras() {
-        let args = vec!["127.0.0.1".to_string(), "5011".to_string()];
+        let args = vec!["127.0.0.1".to_string(), "5040".to_string()];
         let mut broker = match Broker::new(args) {
             Ok(broker) => broker,
             Err(e) => panic!("Error creating broker: {:?}", e),
@@ -720,7 +721,7 @@ mod tests {
                 ready = cvar.wait(ready).unwrap();
             }
         }
-        let addr = "127.0.0.1:5011";
+        let addr = "127.0.0.1:5040";
         let handle = thread::spawn(move || {
             let mut camera_system =
                 CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
@@ -785,7 +786,7 @@ mod tests {
 
     #[test]
     fn test_11_desactivar_camara_por_proximidad() {
-        let args = vec!["127.0.0.1".to_string(), "5012".to_string()];
+        let args = vec!["127.0.0.1".to_string(), "5017".to_string()];
         let mut broker = match Broker::new(args) {
             Ok(broker) => broker,
             Err(e) => panic!("Error creating broker: {:?}", e),
@@ -811,7 +812,7 @@ mod tests {
                 ready = cvar.wait(ready).unwrap();
             }
         }
-        let addr = "127.0.0.1:5012";
+        let addr = "127.0.0.1:5017";
         let handle = thread::spawn(move || {
             let mut camera_system =
                 CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
