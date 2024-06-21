@@ -7,13 +7,15 @@ use rand::Rng;
 
 use crate::{
     mqtt::{
-        client::Client, client_message, messages_config::MessagesConfig,
-        protocol_error::ProtocolError, subscribe_config::SubscribeConfig,
+        client::{Client, ClientTrait},
+        client_message,
+        messages_config::MessagesConfig,
+        protocol_error::ProtocolError,
+        subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
     },
     surveilling::camera::Camera,
-    utils::location::Location,
-    utils::payload_types::PayloadTypes,
+    utils::{location::Location, payload_types::PayloadTypes},
 };
 
 const AREA_DE_ALCANCE: f64 = 10.0;
@@ -21,24 +23,29 @@ const AREA_DE_ALCANCE: f64 = 10.0;
 use super::camera_error::CameraError;
 #[derive(Debug)]
 #[allow(dead_code)]
-pub struct CameraSystem {
+pub struct CameraSystem<T: ClientTrait> {
     send_to_client_channel: Sender<Box<dyn MessagesConfig + Send>>,
-    camera_system_client: Client,
+    camera_system_client: T,
     cameras: HashMap<u32, Camera>,
     reciev_from_client: mpsc::Receiver<client_message::ClientMessage>,
 }
 
-impl CameraSystem {
-    pub fn new(address: String) -> Result<CameraSystem, ProtocolError> {
+impl<T: ClientTrait> CameraSystem<T> {
+    pub fn new<F>(address: String, client_factory: F) -> Result<CameraSystem<T>, ProtocolError>
+    where
+        F: FnOnce(
+            mpsc::Receiver<Box<dyn MessagesConfig + Send>>,
+            String,
+            client_message::Connect,
+            Sender<client_message::ClientMessage>,
+        ) -> Result<T, ProtocolError>,
+    {
         let connect_config =
             client_message::Connect::read_connect_config("./src/surveilling/connect_config.json")?;
 
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
-        let camera_system_client = match Client::new(rx, address, connect_config, tx2) {
-            Ok(client) => client,
-            Err(err) => return Err(err),
-        };
+        let camera_system_client = client_factory(rx, address, connect_config, tx2)?;
 
         let subscribe_config = SubscribeConfig::new(
             "incidente".to_string(),
@@ -94,32 +101,28 @@ impl CameraSystem {
     }
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
         self.camera_system_client.client_run()?;
-
-        let reciever = match self.reciev_from_client.recv() {
-            Ok(reciever) => reciever,
-            Err(e) => {
-                println!("Error receiving message: {:?}", e);
-                return Err(ProtocolError::ChanellError);
-            }
-        };
-        match reciever {
-            client_message::ClientMessage::Publish {
-                topic_name: _,
-                payload,
-                properties: _,
-                packet_id: _,
-                qos: _,
-                retain_flag: _,
-                dup_flag: _,
-            } => {
-                if let PayloadTypes::IncidentLocation(payload) = payload {
+        loop {
+            match self.reciev_from_client.try_recv() {
+                Ok(client_message::ClientMessage::Publish {
+                    topic_name,
+                    payload: PayloadTypes::IncidentLocation(payload),
+                    ..
+                }) => {
+                    if topic_name != "incidente" {
+                        continue;
+                    }
                     let location = payload.get_incident().get_location();
-                    let _ = self.activate_cameras(location);
+                    self.activate_cameras(location)
+                        .map_err(|e| ProtocolError::CameraError(e.to_string()))?;
+
+                    continue;
+                }
+                Ok(_) => continue, // Handle other message types if necessary
+                Err(e) => {
+                    return Err(ProtocolError::ChanellError(e.to_string()));
                 }
             }
-            _ => {}
         }
-        Ok(())
     }
 
     /// Recibe una location y activas todas las camaras que esten a menos de AREA_DE_ALCANCE de esta.
@@ -151,6 +154,14 @@ impl CameraSystem {
     }
 }
 
+impl CameraSystem<Client> {
+    pub fn with_real_client(address: String) -> Result<CameraSystem<Client>, ProtocolError> {
+        CameraSystem::new(address, |rx, addr, config, tx| {
+            Client::new(rx, addr, config, tx)
+        })
+    }
+}
+
 #[cfg(test)]
 
 mod tests {
@@ -175,12 +186,18 @@ mod tests {
             _ = broker.server_run();
         });
 
-        thread::spawn(move || {
-            let mut camera_system = CameraSystem::new(addr.to_string()).unwrap();
-            assert_eq!(camera_system.get_cameras().len(), 0);
-            assert_eq!(camera_system.get_camera_by_id(1), None);
-            assert_eq!(camera_system.get_camera(), None);
-        });
+        thread::spawn(
+            move || match CameraSystem::<Client>::with_real_client(addr.to_string()) {
+                Ok(mut camera_system) => {
+                    assert_eq!(camera_system.get_cameras().len(), 0);
+                    assert_eq!(camera_system.get_camera_by_id(1), None);
+                    assert_eq!(camera_system.get_camera(), None);
+                }
+                Err(e) => {
+                    panic!("Error creating camera system: {:?}", e);
+                }
+            },
+        );
     }
 
     #[test]
@@ -198,7 +215,8 @@ mod tests {
         });
 
         thread::spawn(move || {
-            let mut camera_system = CameraSystem::new(addr.to_string()).unwrap();
+            let mut camera_system =
+                CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
             let location = Location::new(1.0, 2.0);
             let id = camera_system.add_camera(location.clone()).unwrap();
             assert_eq!(camera_system.get_cameras().len(), 1);
@@ -224,7 +242,8 @@ mod tests {
         });
 
         thread::spawn(move || {
-            let mut camera_system = CameraSystem::new(addr.to_string()).unwrap();
+            let mut camera_system =
+                CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
             let location = Location::new(1.0, 2.0);
             let id = camera_system.add_camera(location.clone()).unwrap();
             assert_eq!(camera_system.get_cameras().len(), 1);
@@ -251,7 +270,8 @@ mod tests {
         });
 
         thread::spawn(move || {
-            let mut camera_system = CameraSystem::new(addr.to_string()).unwrap();
+            let mut camera_system =
+                CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
             assert!(camera_system.run_client().is_ok());
         });
     }
@@ -272,8 +292,8 @@ mod tests {
         });
 
         thread::spawn(move || {
-            let mut camera_system = CameraSystem::new(addr.to_string()).unwrap();
-
+            let mut camera_system =
+                CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
             let pingreq = ClientMessage::Pingreq;
 
             match camera_system.send_message(Box::new(pingreq)) {
@@ -300,7 +320,8 @@ mod tests {
         });
 
         thread::spawn(move || {
-            let mut camera_system = CameraSystem::new(addr.to_string()).unwrap();
+            let mut camera_system =
+                CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
             let location = Location::new(1.0, 2.0);
             let id = camera_system.add_camera(location.clone()).unwrap();
             assert_eq!(camera_system.get_cameras().len(), 1);
@@ -347,7 +368,8 @@ mod tests {
         }
         let addr = "127.0.0.1:5005";
         let handle = thread::spawn(move || {
-            let mut camera_system = CameraSystem::new(addr.to_string()).unwrap();
+            let mut camera_system =
+                CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
             let location = Location::new(1.0, 20.0);
             let id = camera_system.add_camera(location.clone()).unwrap();
             let location2 = Location::new(1.0, 2.0);

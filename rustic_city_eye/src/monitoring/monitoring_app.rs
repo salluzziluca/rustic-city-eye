@@ -12,7 +12,7 @@ use crate::mqtt::publish::publish_config::PublishConfig;
 use crate::mqtt::publish::publish_properties::{PublishProperties, TopicProperties};
 use crate::mqtt::{client::Client, protocol_error::ProtocolError};
 use crate::surveilling::camera::Camera;
-use crate::surveilling::camera_system::*;
+use crate::surveilling::camera_system::CameraSystem;
 use crate::utils::incident_payload::IncidentPayload;
 use crate::utils::location::Location;
 use crate::utils::payload_types::PayloadTypes;
@@ -22,7 +22,7 @@ use crate::utils::payload_types::PayloadTypes;
 pub struct MonitoringApp {
     send_to_client_channel: Sender<Box<dyn MessagesConfig + Send>>,
     monitoring_app_client: Client,
-    camera_system: CameraSystem,
+    camera_system: CameraSystem<Client>,
     incidents: Vec<Incident>,
     drone_system: DroneSystem,
     recieve_from_client: Receiver<ClientMessage>,
@@ -39,7 +39,10 @@ impl MonitoringApp {
 
         let address = args[2].to_string() + ":" + &args[3].to_string();
 
-        let camera_system = CameraSystem::new(address.clone())?;
+        let camera_system = match CameraSystem::<Client>::with_real_client(address.clone()) {
+            Ok(camera_system) => camera_system,
+            Err(err) => return Err(err),
+        };
         let drone_system = DroneSystem::new(
             "src/drone_system/drone_config.json".to_string(),
             address.clone(),
@@ -110,7 +113,9 @@ impl MonitoringApp {
     }
 
     pub fn add_drone_center(&mut self, location: Location) -> u32 {
-        self.drone_system.add_drone_center(location).map_or(0, |id| id)
+        self.drone_system
+            .add_drone_center(location)
+            .map_or(0, |id| id)
     }
     pub fn get_cameras(&self) -> HashMap<u32, Camera> {
         self.camera_system.get_cameras().clone()

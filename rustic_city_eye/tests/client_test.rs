@@ -224,7 +224,7 @@ mod tests {
             std::sync::mpsc::Receiver<bool>,
         ) = channel();
 
-        let (tx, _) = channel();
+        let (tx, rx) = channel();
 
         if let Ok((stream, _)) = listener.accept() {
             result = handle_message(

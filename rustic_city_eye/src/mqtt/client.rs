@@ -20,7 +20,12 @@ use crate::{
 
 use super::{client_message, client_return::ClientReturn, error::ClientError};
 
+pub trait ClientTrait {
+    fn client_run(&mut self) -> Result<(), ProtocolError>;
+}
+
 #[derive(Debug, Clone)]
+
 pub struct Client {
     receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
 
@@ -586,6 +591,12 @@ impl Client {
     }
 }
 
+impl ClientTrait for Client {
+    fn client_run(&mut self) -> Result<(), ProtocolError> {
+        self.client_run()
+    }
+}
+
 /// Lee del stream un mensaje y lo procesa
 /// Devuelve un ClientReturn con informacion del mensaje recibido
 /// O ProtocolError en caso de error
@@ -620,7 +631,7 @@ pub fn handle_message(
                         println!("puback {:?}", message);
                         Ok(ClientReturn::PubackRecieved)
                     }
-                    Err(_) => Err(ProtocolError::ChanellError),
+                    Err(e) => Err(ProtocolError::ChanellError(e.to_string())),
                 }
             }
             BrokerMessage::Disconnect {
