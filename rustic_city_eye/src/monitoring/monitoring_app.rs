@@ -67,7 +67,7 @@ impl MonitoringApp {
 
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
         self.monitoring_app_client.client_run()?;
-        self.camera_system.run_client()?;
+        self.camera_system.run_client(None)?;
         Ok(())
     }
 
