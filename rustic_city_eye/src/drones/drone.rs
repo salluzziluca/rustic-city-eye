@@ -54,12 +54,14 @@ impl Drone {
         address: String,
     ) -> Result<Drone, DroneError> {
         let drone_config = DroneConfig::new(config_file_path)?;
+        println!("Drone config: {:?}", drone_config);
 
         let connect_config =
             match client_message::Connect::read_connect_config("src/drones/connect_config.json") {
                 Ok(config) => config,
                 Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
             };
+        // println!("Connect config: {:?}", connect_config);
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
 

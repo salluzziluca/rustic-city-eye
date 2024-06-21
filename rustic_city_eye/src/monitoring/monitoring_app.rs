@@ -141,17 +141,17 @@ impl MonitoringApp {
             match self.recieve_from_client.recv() {
                 Ok(message) => match message {
                     ClientMessage::Publish {
-                        packet_id,
+                        packet_id: _,
                         topic_name,
-                        qos,
-                        retain_flag,
+                        qos: _,
+                        retain_flag: _,
                         payload,
-                        dup_flag,
-                        properties,
+                        dup_flag: _,
+                        properties: _,
                     } => {
                         if topic_name == "drone_location" {
                             match payload {
-                                PayloadTypes::DroneLocation(id, drone_location) => {}
+                                PayloadTypes::DroneLocation(_id,_drone_locationn) => {}
                                 _ => {}
                             }
                         }
