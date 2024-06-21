@@ -13,7 +13,6 @@ use super::subscription::Subscription;
 const PROTOCOL_VERSION: u8 = 5;
 const SESSION_EXPIRY_INTERVAL_ID: u8 = 0x11;
 const REASON_STRING_ID: u8 = 0x1F;
-const USER_PROPERTY_ID: u8 = 0x26;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ClientMessage {
@@ -88,12 +87,12 @@ pub enum ClientMessage {
     /// reason_code es el codigo de la razon de la desconexión.
     /// session_expiry_interval es el tiempo en segundos que el broker debe mantener la sesion del cliente activa despues de que este se desconecte.
     /// reason_string es un mensaje de texto que describe la razon de la desconexión.
-    /// user_properties es un conjunto de propiedades adicionales que el cliente puede enviar.
+    /// client_id es el identificador unico del cliente.
     Disconnect {
         reason_code: u8,
         session_expiry_interval: u32,
         reason_string: String,
-        user_properties: Vec<(String, String)>,
+        client_id: String,
     },
     /// El Pingreq Message es un mensaje que el cliente envia al broker para mantener la conexion activa.
     Pingreq,
@@ -275,7 +274,7 @@ impl ClientMessage {
                 reason_code,
                 session_expiry_interval,
                 reason_string,
-                user_properties,
+                client_id,
             } => {
                 //fixed header
                 let header: u8 = 0xE0_u8.to_le(); //11100000
@@ -290,8 +289,7 @@ impl ClientMessage {
                 write_u8(&mut writer, &REASON_STRING_ID)?;
                 write_string(&mut writer, reason_string)?;
 
-                write_u8(&mut writer, &USER_PROPERTY_ID)?;
-                write_string_pairs(&mut writer, user_properties)?;
+                write_string(&mut writer, &client_id)?;
 
                 writer.flush()?;
                 Ok(())
@@ -399,7 +397,7 @@ impl ClientMessage {
                 reason_code: _,
                 session_expiry_interval: _,
                 reason_string: _,
-                user_properties: _,
+                client_id: _,
             } => {
                 let byte_1: u8 = 0xE0_u8;
                 writer.write_all(&[byte_1])?;
@@ -503,7 +501,7 @@ impl ClientMessage {
                 reason_code,
                 session_expiry_interval,
                 reason_string,
-                user_properties,
+                client_id,
             } => {
                 //fixed header
                 let header: u8 = 0xE0_u8.to_le(); //11100000
@@ -517,8 +515,8 @@ impl ClientMessage {
                 write_u8(writer, &REASON_STRING_ID)?;
                 write_string(writer, reason_string)?;
 
-                write_u8(writer, &USER_PROPERTY_ID)?;
-                write_string_pairs(writer, user_properties)?;
+                write_string(writer, client_id)?;
+
                 writer.flush()?;
             }
             ClientMessage::Pingreq => {
@@ -759,20 +757,13 @@ impl ClientMessage {
                 }
                 let reason_string = read_string(stream)?;
 
-                let user_property_id = read_u8(stream)?;
-                if user_property_id != USER_PROPERTY_ID {
-                    return Err(Error::new(
-                        std::io::ErrorKind::Other,
-                        "Invalid user property id",
-                    ));
-                }
-                let user_properties = read_string_pairs(stream)?;
+                let client_id = read_string(stream)?;
 
                 Ok(ClientMessage::Disconnect {
                     reason_code,
                     session_expiry_interval,
                     reason_string,
-                    user_properties,
+                    client_id,
                 })
             }
             0xC0 => Ok(ClientMessage::Pingreq),
@@ -1092,7 +1083,7 @@ mod tests {
             reason_code: 1,
             session_expiry_interval: 1,
             reason_string: "hola".to_string(),
-            user_properties: vec![("hola".to_string(), "mundo".to_string())],
+            client_id: "client".to_string(),
         };
 
         let mut cursor = Cursor::new(Vec::<u8>::new());

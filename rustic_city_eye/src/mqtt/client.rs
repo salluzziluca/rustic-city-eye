@@ -28,7 +28,7 @@ pub struct Client {
     // las subscriptions es un vector de topics a los que el cliente está subscrito
     pub subscriptions: Arc<Mutex<Vec<String>>>,
 
-    //
+    // client_id es el identificador del cliente
     pub client_id: String,
 }
 
@@ -144,7 +144,11 @@ impl Client {
     /// segun el str reason recibido, modifica el reason_code y el reason_string del mensaje
     ///
     /// devuelve el packet_id del mensaje enviado o un ClientError en caso de error
-    pub fn disconnect(reason: &str, mut stream: TcpStream) -> Result<u16, ClientError> {
+    pub fn handle_disconnect(
+        client_id: String,
+        reason: &str,
+        mut stream: TcpStream,
+    ) -> Result<u16, ClientError> {
         let packet_id = 1;
         let reason_code: u8;
         let reason_string: String;
@@ -169,7 +173,7 @@ impl Client {
             reason_code,
             session_expiry_interval: 0,
             reason_string,
-            user_properties: vec![("propiedad".to_string(), "valor".to_string())],
+            client_id,
         };
 
         match disconnect.write_to(&mut stream) {
@@ -417,16 +421,24 @@ impl Client {
                             }
                         },
                         ClientMessage::Disconnect {
-                            reason_code: _,
+                            reason_code,
                             session_expiry_interval: _,
                             reason_string: _,
-                            user_properties: _,
+                            client_id,
                         } => {
-                            let reason = "normal";
-
                             match stream.try_clone() {
                                 Ok(stream_clone) => {
-                                    if let Ok(packet_id) = Client::disconnect(reason, stream_clone)
+                                    let reason = "normal";
+
+                                    let disconnect = ClientMessage::Disconnect {
+                                        reason_code: 0x00,
+                                        session_expiry_interval: 0,
+                                        reason_string: "Disconnecting".to_string(),
+                                        client_id: client_id.clone(),
+                                    };
+
+                                    if let Ok(packet_id) =
+                                        Client::handle_disconnect(client_id, reason, stream_clone)
                                     {
                                         match sender.send(packet_id) {
                                             Ok(_) => continue,

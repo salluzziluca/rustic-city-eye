@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use rustic_city_eye::monitoring::incident::Incident;
+    use rustic_city_eye::mqtt::broker::Broker;
     use rustic_city_eye::mqtt::connect_properties::ConnectProperties;
     use rustic_city_eye::mqtt::publish_properties::{PublishProperties, TopicProperties};
     use rustic_city_eye::mqtt::subscribe_properties::SubscribeProperties;
@@ -8,7 +9,7 @@ mod tests {
     use rustic_city_eye::mqtt::topic::Topic;
     use rustic_city_eye::mqtt::will_properties::WillProperties;
     use rustic_city_eye::mqtt::{
-        broker::handle_messages, client_message::ClientMessage, protocol_error::ProtocolError,
+        client_message::ClientMessage, protocol_error::ProtocolError,
         protocol_return::ProtocolReturn,
     };
     use rustic_city_eye::utils::incident_payload;
@@ -39,8 +40,9 @@ mod tests {
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, clients_ids);
+            result = broker.handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert!(result.is_err());
@@ -103,9 +105,9 @@ mod tests {
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
-
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, clients_ids);
+            result = broker.handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
@@ -168,9 +170,9 @@ mod tests {
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
-
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics.clone(), packets.clone(), clients_ids.clone());
+            result = broker.handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::DisconnectSent);
@@ -209,9 +211,9 @@ mod tests {
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
-
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics.clone(), packets, clients_ids);
+            result = broker.handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::SubackSent);
@@ -261,9 +263,9 @@ mod tests {
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
-
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, clients_ids);
+            result = broker.handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::PubackSent);
@@ -305,9 +307,9 @@ mod tests {
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
-
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, clients_ids);
+            result = broker.handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::UnsubackSent);
@@ -321,7 +323,7 @@ mod tests {
             reason_code: 1,
             session_expiry_interval: 1,
             reason_string: "pasaron_cosas".to_string(),
-            user_properties: vec![("propiedad".to_string(), "valor".to_string())],
+            client_id: "kvtr33".to_string(),
         };
         thread::spawn(move || {
             let mut stream = TcpStream::connect(addr).unwrap();
@@ -338,8 +340,9 @@ mod tests {
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, clients_ids);
+            result = broker.handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::DisconnectRecieved);
@@ -366,8 +369,9 @@ mod tests {
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, clients_ids);
+            result = broker.handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::PingrespSent);
@@ -400,8 +404,9 @@ mod tests {
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, clients_ids);
+            result = broker.handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::AuthRecieved);
@@ -434,8 +439,9 @@ mod tests {
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_messages(stream, topics, packets, clients_ids);
+            result = broker.handle_messages(stream, topics, packets, clients_ids);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);

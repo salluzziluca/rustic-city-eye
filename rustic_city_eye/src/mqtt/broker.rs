@@ -4,6 +4,8 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use mockall::predicate::le;
+
 use crate::mqtt::{
     broker_config::BrokerConfig,
     broker_message::BrokerMessage,
@@ -34,8 +36,11 @@ pub struct Broker {
     /// de esa clave se guarda el package.
     packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
 
-    // Contiene los clientes conectados al broker.
+    /// Contiene los clientes conectados al broker.
     clients_ids: Arc<RwLock<HashMap<String, TcpStream>>>,
+
+    /// Contiene los clientes desconectados del broker y sus mensajes pendientes.
+    offline_clients: Arc<RwLock<HashMap<String, Vec<ClientMessage>>>>,
 }
 
 impl Broker {
@@ -60,6 +65,7 @@ impl Broker {
             topics,
             packets: Arc::new(RwLock::new(packets)),
             clients_ids: Arc::new(RwLock::new(HashMap::new())),
+            offline_clients: Arc::new(RwLock::new(HashMap::new())),
         })
     }
 
@@ -77,10 +83,11 @@ impl Broker {
                     let topics_clone = self.topics.clone();
                     let packets_clone = self.packets.clone();
                     let clients_ids_clone = self.clients_ids.clone();
+                    let self_ref = Arc::new(self.clone()); // wrap `self` in an Arc
 
                     threadpool.execute(move || {
                         // Use the cloned reference
-                        let _ = Broker::handle_client(
+                        let _ = <Broker as Clone>::clone(&self_ref).handle_client(
                             stream,
                             topics_clone,
                             packets_clone,
@@ -96,6 +103,7 @@ impl Broker {
 
     /// Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
     pub fn handle_client(
+        self,
         stream: TcpStream,
         topics: HashMap<String, Topic>,
         packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
@@ -106,7 +114,7 @@ impl Broker {
                 Ok(stream) => stream,
                 Err(_) => return Err(ProtocolError::StreamError),
             };
-            match handle_messages(
+            match self.handle_messages(
                 cloned_stream,
                 topics.clone(),
                 packets.clone(),
@@ -136,15 +144,12 @@ impl Broker {
         if let Some(topic) = topics.get_mut(&topic_name) {
             match topic.add_user_to_topic(subscription) {
                 0 => {
-                    println!("Subscripcion exitosa");
                     reason_code = SUCCESS_HEX;
                 }
                 0x92 => {
-                    println!("SubId duplicado");
                     reason_code = SUB_ID_DUP_HEX;
                 }
                 _ => {
-                    println!("Error no especificado");
                     reason_code = UNSPECIFIED_ERROR_HEX;
                 }
             }
@@ -156,15 +161,29 @@ impl Broker {
     }
 
     fn handle_publish(
+        &self,
         message: ClientMessage,
         mut topics: HashMap<String, Topic>,
         topic_name: String,
     ) -> Result<u8, ProtocolError> {
+        // verifico si el topic exite
         if let Some(topic) = topics.get_mut(&topic_name) {
-            match topic.deliver_message(message) {
-                Ok(reason_code) => return Ok(reason_code),
-                Err(_) => return Err(ProtocolError::PublishError),
-            };
+            //obtengo los users que corresponden a ese topic
+            let users = topic.get_topic_users();
+            for user in users {
+                //verifico si el user esta conectado
+                if let Some(stream) = self.clients_ids.read().unwrap().get(&user.client_id) {
+                    //envio el mensaje al user
+                } else {
+                    //guardo el mensaje para enviarlo cuando el user se conecte
+                    let mut lock = self.offline_clients.write().unwrap();
+                    if let Some(messages) = lock.get_mut(&user.client_id) {
+                        messages.push(message.clone());
+                    } else {
+                        lock.insert(user.client_id, vec![message.clone()]);
+                    }
+                }
+            }
         }
 
         Ok(0x80_u8) //Unspecified Error reason code
@@ -210,310 +229,311 @@ impl Broker {
 
         lock.insert(packet_id, message);
     }
-}
 
-/// Lee del stream un mensaje y lo procesa
-/// Devuelve un ProtocolReturn con informacion del mensaje recibido
-/// O ProtocolError en caso de error
-pub fn handle_messages(
-    mut stream: TcpStream,
-    topics: HashMap<String, Topic>,
-    packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
-    clients_ids: Arc<RwLock<HashMap<String, TcpStream>>>,
-) -> Result<ProtocolReturn, ProtocolError> {
-    let mensaje = match ClientMessage::read_from(&mut stream) {
-        Ok(mensaje) => mensaje,
-        Err(_) => return Err(ProtocolError::StreamError),
-    };
-    match mensaje {
-        ClientMessage::Connect {
-            clean_start: _,
-            last_will_flag: _,
-            last_will_qos: _,
-            last_will_retain: _,
-            username: _,
-            password: _,
-            keep_alive: _,
-            properties: _,
-            client_id,
-            will_properties: _,
-            last_will_topic: _,
-            last_will_message: _,
-        } => {
-            println!("Recibí un Connect");
+    /// Lee del stream un mensaje y lo procesa
+    /// Devuelve un ProtocolReturn con informacion del mensaje recibido
+    /// O ProtocolError en caso de error
+    pub fn handle_messages(
+        &self,
+        mut stream: TcpStream,
+        topics: HashMap<String, Topic>,
+        packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
+        clients_ids: Arc<RwLock<HashMap<String, TcpStream>>>,
+    ) -> Result<ProtocolReturn, ProtocolError> {
+        let mensaje = match ClientMessage::read_from(&mut stream) {
+            Ok(mensaje) => mensaje,
+            Err(_) => return Err(ProtocolError::StreamError),
+        };
+        match mensaje {
+            ClientMessage::Connect {
+                clean_start: _,
+                last_will_flag: _,
+                last_will_qos: _,
+                last_will_retain: _,
+                username: _,
+                password: _,
+                keep_alive: _,
+                properties: _,
+                client_id,
+                will_properties: _,
+                last_will_topic: _,
+                last_will_message: _,
+            } => {
+                println!("Recibí un Connect");
 
-            if clients_ids.read().unwrap().contains_key(&client_id) {
-                let disconnect = BrokerMessage::Disconnect {
-                    reason_code: 0,
-                    session_expiry_interval: 0,
-                    reason_string: "El cliente ya está conectado".to_string(),
-                    user_properties: Vec::new(),
+                if clients_ids.read().unwrap().contains_key(&client_id) {
+                    let disconnect = BrokerMessage::Disconnect {
+                        reason_code: 0,
+                        session_expiry_interval: 0,
+                        reason_string: "El cliente ya está conectado".to_string(),
+                        user_properties: Vec::new(),
+                    };
+
+                    match disconnect.write_to(&mut stream) {
+                        Ok(_) => {
+                            println!("Disconnect enviado");
+                            return Ok(ProtocolReturn::DisconnectSent);
+                        }
+                        Err(err) => println!("Error al enviar Disconnect: {:?}", err),
+                    }
+                }
+
+                //clona stream con ok err
+                let cloned_stream = match stream.try_clone() {
+                    Ok(stream) => stream,
+                    Err(_) => return Err(ProtocolError::StreamError),
                 };
 
-                match disconnect.write_to(&mut stream) {
-                    Ok(_) => {
-                        println!("Disconnect enviado");
-                        return Ok(ProtocolReturn::DisconnectSent);
+                clients_ids
+                    .write()
+                    .unwrap()
+                    .insert(client_id.clone(), cloned_stream);
+
+                let properties = ConnackProperties {
+                    session_expiry_interval: 0,
+                    receive_maximum: 0,
+                    maximum_packet_size: 0,
+                    topic_alias_maximum: 0,
+                    user_properties: Vec::new(),
+                    authentication_method: "none".to_string(),
+                    authentication_data: Vec::new(),
+                    assigned_client_identifier: "none".to_string(),
+                    maximum_qos: true,
+                    reason_string: "none".to_string(),
+                    wildcard_subscription_available: false,
+                    subscription_identifier_available: false,
+                    shared_subscription_available: false,
+                    server_keep_alive: 0,
+                    response_information: "none".to_string(),
+                    server_reference: "none".to_string(),
+                    retain_available: false,
+                };
+                let connack = BrokerMessage::Connack {
+                    session_present: false,
+                    reason_code: 0,
+                    properties,
+                };
+                println!("Enviando un Connack");
+                match connack.write_to(&mut stream) {
+                    Ok(_) => return Ok(ProtocolReturn::ConnackSent),
+                    Err(err) => {
+                        println!("{:?}", err);
                     }
-                    Err(err) => println!("Error al enviar Disconnect: {:?}", err),
                 }
             }
-
-            //clona stream con ok err
-            let cloned_stream = match stream.try_clone() {
-                Ok(stream) => stream,
-                Err(_) => return Err(ProtocolError::StreamError),
-            };
-
-            clients_ids
-                .write()
-                .unwrap()
-                .insert(client_id.clone(), cloned_stream);
-
-            let properties = ConnackProperties {
-                session_expiry_interval: 0,
-                receive_maximum: 0,
-                maximum_packet_size: 0,
-                topic_alias_maximum: 0,
-                user_properties: Vec::new(),
-                authentication_method: "none".to_string(),
-                authentication_data: Vec::new(),
-                assigned_client_identifier: "none".to_string(),
-                maximum_qos: true,
-                reason_string: "none".to_string(),
-                wildcard_subscription_available: false,
-                subscription_identifier_available: false,
-                shared_subscription_available: false,
-                server_keep_alive: 0,
-                response_information: "none".to_string(),
-                server_reference: "none".to_string(),
-                retain_available: false,
-            };
-            let connack = BrokerMessage::Connack {
-                session_present: false,
-                reason_code: 0,
-                properties,
-            };
-            println!("Enviando un Connack");
-            match connack.write_to(&mut stream) {
-                Ok(_) => return Ok(ProtocolReturn::ConnackSent),
-                Err(err) => {
-                    println!("{:?}", err);
-                }
-            }
-        }
-        ClientMessage::Publish {
-            packet_id,
-            topic_name,
-            qos,
-            retain_flag,
-            payload,
-            dup_flag,
-            properties,
-        } => {
-            println!("Recibí un Publish");
-            println!("Topic name: {}", topic_name);
-            println!("Payload: {:?}", payload);
-            let msg = ClientMessage::Publish {
+            ClientMessage::Publish {
                 packet_id,
-                topic_name: topic_name.clone(),
+                topic_name,
                 qos,
                 retain_flag,
-                payload: payload.clone(),
+                payload,
                 dup_flag,
                 properties,
-            };
-            Broker::save_packet(packets.clone(), msg.clone(), packet_id);
-
-            let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
-
-            let reason_code = Broker::handle_publish(msg, topics.clone(), topic_name)?;
-
-            if qos == 1 {
-                let puback = BrokerMessage::Puback {
-                    packet_id_msb: packet_id_bytes[0],
-                    packet_id_lsb: packet_id_bytes[1],
-                    reason_code,
+            } => {
+                println!("Recibí un Publish");
+                println!("Topic name: {}", topic_name);
+                println!("Payload: {:?}", payload);
+                let msg = ClientMessage::Publish {
+                    packet_id,
+                    topic_name: topic_name.clone(),
+                    qos,
+                    retain_flag,
+                    payload: payload.clone(),
+                    dup_flag,
+                    properties,
                 };
-                println!("Enviando un Puback");
-                match puback.write_to(&mut stream) {
-                    Ok(_) => {
-                        println!("Puback enviado");
-                        return Ok(ProtocolReturn::PubackSent);
-                    }
-                    Err(err) => println!("Error al enviar Puback: {:?}", err),
-                }
-            }
-        }
-        ClientMessage::Subscribe {
-            packet_id,
-            properties,
-            payload,
-        } => {
-            println!("Recibí un Subscribe");
-            let msg = ClientMessage::Subscribe {
-                packet_id,
-                properties: properties.clone(),
-                payload: payload.clone(),
-            };
-            Broker::save_packet(packets.clone(), msg, packet_id);
+                Broker::save_packet(packets.clone(), msg.clone(), packet_id);
 
-            let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
+                let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-            let mut reason_code_vec = Vec::new();
+                let reason_code = self.handle_publish(msg, topics.clone(), topic_name)?;
 
-            for p in payload {
-                let reason_code =
-                    Broker::handle_subscribe(topics.clone(), p.topic.clone(), p.clone())?;
-
-                reason_code_vec.push(reason_code);
-            }
-
-            if reason_code_vec.iter().any(|&x| x != SUCCESS_HEX) {
-                let suback = BrokerMessage::Suback {
-                    packet_id_msb: packet_id_bytes[0],
-                    packet_id_lsb: packet_id_bytes[1],
-                    reason_code: UNSPECIFIED_ERROR_HEX,
-                };
-                println!("Enviando un Suback");
-                match suback.write_to(&mut stream) {
-                    Ok(_) => {
-                        println!("Suback enviado");
-                        return Ok(ProtocolReturn::SubackSent);
-                    }
-                    Err(err) => println!("Error al enviar suback: {:?}", err),
-                }
-            }
-
-            return Ok(ProtocolReturn::SubackSent);
-        }
-        ClientMessage::Unsubscribe {
-            packet_id,
-            properties,
-            payload,
-        } => {
-            println!("Recibí un Unsubscribe");
-            let msg = ClientMessage::Unsubscribe {
-                packet_id,
-                properties: properties.clone(),
-                payload: payload.clone(),
-            };
-            Broker::save_packet(packets.clone(), msg, packet_id);
-
-            let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
-
-            let mut reason_code_vec = Vec::new();
-
-            for p in payload {
-                let reason_code =
-                    Broker::handle_unsubscribe(topics.clone(), p.topic.clone(), p.clone())?;
-                reason_code_vec.push(reason_code);
-            }
-
-            if reason_code_vec.iter().any(|&x| x != SUCCESS_HEX) {
-                let suback = BrokerMessage::Suback {
-                    packet_id_msb: packet_id_bytes[0],
-                    packet_id_lsb: packet_id_bytes[1],
-                    reason_code: UNSPECIFIED_ERROR_HEX,
-                };
-                println!("Enviando un Suback");
-                match suback.write_to(&mut stream) {
-                    Ok(_) => {
-                        println!("Suback enviado");
-                        return Ok(ProtocolReturn::SubackSent);
-                    }
-                    Err(err) => println!("Error al enviar suback: {:?}", err),
-                }
-            }
-
-            let unsuback = BrokerMessage::Unsuback {
-                packet_id_msb: packet_id_bytes[0],
-                packet_id_lsb: packet_id_bytes[1],
-                reason_code: SUCCESS_HEX,
-            };
-            println!("Enviando un Unsuback");
-            match unsuback.write_to(&mut stream) {
-                Ok(_) => {
-                    println!("Unsuback enviado");
-                    return Ok(ProtocolReturn::UnsubackSent);
-                }
-                Err(err) => println!("Error al enviar Unsuback: {:?}", err),
-            }
-        }
-        ClientMessage::Disconnect {
-            reason_code: _,
-            session_expiry_interval: _,
-            reason_string,
-            user_properties: _,
-        } => {
-            println!(
-                "Recibí un Disconnect, razon de desconexión: {:?}",
-                reason_string
-            );
-            return Ok(ProtocolReturn::DisconnectRecieved);
-        }
-        ClientMessage::Pingreq => {
-            println!("Recibí un Pingreq");
-            let pingresp = BrokerMessage::Pingresp;
-            println!("Enviando un Pingresp");
-            match pingresp.write_to(&mut stream) {
-                Ok(_) => {
-                    println!("Pingresp enviado");
-                    return Ok(ProtocolReturn::PingrespSent);
-                }
-                Err(err) => println!("Error al enviar Pingresp: {:?}", err),
-            }
-        }
-        ClientMessage::Auth {
-            reason_code: _,
-            authentication_method,
-            authentication_data,
-            reason_string,
-            user_properties,
-        } => {
-            println!("Recibi un auth");
-
-            match authentication_method.as_str() {
-                "password-based" => return Ok(ProtocolReturn::AuthRecieved),
-                _ => {
-                    let properties = ConnackProperties {
-                        session_expiry_interval: 0,
-                        receive_maximum: 0,
-                        maximum_packet_size: 0,
-                        topic_alias_maximum: 0,
-                        user_properties,
-                        authentication_method,
-                        authentication_data,
-                        assigned_client_identifier: "none".to_string(),
-                        maximum_qos: true,
-                        reason_string,
-                        wildcard_subscription_available: false,
-                        subscription_identifier_available: false,
-                        shared_subscription_available: false,
-                        server_keep_alive: 0,
-                        response_information: "none".to_string(),
-                        server_reference: "none".to_string(),
-                        retain_available: false,
+                if qos == 1 {
+                    let puback = BrokerMessage::Puback {
+                        packet_id_msb: packet_id_bytes[0],
+                        packet_id_lsb: packet_id_bytes[1],
+                        reason_code,
                     };
+                    println!("Enviando un Puback");
+                    match puback.write_to(&mut stream) {
+                        Ok(_) => {
+                            println!("Puback enviado");
+                            return Ok(ProtocolReturn::PubackSent);
+                        }
+                        Err(err) => println!("Error al enviar Puback: {:?}", err),
+                    }
+                }
+            }
+            ClientMessage::Subscribe {
+                packet_id,
+                properties,
+                payload,
+            } => {
+                println!("Recibí un Subscribe");
+                let msg = ClientMessage::Subscribe {
+                    packet_id,
+                    properties: properties.clone(),
+                    payload: payload.clone(),
+                };
+                Broker::save_packet(packets.clone(), msg, packet_id);
 
-                    let connack = BrokerMessage::Connack {
-                        session_present: false,
-                        reason_code: 0x8C, //Bad auth method
-                        properties,
+                let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
+
+                let mut reason_code_vec = Vec::new();
+
+                for p in payload {
+                    let reason_code =
+                        Broker::handle_subscribe(topics.clone(), p.topic.clone(), p.clone())?;
+
+                    reason_code_vec.push(reason_code);
+                }
+
+                if reason_code_vec.iter().any(|&x| x != SUCCESS_HEX) {
+                    let suback = BrokerMessage::Suback {
+                        packet_id_msb: packet_id_bytes[0],
+                        packet_id_lsb: packet_id_bytes[1],
+                        reason_code: UNSPECIFIED_ERROR_HEX,
                     };
-                    println!("Parece que intentaste autenticarte con un metodo no soportado por el broker :(");
+                    println!("Enviando un Suback");
+                    match suback.write_to(&mut stream) {
+                        Ok(_) => {
+                            println!("Suback enviado");
+                            return Ok(ProtocolReturn::SubackSent);
+                        }
+                        Err(err) => println!("Error al enviar suback: {:?}", err),
+                    }
+                }
 
-                    match connack.write_to(&mut stream) {
-                        Ok(_) => return Ok(ProtocolReturn::ConnackSent),
-                        Err(err) => {
-                            println!("{:?}", err);
+                return Ok(ProtocolReturn::SubackSent);
+            }
+            ClientMessage::Unsubscribe {
+                packet_id,
+                properties,
+                payload,
+            } => {
+                println!("Recibí un Unsubscribe");
+                let msg = ClientMessage::Unsubscribe {
+                    packet_id,
+                    properties: properties.clone(),
+                    payload: payload.clone(),
+                };
+                Broker::save_packet(packets.clone(), msg, packet_id);
+
+                let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
+
+                let mut reason_code_vec = Vec::new();
+
+                for p in payload {
+                    let reason_code =
+                        Broker::handle_unsubscribe(topics.clone(), p.topic.clone(), p.clone())?;
+                    reason_code_vec.push(reason_code);
+                }
+
+                if reason_code_vec.iter().any(|&x| x != SUCCESS_HEX) {
+                    let suback = BrokerMessage::Suback {
+                        packet_id_msb: packet_id_bytes[0],
+                        packet_id_lsb: packet_id_bytes[1],
+                        reason_code: UNSPECIFIED_ERROR_HEX,
+                    };
+                    println!("Enviando un Suback");
+                    match suback.write_to(&mut stream) {
+                        Ok(_) => {
+                            println!("Suback enviado");
+                            return Ok(ProtocolReturn::SubackSent);
+                        }
+                        Err(err) => println!("Error al enviar suback: {:?}", err),
+                    }
+                }
+
+                let unsuback = BrokerMessage::Unsuback {
+                    packet_id_msb: packet_id_bytes[0],
+                    packet_id_lsb: packet_id_bytes[1],
+                    reason_code: SUCCESS_HEX,
+                };
+                println!("Enviando un Unsuback");
+                match unsuback.write_to(&mut stream) {
+                    Ok(_) => {
+                        println!("Unsuback enviado");
+                        return Ok(ProtocolReturn::UnsubackSent);
+                    }
+                    Err(err) => println!("Error al enviar Unsuback: {:?}", err),
+                }
+            }
+            ClientMessage::Disconnect {
+                reason_code: _,
+                session_expiry_interval: _,
+                reason_string,
+                client_id,
+            } => {
+                println!(
+                    "Recibí un Disconnect, razon de desconexión: {:?}",
+                    reason_string
+                );
+                return Ok(ProtocolReturn::DisconnectRecieved);
+            }
+            ClientMessage::Pingreq => {
+                println!("Recibí un Pingreq");
+                let pingresp = BrokerMessage::Pingresp;
+                println!("Enviando un Pingresp");
+                match pingresp.write_to(&mut stream) {
+                    Ok(_) => {
+                        println!("Pingresp enviado");
+                        return Ok(ProtocolReturn::PingrespSent);
+                    }
+                    Err(err) => println!("Error al enviar Pingresp: {:?}", err),
+                }
+            }
+            ClientMessage::Auth {
+                reason_code: _,
+                authentication_method,
+                authentication_data,
+                reason_string,
+                user_properties,
+            } => {
+                println!("Recibi un auth");
+
+                match authentication_method.as_str() {
+                    "password-based" => return Ok(ProtocolReturn::AuthRecieved),
+                    _ => {
+                        let properties = ConnackProperties {
+                            session_expiry_interval: 0,
+                            receive_maximum: 0,
+                            maximum_packet_size: 0,
+                            topic_alias_maximum: 0,
+                            user_properties,
+                            authentication_method,
+                            authentication_data,
+                            assigned_client_identifier: "none".to_string(),
+                            maximum_qos: true,
+                            reason_string,
+                            wildcard_subscription_available: false,
+                            subscription_identifier_available: false,
+                            shared_subscription_available: false,
+                            server_keep_alive: 0,
+                            response_information: "none".to_string(),
+                            server_reference: "none".to_string(),
+                            retain_available: false,
+                        };
+
+                        let connack = BrokerMessage::Connack {
+                            session_present: false,
+                            reason_code: 0x8C, //Bad auth method
+                            properties,
+                        };
+                        println!("Parece que intentaste autenticarte con un metodo no soportado por el broker :(");
+
+                        match connack.write_to(&mut stream) {
+                            Ok(_) => return Ok(ProtocolReturn::ConnackSent),
+                            Err(err) => {
+                                println!("{:?}", err);
+                            }
                         }
                     }
                 }
             }
         }
+        Err(ProtocolError::UnspecifiedError)
     }
-    Err(ProtocolError::UnspecifiedError)
 }
 
 #[cfg(test)]
@@ -543,11 +563,11 @@ mod tests {
         // Write a ClientMessage to the stream.
         // You'll need to replace this with a real ClientMessage.
         let mut result: Result<(), ProtocolError> = Err(ProtocolError::UnspecifiedError);
-
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         // Accept the connection and pass the stream to the function.
         if let Ok((stream, _)) = listener.accept() {
             // Perform your assertions here
-            result = Broker::handle_client(stream, topics, packets, clients_ids);
+            result = broker.handle_client(stream, topics, packets, clients_ids);
         }
 
         // Check that the function returned Ok.
