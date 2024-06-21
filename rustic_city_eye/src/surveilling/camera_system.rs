@@ -126,6 +126,8 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
     /// Si el mensaje es un publish con topic accidente, activa las camaras cercanas a la location del incidente.
     ///
     /// Si el mensaje es un publish con topic accidenteresuelto, desactiva las camaras cercanas a la location del incidente.
+    /// 
+    /// Recibe un reciever opcional para poder testear la funcion, si este es None, utiliza el propio del broker
     pub fn run_client(
         &mut self,
         reciever: Option<Receiver<ClientMessage>>,
