@@ -910,15 +910,11 @@ mod tests {
         let messages = vec![publish];
         let mock_client = MockClient::new(messages.clone());
 
-        let (_, _): (
-            Sender<Box<dyn MessagesConfig + Send>>,
-            Receiver<Box<dyn MessagesConfig + Send>>,
-        ) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
 
         let mut camera_system =
             CameraSystem::<MockClient>::new(address.clone(), |_rx, _addr, _configg, _tx| {
-                Ok(MockClient { messages: messages })
+                Ok(MockClient { messages })
             })
             .unwrap();
 

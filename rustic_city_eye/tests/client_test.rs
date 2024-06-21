@@ -219,12 +219,12 @@ mod tests {
         //agregar id 1 a pending messages
         //pending_messages.push(1);
         let (sender, _) = channel();
-        let (tx, _): (
+        let (_tx, _): (
             std::sync::mpsc::Sender<bool>,
             std::sync::mpsc::Receiver<bool>,
         ) = channel();
 
-        let (tx, rx) = channel();
+        let (tx, _rx) = channel();
 
         if let Ok((stream, _)) = listener.accept() {
             result = handle_message(
