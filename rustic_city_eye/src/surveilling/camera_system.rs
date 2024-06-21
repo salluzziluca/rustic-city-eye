@@ -22,18 +22,30 @@ use crate::{
 };
 
 const AREA_DE_ALCANCE: f64 = 10.0;
+const NIVEL_DE_PROXIMIDAD_MAXIMO: f64 = 1.0;
 
 use super::camera_error::CameraError;
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 #[allow(dead_code)]
-pub struct CameraSystem<T: ClientTrait> {
-    pub send_to_client_channel: Sender<Box<dyn MessagesConfig + Send>>,
+pub struct CameraSystem<T: ClientTrait + Clone> {
+    pub send_to_client_channel: Arc<Mutex<Sender<Box<dyn MessagesConfig + Send>>>>,
     camera_system_client: T,
     cameras: HashMap<u32, Camera>,
     reciev_from_client: Arc<Mutex<Receiver<client_message::ClientMessage>>>,
 }
 
-impl<T: ClientTrait> CameraSystem<T> {
+impl<T: ClientTrait + Clone> Clone for CameraSystem<T> {
+    fn clone(&self) -> Self {
+        CameraSystem {
+            send_to_client_channel: Arc::clone(&self.send_to_client_channel),
+            camera_system_client: self.camera_system_client.clone(),
+            cameras: self.cameras.clone(),
+            reciev_from_client: Arc::clone(&self.reciev_from_client),
+        }
+    }
+}
+
+impl<T: ClientTrait + Clone> CameraSystem<T> {
     pub fn new<F>(address: String, client_factory: F) -> Result<CameraSystem<T>, ProtocolError>
     where
         F: FnOnce(
@@ -62,7 +74,7 @@ impl<T: ClientTrait> CameraSystem<T> {
         let _ = tx.send(Box::new(subscribe_config));
 
         Ok(CameraSystem {
-            send_to_client_channel: tx,
+            send_to_client_channel: Arc::new(Mutex::new(tx)),
             camera_system_client,
             cameras: HashMap::new(),
             reciev_from_client: Arc::new(Mutex::new(rx2)),
@@ -163,11 +175,47 @@ impl<T: ClientTrait> CameraSystem<T> {
     ///
     /// Al activaralas se las pasa de modo ahorro de energia a modo activo
     pub fn activate_cameras(&mut self, location: Location) -> Result<(), CameraError> {
+        // Collect the locations that need to be activated first
+        let locations_to_activate: Vec<Location> = self
+            .cameras
+            .values_mut()
+            .filter_map(|camera| {
+                let distancia = camera.get_location().distance(location.clone());
+                if distancia <= AREA_DE_ALCANCE {
+                    camera.set_sleep_mode(false);
+                    Some(camera.get_location())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Activate cameras by the collected locations
+        for loc in locations_to_activate {
+            self.activate_cameras_by_camera_location(loc)?;
+        }
+
+        Ok(())
+    }
+
+    fn activate_cameras_by_camera_location(
+        &mut self,
+        location: Location,
+    ) -> Result<(), CameraError> {
+        // Collect the locations that need to be activated first
+        let mut locations_to_activate = Vec::new();
+
         for camera in self.cameras.values_mut() {
             let distancia = camera.get_location().distance(location.clone());
-            if distancia < AREA_DE_ALCANCE {
+            if distancia <= NIVEL_DE_PROXIMIDAD_MAXIMO && camera.get_sleep_mode() {
                 camera.set_sleep_mode(false);
+                locations_to_activate.push(camera.get_location());
             }
+        }
+
+        // Activate cameras by the collected locations
+        for loc in locations_to_activate {
+            self.activate_cameras_by_camera_location(loc)?;
         }
 
         Ok(())
@@ -177,7 +225,8 @@ impl<T: ClientTrait> CameraSystem<T> {
         &mut self,
         message: Box<dyn MessagesConfig + Send>,
     ) -> Result<(), CameraError> {
-        match self.send_to_client_channel.send(message) {
+        let lock = self.send_to_client_channel.lock().unwrap();
+        match lock.send(message) {
             Ok(_) => {}
             Err(e) => {
                 println!("Error sending message: {:?}", e);
@@ -407,9 +456,9 @@ mod tests {
         let handle = thread::spawn(move || {
             let mut camera_system =
                 CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
-            let location = Location::new(1.0, 20.0);
+            let location = Location::new(5.0, 20.0);
             let id = camera_system.add_camera(location.clone()).unwrap();
-            let location2 = Location::new(1.0, 2.0);
+            let location2 = Location::new(5.0, 2.0);
             let id2 = camera_system.add_camera(location2.clone()).unwrap();
             let location3 = Location::new(10.0, 2.0);
             let id3 = camera_system.add_camera(location3.clone()).unwrap();
@@ -452,6 +501,57 @@ mod tests {
 
     #[test]
 
+    fn test08_camara_lejana_se_activa_por_reaccion_en_cadena() {
+        let args = vec!["127.0.0.1".to_string(), "5007".to_string()];
+        let mut broker = match Broker::new(args) {
+            Ok(broker) => broker,
+            Err(e) => panic!("Error creating broker: {:?}", e),
+        };
+
+        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+        let server_ready_clone = server_ready.clone();
+        thread::spawn(move || {
+            {
+                let (lock, cvar) = &*server_ready_clone;
+                let mut ready = lock.lock().unwrap();
+                *ready = true;
+                cvar.notify_all();
+            }
+            let _ = broker.server_run();
+        });
+
+        // Wait for the server to start
+        {
+            let (lock, cvar) = &*server_ready;
+            let mut ready = lock.lock().unwrap();
+            while !*ready {
+                ready = cvar.wait(ready).unwrap();
+            }
+        }
+        let addr = "127.0.0.1:5007";
+        let handle = thread::spawn(move || {
+            let mut camera_system =
+                CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
+            let location = Location::new(10.0, 0.0);
+            let id = camera_system.add_camera(location.clone()).unwrap();
+            let location2 = Location::new(11.0, 0.0);
+            let id2 = camera_system.add_camera(location2.clone()).unwrap();
+
+            assert_eq!(camera_system.get_cameras().len(), 2);
+
+            let incident_location = Location::new(0.0, 0.0);
+            camera_system.activate_cameras(incident_location).unwrap();
+            assert!(!camera_system.get_camera_by_id(id).unwrap().get_sleep_mode());
+            assert!(!camera_system
+                .get_camera_by_id(id2)
+                .unwrap()
+                .get_sleep_mode());
+        });
+        handle.join().unwrap();
+    }
+
+    #[test]
+
     fn test_run_client() {
         #[derive(Debug, Clone)]
         pub struct MockClient {
@@ -461,6 +561,10 @@ mod tests {
         impl ClientTrait for MockClient {
             fn client_run(&mut self) -> Result<(), ProtocolError> {
                 Ok(())
+            }
+
+            fn clone_box(&self) -> Box<dyn ClientTrait> {
+                Box::new(self.clone())
             }
         }
 

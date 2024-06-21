@@ -22,10 +22,14 @@ use super::{client_message, client_return::ClientReturn, error::ClientError};
 
 pub trait ClientTrait {
     fn client_run(&mut self) -> Result<(), ProtocolError>;
+    fn clone_box(&self) -> Box<dyn ClientTrait>;
 }
-
+impl Clone for Box<dyn ClientTrait> {
+    fn clone(&self) -> Box<dyn ClientTrait> {
+        self.clone_box()
+    }
+}
 #[derive(Debug, Clone)]
-
 pub struct Client {
     receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
 
@@ -594,6 +598,10 @@ impl Client {
 impl ClientTrait for Client {
     fn client_run(&mut self) -> Result<(), ProtocolError> {
         self.client_run()
+    }
+
+    fn clone_box(&self) -> Box<dyn ClientTrait> {
+        Box::new(self.clone())
     }
 }
 
