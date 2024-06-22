@@ -335,14 +335,17 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
         Ok(())
     }
 
-    pub fn publish_update_cameras(&mut self) -> Result<(), CameraError> {
+    /// Compara la snapshot anterior que tiene almacenada con la actual, envia mediante un pub
+    /// Las camaras que hayan cambiado de estado entre el ultimo publish y este.
+    /// En un vector de camaras.
+    /// Si no hay cambios, no envia nada
+    /// Almacena la nueva snapshot para la proxima comparacion
+    pub fn publish_cameras_update(&mut self) -> Result<(), CameraError> {
         //load tuples of id,camera to a vector
         let mut new_snapshot: Vec<Camera> = Vec::new();
         for camera in self.cameras.values() {
             new_snapshot.push(camera.clone());
         }
-
-        //compare the new snapshot with the old one and create a new one with the differences. if one camera has changed its state, it will be added to the vector
 
         let mut cameras = Vec::new();
         for camera in new_snapshot.iter() {
@@ -964,7 +967,7 @@ mod tests {
             }
 
             // Publico cuando las camaras se encienden
-            camera_system.publish_update_cameras().unwrap();
+            camera_system.publish_cameras_update().unwrap();
 
             let message = reciever.recv().unwrap();
             //conver message to a ClientMessage
@@ -993,7 +996,7 @@ mod tests {
             }
 
             //vuelvo a publicar cuando las camaras se apagan
-            camera_system.publish_update_cameras().unwrap();
+            camera_system.publish_cameras_update().unwrap();
             let message = reciever.recv().unwrap();
             //conver message to a ClientMessage
             let packet_id = camera_system.camera_system_client.assign_packet_id();
