@@ -14,6 +14,7 @@ use crate::{
         client_message::{self, ClientMessage},
         messages_config::MessagesConfig,
         protocol_error::ProtocolError,
+        publish::publish_config::PublishConfig,
         subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
     },
@@ -32,6 +33,7 @@ pub struct CameraSystem<T: ClientTrait + Clone> {
     camera_system_client: T,
     cameras: HashMap<u32, Camera>,
     reciev_from_client: Arc<Mutex<Receiver<client_message::ClientMessage>>>,
+    snapshot: Vec<Camera>,
 }
 
 impl<T: ClientTrait + Clone> Clone for CameraSystem<T> {
@@ -41,6 +43,7 @@ impl<T: ClientTrait + Clone> Clone for CameraSystem<T> {
             camera_system_client: self.camera_system_client.clone(),
             cameras: self.cameras.clone(),
             reciev_from_client: Arc::clone(&self.reciev_from_client),
+            snapshot: self.snapshot.clone(),
         }
     }
 }
@@ -84,6 +87,7 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
             camera_system_client,
             cameras: HashMap::new(),
             reciev_from_client: Arc::new(Mutex::new(rx2)),
+            snapshot: Vec::new(),
         })
     }
 
@@ -321,6 +325,47 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
                 return Err(CameraError::SendError);
             }
         };
+        Ok(())
+    }
+
+    pub fn publish_update_cameras(&mut self) -> Result<(), CameraError> {
+        //load tuples of id,camera to a vector
+        let mut new_snapshot: Vec<Camera> = Vec::new();
+        for camera in self.cameras.values() {
+            new_snapshot.push(camera.clone());
+        }
+
+        //compare the new snapshot with the old one and create a new one with the differences. if one camera has changed its state, it will be added to the vector
+
+        let mut cameras = Vec::new();
+        for camera in new_snapshot.iter() {
+            if (!self.snapshot.contains(&camera.clone()))
+                || (self.snapshot.contains(&camera.clone())
+                    && camera.get_sleep_mode()
+                        != self
+                            .snapshot
+                            .iter()
+                            .find(|&x| x == camera)
+                            .unwrap()
+                            .get_sleep_mode())
+            {
+                cameras.push(camera.clone());
+            }
+        }
+        let publish_config = PublishConfig::read_config(
+            "./src/surveilling/publish_config_test.json",
+            PayloadTypes::CamerasUpdatePayload(cameras),
+        )
+        .unwrap();
+        // let packet_id = self.camera_system_client.a
+        // let publish = publish_config.parse_message(3);
+        match self.send_message(Box::new(publish_config)) {
+            Ok(_) => {}
+            Err(_) => {
+                return Err(CameraError::SendError);
+            }
+        }
+        self.snapshot = new_snapshot;
         Ok(())
     }
 }
@@ -839,6 +884,64 @@ mod tests {
                 .unwrap()
                 .get_sleep_mode());
         });
+        handle.join().unwrap();
+    }
+
+    #[test]
+
+    fn test_update_cameras() {
+        let args = vec!["127.0.0.1".to_string(), "5033".to_string()];
+        let mut broker = match Broker::new(args) {
+            Ok(broker) => broker,
+            Err(e) => panic!("Error creating broker: {:?}", e),
+        };
+
+        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+        let server_ready_clone = server_ready.clone();
+        thread::spawn(move || {
+            {
+                let (lock, cvar) = &*server_ready_clone;
+                let mut ready = lock.lock().unwrap();
+                *ready = true;
+                cvar.notify_all();
+            }
+            let _ = broker.server_run();
+        });
+
+        // Wait for the server to start
+        {
+            let (lock, cvar) = &*server_ready;
+            let mut ready = lock.lock().unwrap();
+            while !*ready {
+                ready = cvar.wait(ready).unwrap();
+            }
+        }
+        let addr = "127.0.0.1:5033";
+        let handle = thread::spawn(move || {
+            let mut camera_system =
+                CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
+            let location = Location::new(1.0, 2.0);
+            let id = camera_system.add_camera(location.clone()).unwrap();
+            assert_eq!(camera_system.get_cameras().len(), 1);
+            assert_eq!(
+                camera_system.get_camera_by_id(id).unwrap().get_location(),
+                location
+            );
+            let incident_location = Location::new(1.0, 2.0);
+            camera_system
+                .activate_cameras(incident_location.clone())
+                .unwrap();
+            for camera in camera_system.get_cameras().values() {
+                assert!(!camera.get_sleep_mode());
+            }
+            camera_system.publish_update_cameras().unwrap();
+            camera_system.deactivate_cameras(incident_location).unwrap();
+            for camera in camera_system.get_cameras().values() {
+                assert!(camera.get_sleep_mode());
+            }
+            camera_system.publish_update_cameras().unwrap();
+        });
+
         handle.join().unwrap();
     }
     #[test]

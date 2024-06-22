@@ -8,6 +8,7 @@ use serde::Deserialize;
 use crate::{
     monitoring::incident::Incident,
     mqtt::{payload::Payload, protocol_error::ProtocolError},
+    surveilling::camera::Camera,
     utils::{
         incident_payload::IncidentPayload,
         location::Location,
@@ -15,7 +16,7 @@ use crate::{
     },
 };
 
-use super::writer::{write_string, write_u8};
+use super::writer::{write_string, write_u32, write_u8};
 
 /// Aqui se definen los distintos tipos de payload que va a soportar nuestra aplicacion.
 /// La idea es que implemente el trait de Payload, de forma tal que sepa escribirse sobre un stream dado.
@@ -24,6 +25,7 @@ pub enum PayloadTypes {
     IncidentLocation(IncidentPayload),
     WillPayload(String),
     LocationPayload(Location),
+    CamerasUpdatePayload(Vec<Camera>),
 }
 
 impl Payload for PayloadTypes {
@@ -45,6 +47,19 @@ impl Payload for PayloadTypes {
                 write_string(stream, &payload.get_latitude().to_string())?;
                 write_string(stream, &payload.get_longitude().to_string())?;
 
+                Ok(())
+            }
+            PayloadTypes::CamerasUpdatePayload(payload) => {
+                write_u8(stream, &4)?;
+                write_u8(stream, &(payload.len() as u8))?;
+
+                for camera in payload {
+                    let mut camera_clone = camera.clone();
+                    match camera_clone.write_to(stream) {
+                        Ok(_) => {}
+                        Err(_) => return Err(ProtocolError::WriteError),
+                    }
+                }
                 Ok(())
             }
         }
