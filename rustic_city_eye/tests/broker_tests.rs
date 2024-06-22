@@ -171,11 +171,80 @@ mod tests {
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
-        if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream, topics, packets, clients_ids);
+        if let Ok((stream_clone, _)) = listener.accept() {
+            result = broker.handle_messages(
+                stream_clone,
+                topics.clone(),
+                packets.clone(),
+                clients_ids.clone(),
+            );
         }
 
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
+
+        // obtengo la lista de clientes
+        let binding = clients_ids.clone();
+        let clients = binding.read().unwrap();
+        assert!(clients.contains_key("kvtr33"));
+
+        // vuelvo a enviar el connect con el mismo id
+        let connect_propierties = ConnectProperties {
+            session_expiry_interval: 1,
+            receive_maximum: 2,
+            maximum_packet_size: 10,
+            topic_alias_maximum: 99,
+            request_response_information: true,
+            request_problem_information: false,
+            user_properties: vec![
+                ("Hola".to_string(), "Mundo".to_string()),
+                ("Chau".to_string(), "Mundo".to_string()),
+            ],
+            authentication_method: "test".to_string(),
+            authentication_data: vec![1_u8, 2_u8, 3_u8, 4_u8, 5_u8],
+        };
+        let will_properties = WillProperties::new(
+            120,
+            1,
+            30,
+            "plain".to_string(),
+            "topic".to_string(),
+            vec![1, 2, 3, 4, 5],
+            vec![("propiedad".to_string(), "valor".to_string())],
+        );
+
+        let connect = ClientMessage::Connect {
+            clean_start: true,
+            last_will_flag: true,
+            last_will_qos: 1,
+            last_will_retain: true,
+            keep_alive: 35,
+            properties: connect_propierties,
+            client_id: "kvtr33".to_string(),
+            will_properties,
+            last_will_topic: "topic".to_string(),
+            last_will_message: "chauchis".to_string(),
+            username: "prueba".to_string(),
+            password: "".to_string(),
+        };
+
+        thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            let mut buffer = vec![];
+            connect.write_to(&mut buffer).unwrap();
+            stream.write_all(&buffer).unwrap();
+        });
+
+        let mut result: Result<ProtocolReturn, ProtocolError> =
+            Err(ProtocolError::UnspecifiedError);
+        if let Ok((stream_clone, _)) = listener.accept() {
+            result = broker.handle_messages(stream_clone, topics, packets, clients_ids);
+        }
+
+        assert!(result.is_ok());
         assert_eq!(result.unwrap(), ProtocolReturn::DisconnectSent);
+
+        //assert_eq!(result.unwrap(), ProtocolReturn::DisconnectSent);
     }
 
     #[test]

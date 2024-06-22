@@ -421,7 +421,7 @@ impl Client {
                             }
                         },
                         ClientMessage::Disconnect {
-                            reason_code,
+                            reason_code: _,
                             session_expiry_interval: _,
                             reason_string: _,
                             client_id,
@@ -430,7 +430,7 @@ impl Client {
                                 Ok(stream_clone) => {
                                     let reason = "normal";
 
-                                    let disconnect = ClientMessage::Disconnect {
+                                    let _disconnect = ClientMessage::Disconnect {
                                         reason_code: 0x00,
                                         session_expiry_interval: 0,
                                         reason_string: "Disconnecting".to_string(),

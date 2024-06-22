@@ -4,8 +4,6 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use mockall::predicate::le;
-
 use crate::mqtt::{
     broker_config::BrokerConfig,
     broker_message::BrokerMessage,
@@ -172,15 +170,37 @@ impl Broker {
             let users = topic.get_topic_users();
             for user in users {
                 //verifico si el user esta conectado
-                if let Some(stream) = self.clients_ids.read().unwrap().get(&user.client_id) {
+                let mut es_qos_1 = false;
+                let mut esta_offline = false;
+                let m = message.clone();
+                if let Some(mut stream) = self.clients_ids.read().unwrap().get(&user.client_id) {
                     //envio el mensaje al user
-                } else {
+
+                    match m.write_to(&mut stream) {
+                        Ok(_) => {
+                            println!("Mensaje enviado a {}", user.client_id);
+                        }
+                        Err(_) => {
+                            // si es qos 1 me guardo el mensjae
+                            if user.qos == 1 {
+                                es_qos_1 = true;
+                            }
+                        }
+                    }
+                    // si el mensaje es qos 1, envio el ack
+                } else if let Some(_stream) =
+                    self.offline_clients.read().unwrap().get(&user.client_id)
+                {
                     //guardo el mensaje para enviarlo cuando el user se conecte
+                    esta_offline = true;
+                }
+
+                if esta_offline && es_qos_1 {
                     let mut lock = self.offline_clients.write().unwrap();
                     if let Some(messages) = lock.get_mut(&user.client_id) {
-                        messages.push(message.clone());
+                        messages.push(m);
                     } else {
-                        lock.insert(user.client_id, vec![message.clone()]);
+                        lock.insert(user.client_id, vec![m]);
                     }
                 }
             }
@@ -277,6 +297,30 @@ impl Broker {
                         Err(err) => println!("Error al enviar Disconnect: {:?}", err),
                     }
                 }
+
+                if self
+                    .offline_clients
+                    .read()
+                    .unwrap()
+                    .contains_key(&client_id)
+                {
+                    let offline_clients = self.offline_clients.read().unwrap();
+                    let pending_messages = offline_clients.get(&client_id).unwrap();
+                    for message in pending_messages {
+                        match message.write_to(&mut stream) {
+                            Ok(_) => {
+                                println!("Mensaje enviado a {}", client_id);
+                            }
+                            Err(err) => {
+                                println!("Error al enviar mensaje: {:?}", err);
+                            }
+                        }
+                    }
+                }
+
+                //si está en offline_clients lo elimino de ahí
+                let mut lock = self.offline_clients.write().unwrap();
+                lock.remove(&client_id);
 
                 //clona stream con ok err
                 let cloned_stream = match stream.try_clone() {
@@ -463,7 +507,7 @@ impl Broker {
                 reason_code: _,
                 session_expiry_interval: _,
                 reason_string,
-                client_id,
+                client_id: _,
             } => {
                 println!(
                     "Recibí un Disconnect, razon de desconexión: {:?}",
