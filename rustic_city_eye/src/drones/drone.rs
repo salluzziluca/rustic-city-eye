@@ -1,7 +1,7 @@
 use std::sync::{mpsc, Arc, Mutex};
 
 use chrono::Utc;
-
+use std::f64::consts::PI;
 use super::{drone_config::DroneConfig, drone_error::DroneError, drone_state::DroneState};
 use crate::{
     mqtt::{
@@ -23,6 +23,8 @@ pub struct Drone {
     center_location: Location,
     /// La configuracion del Drone contiene el nivel de bateria del mismo y
     /// el radio de operacion.
+    target_location: Location,
+
     drone_config: DroneConfig,
 
     ///  El Drone puede tener distintos estados:
@@ -67,10 +69,12 @@ impl Drone {
             Ok(client) => client,
             Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
         };
+        let target_location = center_location.clone();
         Ok(Drone {
             id,
             location,
             center_location,
+            target_location,
             drone_config,
             drone_state: DroneState::Waiting,
             drone_client,
@@ -91,6 +95,7 @@ impl Drone {
             Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
         };
 
+        println!("Drone {} is running", self.id);
         let self_clone = Arc::new(Mutex::new(self.clone()));
         std::thread::spawn(move || {
             let self_clone: Arc<Mutex<Drone>> = Arc::clone(&self_clone);
@@ -99,7 +104,7 @@ impl Drone {
         });
         let self_clone2 = Arc::new(Mutex::new(self.clone()));
 
-        std::thread::spawn(move || {
+        let _t1= std::thread::spawn(move || {
             let self_clone: Arc<Mutex<Drone>> = Arc::clone(&self_clone2);
             let mut self_locked = self_clone.lock().unwrap();
             let location_clone = self_locked.location.clone();
@@ -107,6 +112,7 @@ impl Drone {
             let movement_rate = self_locked.drone_config.get_movement_rate();
             let target_location: Location = self_locked.center_location.clone(); // TODO: placeHOLDER
 
+            println!("Drone {} is moving", self_locked.id);
             match self_locked.drone_movement(
                 location_clone,
                 operation_radius,
@@ -210,6 +216,10 @@ impl Drone {
         let mut last_move_time = Utc::now();
 
         loop {
+            if self.location == target_location {
+                self.update_target_location(center_location.clone(), radius)?;
+            }
+
             if self.battery_level > 0 {
                 let current_time = Utc::now();
                 let elapsed_time = current_time
@@ -310,6 +320,18 @@ impl Drone {
         Ok(())
     }
 
+    fn update_target_location(
+        &mut self,
+        center_location: Location,
+        radius: f64,
+    ) -> Result<(), DroneError> {
+        let current_time = Utc::now().timestamp_millis() as f64;
+        let angle = (current_time / 1000.0) % (2.0 * PI); // full circle in seconds
+        let new_target_lat = center_location.lat + radius * angle.cos();
+        let new_target_long = center_location.long + radius * angle.sin();
+        self.target_location = Location::new(new_target_lat, new_target_long);
+        Ok(())
+    }
     // fn update_current_location(&mut self) {
     //     let publish_config = match PublishConfig::read_config(
     //         "src/drones/publish_config.json",
