@@ -52,7 +52,7 @@ impl DroneSystem {
     /// Devuelve el id del drone o DroneError en caso de error.
     pub fn add_drone(
         &mut self,
-         location: Location,
+        location: Location,
         drone_center_id: u32,
     ) -> Result<u32, DroneError> {
         let drone_center = match self.drone_centers.get_mut(&drone_center_id) {

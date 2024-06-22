@@ -712,9 +712,14 @@ mod tests {
 
     #[test]
     fn test_01_creating_broker_config_ok() -> std::io::Result<()> {
-        let topics = Broker::get_broker_starting_topics("./src/monitoring/topics.txt").unwrap();
-        let clients_auth_info =
-            Broker::process_clients_file("./src/monitoring/clients.txt").unwrap();
+        let topics = match Broker::get_broker_starting_topics("./src/monitoring/topics.txt") {
+            Ok(topics) => topics,
+            Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::Other, "Error")),
+        };
+        let clients_auth_info = match Broker::process_clients_file("./src/monitoring/clients.txt") {
+            Ok(clients_auth_info) => clients_auth_info,
+            Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::Other, "Error")),
+        };
 
         let mut expected_topics = HashMap::new();
         let mut expected_clients = HashMap::new();
@@ -770,13 +775,25 @@ mod tests {
     #[test]
     fn test_handle_client() {
         // Set up a listener on a local port.
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = listener.local_addr().unwrap();
+        let listener = match TcpListener::bind("127.0.0.1:0") {
+            Ok(listener) => listener,
+            Err(_) => return,
+        };
+        let addr = match listener.local_addr() {
+            Ok(addr) => addr,
+            Err(_) => return,
+        };
 
         // Spawn a thread to simulate a client.
         thread::spawn(move || {
-            let mut stream = TcpStream::connect(addr).unwrap();
-            stream.write_all(b"Hello, world!").unwrap();
+            let mut stream = match TcpStream::connect(addr) {
+                Ok(stream) => stream,
+                Err(_) => return,
+            };
+            match stream.write_all(b"Hello, world!") {
+                Ok(_) => (),
+                Err(_) => return,
+            };
         });
 
         let topics = HashMap::new();

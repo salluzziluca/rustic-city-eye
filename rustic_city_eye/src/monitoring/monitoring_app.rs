@@ -42,10 +42,8 @@ impl MonitoringApp {
         let address = args[2].to_string() + ":" + &args[3].to_string();
 
         let camera_system = CameraSystem::new(address.clone())?;
-        let drone_system = DroneSystem::new(
-            "src/drones/drone_config.json".to_string(),
-            address.clone(),
-        );
+        let drone_system =
+            DroneSystem::new("src/drones/drone_config.json".to_string(), address.clone());
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
 
@@ -118,10 +116,7 @@ impl MonitoringApp {
         drone_center_id: u32,
     ) -> Result<u32, ProtocolError> {
         match self.drone_system.add_drone(location, drone_center_id) {
-            Ok(id) => {
-                Ok(id)
-
-            },
+            Ok(id) => Ok(id),
             Err(e) => Err(ProtocolError::DroneError(e.to_string())),
         }
     }
@@ -154,13 +149,19 @@ impl MonitoringApp {
                         properties: _,
                     } => {
                         if topic_name == "drone_location" {
-                            if let PayloadTypes::DroneLocation(id,drone_locationn) =  payload {
+                            if let PayloadTypes::DroneLocation(id, drone_locationn) = payload {
                                 drone_locations.insert(id, drone_locationn);
                                 println!("Updated drone location");
                             }
                         }
                     }
-                    ClientMessage::Auth { reason_code: _, authentication_data: _n_data, reason_string: _, user_properties: _, authentication_method: _ } => {
+                    ClientMessage::Auth {
+                        reason_code: _,
+                        authentication_data: _n_data,
+                        reason_string: _,
+                        user_properties: _,
+                        authentication_method: _,
+                    } => {
                         todo!()
                     }
                     _ => {}

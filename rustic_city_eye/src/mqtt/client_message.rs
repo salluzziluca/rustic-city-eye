@@ -906,7 +906,7 @@ mod tests {
 
         match ClientMessage::read_from(&mut cursor) {
             Ok(read_publish) => {
-                println!("{:?}", read_publish);
+                // println!("{:?}", read_publish);
                 assert_eq!(publish, read_publish);
             }
             Err(e) => {

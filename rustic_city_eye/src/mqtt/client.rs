@@ -61,7 +61,7 @@ impl Client {
             Err(_) => return Err(ProtocolError::StreamError),
         };
         let connect = ClientMessage::Connect(connect);
-        println!("Connect: {:?}", connect);
+        // println!("Connect: {:?}", connect);
 
         println!("Enviando connect message to broker");
 

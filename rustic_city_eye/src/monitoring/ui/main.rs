@@ -5,11 +5,11 @@ mod incident_view;
 mod plugins;
 mod windows;
 
-use std::collections::HashMap;
 use eframe::{run_native, App, CreationContext, NativeOptions};
 use egui::{CentralPanel, RichText, TextStyle};
 use plugins::*;
 use rustic_city_eye::{monitoring::monitoring_app::MonitoringApp, utils::location::Location};
+use std::collections::HashMap;
 use walkers::{sources::OpenStreetMap, Map, MapMemory, Position, Texture, Tiles};
 use windows::*;
 
@@ -169,7 +169,7 @@ impl MyApp {
 
             if let Some(monitoring_app) = &mut self.monitoring_app {
                 let new_locations = monitoring_app.update_drone_location();
-                self.map.update_drones(new_locations); 
+                self.map.update_drones(new_locations);
                 add_camera_window(ui, &mut self.map, monitoring_app);
                 add_incident_window(ui, &mut self.map, monitoring_app);
                 add_drone_window(ui, &mut self.map, monitoring_app);
