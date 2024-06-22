@@ -80,7 +80,6 @@ impl Broker {
                 Ok(stream) => {
                     let topics_clone = self.topics.clone();
                     let packets_clone = self.packets.clone();
-                    let clients_ids_clone = self.clients_ids.clone();
                     let self_ref = Arc::new(self.clone()); // wrap `self` in an Arc
 
                     threadpool.execute(move || {
@@ -89,7 +88,6 @@ impl Broker {
                             stream,
                             topics_clone,
                             packets_clone,
-                            clients_ids_clone,
                         );
                     });
                 }
@@ -105,19 +103,13 @@ impl Broker {
         stream: TcpStream,
         topics: HashMap<String, Topic>,
         packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
-        clients_ids: Arc<RwLock<HashMap<String, TcpStream>>>,
     ) -> Result<(), ProtocolError> {
         loop {
             let cloned_stream = match stream.try_clone() {
                 Ok(stream) => stream,
                 Err(_) => return Err(ProtocolError::StreamError),
             };
-            match self.handle_messages(
-                cloned_stream,
-                topics.clone(),
-                packets.clone(),
-                clients_ids.clone(),
-            ) {
+            match self.handle_messages(cloned_stream, topics.clone(), packets.clone()) {
                 Ok(return_val) => {
                     if return_val == ProtocolReturn::DisconnectRecieved {
                         return Ok(());
@@ -173,34 +165,50 @@ impl Broker {
                 let mut es_qos_1 = false;
                 let mut esta_offline = false;
                 let m = message.clone();
-                if let Some(mut stream) = self.clients_ids.read().unwrap().get(&user.client_id) {
-                    //envio el mensaje al user
-
-                    match m.write_to(&mut stream) {
-                        Ok(_) => {
-                            println!("Mensaje enviado a {}", user.client_id);
-                        }
-                        Err(_) => {
-                            // si es qos 1 me guardo el mensjae
-                            if user.qos == 1 {
-                                es_qos_1 = true;
+                match self.clients_ids.read() {
+                    Ok(clients) => {
+                        if let Some(mut stream) = clients.get(&user.client_id) {
+                            //envio el mensaje al user
+                            match m.write_to(&mut stream) {
+                                Ok(_) => {
+                                    println!("Mensaje enviado a {}", user.client_id);
+                                }
+                                Err(_) => {
+                                    // si es qos 1 me guardo el mensaje
+                                    if user.qos == 1 {
+                                        es_qos_1 = true;
+                                    }
+                                }
+                            }
+                            // si el mensaje es qos 1, envio el ack
+                        } else {
+                            match self.offline_clients.read() {
+                                Ok(offline_clients) => {
+                                    if let Some(_stream) = offline_clients.get(&user.client_id) {
+                                        //guardo el mensaje para enviarlo cuando el user se conecte
+                                        esta_offline = true;
+                                    }
+                                }
+                                Err(_) => {
+                                    // Manejo de error al leer offline_clients
+                                }
                             }
                         }
                     }
-                    // si el mensaje es qos 1, envio el ack
-                } else if let Some(_stream) =
-                    self.offline_clients.read().unwrap().get(&user.client_id)
-                {
-                    //guardo el mensaje para enviarlo cuando el user se conecte
-                    esta_offline = true;
+                    Err(_) => {
+                        // Manejo de error al leer clients_ids
+                    }
                 }
 
                 if esta_offline && es_qos_1 {
-                    let mut lock = self.offline_clients.write().unwrap();
-                    if let Some(messages) = lock.get_mut(&user.client_id) {
-                        messages.push(m);
+                    if let Ok(mut lock) = self.offline_clients.write() {
+                        if let Some(messages) = lock.get_mut(&user.client_id) {
+                            messages.push(m);
+                        } else {
+                            lock.insert(user.client_id, vec![m]);
+                        }
                     } else {
-                        lock.insert(user.client_id, vec![m]);
+                        return Ok(0x80_u8);
                     }
                 }
             }
@@ -245,9 +253,9 @@ impl Broker {
         message: ClientMessage,
         packet_id: u16,
     ) {
-        let mut lock = packets.write().unwrap();
-
-        lock.insert(packet_id, message);
+        if let Ok(mut lock) = packets.write() {
+            lock.insert(packet_id, message);
+        }
     }
 
     /// Lee del stream un mensaje y lo procesa
@@ -258,7 +266,6 @@ impl Broker {
         mut stream: TcpStream,
         topics: HashMap<String, Topic>,
         packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
-        clients_ids: Arc<RwLock<HashMap<String, TcpStream>>>,
     ) -> Result<ProtocolReturn, ProtocolError> {
         let mensaje = match ClientMessage::read_from(&mut stream) {
             Ok(mensaje) => mensaje,
@@ -281,46 +288,52 @@ impl Broker {
             } => {
                 println!("Recibí un Connect");
 
-                if clients_ids.read().unwrap().contains_key(&client_id) {
-                    let disconnect = BrokerMessage::Disconnect {
-                        reason_code: 0,
-                        session_expiry_interval: 0,
-                        reason_string: "El cliente ya está conectado".to_string(),
-                        user_properties: Vec::new(),
-                    };
+                // si el cliente ya está conectado, no permite la nueva conexión y la rechaza con CLIENT_DUP
+                match self.clients_ids.read() {
+                    Ok(clients) => {
+                        if clients.contains_key(&client_id) {
+                            let disconnect = BrokerMessage::Disconnect {
+                                reason_code: 0,
+                                session_expiry_interval: 0,
+                                reason_string: "CLIENT_DUP".to_string(),
+                                user_properties: Vec::new(),
+                            };
 
-                    match disconnect.write_to(&mut stream) {
-                        Ok(_) => {
-                            println!("Disconnect enviado");
-                            return Ok(ProtocolReturn::DisconnectSent);
+                            match disconnect.write_to(&mut stream) {
+                                Ok(_) => {
+                                    println!("Disconnect enviado");
+                                    return Ok(ProtocolReturn::DisconnectSent);
+                                }
+                                Err(err) => println!("Error al enviar Disconnect: {:?}", err),
+                            }
                         }
-                        Err(err) => println!("Error al enviar Disconnect: {:?}", err),
+                    }
+                    Err(_) => {
+                        // Manejo de error al leer clients_ids
                     }
                 }
-
-                if self
-                    .offline_clients
-                    .read()
-                    .unwrap()
-                    .contains_key(&client_id)
-                {
-                    let offline_clients = self.offline_clients.read().unwrap();
-                    let pending_messages = offline_clients.get(&client_id).unwrap();
-                    for message in pending_messages {
-                        match message.write_to(&mut stream) {
-                            Ok(_) => {
-                                println!("Mensaje enviado a {}", client_id);
-                            }
-                            Err(err) => {
-                                println!("Error al enviar mensaje: {:?}", err);
+                // reibe los mensajes de cuando estuvo offline
+                if let Ok(offline_clients) = self.offline_clients.read() {
+                    if offline_clients.contains_key(&client_id) {
+                        if let Some(pending_messages) = offline_clients.get(&client_id) {
+                            for message in pending_messages {
+                                match message.write_to(&mut stream) {
+                                    Ok(_) => {
+                                        println!("Mensaje enviado a {}", client_id);
+                                    }
+                                    Err(_) => return Err(ProtocolError::UnspecifiedError),
+                                }
                             }
                         }
                     }
                 }
 
                 //si está en offline_clients lo elimino de ahí
-                let mut lock = self.offline_clients.write().unwrap();
-                lock.remove(&client_id);
+                if let Ok(mut lock) = self.offline_clients.write() {
+                    lock.remove(&client_id);
+                } else {
+                    return Err(ProtocolError::UnspecifiedError);
+                }
 
                 //clona stream con ok err
                 let cloned_stream = match stream.try_clone() {
@@ -328,10 +341,11 @@ impl Broker {
                     Err(_) => return Err(ProtocolError::StreamError),
                 };
 
-                clients_ids
-                    .write()
-                    .unwrap()
-                    .insert(client_id.clone(), cloned_stream);
+                if let Ok(mut clients) = self.clients_ids.write() {
+                    clients.insert(client_id.clone(), cloned_stream);
+                } else {
+                    return Err(ProtocolError::UnspecifiedError);
+                }
 
                 let properties = ConnackProperties {
                     session_expiry_interval: 0,
@@ -507,12 +521,31 @@ impl Broker {
                 reason_code: _,
                 session_expiry_interval: _,
                 reason_string,
-                client_id: _,
+                client_id,
             } => {
                 println!(
                     "Recibí un Disconnect, razon de desconexión: {:?}",
                     reason_string
                 );
+
+                if reason_string == "CLIENT_DUP" {
+                    return Ok(ProtocolReturn::DisconnectRecieved);
+                }
+
+                // elimino el client_id de clients_ids
+                if let Ok(mut lock) = self.clients_ids.write() {
+                    lock.remove(&client_id);
+                } else {
+                    return Err(ProtocolError::UnspecifiedError);
+                }
+
+                // agrego el client_id a offline_clients
+                if let Ok(mut lock) = self.offline_clients.write() {
+                    lock.insert(client_id, Vec::new());
+                } else {
+                    return Err(ProtocolError::UnspecifiedError);
+                }
+
                 return Ok(ProtocolReturn::DisconnectRecieved);
             }
             ClientMessage::Pingreq => {
@@ -578,6 +611,25 @@ impl Broker {
         }
         Err(ProtocolError::UnspecifiedError)
     }
+
+    /// Devuelve los clientes offline y sus mensajes pendientes de manera estática
+    /// para poder testear
+    pub fn get_offline_clients(&self) -> HashMap<String, Vec<ClientMessage>> {
+        self.offline_clients.read().unwrap().clone()
+    }
+
+    /// Devuelve los clientes conectados de manera estática
+    /// para poder testear
+    pub fn get_clients_ids(&self) -> Vec<String> {
+        let mut clients_ids = Vec::new();
+        let lock = self.clients_ids.read().unwrap();
+        for client_id in lock.keys() {
+            // agrego el client_id al vector
+            clients_ids.push(client_id.clone());
+        }
+
+        clients_ids
+    }
 }
 
 #[cfg(test)]
@@ -602,8 +654,6 @@ mod tests {
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
 
-        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
-
         // Write a ClientMessage to the stream.
         // You'll need to replace this with a real ClientMessage.
         let mut result: Result<(), ProtocolError> = Err(ProtocolError::UnspecifiedError);
@@ -611,7 +661,7 @@ mod tests {
         // Accept the connection and pass the stream to the function.
         if let Ok((stream, _)) = listener.accept() {
             // Perform your assertions here
-            result = broker.handle_client(stream, topics, packets, clients_ids);
+            result = broker.handle_client(stream, topics, packets);
         }
 
         // Check that the function returned Ok.
