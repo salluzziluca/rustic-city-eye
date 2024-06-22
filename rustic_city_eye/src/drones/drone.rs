@@ -1,7 +1,5 @@
 use std::sync::{mpsc, Arc, Mutex};
 
-use chrono::Utc;
-use std::f64::consts::PI;
 use super::{drone_config::DroneConfig, drone_error::DroneError, drone_state::DroneState};
 use crate::{
     mqtt::{
@@ -12,6 +10,8 @@ use crate::{
     },
     utils::{location::Location, payload_types::PayloadTypes},
 };
+use chrono::Utc;
+use std::f64::consts::PI;
 #[derive(Debug, Clone)]
 pub struct Drone {
     // ID unico para cada Drone.
@@ -104,7 +104,7 @@ impl Drone {
         });
         let self_clone2 = Arc::new(Mutex::new(self.clone()));
 
-        let _t1= std::thread::spawn(move || {
+        let _t1 = std::thread::spawn(move || {
             let self_clone: Arc<Mutex<Drone>> = Arc::clone(&self_clone2);
             let mut self_locked = self_clone.lock().unwrap();
             let location_clone = self_locked.location.clone();
@@ -216,6 +216,7 @@ impl Drone {
         let mut last_move_time = Utc::now();
 
         loop {
+            // println!("Drone {} is moving to direction {:?}", self.id, self.target_location);
             if self.location == target_location {
                 self.update_target_location(center_location.clone(), radius)?;
             }
@@ -284,10 +285,17 @@ impl Drone {
     }
 
     fn update_location(&mut self, new_lat: f64, new_long: f64) -> Result<(), DroneError> {
+        println!(
+            "Drone {} is moving to new location: ({}, {})",
+            self.id, new_lat, new_long
+        );
         self.location = Location::new(new_lat, new_long);
         let payload = PayloadTypes::LocationPayload(self.location.clone());
-        let publish_config =
-            PublishConfig::read_json_to_publish_config(payload, "src/drones/publish_config.json");
+        let publish_config = match
+            PublishConfig::read_config("src/drones/publish_config.json", payload){
+                Ok(config) => config,
+                Err(e) => return Err(DroneError::ReadingConfigFileError),
+            };
         self.send_to_client_channel
             .send(Box::new(publish_config))
             .map_err(|_| DroneError::ReadingConfigFileError)?;
