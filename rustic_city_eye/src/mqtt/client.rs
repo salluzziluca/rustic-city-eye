@@ -810,7 +810,7 @@ mod tests {
             let connect_config =
                 client_message::Connect::read_connect_config("src/drones/connect_config.json")
                     .unwrap();
-            let (__, rx) = mpsc::channel();
+            let (_, rx) = mpsc::channel();
             let (tx2, _) = mpsc::channel();
             let address = "127.0.0.1:5047";
             let client = Client::new(rx, address.to_string(), connect_config, tx2).unwrap();
@@ -852,7 +852,7 @@ mod tests {
             let connect_config =
                 client_message::Connect::read_connect_config("src/drones/connect_config.json")
                     .unwrap();
-            let (__, rx) = mpsc::channel();
+            let (_, rx) = mpsc::channel();
             let (tx2, _) = mpsc::channel();
             let address = "127.0.0.1:5039";
             let client = Client::new(rx, address.to_string(), connect_config, tx2).unwrap();
@@ -895,7 +895,7 @@ mod tests {
             let connect_config =
                 client_message::Connect::read_connect_config("src/drones/connect_config.json")
                     .unwrap();
-            let (__, rx) = mpsc::channel();
+            let (_, rx) = mpsc::channel();
             let (tx2, _) = mpsc::channel();
             let address = "127.0.0.1:5028";
             let client = Client::new(rx, address.to_string(), connect_config, tx2).unwrap();
