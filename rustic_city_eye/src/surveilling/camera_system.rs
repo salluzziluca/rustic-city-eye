@@ -90,7 +90,12 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
             snapshot: Vec::new(),
         })
     }
-
+    fn get_client_publish_end_channel(
+        &self,
+    ) -> Arc<std::sync::Mutex<std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>>>
+    {
+        self.camera_system_client.get_publish_end_channel()
+    }
     pub fn add_camera(&mut self, location: Location) -> Option<u32> {
         let mut rng = rand::thread_rng();
 
@@ -317,8 +322,10 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
         &mut self,
         message: Box<dyn MessagesConfig + Send>,
     ) -> Result<(), CameraError> {
+        let packet_id = self.camera_system_client.assign_packet_id();
+        let message = message.parse_message(packet_id);
         let lock = self.send_to_client_channel.lock().unwrap();
-        match lock.send(message) {
+        match lock.send(Box::new(message)) {
             Ok(_) => {}
             Err(e) => {
                 println!("Error sending message: {:?}", e);
@@ -352,13 +359,15 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
                 cameras.push(camera.clone());
             }
         }
-        let publish_config = PublishConfig::read_config(
-            "./src/surveilling/publish_config_test.json",
+        let publish_config = match PublishConfig::read_config(
+            "./src/surveilling/publish_config_update.json",
             PayloadTypes::CamerasUpdatePayload(cameras),
-        )
-        .unwrap();
-        // let packet_id = self.camera_system_client.a
-        // let publish = publish_config.parse_message(3);
+        ) {
+            Ok(config) => config,
+            Err(_) => {
+                return Err(CameraError::SendError);
+            }
+        };
         match self.send_message(Box::new(publish_config)) {
             Ok(_) => {}
             Err(_) => {
@@ -920,6 +929,25 @@ mod tests {
         let handle = thread::spawn(move || {
             let mut camera_system =
                 CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
+            let reciever = camera_system.camera_system_client.get_publish_end_channel();
+            let reciever = reciever.lock().unwrap();
+            let message = reciever.recv().unwrap();
+            //conver message to a ClientMessage
+            let packet_id = camera_system.camera_system_client.assign_packet_id();
+            let message = message.parse_message(packet_id);
+            // Recibe el sub que hace el camera_system cuando se crea por primera vez
+            match message {
+                ClientMessage::Subscribe {
+                    packet_id: _,
+                    topic_name,
+                    properties: _,
+                } => {
+                    assert_eq!(topic_name, "incidente");
+                }
+                _ => {
+                    panic!("Unexpected message type");
+                }
+            }
             let location = Location::new(1.0, 2.0);
             let id = camera_system.add_camera(location.clone()).unwrap();
             assert_eq!(camera_system.get_cameras().len(), 1);
@@ -934,12 +962,59 @@ mod tests {
             for camera in camera_system.get_cameras().values() {
                 assert!(!camera.get_sleep_mode());
             }
+
+            // Publico cuando las camaras se encienden
             camera_system.publish_update_cameras().unwrap();
+
+            let message = reciever.recv().unwrap();
+            //conver message to a ClientMessage
+            let packet_id = camera_system.camera_system_client.assign_packet_id();
+            let message = message.parse_message(packet_id);
+
+            match message {
+                ClientMessage::Publish {
+                    topic_name,
+                    payload: PayloadTypes::CamerasUpdatePayload(cameras),
+                    ..
+                } => {
+                    assert_eq!(topic_name, "camera_update");
+                    assert_eq!(cameras.len(), 1);
+                    assert_eq!(cameras[0].get_location(), location);
+                    assert!(!cameras[0].get_sleep_mode());
+                }
+                _ => {
+                    panic!("Unexpected message type");
+                }
+            }
+
             camera_system.deactivate_cameras(incident_location).unwrap();
             for camera in camera_system.get_cameras().values() {
                 assert!(camera.get_sleep_mode());
             }
+
+            //vuelvo a publicar cuando las camaras se apagan
             camera_system.publish_update_cameras().unwrap();
+            let message = reciever.recv().unwrap();
+            //conver message to a ClientMessage
+            let packet_id = camera_system.camera_system_client.assign_packet_id();
+            let message = message.parse_message(packet_id);
+            print!("AAAAAAAAAAAAa{:?}", message);
+
+            match message {
+                ClientMessage::Publish {
+                    topic_name,
+                    payload: PayloadTypes::CamerasUpdatePayload(cameras),
+                    ..
+                } => {
+                    assert_eq!(topic_name, "camera_update");
+                    assert_eq!(cameras.len(), 1);
+                    assert_eq!(cameras[0].get_location(), location);
+                    assert!(cameras[0].get_sleep_mode());
+                }
+                _ => {
+                    panic!("Unexpected message type");
+                }
+            }
         });
 
         handle.join().unwrap();
@@ -958,6 +1033,18 @@ mod tests {
 
             fn clone_box(&self) -> Box<dyn ClientTrait> {
                 Box::new(self.clone())
+            }
+            fn assign_packet_id(&self) -> u16 {
+                0
+            }
+            fn get_publish_end_channel(
+                &self,
+            ) -> Arc<
+                std::sync::Mutex<
+                    std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>,
+                >,
+            > {
+                Arc::new(std::sync::Mutex::new(std::sync::mpsc::channel().1))
             }
         }
 

@@ -23,6 +23,10 @@ use super::{client_message, client_return::ClientReturn, error::ClientError};
 pub trait ClientTrait {
     fn client_run(&mut self) -> Result<(), ProtocolError>;
     fn clone_box(&self) -> Box<dyn ClientTrait>;
+    fn assign_packet_id(&self) -> u16;
+    fn get_publish_end_channel(
+        &self,
+    ) -> Arc<std::sync::Mutex<std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>>>;
 }
 impl Clone for Box<dyn ClientTrait> {
     fn clone(&self) -> Box<dyn ClientTrait> {
@@ -574,6 +578,13 @@ impl Client {
         Ok(())
     }
 
+    pub fn get_publish_end_channel(
+        &self,
+    ) -> Arc<std::sync::Mutex<std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>>>
+    {
+        self.receiver_channel.clone()
+    }
+
     ///Asigna un id random
     pub fn assign_packet_id(&self) -> u16 {
         let mut rng = rand::thread_rng();
@@ -601,6 +612,16 @@ impl ClientTrait for Client {
 
     fn clone_box(&self) -> Box<dyn ClientTrait> {
         Box::new(self.clone())
+    }
+    fn assign_packet_id(&self) -> u16 {
+        self.assign_packet_id()
+    }
+
+    fn get_publish_end_channel(
+        &self,
+    ) -> Arc<std::sync::Mutex<std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>>>
+    {
+        self.get_publish_end_channel()
     }
 }
 
