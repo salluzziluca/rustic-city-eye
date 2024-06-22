@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::mqtt::subscribe_properties::SubscribeProperties;
 use crate::utils::payload_types::PayloadTypes;
+use std::env;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Error, ErrorKind, Read, Write};
 
@@ -138,7 +139,11 @@ impl MessagesConfig for Connect {
         ClientMessage::Connect(self.clone())
     }
 }
-
+impl MessagesConfig for ClientMessage {
+    fn parse_message(&self, _packet_id: u16) -> ClientMessage {
+        self.clone()
+    }
+}
 impl Connect {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -187,9 +192,14 @@ impl Connect {
     }
     /// Abre un archivo de configuracion con propiedades y guarda sus lecturas.
     pub fn read_connect_config(file_path: &str) -> Result<Connect, ProtocolError> {
+        let current_dir = env::current_dir().unwrap();
+        println!("Current directory: {}", current_dir.display());
         let config_file = match File::open(file_path) {
             Ok(file) => file,
-            Err(_) => return Err(ProtocolError::ReadingConfigFileError),
+            Err(e) => {
+                println!("AAAAAAAAAA{:?}", e);
+                return Err(ProtocolError::ReadingConfigFileError);
+            }
         };
 
         let reader: BufReader<File> = BufReader::new(config_file);
@@ -1194,5 +1204,13 @@ mod tests {
             connect_message,
             ClientMessage::Connect(connect_config.clone())
         );
+    }
+
+    #[test]
+    fn test_parse_pingreq() {
+        let pingreq = ClientMessage::Pingreq;
+        let pingreq_message = pingreq.parse_message(1);
+
+        assert_eq!(pingreq_message, ClientMessage::Pingreq);
     }
 }

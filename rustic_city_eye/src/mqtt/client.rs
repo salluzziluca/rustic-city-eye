@@ -20,6 +20,15 @@ use crate::{
 
 use super::{client_message, client_return::ClientReturn, error::ClientError};
 
+pub trait ClientTrait {
+    fn client_run(&mut self) -> Result<(), ProtocolError>;
+    fn clone_box(&self) -> Box<dyn ClientTrait>;
+}
+impl Clone for Box<dyn ClientTrait> {
+    fn clone(&self) -> Box<dyn ClientTrait> {
+        self.clone_box()
+    }
+}
 #[derive(Debug, Clone)]
 pub struct Client {
     receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
@@ -31,6 +40,8 @@ pub struct Client {
     pub subscriptions: Arc<Mutex<HashMap<String, u8>>>,
     // user_id: u32,
     pub packets_ids: Arc<Mutex<Vec<u16>>>,
+
+    sender_channel: Sender<ClientMessage>,
 }
 
 impl Client {
@@ -48,6 +59,7 @@ impl Client {
         receiver_channel: Receiver<Box<dyn MessagesConfig + Send>>,
         address: String,
         connect: client_message::Connect,
+        sender_channel: Sender<ClientMessage>,
     ) -> Result<Client, ProtocolError> {
         let stream = match TcpStream::connect(address) {
             Ok(stream) => Arc::new(Mutex::new(stream)),
@@ -87,6 +99,7 @@ impl Client {
                                 stream: stream_clone,
                                 subscriptions: Arc::new(Mutex::new(HashMap::new())),
                                 packets_ids: Arc::new(Mutex::new(Vec::new())),
+                                sender_channel,
                             })
                         }
                         _ => {
@@ -268,12 +281,14 @@ impl Client {
         });
 
         let subscriptions_clone = self.subscriptions.clone();
+        let sender_channel_clone = self.sender_channel.clone();
         let _read_messages = threadpool.execute(move || {
             Client::receive_messages(
                 stream_clone_two,
                 recieve_receiver,
                 subscriptions_clone,
                 reciever_sender,
+                sender_channel_clone,
             )
         });
 
@@ -285,6 +300,7 @@ impl Client {
         receiver: Receiver<u16>,
         subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
         sender: Sender<bool>,
+        sender_channel: Sender<ClientMessage>,
     ) -> Result<(), ProtocolError> {
         let mut pending_messages = Vec::new();
 
@@ -301,6 +317,7 @@ impl Client {
                     subscriptions_clone.clone(),
                     pending_messages.clone(),
                     sender.clone(),
+                    sender_channel.clone(),
                 ) {
                     Ok(return_val) => {
                         if return_val == ClientReturn::DisconnectRecieved {
@@ -578,6 +595,16 @@ impl Client {
     }
 }
 
+impl ClientTrait for Client {
+    fn client_run(&mut self) -> Result<(), ProtocolError> {
+        self.client_run()
+    }
+
+    fn clone_box(&self) -> Box<dyn ClientTrait> {
+        Box::new(self.clone())
+    }
+}
+
 /// Lee del stream un mensaje y lo procesa
 /// Devuelve un ClientReturn con informacion del mensaje recibido
 /// O ProtocolError en caso de error
@@ -586,6 +613,7 @@ pub fn handle_message(
     subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
     pending_messages: Vec<u16>,
     sender: Sender<bool>,
+    sender_chanell: Sender<ClientMessage>,
 ) -> Result<ClientReturn, ProtocolError> {
     if let Ok(message) = BrokerMessage::read_from(&mut stream) {
         match message {
@@ -611,7 +639,7 @@ pub fn handle_message(
                         println!("puback {:?}", message);
                         Ok(ClientReturn::PubackRecieved)
                     }
-                    Err(_) => Err(ProtocolError::ChanellError),
+                    Err(e) => Err(ProtocolError::ChanellError(e.to_string())),
                 }
             }
             BrokerMessage::Disconnect {
@@ -624,6 +652,7 @@ pub fn handle_message(
                     "Recibí un Disconnect, razon de desconexión: {:?}",
                     reason_string
                 );
+
                 Ok(ClientReturn::DisconnectRecieved)
             }
             BrokerMessage::Suback {
@@ -657,17 +686,28 @@ pub fn handle_message(
             }
             BrokerMessage::PublishDelivery {
                 packet_id,
-                topic_name: _,
-                qos: _,
-                retain_flag: _,
-                dup_flag: _,
-                properties: _,
+                topic_name,
+                qos,
+                retain_flag,
+                dup_flag,
+                properties,
                 payload,
             } => {
                 println!(
                     "PublishDelivery con id {} recibido, payload: {:?}",
                     packet_id, payload
                 );
+                sender_chanell
+                    .send(ClientMessage::Publish {
+                        packet_id,
+                        topic_name,
+                        qos,
+                        retain_flag,
+                        dup_flag,
+                        properties,
+                        payload,
+                    })
+                    .unwrap();
                 Ok(ClientReturn::PublishDeliveryRecieved)
             }
             BrokerMessage::Unsuback {

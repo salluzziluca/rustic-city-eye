@@ -26,8 +26,8 @@ impl Worker {
             let job = match receiver.lock() {
                 Ok(lock) => match lock.recv() {
                     Ok(job) => job,
-                    Err(_err) => {
-                        continue;
+                    Err(_) => {
+                        return;
                     }
                 },
                 Err(err) => {

@@ -26,4 +26,8 @@ impl IncidentPayload {
         self.incident.write_to(stream)?;
         Ok(())
     }
+
+    pub fn get_incident(&self) -> Incident {
+        self.incident.clone()
+    }
 }
