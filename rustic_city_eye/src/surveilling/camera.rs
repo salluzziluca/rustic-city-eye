@@ -38,10 +38,12 @@ impl Camera {
         self.sleep_mode = sleep_mode;
     }
     pub fn write_to(&mut self, stream: &mut dyn Write) -> Result<(), CameraError> {
-        write_u32(stream, &self.id);
-        write_string(stream, &self.location.get_latitude().to_string());
-        write_string(stream, &self.location.get_longitude().to_string());
-        write_bool(stream, &self.sleep_mode);
+        let _ = write_u32(stream, &self.id).map_err(|_| CameraError::WriteError);
+        let _ = write_string(stream, &self.location.get_latitude().to_string())
+            .map_err(|_| CameraError::WriteError);
+        let _ = write_string(stream, &self.location.get_longitude().to_string())
+            .map_err(|_| CameraError::WriteError);
+        let _ = write_bool(stream, &self.sleep_mode).map_err(|_| CameraError::WriteError);
 
         Ok(())
     }

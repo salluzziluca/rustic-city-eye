@@ -90,6 +90,7 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
             snapshot: Vec::new(),
         })
     }
+    #[allow(dead_code)]
     fn get_client_publish_end_channel(
         &self,
     ) -> Arc<std::sync::Mutex<std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>>>

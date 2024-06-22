@@ -16,7 +16,7 @@ use crate::{
     },
 };
 
-use super::writer::{write_string, write_u32, write_u8};
+use super::writer::{write_string, write_u8};
 
 /// Aqui se definen los distintos tipos de payload que va a soportar nuestra aplicacion.
 /// La idea es que implemente el trait de Payload, de forma tal que sepa escribirse sobre un stream dado.
