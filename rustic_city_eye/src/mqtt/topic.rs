@@ -89,13 +89,6 @@ impl Topic {
 
 #[cfg(test)]
 mod tests {
-    use std::net::TcpListener;
-
-    use crate::{
-        monitoring::incident::Incident,
-        mqtt::publish::publish_properties::{PublishProperties, TopicProperties},
-        utils::{incident_payload, location::Location, payload_types::PayloadTypes},
-    };
 
     use super::*;
 

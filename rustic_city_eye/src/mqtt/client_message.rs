@@ -611,7 +611,7 @@ impl ClientMessage {
 
                 match writer.write_all(&[byte_1]) {
                     Ok(_) => {}
-                    Err(e) => {
+                    Err(_) => {
                         return Err(ProtocolError::WriteError);
                     }
                 }

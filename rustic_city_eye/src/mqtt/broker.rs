@@ -21,7 +21,7 @@ use crate::mqtt::{
 use crate::utils::payload_types::PayloadTypes;
 use crate::utils::threadpool::ThreadPool;
 
-use super::connect::{self, last_will::LastWill};
+use super::connect::last_will::LastWill;
 
 static SERVER_ARGS: usize = 2;
 
@@ -317,7 +317,7 @@ impl Broker {
                 match self.clients_ids.read() {
                     Ok(clients) => {
                         if let Some(tuple) = clients.get(&user.client_id) {
-                            let tuple_clone = tuple.clone();
+                            let tuple_clone = tuple;
                             if let Some(stream) = &tuple_clone.0 {
                                 let mut stream_clone =
                                     stream.try_clone().expect("Failed to clone stream");
@@ -457,9 +457,9 @@ impl Broker {
         mut stream: TcpStream,
         topics: HashMap<String, Topic>,
         packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
-        clients_ids: Arc<RwLock<HashMap<String, (Option<TcpStream>, Option<LastWill>)>>>,
+        _clients_ids: Arc<RwLock<HashMap<String, (Option<TcpStream>, Option<LastWill>)>>>,
         clients_auth_info: HashMap<String, (String, Vec<u8>)>,
-        id_sender: std::sync::mpsc::Sender<String>,
+        _id_sender: std::sync::mpsc::Sender<String>,
     ) -> Result<ProtocolReturn, ProtocolError> {
         let mensaje = match ClientMessage::read_from(&mut stream) {
             Ok(mensaje) => mensaje,

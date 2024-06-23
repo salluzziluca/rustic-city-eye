@@ -82,7 +82,6 @@ mod tests {
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let clients_auth_info = HashMap::new();
-        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
         let (id_sender, reciever) = mpsc::channel();
@@ -212,8 +211,6 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let mut result: Result<ProtocolReturn, ProtocolError> =
-            Err(ProtocolError::UnspecifiedError);
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));
@@ -611,14 +608,6 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let topics: Arc<RwLock<HashMap<String, (Option<TcpStream>, Option<LastWill>)>>> =
-            Arc::new(RwLock::new(HashMap::new()));
-        let packets: Arc<RwLock<HashMap<u16, ClientMessage>>> =
-            Arc::new(RwLock::new(HashMap::new()));
-
-        let mut result: Result<ProtocolReturn, ProtocolError> =
-            Err(ProtocolError::UnspecifiedError);
-
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));
@@ -699,11 +688,6 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let topics: Arc<RwLock<HashMap<String, (Option<TcpStream>, Option<LastWill>)>>> =
-            Arc::new(RwLock::new(HashMap::new()));
-        let packets: Arc<RwLock<HashMap<u16, ClientMessage>>> =
-            Arc::new(RwLock::new(HashMap::new()));
-
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
@@ -742,9 +726,6 @@ mod tests {
             disconnect.write_to(&mut buffer).unwrap();
             stream.write_all(&buffer).unwrap();
         });
-
-        let mut result: Result<ProtocolReturn, ProtocolError> =
-            Err(ProtocolError::UnspecifiedError);
 
         let (id_sender, _) = mpsc::channel();
         let topics = HashMap::new();

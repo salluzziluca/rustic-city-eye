@@ -3,7 +3,6 @@ mod tests {
     use rustic_city_eye::{
         monitoring::incident::Incident,
         mqtt::{
-            broker::Broker,
             broker_message::BrokerMessage,
             client::handle_message,
             client_return::ClientReturn,
@@ -18,7 +17,7 @@ mod tests {
     use std::{
         io::Write,
         net::{TcpListener, TcpStream},
-        sync::{mpsc::channel, Arc, Mutex},
+        sync::mpsc::channel,
         thread,
     };
 
@@ -133,7 +132,7 @@ mod tests {
         let (sender, _) = channel();
         let (tx, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            handle_message(stream, pending_messages, sender, tx);
+            result = handle_message(stream, pending_messages, sender, tx);
         }
 
         assert_eq!(result.unwrap(), ClientReturn::DisconnectRecieved);
@@ -161,7 +160,6 @@ mod tests {
         let pending_messages: Vec<u16> = Vec::new();
         let (sender, _) = channel();
         let (tx, _) = channel();
-        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
             result = handle_message(stream, pending_messages, sender, tx)
         }
@@ -273,7 +271,6 @@ mod tests {
         let pending_messages: Vec<u16> = Vec::new();
         let (sender, _) = channel();
         let (tx, _) = channel();
-        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
             result = handle_message(stream, pending_messages, sender, tx)
         }

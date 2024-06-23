@@ -1,6 +1,5 @@
 use rand::Rng;
 use std::{
-    collections::HashMap,
     net::TcpStream,
     sync::{
         mpsc::{self, Receiver, Sender},
