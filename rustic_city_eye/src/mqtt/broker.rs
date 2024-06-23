@@ -1,10 +1,9 @@
 use std::{
-    collections::HashMap, fs::File, io::{BufRead, BufReader}, net::{TcpListener, TcpStream}, path::Path, sync::{Arc, RwLock}
+    collections::HashMap, fs::File, io::{BufRead, BufReader}, net::{TcpListener, TcpStream}, sync::{Arc, RwLock}
 };
-
 use rustls::ServerConfig;
 
-use crate::{mqtt::{
+use crate::mqtt::{
     broker_message::BrokerMessage,
     client_message::ClientMessage,
     connack_properties::ConnackProperties,
@@ -14,7 +13,7 @@ use crate::{mqtt::{
         NO_MATCHING_SUBSCRIBERS_HEX, SUB_ID_DUP_HEX, SUCCESS_HEX, UNSPECIFIED_ERROR_HEX,
     },
     topic::Topic,
-}, utils::load_pem_certs};
+};
 use crate::utils::threadpool::ThreadPool;
 
 static SERVER_ARGS: usize = 2;
@@ -42,6 +41,10 @@ pub struct Broker {
     /// las claves son los client_ids, y los valores son
     /// tuplas que contienen el username y password.
     clients_auth_info: HashMap<String, (String, Vec<u8>)>,
+
+    /// Contiene la configuracion del servidor para encriptar los
+    /// streams. Viene de rustls
+    server_config: Arc<ServerConfig>
 }
 
 impl Broker {
@@ -60,10 +63,14 @@ impl Broker {
 
         let packets = HashMap::new();
 
-        let pem_certs = load_pem_certs::load_pem_certs(Path::new("./src/mqtt/cert/ca_bundle.pem"))?;
-        let private_key = load_pem_certs::load_pem_key(Path::new("./src/mqtt/cert/private_key.pem"))?;
-
-        let _server_config = ServerConfig::builder().with_no_client_auth().with_single_cert(pem_certs, private_key);
+        let certs = rustls_pemfile::certs(&mut BufReader::new(&mut File::open("./src/mqtt/certs/cert.pem").unwrap()))
+            .collect::<Result<Vec<_>, _>>().unwrap();
+        let private_key =
+            rustls_pemfile::private_key(&mut BufReader::new(&mut File::open("./src/mqtt/certs/privatekey.pem").unwrap())).unwrap()
+                .unwrap();
+        let server_config = rustls::ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(certs, private_key).unwrap();
 
         Ok(Broker {
             address,
@@ -72,6 +79,7 @@ impl Broker {
             packets: Arc::new(RwLock::new(packets)),
             subs: Vec::new(),
             clients_ids: Arc::new(Vec::new()),
+            server_config: Arc::new(server_config)
         })
     }
 
