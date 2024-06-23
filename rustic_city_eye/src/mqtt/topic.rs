@@ -1,6 +1,6 @@
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::{Arc, RwLock};
-use std::collections::HashMap;
 
 use super::subscription::Subscription;
 
@@ -30,8 +30,8 @@ impl Topic {
         }
     }
 
-    pub fn add_subtopic(&mut self, topic: String) {
-        self.subtopics.insert(topic, Topic::new());
+    pub fn add_subtopic(&mut self, subtopic_name: String, topic: Topic) {
+        self.subtopics.insert(subtopic_name, topic);
     }
 
     /// Agrega un usuario a un topic
@@ -162,7 +162,7 @@ mod tests {
     #[test]
     fn test_add_subtopic() {
         let mut topic = Topic::new();
-        topic.add_subtopic("subtopic".to_string());
+        topic.add_subtopic("subtopic".to_string(), Topic::new());
         assert_eq!(topic.subtopics.len(), 1);
     }
 }

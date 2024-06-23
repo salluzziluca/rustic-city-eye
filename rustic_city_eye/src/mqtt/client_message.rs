@@ -481,7 +481,7 @@ impl ClientMessage {
                 //payload
                 write_string(&mut writer, &payload.topic)?;
                 write_string(&mut writer, &payload.client_id)?;
-                write_u8(&mut writer, &payload.qos)?;                
+                write_u8(&mut writer, &payload.qos)?;
 
                 let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
                 Ok(())
@@ -690,11 +690,11 @@ impl ClientMessage {
                 //Properties
                 properties.write_properties(writer)?;
 
-                // payload   
+                // payload
                 write_string(writer, &payload.topic)?;
                 write_string(writer, &payload.client_id)?;
                 write_u8(writer, &payload.qos)?;
-                
+
                 Ok(())
             }
             ClientMessage::Unsubscribe {
@@ -711,7 +711,7 @@ impl ClientMessage {
                 write_string(writer, &payload.topic)?;
                 write_string(writer, &payload.client_id)?;
                 write_u8(writer, &payload.qos)?;
-                
+
                 Ok(())
             }
             ClientMessage::Disconnect {
@@ -880,7 +880,7 @@ impl ClientMessage {
                     topic: read_string(stream)?,
                     client_id: read_string(stream)?,
                     qos: read_u8(stream)?,
-                };                
+                };
 
                 Ok(ClientMessage::Unsubscribe {
                     packet_id,

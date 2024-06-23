@@ -452,7 +452,9 @@ impl Client {
                                             }
                                         }
                                         Err(_) => {
-                                            return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                                            return Err::<(), ProtocolError>(
+                                                ProtocolError::StreamError,
+                                            );
                                         }
                                     }
                                 }
@@ -493,7 +495,9 @@ impl Client {
                                             }
                                         }
                                         Err(_) => {
-                                            return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                                            return Err::<(), ProtocolError>(
+                                                ProtocolError::StreamError,
+                                            );
                                         }
                                     }
                                 }

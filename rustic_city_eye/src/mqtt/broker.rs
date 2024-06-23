@@ -85,28 +85,27 @@ impl Broker {
         let mut topics = HashMap::new();
         let topic_readings = Broker::process_topic_config_file(file_path)?;
 
-        // ./raiz
-        // ./raiz/topic1
-        // ./raiz/topic2
-        // ./raiz/topic3
-        // ./raiz/topic1/subtopic1
-        // ./raiz/topic1/subtopic2
-        // ./raiz/topic2/subtopic3
-
         for topic in topic_readings {
-            let mut topic_parts = topic.split('/').collect::<Vec<&str>>();
-            if let Some(topic_name) = topic_parts.pop() {
-                let topic_name = topic_name.to_string();
-                let mut parent_topic = topic_parts.join("/");
-                if parent_topic.is_empty() {
-                    parent_topic = "/".to_string();
-                }
+            let topic_parts = topic.split('/').collect::<Vec<&str>>();
 
-                topics.entry(parent_topic.clone()).or_insert_with(Topic::new);
-                if let Some(parent_topic) = topics.get_mut(&parent_topic) {
-                    parent_topic.add_subtopic(topic_name);
+            for i in 0..topic_parts.len() {
+                let mut topic_name = String::new();
+                for (j, part) in topic_parts.iter().enumerate().take(i + 1) {
+                    topic_name.push_str(part);
+                    if j != i {
+                        topic_name.push('/');
+                    }
+                }
+                if !topics.contains_key(&topic_name) {
+                    topics.insert(topic_name.clone(), Topic::new());
                 }
             }
+
+            println!("Topic: {:?}", topic);
+        }
+
+        for (key, value) in &topics {
+            println!("Key: {:?}, Value: {:?}", key, value);
         }
 
         Ok(topics)
@@ -654,10 +653,13 @@ impl Broker {
                 Broker::save_packet(packets.clone(), msg, packet_id);
 
                 let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
-                
-                let reason_code =
-                    Broker::handle_subscribe(topics.clone(), payload.topic.clone(), payload.clone())?;
-                
+
+                let reason_code = Broker::handle_subscribe(
+                    topics.clone(),
+                    payload.topic.clone(),
+                    payload.clone(),
+                )?;
+
                 let suback = BrokerMessage::Suback {
                     packet_id_msb: packet_id_bytes[0],
                     packet_id_lsb: packet_id_bytes[1],
@@ -879,15 +881,13 @@ mod tests {
         let mut expected_topics = HashMap::new();
         let mut expected_clients = HashMap::new();
 
-        expected_topics.insert("raiz".to_string(), Topic::new());
-        expected_topics.insert("raiz/topic1".to_string(), Topic::new());
-        expected_topics.insert("raiz/topic2".to_string(), Topic::new());
-        expected_topics.insert("raiz/topic3".to_string(), Topic::new());
-        expected_topics.insert("raiz/topic1/subtopic1".to_string(), Topic::new());
-        expected_topics.insert("raiz/topic1/subtopic2".to_string(), Topic::new());
-        expected_topics.insert("raiz/topic2/subtopic3".to_string(), Topic::new());
+        expected_topics.insert("topic1".to_string(), Topic::new());
+        expected_topics.insert("topic2".to_string(), Topic::new());
+        expected_topics.insert("topic3".to_string(), Topic::new());
+        expected_topics.insert("topic1/subtopic1".to_string(), Topic::new());
+        expected_topics.insert("topic1/subtopic2".to_string(), Topic::new());
+        expected_topics.insert("topic2/subtopic3".to_string(), Topic::new());
 
-        
         expected_clients.insert(
             "monitoring_app".to_string(),
             (
@@ -905,19 +905,13 @@ mod tests {
         );
 
         let topics_to_check = vec![
-            "raiz",
-            "raiz/topic1",
-            "raiz/topic2",
-            "raiz/topic3",
-            "raiz/topic1/subtopic1",
-            "raiz/topic1/subtopic2",
-            "raiz/topic2/subtopic3",
+            "topic1",
+            "topic2",
+            "topic3",
+            "topic1/subtopic1",
+            "topic1/subtopic2",
+            "topic2/subtopic3",
         ];
-
-        // impirmir el nombre de cada topic como una lista
-        for topic in topics.keys() {
-            println!("{}", topic);
-        }
 
         for topic in topics_to_check {
             assert!(topics.contains_key(topic));
@@ -971,9 +965,6 @@ mod tests {
             );
         }
 
-        // Check that the function returned Ok.
-        // You might want to add more checks here, depending on what
-        // handle_client is supposed to do.
         assert!(result.is_err());
     }
 }

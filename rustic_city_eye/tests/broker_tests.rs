@@ -253,8 +253,7 @@ mod tests {
         let properties =
             SubscribeProperties::new(1, vec![("propiedad".to_string(), "valor".to_string())]);
 
-        let payload =
-            Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string(), 1);
+        let payload = Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string(), 1);
 
         let sub = ClientMessage::Subscribe {
             packet_id: 1,
@@ -427,8 +426,7 @@ mod tests {
         let properties =
             SubscribeProperties::new(1, vec![("propiedad".to_string(), "valor".to_string())]);
 
-        let payload =
-            Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string(), 1);
+        let payload = Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string(), 1);
 
         let sub = ClientMessage::Unsubscribe {
             packet_id: 1,
@@ -855,7 +853,6 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-       
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let clients_auth_info = HashMap::new();
@@ -873,7 +870,7 @@ mod tests {
 
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
 
-       let topics = Broker::get_broker_starting_topics("./src/monitoring/topics.txt").unwrap();
+        let topics = Broker::get_broker_starting_topics("./src/monitoring/topics.txt").unwrap();
 
         if let Ok((stream, _)) = listener.accept() {
             result = broker.handle_messages(
@@ -893,8 +890,7 @@ mod tests {
         let properties =
             SubscribeProperties::new(1, vec![("propiedad".to_string(), "valor".to_string())]);
 
-        let payload =
-            Subscription::new("raiz/topic11".to_string(), "kvtr33".to_string(), 1);
+        let payload = Subscription::new("raiz/topic11".to_string(), "kvtr33".to_string(), 1);
 
         let sub = ClientMessage::Subscribe {
             packet_id: 1,

@@ -1,7 +1,6 @@
-./raiz
-./raiz/topic1
-./raiz/topic2
-./raiz/topic3
-./raiz/topic1/subtopic1
-./raiz/topic1/subtopic2
-./raiz/topic2/subtopic3
+topic1
+topic2
+topic3
+topic1/subtopic1
+topic1/subtopic2
+topic2/subtopic3
