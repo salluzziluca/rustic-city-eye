@@ -46,7 +46,7 @@ impl MonitoringApp {
             Err(err) => return Err(err),
         };
         let drone_system = DroneSystem::new(
-            "src/drone_system/drone_config.json".to_string(),
+            "src/drones/drone_config.json".to_string(),
             address.clone(),
         );
         let (tx, rx) = mpsc::channel();
