@@ -29,7 +29,7 @@ pub fn read_u32(stream: &mut dyn Read) -> Result<u32, Error> {
 
 pub fn read_string_pairs(stream: &mut dyn Read) -> Result<Vec<(String, String)>, Error> {
     let length = read_u16(stream)?;
-    let mut pairs = Vec::new();
+    let mut pairs = Vec::with_capacity(length as usize);
     for _ in 0..length {
         let key = read_string(stream)?;
         let value = read_string(stream)?;

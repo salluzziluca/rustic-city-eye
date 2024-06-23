@@ -14,7 +14,7 @@ use crate::mqtt::subscribe_config::SubscribeConfig;
 use crate::mqtt::subscribe_properties::SubscribeProperties;
 use crate::mqtt::{client::Client, protocol_error::ProtocolError};
 use crate::surveilling::camera::Camera;
-use crate::surveilling::camera_system::*;
+use crate::surveilling::camera_system::CameraSystem;
 use crate::utils::incident_payload::IncidentPayload;
 use crate::utils::location::Location;
 use crate::utils::payload_types::PayloadTypes;
@@ -24,7 +24,7 @@ use crate::utils::payload_types::PayloadTypes;
 pub struct MonitoringApp {
     send_to_client_channel: Sender<Box<dyn MessagesConfig + Send>>,
     monitoring_app_client: Client,
-    camera_system: CameraSystem,
+    camera_system: CameraSystem<Client>,
     incidents: Vec<Incident>,
     drone_system: DroneSystem,
     recieve_from_client: Receiver<ClientMessage>,
@@ -41,9 +41,14 @@ impl MonitoringApp {
 
         let address = args[2].to_string() + ":" + &args[3].to_string();
 
-        let camera_system = CameraSystem::new(address.clone())?;
-        let drone_system =
-            DroneSystem::new("src/drones/drone_config.json".to_string(), address.clone());
+        let camera_system = match CameraSystem::<Client>::with_real_client(address.clone()) {
+            Ok(camera_system) => camera_system,
+            Err(err) => return Err(err),
+        };
+        let drone_system = DroneSystem::new(
+            "src/drone_system/drone_config.json".to_string(),
+            address.clone(),
+        );
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
 
@@ -64,7 +69,7 @@ impl MonitoringApp {
 
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
         self.monitoring_app_client.client_run()?;
-        self.camera_system.run_client()?;
+        self.camera_system.run_client(None)?;
 
         let subscribe_properties = SubscribeProperties::new(1, Vec::new(), Vec::new());
         let subscribe_config =

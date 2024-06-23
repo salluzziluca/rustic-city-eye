@@ -42,7 +42,6 @@ pub enum BrokerMessage {
         packet_id_lsb: u8,
         /// reason_code es el código de razón de la confirmación
         reason_code: u8,
-        sub_id: u8,
     },
     PublishDelivery {
         packet_id: u16,
@@ -138,7 +137,6 @@ impl BrokerMessage {
                 packet_id_msb,
                 packet_id_lsb,
                 reason_code,
-                sub_id,
             } => {
                 //fixed header
                 let byte_1: u8 = 0x90_u8.to_le(); //10010000
@@ -154,7 +152,6 @@ impl BrokerMessage {
                 write_u8(&mut writer, reason_code)?;
 
                 //sub_id
-                write_u8(&mut writer, sub_id)?;
                 let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
 
                 Ok(())
@@ -353,12 +350,10 @@ impl BrokerMessage {
                 let packet_id_msb = read_u8(stream)?;
                 let packet_id_lsb = read_u8(stream)?;
                 let reason_code = read_u8(stream)?;
-                let sub_id = read_u8(stream)?;
                 Ok(BrokerMessage::Suback {
                     packet_id_msb,
                     packet_id_lsb,
                     reason_code,
-                    sub_id,
                 })
             }
             0xB0 => {
@@ -489,7 +484,6 @@ impl BrokerMessage {
                 packet_id_msb,
                 packet_id_lsb,
                 reason_code: _,
-                sub_id: _,
             } => {
                 let bytes = packet_id.to_be_bytes();
 
@@ -544,7 +538,6 @@ mod tests {
             reason_code: 1,
             packet_id_msb: 2,
             packet_id_lsb: 1,
-            sub_id: 1,
         };
 
         let puback = BrokerMessage::Puback {
