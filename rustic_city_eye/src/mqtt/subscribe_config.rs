@@ -14,13 +14,11 @@ impl MessagesConfig for SubscribeConfig {
     fn parse_message(&self, packet_id: u16) -> ClientMessage {
         let subscription =
             Subscription::new(self.topic_name.clone(), "juancito".to_string(), self.qos);
-        //creo un vector cno la subscription
-        let subscriptions = vec![subscription];
 
         ClientMessage::Subscribe {
             packet_id,
             properties: self.properties.clone(),
-            payload: subscriptions,
+            payload: subscription,
         }
     }
 }
@@ -69,9 +67,9 @@ mod tests {
             } => {
                 assert_eq!(message_packet_id, packet_id);
                 assert_eq!(message_properties, properties);
-                assert_eq!(payload.len(), 1);
-                assert_eq!(payload[0].topic, topic_name);
-                assert_eq!(payload[0].qos, qos);
+                assert_eq!(payload.topic, topic_name);
+                assert_eq!(payload.qos, qos);
+                assert_eq!(payload.client_id, "juancito".to_string());
             }
             _ => panic!("Wrong message type"),
         }

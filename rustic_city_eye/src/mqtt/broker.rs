@@ -85,28 +85,28 @@ impl Broker {
         let mut topics = HashMap::new();
         let topic_readings = Broker::process_topic_config_file(file_path)?;
 
-        // /raiz
-        // /raiz/topic1
-        // /raiz/topic2
-        // /raiz/topic3
-        // /raiz/topic1/subtopic1
-        // /raiz/topic1/subtopic2
-        // /raiz/topic2/subtopic3
+        // ./raiz
+        // ./raiz/topic1
+        // ./raiz/topic2
+        // ./raiz/topic3
+        // ./raiz/topic1/subtopic1
+        // ./raiz/topic1/subtopic2
+        // ./raiz/topic2/subtopic3
 
         for topic in topic_readings {
             let mut topic_parts = topic.split('/').collect::<Vec<&str>>();
-            let mut topic_name = topic_parts.pop().unwrap().to_string();
-            let mut parent_topic = topic_parts.join("/");
-            if parent_topic.is_empty() {
-                parent_topic = "/".to_string();
-            }
+            if let Some(topic_name) = topic_parts.pop() {
+                let topic_name = topic_name.to_string();
+                let mut parent_topic = topic_parts.join("/");
+                if parent_topic.is_empty() {
+                    parent_topic = "/".to_string();
+                }
 
-            if !topics.contains_key(&parent_topic) {
-                topics.insert(parent_topic.clone(), Topic::new());
+                topics.entry(parent_topic.clone()).or_insert_with(Topic::new);
+                if let Some(parent_topic) = topics.get_mut(&parent_topic) {
+                    parent_topic.add_subtopic(topic_name);
+                }
             }
-
-            let parent_topic = topics.get_mut(&parent_topic).unwrap();
-            parent_topic.add_subtopic(topic_name);
         }
 
         Ok(topics)
@@ -654,33 +654,24 @@ impl Broker {
                 Broker::save_packet(packets.clone(), msg, packet_id);
 
                 let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
+                
+                let reason_code =
+                    Broker::handle_subscribe(topics.clone(), payload.topic.clone(), payload.clone())?;
+                
+                let suback = BrokerMessage::Suback {
+                    packet_id_msb: packet_id_bytes[0],
+                    packet_id_lsb: packet_id_bytes[1],
+                    reason_code,
+                };
 
-                let mut reason_code_vec = Vec::new();
-
-                for p in payload {
-                    let reason_code =
-                        Broker::handle_subscribe(topics.clone(), p.topic.clone(), p.clone())?;
-
-                    reason_code_vec.push(reason_code);
-                }
-
-                if reason_code_vec.iter().any(|&x| x != SUCCESS_HEX) {
-                    let suback = BrokerMessage::Suback {
-                        packet_id_msb: packet_id_bytes[0],
-                        packet_id_lsb: packet_id_bytes[1],
-                        reason_code: UNSPECIFIED_ERROR_HEX,
-                    };
-                    println!("Enviando un Suback");
-                    match suback.write_to(&mut stream) {
-                        Ok(_) => {
-                            println!("Suback enviado");
-                            return Ok(ProtocolReturn::SubackSent);
-                        }
-                        Err(err) => println!("Error al enviar suback: {:?}", err),
+                println!("Enviando un Suback");
+                match suback.write_to(&mut stream) {
+                    Ok(_) => {
+                        println!("Suback enviado");
+                        return Ok(ProtocolReturn::SubackSent);
                     }
+                    Err(err) => println!("Error al enviar Suback: {:?}", err),
                 }
-
-                return Ok(ProtocolReturn::SubackSent);
             }
             ClientMessage::Unsubscribe {
                 packet_id,
@@ -697,35 +688,18 @@ impl Broker {
 
                 let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-                let mut reason_code_vec = Vec::new();
-
-                for p in payload {
-                    let reason_code =
-                        Broker::handle_unsubscribe(topics.clone(), p.topic.clone(), p.clone())?;
-                    reason_code_vec.push(reason_code);
-                }
-
-                if reason_code_vec.iter().any(|&x| x != SUCCESS_HEX) {
-                    let suback = BrokerMessage::Suback {
-                        packet_id_msb: packet_id_bytes[0],
-                        packet_id_lsb: packet_id_bytes[1],
-                        reason_code: UNSPECIFIED_ERROR_HEX,
-                    };
-                    println!("Enviando un Suback");
-                    match suback.write_to(&mut stream) {
-                        Ok(_) => {
-                            println!("Suback enviado");
-                            return Ok(ProtocolReturn::SubackSent);
-                        }
-                        Err(err) => println!("Error al enviar suback: {:?}", err),
-                    }
-                }
+                let reason_code = Broker::handle_unsubscribe(
+                    topics.clone(),
+                    payload.topic.clone(),
+                    Subscription::new(payload.topic.clone(), payload.client_id, payload.qos),
+                )?;
 
                 let unsuback = BrokerMessage::Unsuback {
                     packet_id_msb: packet_id_bytes[0],
                     packet_id_lsb: packet_id_bytes[1],
-                    reason_code: SUCCESS_HEX,
+                    reason_code,
                 };
+
                 println!("Enviando un Unsuback");
                 match unsuback.write_to(&mut stream) {
                     Ok(_) => {
@@ -905,12 +879,15 @@ mod tests {
         let mut expected_topics = HashMap::new();
         let mut expected_clients = HashMap::new();
 
-        expected_topics.insert("accidente".to_string(), Topic::new());
-        expected_topics.insert("mensajes para juan".to_string(), Topic::new());
-        expected_topics.insert("messi".to_string(), Topic::new());
-        expected_topics.insert("fulbito".to_string(), Topic::new());
-        expected_topics.insert("incidente".to_string(), Topic::new());
+        expected_topics.insert("raiz".to_string(), Topic::new());
+        expected_topics.insert("raiz/topic1".to_string(), Topic::new());
+        expected_topics.insert("raiz/topic2".to_string(), Topic::new());
+        expected_topics.insert("raiz/topic3".to_string(), Topic::new());
+        expected_topics.insert("raiz/topic1/subtopic1".to_string(), Topic::new());
+        expected_topics.insert("raiz/topic1/subtopic2".to_string(), Topic::new());
+        expected_topics.insert("raiz/topic2/subtopic3".to_string(), Topic::new());
 
+        
         expected_clients.insert(
             "monitoring_app".to_string(),
             (
@@ -928,12 +905,19 @@ mod tests {
         );
 
         let topics_to_check = vec![
-            "accidente",
-            "mensajes para juan",
-            "messi",
-            "fulbito",
-            "incidente",
+            "raiz",
+            "raiz/topic1",
+            "raiz/topic2",
+            "raiz/topic3",
+            "raiz/topic1/subtopic1",
+            "raiz/topic1/subtopic2",
+            "raiz/topic2/subtopic3",
         ];
+
+        // impirmir el nombre de cada topic como una lista
+        for topic in topics.keys() {
+            println!("{}", topic);
+        }
 
         for topic in topics_to_check {
             assert!(topics.contains_key(topic));
