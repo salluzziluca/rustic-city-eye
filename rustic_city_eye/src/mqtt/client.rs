@@ -1,11 +1,8 @@
 use rand::Rng;
-use rustls::{
-    pki_types::ServerName,
-    ClientConfig, ClientConnection, RootCertStore, Stream,
-};
+use rustls::RootCertStore;
 
 use std::{
-    collections::HashMap, io::Write, net::TcpStream, path::Path, sync::{
+    collections::HashMap, io::Write, net::TcpStream, sync::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,
     }, thread, time::Duration
@@ -16,7 +13,7 @@ use crate::{
         broker_message::BrokerMessage, client_message::ClientMessage,
         messages_config::MessagesConfig, protocol_error::ProtocolError,
     },
-    utils::{threadpool::ThreadPool, load_pem_certs::load_pem_certs},
+    utils::threadpool::ThreadPool,
 };
 
 use super::{client_message, client_return::ClientReturn, error::ClientError};
@@ -57,25 +54,20 @@ impl Client {
 
         let connect = ClientMessage::Connect(connect);
 
-        let pem_certs = load_pem_certs(Path::new("./src/mqtt/cert/ca_bundle.pem"))?;
+        let root_store = RootCertStore {
+            roots: webpki_roots::TLS_SERVER_ROOTS.into(),
+        };
 
-        let mut root_store = RootCertStore::empty();
-        root_store.add_parsable_certificates(pem_certs);
-
-        let client_config = ClientConfig::builder()
+        let mut config = rustls::ClientConfig::builder()
             .with_root_certificates(root_store)
             .with_no_client_auth();
 
-        let server_name = ServerName::try_from("rustic_city_eye")
-            .expect("error")
-            .to_owned();
+        config.key_log = Arc::new(rustls::KeyLogFile::new());
 
-        let mut tls_connection = match ClientConnection::new(Arc::new(client_config), server_name) {
-            Ok(conn) => conn,
-            Err(_) => return Err(ProtocolError::ConectionError),
-        };
+        let server_name = "rustic_city_eye".try_into().unwrap();
+        let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
 
-        let mut _tls_stream: Stream<ClientConnection, TcpStream> = Stream::new(&mut tls_connection, &mut stream);
+        let mut _tls_stream = rustls::Stream::new(&mut conn, &mut stream);
 
         println!("Enviando connect message to broker");
         match connect.write_to(&mut stream) {
