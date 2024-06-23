@@ -10,6 +10,7 @@ pub struct DroneSystem {
     drone_centers: HashMap<u32, DroneCenter>,
     drone_config_path: String,
     address: String,
+    send_to_monitoring_app: Sender
 }
 
 /// The `DroneSystem` struct represents a system that manages drone centers and drones.

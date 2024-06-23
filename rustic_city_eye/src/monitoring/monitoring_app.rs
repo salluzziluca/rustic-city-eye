@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
 
+use crate::drones::drone_location::DroneLocation;
 use crate::drones::drone_system::DroneSystem;
 use crate::monitoring::incident::Incident;
 use crate::mqtt::client_message::{self, ClientMessage};
@@ -28,6 +29,7 @@ pub struct MonitoringApp {
     incidents: Vec<Incident>,
     drone_system: DroneSystem,
     recieve_from_client: Receiver<ClientMessage>,
+    receive_from_drone_system: Receiver<DroneLocation>,
 }
 
 #[allow(dead_code)]
