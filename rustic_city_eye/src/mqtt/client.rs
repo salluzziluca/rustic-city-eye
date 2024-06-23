@@ -778,10 +778,4 @@ mod tests {
         let packet_id = Client::assign_packet_id(packet_ids);
         assert_ne!(packet_id, 0);
     }
-
-    #[test]
-    fn test_assign_user_id() {
-        let user_id = Client::assign_user_id();
-        assert_ne!(user_id, 0);
-    }
 }
