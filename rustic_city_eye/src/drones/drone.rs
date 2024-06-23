@@ -1,17 +1,17 @@
 use std::sync::{mpsc, Arc, Mutex};
 
-use chrono::Utc;
-
 use super::{drone_config::DroneConfig, drone_error::DroneError, drone_state::DroneState};
 use crate::{
     mqtt::{
         client::Client,
         client_message::{self, ClientMessage},
         messages_config,
-        publish::publish_config::PublishConfig,
+        publish::publish_config::{self, PublishConfig},
     },
     utils::{location::Location, payload_types::PayloadTypes},
 };
+use chrono::Utc;
+use std::f64::consts::PI;
 #[derive(Debug, Clone)]
 pub struct Drone {
     // ID unico para cada Drone.
@@ -23,6 +23,8 @@ pub struct Drone {
     center_location: Location,
     /// La configuracion del Drone contiene el nivel de bateria del mismo y
     /// el radio de operacion.
+    target_location: Location,
+
     drone_config: DroneConfig,
 
     ///  El Drone puede tener distintos estados:
@@ -67,10 +69,12 @@ impl Drone {
             Ok(client) => client,
             Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
         };
+        let target_location = center_location.clone();
         Ok(Drone {
             id,
             location,
             center_location,
+            target_location,
             drone_config,
             drone_state: DroneState::Waiting,
             drone_client,
@@ -91,6 +95,7 @@ impl Drone {
             Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
         };
 
+        println!("Drone {} is running", self.id);
         let self_clone = Arc::new(Mutex::new(self.clone()));
         std::thread::spawn(move || {
             let self_clone: Arc<Mutex<Drone>> = Arc::clone(&self_clone);
@@ -99,7 +104,7 @@ impl Drone {
         });
         let self_clone2 = Arc::new(Mutex::new(self.clone()));
 
-        std::thread::spawn(move || {
+        let _t1 = std::thread::spawn(move || {
             let self_clone: Arc<Mutex<Drone>> = Arc::clone(&self_clone2);
             let mut self_locked = self_clone.lock().unwrap();
             let location_clone = self_locked.location.clone();
@@ -107,12 +112,18 @@ impl Drone {
             let movement_rate = self_locked.drone_config.get_movement_rate();
             let target_location: Location = self_locked.center_location.clone(); // TODO: placeHOLDER
 
-            self_locked.drone_movement(
+            println!("Drone {} is moving", self_locked.id);
+            match self_locked.drone_movement(
                 location_clone,
                 operation_radius,
                 movement_rate,
                 target_location,
-            )
+            ) {
+                Ok(_) => (),
+                Err(e) => {
+                    println!("Error moving drone: {:?}", e);
+                }
+            };
         });
 
         Ok(())
@@ -200,15 +211,16 @@ impl Drone {
         movement_rate: i64,
         target_location: Location,
     ) -> Result<(), DroneError> {
-        let center_lat = center_location.lat;
-        let center_long = center_location.long;
-        let target_lat = target_location.lat;
-        let target_long = target_location.long;
         let mut current_lat = self.location.lat;
         let mut current_long = self.location.long;
         let mut last_move_time = Utc::now();
 
         loop {
+            // println!("Drone {} is moving to direction {:?}", self.id, self.target_location);
+            if self.location == target_location {
+                self.update_target_location(center_location.clone(), radius)?;
+            }
+
             if self.battery_level > 0 {
                 let current_time = Utc::now();
                 let elapsed_time = current_time
@@ -216,89 +228,23 @@ impl Drone {
                     .num_milliseconds();
 
                 if elapsed_time >= movement_rate {
-                    // Calculate the direction vector towards the target
-                    let direction_lat = target_lat - current_lat;
-                    let direction_long = target_long - current_long;
-
-                    // Normalize the direction vector
-                    let magnitude = (direction_lat.powi(2) + direction_long.powi(2)).sqrt();
-                    let unit_direction_lat = direction_lat / magnitude;
-                    let unit_direction_long = direction_long / magnitude;
-
-                    // Define the movement step size
-                    let step_size = 0.1; // Adjust the step size as needed
-
-                    // Calculate the new position
-                    let mut new_lat = current_lat + unit_direction_lat * step_size;
-                    let mut new_long = current_long + unit_direction_long * step_size;
-
-                    // Check if the new position is within the radius
-                    let distance_from_center =
-                        ((new_lat - center_lat).powi(2) + (new_long - center_long).powi(2)).sqrt();
-                    if distance_from_center > radius {
-                        // If out of bounds, set the new position to the edge of the radius in the direction of the target
-                        let scaling_factor = radius / distance_from_center;
-                        new_lat = center_lat + (new_lat - center_lat) * scaling_factor;
-                        new_long = center_long + (new_long - center_long) * scaling_factor;
-                    }
+                    let (new_lat, new_long) = self.calculate_new_position(
+                        current_lat,
+                        current_long,
+                        target_location.lat,
+                        target_location.long,
+                        center_location.lat,
+                        center_location.long,
+                        radius,
+                    );
 
                     current_lat = new_lat;
                     current_long = new_long;
 
-                    let location = Location::new(new_lat, new_long);
-
-                    self.location = location;
-                    let payload = PayloadTypes::LocationPayload(self.location.clone());
-
-                    let publish_config =
-                        match PublishConfig::read_config("src/drones/publish_config.json", payload)
-                        {
-                            Ok(config) => config,
-                            Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
-                        };
-                    let _ = self.send_to_client_channel.send(Box::new(publish_config));
-
-                    if self.drone_state == DroneState::LowBatteryLevel {
-                        //en el caso de tener poca bateria, se guarda su ubi actual, va a cagarse y vuelve
-                        let former_location = self.location.clone();
-                        match self.drone_movement(
-                            self.location.clone(),
-                            radius,
-                            movement_rate,
-                            self.center_location.clone(),
-                        ) {
-                            Ok(_) => (),
-                            Err(e) => {
-                                println!("Error moving drone: {:?}", e);
-                            }
-                        }
-                        match self.charge_battery() {
-                            Ok(state) => {
-                                self.drone_state = state;
-                                match self.drone_movement(
-                                    self.location.clone(),
-                                    radius,
-                                    movement_rate,
-                                    former_location,
-                                ) {
-                                    Ok(_) => (),
-                                    Err(e) => {
-                                        println!("Error moving drone: {:?}", e);
-                                    }
-                                };
-                            }
-                            Err(e) => {
-                                println!("Error charging drone: {:?}", e);
-                            }
-                        }
-                    }
+                    self.update_location(new_lat, new_long)?;
+                    self.handle_low_battery(center_location.clone(), radius, movement_rate)?;
 
                     last_move_time = current_time;
-                    if (current_lat - target_lat).abs() < 0.1
-                        && (current_long - target_long).abs() < 0.1
-                    {
-                        return Ok(()); // The drone has reached the target location
-                    }
                 }
             } else {
                 self.drone_state = DroneState::LowBatteryLevel;
@@ -306,8 +252,110 @@ impl Drone {
             }
         }
     }
-}
 
+    fn calculate_new_position(
+        &self,
+        current_lat: f64,
+        current_long: f64,
+        target_lat: f64,
+        target_long: f64,
+        center_lat: f64,
+        center_long: f64,
+        radius: f64,
+    ) -> (f64, f64) {
+        let direction_lat = target_lat - current_lat;
+        let direction_long = target_long - current_long;
+        let magnitude = (direction_lat.powi(2) + direction_long.powi(2)).sqrt();
+        let unit_direction_lat = direction_lat / magnitude;
+        let unit_direction_long = direction_long / magnitude;
+        let step_size = 0.0001;
+
+        let mut new_lat = current_lat + unit_direction_lat * step_size;
+        let mut new_long = current_long + unit_direction_long * step_size;
+        let distance_from_center =
+            ((new_lat - center_lat).powi(2) + (new_long - center_long).powi(2)).sqrt();
+
+        if distance_from_center > radius {
+            let scaling_factor = radius / distance_from_center;
+            new_lat = center_lat + (new_lat - center_lat) * scaling_factor;
+            new_long = center_long + (new_long - center_long) * scaling_factor;
+        }
+
+        (new_lat, new_long)
+    }
+
+    fn update_location(&mut self, new_lat: f64, new_long: f64) -> Result<(), DroneError> {
+        println!(
+            "Drone {} is moving to new location: ({}, {})",
+            self.id, new_lat, new_long
+        );
+        self.location = Location::new(new_lat, new_long);
+        let payload = PayloadTypes::LocationPayload(self.location.clone());
+        let publish_config = match
+            PublishConfig::read_config("src/drones/publish_config.json", payload){
+                Ok(config) => config,
+                Err(e) => return Err(DroneError::ReadingConfigFileError),
+            };
+        self.send_to_client_channel
+            .send(Box::new(publish_config))
+            .map_err(|_| DroneError::ReadingConfigFileError)?;
+        Ok(())
+    }
+
+    fn handle_low_battery(
+        &mut self,
+        center_location: Location,
+        radius: f64,
+        movement_rate: i64,
+    ) -> Result<(), DroneError> {
+        if self.drone_state == DroneState::LowBatteryLevel {
+            let former_location = self.location.clone();
+
+            self.drone_movement(
+                self.location.clone(),
+                radius,
+                movement_rate,
+                center_location.clone(),
+            )?;
+            self.charge_battery()?;
+            self.drone_movement(
+                self.location.clone(),
+                radius,
+                movement_rate,
+                former_location,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn update_target_location(
+        &mut self,
+        center_location: Location,
+        radius: f64,
+    ) -> Result<(), DroneError> {
+        let current_time = Utc::now().timestamp_millis() as f64;
+        let angle = (current_time / 1000.0) % (2.0 * PI); // full circle in seconds
+        let new_target_lat = center_location.lat + radius * angle.cos();
+        let new_target_long = center_location.long + radius * angle.sin();
+        self.target_location = Location::new(new_target_lat, new_target_long);
+        Ok(())
+    }
+    // fn update_current_location(&mut self) {
+    //     let publish_config = match PublishConfig::read_config(
+    //         "src/drones/publish_config.json",
+    //         PayloadTypes::LocationPayload(self.location.clone()),
+    //     ) {
+    //         Ok(config) => config,
+    //         Err(e) => {
+    //             println!("Error reading publish config: {:?}", e);
+    //             return;
+    //         }
+    //     };
+    //     self.send_to_client_channel
+    //         .send(Box::new(publish_config))
+    //         .unwrap();
+    // }
+}
 #[cfg(test)]
 mod tests {
     use core::panic;

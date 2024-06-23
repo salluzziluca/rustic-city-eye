@@ -26,6 +26,7 @@ pub enum PayloadTypes {
     WillPayload(String),
     LocationPayload(Location),
     CamerasUpdatePayload(Vec<Camera>),
+    DroneLocation(u32, Location),
 }
 
 impl Payload for PayloadTypes {
@@ -56,10 +57,19 @@ impl Payload for PayloadTypes {
                 for camera in payload {
                     let mut camera_clone = camera.clone();
                     match camera_clone.write_to(stream) {
-                        Ok(_) => {}
+                        Ok(_) => return Ok(()),
                         Err(_) => return Err(ProtocolError::WriteError),
                     }
                 }
+
+                Ok(())
+            }
+            PayloadTypes::DroneLocation(drone_id, location) => {
+                write_u8(stream, &4)?;
+                write_string(stream, &drone_id.to_string())?;
+                write_string(stream, &location.get_latitude().to_string())?;
+                write_string(stream, &location.get_longitude().to_string())?;
+
                 Ok(())
             }
         }
@@ -91,6 +101,20 @@ impl PayloadTypes {
                 let incident = Incident::new(location);
 
                 PayloadTypes::IncidentLocation(IncidentPayload::new(incident))
+            }
+            4 => {
+                let drone_id_string = read_string(stream)?;
+                let drone_id = drone_id_string.parse::<u32>().unwrap();
+
+                let longitude_string = read_string(stream)?;
+                let long = longitude_string.parse::<f64>().unwrap();
+
+                let latitude_string = read_string(stream)?;
+                let lat = latitude_string.parse::<f64>().unwrap();
+
+                let location = Location::new(lat, long);
+
+                PayloadTypes::DroneLocation(drone_id, location)
             }
             _ => {
                 return Err(Error::new(

@@ -72,7 +72,7 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
         let camera_system_client = client_factory(rx, address, connect_config, tx2)?;
 
         let subscribe_config = SubscribeConfig::new(
-            "cameras".to_string(),
+            "incidente".to_string(),
             1,
             SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]),
         );
@@ -940,10 +940,12 @@ mod tests {
             match message {
                 ClientMessage::Subscribe {
                     packet_id: _,
-                    topic_name,
+                    payload,
                     properties: _,
                 } => {
-                    assert_eq!(topic_name, "incidente");
+                    for topic in payload {
+                        assert_eq!(topic.topic, "incidente");
+                    }
                 }
                 _ => {
                     panic!("Unexpected message type");

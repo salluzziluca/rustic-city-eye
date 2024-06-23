@@ -76,10 +76,12 @@ impl Client {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
         };
+        let connect_message = ClientMessage::Connect(connect.clone());
+        // println!("Connect: {:?}", connect);
 
         println!("Enviando connect message to broker");
 
-        match connect.write_to(&mut *stream_lock) {
+        match connect_message.write_to(&mut *stream_lock) {
             Ok(()) => println!("Connect message enviado"),
             Err(_) => println!("Error al enviar connect message"),
         }
@@ -98,7 +100,7 @@ impl Client {
                         0x00_u8 => {
                             println!("Conexion exitosa!");
 
-                            let client_id = connect.client_id.clone();
+                            let client_id = connect.client_id;
                             Ok(Client {
                                 receiver_channel: Arc::new(Mutex::new(receiver_channel)),
                                 stream: stream_clone,
@@ -642,7 +644,7 @@ pub fn handle_message(
     mut stream: TcpStream,
     pending_messages: Vec<u16>,
     sender: Sender<bool>,
-    sender_chanell: Sender<ClientMessage>,
+    _sender_chanell_: Sender<ClientMessage>,
 ) -> Result<ClientReturn, ProtocolError> {
     if let Ok(message) = BrokerMessage::read_from(&mut stream) {
         match message {
@@ -702,28 +704,28 @@ pub fn handle_message(
             }
             BrokerMessage::PublishDelivery {
                 packet_id,
-                topic_name,
-                qos,
-                retain_flag,
-                dup_flag,
-                properties,
+                topic_name: _,
+                qos: _,
+                retain_flag: _,
+                dup_flag: _,
+                properties: _,
                 payload,
             } => {
                 println!(
                     "PublishDelivery con id {} recibido, payload: {:?}",
                     packet_id, payload
                 );
-                sender_chanell
-                    .send(ClientMessage::Publish {
-                        packet_id,
-                        topic_name,
-                        qos,
-                        retain_flag,
-                        dup_flag,
-                        properties,
-                        payload,
-                    })
-                    .unwrap();
+                // sender_chanell
+                //     .send(ClientMessage::Publish {
+                //         packet_id,
+                //         topic_name,
+                //         qos,
+                //         retain_flag,
+                //         dup_flag,
+                //         properties,
+                //         payload,
+                //     })
+                //     .unwrap();
                 Ok(ClientReturn::PublishDeliveryRecieved)
             }
             BrokerMessage::Unsuback {
