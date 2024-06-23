@@ -411,6 +411,8 @@ impl ClientMessage {
         match self {
             ClientMessage::Connect(connect) => {
                 connect.write_to(&mut writer)?;
+                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
+
                 Ok(())
             }
             ClientMessage::Publish {
@@ -621,8 +623,8 @@ impl ClientMessage {
                 properties: _,
                 payload: _,
             } => {
-                println!("estoy mandnado el header");
                 let byte_1: u8 = 0x82_u8;
+                println!("estoy mandnado el header {:?}", byte_1);
                 writer
                     .write_all(&[byte_1])
                     .map_err(|_e| ProtocolError::WriteError)?;
@@ -819,6 +821,7 @@ impl ClientMessage {
         stream.read_exact(&mut header)?;
 
         let mut header = u8::from_le_bytes(header);
+        println!("el header en read_from es {}", header);
         let (mut dup_flag, mut qos, mut retain_flag) = (0, 0, 0);
 
         let first_header_digits = header >> 4;

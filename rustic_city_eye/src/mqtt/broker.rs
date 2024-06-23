@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fs::File,
-    io::{self, BufRead, BufReader, Write},
+    io::{BufRead, BufReader},
     net::{TcpListener, TcpStream},
     sync::{mpsc, Arc, RwLock},
     thread,
@@ -474,7 +474,6 @@ impl Broker {
         clients_auth_info: HashMap<String, (String, Vec<u8>)>,
         _id_sender: std::sync::mpsc::Sender<String>,
     ) -> Result<ProtocolReturn, ProtocolError> {
-        println!("entre a handle MASAJES");
         let mensaje = match ClientMessage::read_from(&mut stream) {
             Ok(mensaje) => mensaje,
             Err(e) => {
@@ -482,6 +481,9 @@ impl Broker {
                 return Err(ProtocolError::StreamError);
             }
         };
+
+        println!("msg en broker {:?}", mensaje);
+
         match mensaje {
             ClientMessage::Connect { 0: connect } => {
                 println!("Recibí un Connect");
@@ -675,6 +677,20 @@ impl Broker {
                         }
                         Err(err) => println!("Error al enviar suback: {:?}", err),
                     }
+                }
+
+                let suback = BrokerMessage::Suback {
+                    packet_id_msb: packet_id_bytes[0],
+                    packet_id_lsb: packet_id_bytes[1],
+                    reason_code: SUCCESS_HEX,
+                };
+                println!("Enviando un Suback");
+                match suback.write_to(&mut stream) {
+                    Ok(_) => {
+                        println!("Suback enviado");
+                        return Ok(ProtocolReturn::SubackSent);
+                    }
+                    Err(err) => println!("Error al enviar suback: {:?}", err),
                 }
 
                 return Ok(ProtocolReturn::SubackSent);

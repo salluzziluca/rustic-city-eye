@@ -14,10 +14,7 @@ use crate::{
         client_message::{self, ClientMessage},
         messages_config::MessagesConfig,
         protocol_error::ProtocolError,
-        publish::{
-            publish_config::PublishConfig,
-            publish_properties::{PublishProperties, TopicProperties},
-        },
+        publish::publish_config::PublishConfig,
         subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
     },
@@ -74,23 +71,23 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
         let (tx2, rx2) = mpsc::channel();
         let camera_system_client = client_factory(rx, address, connect_config, tx2)?;
 
-        // let subscribe_config = SubscribeConfig::new(
-        //     "incidente".to_string(),
-        //     1,
-        //     SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]),
-        // );
+        let subscribe_config = SubscribeConfig::new(
+            "incidente".to_string(),
+            1,
+            SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]),
+        );
 
-        // match tx.send(Box::new(subscribe_config)) {
-        //     Ok(_) => {
-        //         println!("el sub se mando ok")
-        //     }
-        //     Err(e) => {
-        //         println!("Error sending message: {:?}", e);
-        //         return Err(ProtocolError::SendError(
-        //             "Error sending message".to_string(),
-        //         ));
-        //     }
-        // }
+        match tx.send(Box::new(subscribe_config)) {
+            Ok(_) => {
+                println!("el sub se mando ok")
+            }
+            Err(e) => {
+                println!("Error sending message: {:?}", e);
+                return Err(ProtocolError::SendError(
+                    "Error sending message".to_string(),
+                ));
+            }
+        }
 
         Ok(CameraSystem {
             send_to_client_channel: Arc::new(Mutex::new(tx)),
@@ -1130,13 +1127,13 @@ mod tests {
 
         //add cameras
         let location = Location::new(1.0, 1.0);
-        camera_system.add_camera(location.clone());
+        let _ = camera_system.add_camera(location.clone());
         let location2 = Location::new(1.0, 2.0);
-        camera_system.add_camera(location2.clone());
+        let _ = camera_system.add_camera(location2.clone());
         let location3 = Location::new(1.0, 3.0);
-        camera_system.add_camera(location3.clone());
+        let _ = camera_system.add_camera(location3.clone());
         let location4 = Location::new(2.0, 5.0);
-        camera_system.add_camera(location4.clone());
+        let _ = camera_system.add_camera(location4.clone());
 
         let handle = thread::spawn(move || {
             mock_client.send_messages(&tx2);
