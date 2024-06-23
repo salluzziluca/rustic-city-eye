@@ -818,7 +818,7 @@ impl ClientMessage {
         let first_header_digits = header >> 4;
         if first_header_digits == 0x3 {
             let mask = 0b00001111;
-            let last_header_digits = header & mask;
+            let last_header_digits: u8 = header & mask;
 
             header = 0x30_u8.to_le();
 
