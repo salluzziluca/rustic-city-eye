@@ -409,10 +409,12 @@ impl Client {
                                                     }
                                                 }
                                             }
-                                            Err(_) => {
+                                            Err(e) => {
                                                 println!(
-                                                "Error al enviar packet_id de puback al receiver"
-                                            )
+                                                "Error al enviar packet_id de puback al receiver,
+                                                error: {}
+                                                ",
+                                                e)
                                             }
                                         }
                                     }
