@@ -100,11 +100,13 @@ impl Drone {
     pub fn run_drone(&mut self) -> Result<(), DroneError> {
         match self.drone_client.client_run() {
             Ok(client) => client,
-            Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
+            Err(e) => {
+                print!("Error running client: {:?}", e);
+                return Err(DroneError::ProtocolError(e.to_string()))},
         };
 
         self.update_location()?;
-        self.update_location()?;
+        // self.update_location()?;
 
         println!("Drone {} is running", self.id);
         let self_clone = Arc::new(Mutex::new(self.clone()));
@@ -217,7 +219,6 @@ impl Drone {
         let mut last_move_time = Utc::now();
 
         loop {
-            // println!("Drone {} is moving to direction {:?}", self.id, self.target_location);
             if self.location == self.target_location {
                 self.update_target_location()?;
             }
@@ -241,7 +242,12 @@ impl Drone {
 
                     // println!("Drone is on location: ({}, {})", self.location.lat, self.location.long);
                     // println!("Target location: ({}, {})", self.target_location.lat, self.target_location.long);
-                    // self.update_location()?;
+                    match self.update_location(){
+                        Ok(_) => (),
+                        Err(e) => {
+                            println!("Error updating location: {:?}", e);
+                        },
+                    };
                     self.handle_low_battery(
                     )?;
 
@@ -294,9 +300,14 @@ impl Drone {
                 Err(_) => return Err(DroneError::ReadingConfigFileError),
             };
         // println!("publish_config: {:?}", publish_config);
-        self.send_to_client_channel
-            .send(Box::new(publish_config))
-            .map_err(|_| DroneError::ReadingConfigFileError)?;
+
+        match self.send_to_client_channel
+            .send(Box::new(publish_config)){
+            Ok(_) => (),
+            Err(e) => {
+                println!("Error sending message to client: {:?}", e);
+            },
+        }
         Ok(())
     }
 

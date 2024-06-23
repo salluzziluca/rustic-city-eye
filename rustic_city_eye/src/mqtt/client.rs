@@ -343,7 +343,7 @@ impl Client {
                     let packet_id = self.assign_packet_id();
 
                     let message = message_config.parse_message(packet_id);
-                    println!("Mensaje a enviar: {:?}", message);
+                    // println!("Mensaje a enviar: {:?}", message);
 
                     match message {
                         ClientMessage::Connect { 0: _ } => todo!(),
@@ -376,8 +376,10 @@ impl Client {
                                         let stream_clone = stream_clone.try_clone().unwrap();
                                         match sender.send(packet_id) {
                                             Ok(_) => {
+                                                println!("Esperando puback");
                                                 if let Ok(puback_recieved) = receiver.try_recv() {
                                                     if !puback_recieved {
+                                                        println!("No se recibió puback");
                                                         //reenviar el msj con un dup_flag + 1
 
                                                         thread::sleep(Duration::from_millis(500));
@@ -405,6 +407,8 @@ impl Client {
                                                             }
                                                         }
                                                     }
+                                                    println!("Puback recibido");
+                                                    println!("Puback: {:?}", puback_recieved);
                                                 }
                                             }
                                             Err(e) => {
