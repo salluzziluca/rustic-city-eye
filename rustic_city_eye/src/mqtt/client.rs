@@ -1,5 +1,5 @@
 use rand::Rng;
-use rustls::RootCertStore;
+use rustls::{ClientConnection, RootCertStore, Stream};
 
 use std::{
     collections::HashMap, io::Write, net::TcpStream, sync::{
@@ -65,9 +65,9 @@ impl Client {
         config.key_log = Arc::new(rustls::KeyLogFile::new());
 
         let server_name = "rustic_city_eye".try_into().unwrap();
-        let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
+        let mut conn = ClientConnection::new(Arc::new(config), server_name).unwrap();
 
-        let mut _tls_stream = rustls::Stream::new(&mut conn, &mut stream);
+        let mut _tls_stream = Stream::new(&mut conn, &mut stream);
 
         println!("Enviando connect message to broker");
         match connect.write_to(&mut stream) {
