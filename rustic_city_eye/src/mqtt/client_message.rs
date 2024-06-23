@@ -621,6 +621,7 @@ impl ClientMessage {
                 properties: _,
                 payload: _,
             } => {
+                println!("estoy mandnado el header");
                 let byte_1: u8 = 0x82_u8;
                 writer
                     .write_all(&[byte_1])
@@ -1018,7 +1019,10 @@ impl ClientMessage {
                     ))?,
                 })
             }
-            _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
+            _ => {
+                println!("header: {:?}", header);
+                Err(Error::new(std::io::ErrorKind::Other, "Invalid header"))
+            }
         }
     }
 }
@@ -1195,7 +1199,7 @@ mod tests {
             Err(e) => {
                 panic!("no se pudo escribir en el cursor {:?}", e);
             }
-        }
+        };
         cursor.set_position(0);
         let read_sub = match ClientMessage::read_from(&mut cursor) {
             Ok(sub) => sub,

@@ -3,6 +3,7 @@ mod tests {
     use rustic_city_eye::{
         monitoring::incident::Incident,
         mqtt::{
+            broker::Broker,
             broker_message::BrokerMessage,
             client::handle_message,
             client_return::ClientReturn,
@@ -10,6 +11,7 @@ mod tests {
             protocol_error::ProtocolError,
             publish::publish_properties::{PublishProperties, TopicProperties},
         },
+        surveilling::camera_system::CameraSystem,
         utils::{
             incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes,
         },
@@ -17,7 +19,7 @@ mod tests {
     use std::{
         io::Write,
         net::{TcpListener, TcpStream},
-        sync::mpsc::channel,
+        sync::{mpsc::channel, Arc, Condvar, Mutex},
         thread,
     };
 
@@ -304,5 +306,39 @@ mod tests {
         }
 
         assert_eq!(result.unwrap(), ClientReturn::AuthRecieved);
+    }
+
+    #[test]
+    fn test_creo_cliente_y_envio_sub_por_channel() {
+        let args = vec!["127.0.0.1".to_string(), "5097".to_string()];
+        let mut broker = match Broker::new(args) {
+            Ok(broker) => broker,
+            Err(e) => panic!("Error creating broker: {:?}", e),
+        };
+
+        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+        let server_ready_clone = server_ready.clone();
+        thread::spawn(move || {
+            {
+                let (lock, cvar) = &*server_ready_clone;
+                let mut ready = lock.lock().unwrap();
+                *ready = true;
+                cvar.notify_all();
+            }
+            let _ = broker.server_run();
+        });
+
+        // Wait for the server to start
+        {
+            let (lock, cvar) = &*server_ready;
+            let mut ready = lock.lock().unwrap();
+            while !*ready {
+                ready = cvar.wait(ready).unwrap();
+            }
+        }
+
+        let handle = thread::spawn(move || {
+            let mut camera_system = CameraSystem::with_real_client("127.0.0.1::5097".to_string());
+        });
     }
 }

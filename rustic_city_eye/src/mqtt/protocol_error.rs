@@ -26,6 +26,7 @@ pub enum ProtocolError {
     AbnormalDisconnection,
     DroneError(String),
     CameraError(String),
+    SendError(String),
 }
 
 impl fmt::Display for ProtocolError {
@@ -88,6 +89,9 @@ impl fmt::Display for ProtocolError {
             }
             ProtocolError::CameraError(ref err) => {
                 write!(f, "Error de protocolo: {}", err)
+            }
+            ProtocolError::SendError(ref err) => {
+                write!(f, "Error al enviar mensaje: {}", err)
             }
         }
     }

@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fs::File,
-    io::{BufRead, BufReader},
+    io::{self, BufRead, BufReader, Write},
     net::{TcpListener, TcpStream},
     sync::{mpsc, Arc, RwLock},
     thread,
@@ -187,7 +187,7 @@ impl Broker {
                         let self_ref = Arc::new(self.clone()); // wrap `self` in an Arc
 
                         move || {
-                            let result = match <Broker as Clone>::clone(&self_ref).handle_client(
+                            let result = match self_clone.handle_client(
                                 stream,
                                 topics_clone.clone(),
                                 packets_clone,
@@ -217,7 +217,10 @@ impl Broker {
                                                 Some(will_message) => will_message,
                                                 None => return Err(err),
                                             };
-                                            self_clone.send_last_will(will_message, topics_clone);
+                                            let self_clone2 = self_ref.clone();
+                                            self_clone2
+                                                .clone()
+                                                .send_last_will(will_message, topics_clone);
                                         }
                                     }
 
@@ -245,11 +248,17 @@ impl Broker {
         clients_auth_info: HashMap<String, (String, Vec<u8>)>,
         id_sender: std::sync::mpsc::Sender<String>,
     ) -> Result<(), ProtocolError> {
+        println!("entre a handle client");
+        // io::stdout().flush().unwrap(); // Ensure the print is flushed immediately
         loop {
             let cloned_stream = match stream.try_clone() {
                 Ok(stream) => stream,
-                Err(_) => return Err(ProtocolError::StreamError),
+                Err(e) => {
+                    println!("Error al clonar ELSTREAMAAA stream: {:?}", e);
+                    return Err(ProtocolError::StreamError);
+                }
             };
+            println!("entre a handle client LOOOP");
             match stream.peek(&mut [0]) {
                 Ok(_) => {}
                 Err(_) => return Err(ProtocolError::AbnormalDisconnection),
@@ -465,9 +474,13 @@ impl Broker {
         clients_auth_info: HashMap<String, (String, Vec<u8>)>,
         _id_sender: std::sync::mpsc::Sender<String>,
     ) -> Result<ProtocolReturn, ProtocolError> {
+        println!("entre a handle MASAJES");
         let mensaje = match ClientMessage::read_from(&mut stream) {
             Ok(mensaje) => mensaje,
-            Err(_) => return Err(ProtocolError::StreamError),
+            Err(e) => {
+                println!("Error al leer mensaje: {:?}", e);
+                return Err(ProtocolError::StreamError);
+            }
         };
         match mensaje {
             ClientMessage::Connect { 0: connect } => {

@@ -1,5 +1,6 @@
 use rand::Rng;
 use std::{
+    io::Write,
     net::TcpStream,
     sync::{
         mpsc::{self, Receiver, Sender},
@@ -85,6 +86,12 @@ impl Client {
             Ok(()) => println!("Connect message enviado"),
             Err(_) => println!("Error al enviar connect message"),
         }
+        //flush
+        if let Ok(()) = stream_lock.flush() {
+            println!("Flushed");
+        } else {
+            println!("Error al flushear");
+        }
 
         if let Ok(message) = BrokerMessage::read_from(&mut *stream_lock) {
             match message {
@@ -155,7 +162,10 @@ impl Client {
         mut stream: TcpStream,
     ) -> Result<u16, ClientError> {
         match message.write_to(&mut stream) {
-            Ok(()) => Ok(packet_id),
+            Ok(()) => {
+                println!("el sub fue enviado");
+                Ok(packet_id)
+            }
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
@@ -432,7 +442,7 @@ impl Client {
                                     properties,
                                     payload: payload.clone(),
                                 };
-
+                                println!("Mensaje recibidOOOOOo {:?}", subscribe);
                                 for p in payload {
                                     if let Ok(stream) = stream_clone.try_clone() {
                                         if let Ok(packet_id) =

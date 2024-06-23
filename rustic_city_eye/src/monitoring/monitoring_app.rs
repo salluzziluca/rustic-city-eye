@@ -49,8 +49,28 @@ impl MonitoringApp {
             "src/drone_system/drone_config.json".to_string(),
             address.clone(),
         );
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx): (
+            Sender<Box<dyn MessagesConfig + Send>>,
+            Receiver<Box<dyn MessagesConfig + Send>>,
+        ) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
+        let subscribe_config = SubscribeConfig::new(
+            "incidente".to_string(),
+            1,
+            SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]),
+        );
+
+        match tx.send(Box::new(subscribe_config)) {
+            Ok(_) => {
+                println!("el sub se mando ok")
+            }
+            Err(e) => {
+                println!("Error sending message: {:?}", e);
+                return Err(ProtocolError::SendError(
+                    "Error sending message".to_string(),
+                ));
+            }
+        }
 
         let monitoring_app = MonitoringApp {
             send_to_client_channel: tx,
@@ -86,7 +106,12 @@ impl MonitoringApp {
     }
 
     pub fn add_camera(&mut self, location: Location) {
-        self.camera_system.add_camera(location);
+        match self.camera_system.add_camera(location) {
+            Ok(_) => {}
+            Err(e) => {
+                println!("Error adding camera: {:?}", e);
+            }
+        }
     }
 
     pub fn add_incident(&mut self, location: Location) {
