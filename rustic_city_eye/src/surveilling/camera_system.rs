@@ -14,6 +14,7 @@ use crate::{
         client_message::{self, ClientMessage},
         messages_config::MessagesConfig,
         protocol_error::ProtocolError,
+        publish::publish_config::PublishConfig,
         subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
     },
@@ -32,6 +33,7 @@ pub struct CameraSystem<T: ClientTrait + Clone> {
     camera_system_client: T,
     cameras: HashMap<u32, Camera>,
     reciev_from_client: Arc<Mutex<Receiver<client_message::ClientMessage>>>,
+    snapshot: Vec<Camera>,
 }
 
 impl<T: ClientTrait + Clone> Clone for CameraSystem<T> {
@@ -41,6 +43,7 @@ impl<T: ClientTrait + Clone> Clone for CameraSystem<T> {
             camera_system_client: self.camera_system_client.clone(),
             cameras: self.cameras.clone(),
             reciev_from_client: Arc::clone(&self.reciev_from_client),
+            snapshot: self.snapshot.clone(),
         }
     }
 }
@@ -81,9 +84,16 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
             camera_system_client,
             cameras: HashMap::new(),
             reciev_from_client: Arc::new(Mutex::new(rx2)),
+            snapshot: Vec::new(),
         })
     }
-
+    #[allow(dead_code)]
+    fn get_client_publish_end_channel(
+        &self,
+    ) -> Arc<std::sync::Mutex<std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>>>
+    {
+        self.camera_system_client.get_publish_end_channel()
+    }
     pub fn add_camera(&mut self, location: Location) -> Option<u32> {
         let mut rng = rand::thread_rng();
 
@@ -310,14 +320,62 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
         &mut self,
         message: Box<dyn MessagesConfig + Send>,
     ) -> Result<(), CameraError> {
+        let packet_id = self.camera_system_client.assign_packet_id();
+        let message = message.parse_message(packet_id);
         let lock = self.send_to_client_channel.lock().unwrap();
-        match lock.send(message) {
+        match lock.send(Box::new(message)) {
             Ok(_) => {}
             Err(e) => {
                 println!("Error sending message: {:?}", e);
                 return Err(CameraError::SendError);
             }
         };
+        Ok(())
+    }
+
+    /// Compara la snapshot anterior que tiene almacenada con la actual, envia mediante un pub
+    /// Las camaras que hayan cambiado de estado entre el ultimo publish y este.
+    /// En un vector de camaras.
+    /// Si no hay cambios, no envia nada
+    /// Almacena la nueva snapshot para la proxima comparacion
+    pub fn publish_cameras_update(&mut self) -> Result<(), CameraError> {
+        //load tuples of id,camera to a vector
+        let mut new_snapshot: Vec<Camera> = Vec::new();
+        for camera in self.cameras.values() {
+            new_snapshot.push(camera.clone());
+        }
+
+        let mut cameras = Vec::new();
+        for camera in new_snapshot.iter() {
+            if (!self.snapshot.contains(&camera.clone()))
+                || (self.snapshot.contains(&camera.clone())
+                    && camera.get_sleep_mode()
+                        != self
+                            .snapshot
+                            .iter()
+                            .find(|&x| x == camera)
+                            .unwrap()
+                            .get_sleep_mode())
+            {
+                cameras.push(camera.clone());
+            }
+        }
+        let publish_config = match PublishConfig::read_config(
+            "./src/surveilling/publish_config_update.json",
+            PayloadTypes::CamerasUpdatePayload(cameras),
+        ) {
+            Ok(config) => config,
+            Err(_) => {
+                return Err(CameraError::SendError);
+            }
+        };
+        match self.send_message(Box::new(publish_config)) {
+            Ok(_) => {}
+            Err(_) => {
+                return Err(CameraError::SendError);
+            }
+        }
+        self.snapshot = new_snapshot;
         Ok(())
     }
 }
@@ -838,6 +896,130 @@ mod tests {
         });
         handle.join().unwrap();
     }
+
+    #[test]
+
+    fn test_update_cameras() {
+        let args = vec!["127.0.0.1".to_string(), "5033".to_string()];
+        let mut broker = match Broker::new(args) {
+            Ok(broker) => broker,
+            Err(e) => panic!("Error creating broker: {:?}", e),
+        };
+
+        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+        let server_ready_clone = server_ready.clone();
+        thread::spawn(move || {
+            {
+                let (lock, cvar) = &*server_ready_clone;
+                let mut ready = lock.lock().unwrap();
+                *ready = true;
+                cvar.notify_all();
+            }
+            let _ = broker.server_run();
+        });
+
+        // Wait for the server to start
+        {
+            let (lock, cvar) = &*server_ready;
+            let mut ready = lock.lock().unwrap();
+            while !*ready {
+                ready = cvar.wait(ready).unwrap();
+            }
+        }
+        let addr = "127.0.0.1:5033";
+        let handle = thread::spawn(move || {
+            let mut camera_system =
+                CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
+            let reciever = camera_system.camera_system_client.get_publish_end_channel();
+            let reciever = reciever.lock().unwrap();
+            let message = reciever.recv().unwrap();
+            //conver message to a ClientMessage
+            let packet_id = camera_system.camera_system_client.assign_packet_id();
+            let message = message.parse_message(packet_id);
+            // Recibe el sub que hace el camera_system cuando se crea por primera vez
+            match message {
+                ClientMessage::Subscribe {
+                    packet_id: _,
+                    topic_name,
+                    properties: _,
+                } => {
+                    assert_eq!(topic_name, "incidente");
+                }
+                _ => {
+                    panic!("Unexpected message type");
+                }
+            }
+            let location = Location::new(1.0, 2.0);
+            let id = camera_system.add_camera(location.clone()).unwrap();
+            assert_eq!(camera_system.get_cameras().len(), 1);
+            assert_eq!(
+                camera_system.get_camera_by_id(id).unwrap().get_location(),
+                location
+            );
+            let incident_location = Location::new(1.0, 2.0);
+            camera_system
+                .activate_cameras(incident_location.clone())
+                .unwrap();
+            for camera in camera_system.get_cameras().values() {
+                assert!(!camera.get_sleep_mode());
+            }
+
+            // Publico cuando las camaras se encienden
+            camera_system.publish_cameras_update().unwrap();
+
+            let message = reciever.recv().unwrap();
+            //conver message to a ClientMessage
+            let packet_id = camera_system.camera_system_client.assign_packet_id();
+            let message = message.parse_message(packet_id);
+
+            match message {
+                ClientMessage::Publish {
+                    topic_name,
+                    payload: PayloadTypes::CamerasUpdatePayload(cameras),
+                    ..
+                } => {
+                    assert_eq!(topic_name, "camera_update");
+                    assert_eq!(cameras.len(), 1);
+                    assert_eq!(cameras[0].get_location(), location);
+                    assert!(!cameras[0].get_sleep_mode());
+                }
+                _ => {
+                    panic!("Unexpected message type");
+                }
+            }
+
+            camera_system.deactivate_cameras(incident_location).unwrap();
+            for camera in camera_system.get_cameras().values() {
+                assert!(camera.get_sleep_mode());
+            }
+
+            //vuelvo a publicar cuando las camaras se apagan
+            camera_system.publish_cameras_update().unwrap();
+            let message = reciever.recv().unwrap();
+            //conver message to a ClientMessage
+            let packet_id = camera_system.camera_system_client.assign_packet_id();
+            let message = message.parse_message(packet_id);
+            print!("AAAAAAAAAAAAa{:?}", message);
+
+            match message {
+                ClientMessage::Publish {
+                    topic_name,
+                    payload: PayloadTypes::CamerasUpdatePayload(cameras),
+                    ..
+                } => {
+                    assert_eq!(topic_name, "camera_update");
+                    assert_eq!(cameras.len(), 1);
+                    assert_eq!(cameras[0].get_location(), location);
+                    assert!(cameras[0].get_sleep_mode());
+                }
+                _ => {
+                    panic!("Unexpected message type");
+                }
+            }
+        });
+
+        handle.join().unwrap();
+    }
     #[test]
     fn test_run_client() {
         #[derive(Debug, Clone)]
@@ -852,6 +1034,18 @@ mod tests {
 
             fn clone_box(&self) -> Box<dyn ClientTrait> {
                 Box::new(self.clone())
+            }
+            fn assign_packet_id(&self) -> u16 {
+                0
+            }
+            fn get_publish_end_channel(
+                &self,
+            ) -> Arc<
+                std::sync::Mutex<
+                    std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>,
+                >,
+            > {
+                Arc::new(std::sync::Mutex::new(std::sync::mpsc::channel().1))
             }
         }
 

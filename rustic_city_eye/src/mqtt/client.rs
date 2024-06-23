@@ -22,6 +22,10 @@ use super::{client_message, client_return::ClientReturn, error::ClientError};
 pub trait ClientTrait {
     fn client_run(&mut self) -> Result<(), ProtocolError>;
     fn clone_box(&self) -> Box<dyn ClientTrait>;
+    fn assign_packet_id(&self) -> u16;
+    fn get_publish_end_channel(
+        &self,
+    ) -> Arc<std::sync::Mutex<std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>>>;
 }
 impl Clone for Box<dyn ClientTrait> {
     fn clone(&self) -> Box<dyn ClientTrait> {
@@ -256,11 +260,10 @@ impl Client {
         let threadpool = ThreadPool::new(5);
 
         let subscriptions_clone = self.subscriptions.clone();
-        let packet_id_clones = self.packets_ids.clone();
 
+        let cloned_self = self.clone();
         let _write_messages = threadpool.execute(move || {
-            Client::write_messages(
-                packet_id_clones,
+            cloned_self.write_messages(
                 stream_clone_one,
                 receiver_channel,
                 desconectar,
@@ -325,7 +328,7 @@ impl Client {
     ///
     /// Si el mensaje es un publish con qos 1, se envia el mensaje y se espera un puback. Si no se recibe, espera 0.5 segundos y reenvia el mensaje. aumentando en 1 el dup_flag, indicando que es al vez numero n que se envia el publish.
     fn write_messages(
-        packet_ids: Arc<Mutex<Vec<u16>>>,
+        &self,
         stream: TcpStream,
         receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
         mut desconectar: bool,
@@ -337,7 +340,7 @@ impl Client {
             loop {
                 let lock = receiver_channel.lock().unwrap();
                 if let Ok(message_config) = lock.recv() {
-                    let packet_id = Client::assign_packet_id(packet_ids.clone());
+                    let packet_id = self.assign_packet_id();
 
                     let message = message_config.parse_message(packet_id);
 
@@ -585,10 +588,17 @@ impl Client {
         Ok(())
     }
 
+    pub fn get_publish_end_channel(
+        &self,
+    ) -> Arc<std::sync::Mutex<std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>>>
+    {
+        self.receiver_channel.clone()
+    }
+
     ///Asigna un id random
-    pub fn assign_packet_id(packet_ids: Arc<Mutex<Vec<u16>>>) -> u16 {
+    pub fn assign_packet_id(&self) -> u16 {
         let mut rng = rand::thread_rng();
-        let mut packet_ids = match packet_ids.lock() {
+        let mut packet_ids = match self.packets_ids.lock() {
             Ok(packet_ids) => packet_ids,
             Err(_) => return 0,
         };
@@ -612,6 +622,16 @@ impl ClientTrait for Client {
 
     fn clone_box(&self) -> Box<dyn ClientTrait> {
         Box::new(self.clone())
+    }
+    fn assign_packet_id(&self) -> u16 {
+        self.assign_packet_id()
+    }
+
+    fn get_publish_end_channel(
+        &self,
+    ) -> Arc<std::sync::Mutex<std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>>>
+    {
+        self.get_publish_end_channel()
     }
 }
 
@@ -748,31 +768,137 @@ pub fn handle_message(
 
 mod tests {
 
+    use std::sync::Condvar;
+
+    use crate::mqtt::broker::Broker;
+
     use super::*;
 
     #[test]
     fn test_assign_packet_id() {
-        let packet_ids = Vec::new();
-        let packet_ids = Arc::new(Mutex::new(packet_ids));
-        let packet_id = Client::assign_packet_id(packet_ids);
-        assert_ne!(packet_id, 0);
+        let args = vec!["127.0.0.1".to_string(), "5047".to_string()];
+        let mut broker = match Broker::new(args) {
+            Ok(broker) => broker,
+            Err(e) => panic!("Error creating broker: {:?}", e),
+        };
+
+        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+        let server_ready_clone = server_ready.clone();
+        thread::spawn(move || {
+            {
+                let (lock, cvar) = &*server_ready_clone;
+                let mut ready = lock.lock().unwrap();
+                *ready = true;
+                cvar.notify_all();
+            }
+            let _ = broker.server_run();
+        });
+
+        // Wait for the server to start
+        {
+            let (lock, cvar) = &*server_ready;
+            let mut ready = lock.lock().unwrap();
+            while !*ready {
+                ready = cvar.wait(ready).unwrap();
+            }
+        }
+        let handle = thread::spawn(move || {
+            let connect_config =
+                client_message::Connect::read_connect_config("src/drones/connect_config.json")
+                    .unwrap();
+            let (_, rx) = mpsc::channel();
+            let (tx2, _) = mpsc::channel();
+            let address = "127.0.0.1:5047";
+            let client = Client::new(rx, address.to_string(), connect_config, tx2).unwrap();
+            let packet_id = client.assign_packet_id();
+            assert_ne!(packet_id, 0);
+        });
+        handle.join().unwrap();
     }
 
     #[test]
     fn test_si_el_id_de_paquete_es_unico() {
-        let packet_ids = Vec::new();
-        let packet_ids = Arc::new(Mutex::new(packet_ids));
-        let packet_id = Client::assign_packet_id(packet_ids.clone());
-        let packet_id_2 = Client::assign_packet_id(packet_ids.clone());
-        assert_ne!(packet_id, packet_id_2);
+        let args = vec!["127.0.0.1".to_string(), "5039".to_string()];
+        let mut broker = match Broker::new(args) {
+            Ok(broker) => broker,
+            Err(e) => panic!("Error creating broker: {:?}", e),
+        };
+
+        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+        let server_ready_clone = server_ready.clone();
+        thread::spawn(move || {
+            {
+                let (lock, cvar) = &*server_ready_clone;
+                let mut ready = lock.lock().unwrap();
+                *ready = true;
+                cvar.notify_all();
+            }
+            let _ = broker.server_run();
+        });
+
+        // Wait for the server to start
+        {
+            let (lock, cvar) = &*server_ready;
+            let mut ready = lock.lock().unwrap();
+            while !*ready {
+                ready = cvar.wait(ready).unwrap();
+            }
+        }
+        let handle = thread::spawn(move || {
+            let connect_config =
+                client_message::Connect::read_connect_config("src/drones/connect_config.json")
+                    .unwrap();
+            let (_, rx) = mpsc::channel();
+            let (tx2, _) = mpsc::channel();
+            let address = "127.0.0.1:5039";
+            let client = Client::new(rx, address.to_string(), connect_config, tx2).unwrap();
+            let packet_id = client.assign_packet_id();
+            let packet_id_2 = client.assign_packet_id();
+            assert_ne!(packet_id, packet_id_2);
+        });
+        handle.join().unwrap();
     }
 
     #[test]
     fn test_si_el_id_de_paquete_es_distinto_de_cero() {
-        let packet_ids = Vec::new();
-        let packet_ids = Arc::new(Mutex::new(packet_ids));
-        let packet_id = Client::assign_packet_id(packet_ids);
-        assert_ne!(packet_id, 0);
+        let args = vec!["127.0.0.1".to_string(), "5028".to_string()];
+        let mut broker = match Broker::new(args) {
+            Ok(broker) => broker,
+            Err(e) => panic!("Error creating broker: {:?}", e),
+        };
+
+        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+        let server_ready_clone = server_ready.clone();
+        thread::spawn(move || {
+            {
+                let (lock, cvar) = &*server_ready_clone;
+                let mut ready = lock.lock().unwrap();
+                *ready = true;
+                cvar.notify_all();
+            }
+            let _ = broker.server_run();
+        });
+
+        // Wait for the server to start
+        {
+            let (lock, cvar) = &*server_ready;
+            let mut ready = lock.lock().unwrap();
+            while !*ready {
+                ready = cvar.wait(ready).unwrap();
+            }
+        }
+        let handle = thread::spawn(move || {
+            let connect_config =
+                client_message::Connect::read_connect_config("src/drones/connect_config.json")
+                    .unwrap();
+            let (_, rx) = mpsc::channel();
+            let (tx2, _) = mpsc::channel();
+            let address = "127.0.0.1:5028";
+            let client = Client::new(rx, address.to_string(), connect_config, tx2).unwrap();
+            let packet_id = client.assign_packet_id();
+            assert_ne!(packet_id, 0);
+        });
+        handle.join().unwrap();
     }
 
     #[test]
