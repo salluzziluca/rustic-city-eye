@@ -38,8 +38,7 @@ impl MessagesConfig for ConnectConfig {
             self.clone().username,
             self.clone().password,
         );
-        let connect_message = ClientMessage::Connect(connect);
-        connect_message
+        ClientMessage::Connect(connect)
     }
 }
 

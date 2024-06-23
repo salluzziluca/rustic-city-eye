@@ -198,7 +198,8 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, _monitoring_app: &mut Monitor
                     //         }
                     //     }
                     // }
-                    map.drone_centers.retain(|drone_center| !drone_center.clicked);
+                    map.drone_centers
+                        .retain(|drone_center| !drone_center.clicked);
                 }
             });
         });

@@ -814,7 +814,7 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
-        let clients_ids: Arc<RwLock<HashMap<String, (TcpStream, Option<LastWill>)>>> =
+        let clients_ids: Arc<RwLock<HashMap<String, (Option<TcpStream>, Option<LastWill>)>>> =
             Arc::new(RwLock::new(HashMap::new()));
 
         let clients_auth_info = HashMap::new();
