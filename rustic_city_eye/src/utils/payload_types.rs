@@ -71,19 +71,6 @@ impl Payload for PayloadTypes {
 
                 Ok(())
             }
-            PayloadTypes::CamerasUpdatePayload(payload) => {
-                write_u8(stream, &4)?;
-                write_u8(stream, &(payload.len() as u8))?;
-
-                for camera in payload {
-                    let mut camera_clone = camera.clone();
-                    match camera_clone.write_to(stream) {
-                        Ok(_) => {}
-                        Err(_) => return Err(ProtocolError::WriteError),
-                    }
-                }
-                Ok(())
-            }
         }
     }
 

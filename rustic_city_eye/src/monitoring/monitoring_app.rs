@@ -71,9 +71,9 @@ impl MonitoringApp {
         self.monitoring_app_client.client_run()?;
         self.camera_system.run_client(None)?;
 
-        let subscribe_properties = SubscribeProperties::new(1, Vec::new(), Vec::new());
+        let subscribe_properties = SubscribeProperties::new(1, Vec::new());
         let subscribe_config =
-            SubscribeConfig::new("drone_location".to_string(), subscribe_properties);
+            SubscribeConfig::new("drone_location".to_string(), 1, subscribe_properties);
         match self.send_to_client_channel.send(Box::new(subscribe_config)) {
             Ok(_) => {}
             Err(e) => {
