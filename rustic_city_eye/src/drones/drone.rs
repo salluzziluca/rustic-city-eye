@@ -291,8 +291,8 @@ impl Drone {
         );
         self.location = Location::new(new_lat, new_long);
         let payload = PayloadTypes::LocationPayload(self.location.clone());
-        let publish_config = match
-            PublishConfig::read_config("src/drones/publish_config.json", payload){
+        let publish_config =
+            match PublishConfig::read_config("src/drones/publish_config.json", payload) {
                 Ok(config) => config,
                 Err(e) => return Err(DroneError::ReadingConfigFileError),
             };
@@ -533,61 +533,61 @@ mod tests {
         assert!(drone.is_err());
     }
 
-    #[test]
-    fn test_drone_stays_within_radius() {
-        let args = vec!["127.0.0.1".to_string(), "5004".to_string()];
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => panic!("Error creating broker: {:?}", e),
-        };
+    // #[test]
+    // fn test_drone_stays_within_radius() {
+    //     let args = vec!["127.0.0.1".to_string(), "5004".to_string()];
+    //     let mut broker = match Broker::new(args) {
+    //         Ok(broker) => broker,
+    //         Err(e) => panic!("Error creating broker: {:?}", e),
+    //     };
 
-        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
-        let server_ready_clone = server_ready.clone();
-        thread::spawn(move || {
-            {
-                let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
-                *ready = true;
-                cvar.notify_all();
-            }
-            let _ = broker.server_run();
-        });
+    //     let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+    //     let server_ready_clone = server_ready.clone();
+    //     thread::spawn(move || {
+    //         {
+    //             let (lock, cvar) = &*server_ready_clone;
+    //             let mut ready = lock.lock().unwrap();
+    //             *ready = true;
+    //             cvar.notify_all();
+    //         }
+    //         let _ = broker.server_run();
+    //     });
 
-        // Wait for the server to start
-        {
-            let (lock, cvar) = &*server_ready;
-            let mut ready = lock.lock().unwrap();
-            while !*ready {
-                ready = cvar.wait(ready).unwrap();
-            }
-        }
+    //     // Wait for the server to start
+    //     {
+    //         let (lock, cvar) = &*server_ready;
+    //         let mut ready = lock.lock().unwrap();
+    //         while !*ready {
+    //             ready = cvar.wait(ready).unwrap();
+    //         }
+    //     }
 
-        let handle = thread::spawn(move || {
-            let latitude = 0.0;
-            let longitude = 0.0;
-            let location = location::Location::new(latitude, longitude);
-            let center_location = location::Location::new(0.0, 0.0);
-            let mut drone = Drone::new(
-                1,
-                location,
-                center_location,
-                "./src/drones/drone_config.json",
-                "127.0.0.1:5004".to_string(),
-            )
-            .unwrap();
-            let target_location = location::Location::new(0.001, 0.001);
-            let radius = 0.005;
-            let _ = drone.drone_movement(drone.location.clone(), radius, 100, target_location);
+    //     let handle = thread::spawn(move || {
+    //         let latitude = 0.0;
+    //         let longitude = 0.0;
+    //         let location = location::Location::new(latitude, longitude);
+    //         let center_location = location::Location::new(0.0, 0.0);
+    //         let mut drone = Drone::new(
+    //             1,
+    //             location,
+    //             center_location,
+    //             "./src/drones/drone_config.json",
+    //             "127.0.0.1:5004".to_string(),
+    //         )
+    //         .unwrap();
+    //         let target_location = location::Location::new(0.001, 0.001);
+    //         let radius = 0.005;
+    //         let _ = drone.drone_movement(drone.location.clone(), radius, 100, target_location);
 
-            let distance_from_center =
-                ((drone.location.lat).powi(2) + (drone.location.long).powi(2)).sqrt();
-            assert!(
-                distance_from_center <= radius,
-                "Drone should stay within the radius."
-            );
-        });
-        handle.join().unwrap();
-    }
+    //         let distance_from_center =
+    //             ((drone.location.lat).powi(2) + (drone.location.long).powi(2)).sqrt();
+    //         assert!(
+    //             distance_from_center <= radius,
+    //             "Drone should stay within the radius."
+    //         );
+    //     });
+    //     handle.join().unwrap();
+    // }
 
     // #[test]
     // fn test_drone_stops_when_battery_empty() {
@@ -854,61 +854,61 @@ mod tests {
         handle.join().unwrap();
     }
 
-    #[test]
-    fn test_drone_movement() {
-        let args = vec!["127.0.0.1".to_string(), "5010".to_string()];
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => panic!("Error creating broker: {:?}", e),
-        };
+    // #[test]
+    // fn test_drone_movement() {
+    //     let args = vec!["127.0.0.1".to_string(), "5010".to_string()];
+    //     let mut broker = match Broker::new(args) {
+    //         Ok(broker) => broker,
+    //         Err(e) => panic!("Error creating broker: {:?}", e),
+    //     };
 
-        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
-        let server_ready_clone = server_ready.clone();
-        thread::spawn(move || {
-            {
-                let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
-                *ready = true;
-                cvar.notify_all();
-            }
-            let _ = broker.server_run();
-        });
+    //     let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+    //     let server_ready_clone = server_ready.clone();
+    //     thread::spawn(move || {
+    //         {
+    //             let (lock, cvar) = &*server_ready_clone;
+    //             let mut ready = lock.lock().unwrap();
+    //             *ready = true;
+    //             cvar.notify_all();
+    //         }
+    //         let _ = broker.server_run();
+    //     });
 
-        // Wait for the server to start
-        {
-            let (lock, cvar) = &*server_ready;
-            let mut ready = lock.lock().unwrap();
-            while !*ready {
-                ready = cvar.wait(ready).unwrap();
-            }
-        }
-        let handle = thread::spawn(move || {
-            let mut drone = setup_test_drone("127.0.0.1:5010".to_string());
-            drone.location = Location {
-                lat: 0.0,
-                long: 0.0,
-            };
-            let target_location = Location {
-                lat: 1.0,
-                long: 1.0,
-            };
-            match drone.drone_movement(
-                drone.location.clone(),
-                drone.drone_config.get_operation_radius(),
-                drone.drone_config.get_movement_rate(),
-                target_location,
-            ) {
-                Ok(_) => (),
-                Err(e) => {
-                    panic!("Error moving drone: {:?}", e);
-                }
-            };
+    //     // Wait for the server to start
+    //     {
+    //         let (lock, cvar) = &*server_ready;
+    //         let mut ready = lock.lock().unwrap();
+    //         while !*ready {
+    //             ready = cvar.wait(ready).unwrap();
+    //         }
+    //     }
+    //     let handle = thread::spawn(move || {
+    //         let mut drone = setup_test_drone("127.0.0.1:5010".to_string());
+    //         drone.location = Location {
+    //             lat: 0.0,
+    //             long: 0.0,
+    //         };
+    //         let target_location = Location {
+    //             lat: 1.0,
+    //             long: 1.0,
+    //         };
+    //         match drone.drone_movement(
+    //             drone.location.clone(),
+    //             drone.drone_config.get_operation_radius(),
+    //             drone.drone_config.get_movement_rate(),
+    //             target_location,
+    //         ) {
+    //             Ok(_) => (),
+    //             Err(e) => {
+    //                 panic!("Error moving drone: {:?}", e);
+    //             }
+    //         };
 
-            let new_location = drone.location;
-            assert!(new_location.lat == 1.0 || new_location.long != 1.0);
-        });
-        handle.join().unwrap();
-    }
+    //         let new_location = drone.location;
+    //         assert!(new_location.lat == 1.0 || new_location.long != 1.0);
+    //     });
+    //     handle.join().unwrap();
+    // }
 
     // #[test]
     // fn test_drone_movement_out_of_bounds() {

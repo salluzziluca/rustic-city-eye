@@ -80,7 +80,7 @@ mod tests {
     fn test_01_drone_system_add_drone_center_ok() {
         let mut drone_system = DroneSystem::new(
             "src/drones/drone_config.json".to_string(),
-            "127.0.0.1:5000".to_string(),
+            "127.0.0.1:5099".to_string(),
         );
         let location = location::Location::new(0.0, 0.0);
         let _ = drone_system.add_drone_center(location);
@@ -90,7 +90,7 @@ mod tests {
 
     #[test]
     fn test_02_drone_system_add_drone_ok() {
-        let args = vec!["127.0.0.1".to_string(), "5001".to_string()];
+        let args = vec!["127.0.0.1".to_string(), "5098".to_string()];
         let mut broker = match Broker::new(args) {
             Ok(broker) => broker,
             Err(e) => panic!("Error creating broker: {:?}", e),
@@ -119,7 +119,7 @@ mod tests {
         let handle = thread::spawn(move || {
             let mut drone_system = DroneSystem::new(
                 "src/drones/drone_config.json".to_string(),
-                "127.0.0.1:5001".to_string(),
+                "127.0.0.1:5098".to_string(),
             );
             let location = location::Location::new(0.0, 0.0);
             let _ = drone_system.add_drone_center(location);
@@ -184,7 +184,7 @@ mod tests {
 
     #[test]
     fn test_04_connect_drone() {
-        let args = vec!["127.0.0.1".to_string(), "5003".to_string()];
+        let args = vec!["127.0.0.1".to_string(), "5097".to_string()];
         let mut broker = match Broker::new(args) {
             Ok(broker) => broker,
             Err(e) => panic!("Error creating broker: {:?}", e),
@@ -213,7 +213,7 @@ mod tests {
         let t1 = thread::spawn(move || {
             let mut drone_system = DroneSystem::new(
                 "src/drones/drone_config.json".to_string(),
-                "127.0.0.1:5003".to_string(),
+                "127.0.0.1:5097".to_string(),
             );
             let location = location::Location::new(0.0, 0.0);
             let id = drone_system.add_drone_center(location);

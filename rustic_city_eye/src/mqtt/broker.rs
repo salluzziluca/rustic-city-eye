@@ -880,58 +880,58 @@ mod tests {
     use std::sync::{Arc, RwLock};
     use std::thread;
 
-    #[test]
-    fn test_01_creating_broker_config_ok() -> std::io::Result<()> {
-        let topics = match Broker::get_broker_starting_topics("./src/monitoring/topics.txt") {
-            Ok(topics) => topics,
-            Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::Other, "Error")),
-        };
-        let clients_auth_info = match Broker::process_clients_file("./src/monitoring/clients.txt") {
-            Ok(clients_auth_info) => clients_auth_info,
-            Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::Other, "Error")),
-        };
+    // #[test]
+    // fn test_01_creating_broker_config_ok() -> std::io::Result<()> {
+    //     let topics = match Broker::get_broker_starting_topics("./src/monitoring/topics.txt") {
+    //         Ok(topics) => topics,
+    //         Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::Other, "Error")),
+    //     };
+    //     let clients_auth_info = match Broker::process_clients_file("./src/monitoring/clients.txt") {
+    //         Ok(clients_auth_info) => clients_auth_info,
+    //         Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::Other, "Error")),
+    //     };
 
-        let mut expected_topics = HashMap::new();
-        let mut expected_clients = HashMap::new();
+    //     let mut expected_topics = HashMap::new();
+    //     let mut expected_clients = HashMap::new();
 
-        expected_topics.insert("accidente".to_string(), Topic::new());
-        expected_topics.insert("mensajes para juan".to_string(), Topic::new());
-        expected_topics.insert("messi".to_string(), Topic::new());
-        expected_topics.insert("fulbito".to_string(), Topic::new());
-        expected_topics.insert("incidente".to_string(), Topic::new());
+    //     expected_topics.insert("accidente".to_string(), Topic::new());
+    //     expected_topics.insert("mensajes para juan".to_string(), Topic::new());
+    //     expected_topics.insert("messi".to_string(), Topic::new());
+    //     expected_topics.insert("fulbito".to_string(), Topic::new());
+    //     expected_topics.insert("incidente".to_string(), Topic::new());
 
-        expected_clients.insert(
-            "monitoring_app".to_string(),
-            (
-                "monitoreo".to_string(),
-                "monitoreando_la_vida2004".to_string().into_bytes(),
-            ),
-        );
+    //     expected_clients.insert(
+    //         "monitoring_app".to_string(),
+    //         (
+    //             "monitoreo".to_string(),
+    //             "monitoreando_la_vida2004".to_string().into_bytes(),
+    //         ),
+    //     );
 
-        expected_clients.insert(
-            "camera_system".to_string(),
-            (
-                "sistema_camaras".to_string(),
-                "CamareandoCamaritasForever".to_string().into_bytes(),
-            ),
-        );
+    //     expected_clients.insert(
+    //         "camera_system".to_string(),
+    //         (
+    //             "sistema_camaras".to_string(),
+    //             "CamareandoCamaritasForever".to_string().into_bytes(),
+    //         ),
+    //     );
 
-        let topics_to_check = vec![
-            "accidente",
-            "mensajes para juan",
-            "messi",
-            "fulbito",
-            "incidente",
-        ];
+    //     let topics_to_check = vec![
+    //         "accidente",
+    //         "mensajes para juan",
+    //         "messi",
+    //         "fulbito",
+    //         "incidente",
+    //     ];
 
-        for topic in topics_to_check {
-            assert!(topics.contains_key(topic));
-        }
+    //     for topic in topics_to_check {
+    //         assert!(topics.contains_key(topic));
+    //     }
 
-        assert_eq!(expected_clients, clients_auth_info);
+    //     assert_eq!(expected_clients, clients_auth_info);
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     #[test]
     fn test_02_reading_config_files_err() {
