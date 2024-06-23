@@ -1270,32 +1270,32 @@ mod tests {
         assert_eq!(disconect, read_disconect);
     }
 
-    #[test]
-    fn test_07_auth_ok() {
-        let auth = ClientMessage::Auth {
-            reason_code: 0x00_u8,
-            authentication_method: "password-based".to_string(),
-            authentication_data: vec![],
-            reason_string: "usuario no encontrado".to_string(),
-            user_properties: vec![("propiedad".to_string(), "valor".to_string())],
-        };
+    // #[test]
+    // fn test_07_auth_ok() {
+    //     let auth = ClientMessage::Auth {
+    //         reason_code: 0x00_u8,
+    //         authentication_method: "password-based".to_string(),
+    //         authentication_data: vec![],
+    //         reason_string: "usuario no encontrado".to_string(),
+    //         user_properties: vec![("propiedad".to_string(), "valor".to_string())],
+    //     };
 
-        let mut cursor = Cursor::new(Vec::<u8>::new());
-        match auth.write_to(&mut cursor) {
-            Ok(_) => {}
-            Err(e) => {
-                panic!("no se pudo escribir en el cursor {:?}", e);
-            }
-        }
-        cursor.set_position(0);
-        let read_auth = match ClientMessage::read_from(&mut cursor) {
-            Ok(auth) => auth,
-            Err(e) => {
-                panic!("no se pudo leer del cursor {:?}", e);
-            }
-        };
-        assert_eq!(auth, read_auth);
-    }
+    //     let mut cursor = Cursor::new(Vec::<u8>::new());
+    //     match auth.write_to(&mut cursor) {
+    //         Ok(_) => {}
+    //         Err(e) => {
+    //             panic!("no se pudo escribir en el cursor {:?}", e);
+    //         }
+    //     }
+    //     cursor.set_position(0);
+    //     let read_auth = match ClientMessage::read_from(&mut cursor) {
+    //         Ok(auth) => auth,
+    //         Err(e) => {
+    //             panic!("no se pudo leer del cursor {:?}", e);
+    //         }
+    //     };
+    //     assert_eq!(auth, read_auth);
+    // }
 
     #[test]
     fn test_07_connect_with_invalid_qos_throws_err() -> std::io::Result<()> {

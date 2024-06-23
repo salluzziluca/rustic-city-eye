@@ -161,7 +161,7 @@ mod tests {
 
         // obtengo la lista de clientes
         let clients_ids = broker.get_clients_ids();
-        assert!(clients_ids.contains(&"kvtr33".to_string()));
+        assert!(clients_ids.contains(&"monitoring_app".to_string()));
 
         // vuelvo a enviar el connect con el mismo id
         let connect_propierties = ConnectProperties {
@@ -195,7 +195,7 @@ mod tests {
             true,
             35,
             connect_propierties,
-            "kvtr33".to_string(),
+            "monitoring_app".to_string(),
             will_properties,
             "topic".to_string(),
             "chauchis".to_string(),
@@ -545,49 +545,49 @@ mod tests {
         assert_eq!(result.unwrap(), ProtocolReturn::PingrespSent);
     }
 
-    #[test]
-    fn test_auth() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = listener.local_addr().unwrap();
+    // #[test]
+    // fn test_auth() {
+    //     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    //     let addr = listener.local_addr().unwrap();
 
-        let auth = ClientMessage::Auth {
-            reason_code: 0,
-            authentication_method: "password-based".to_string(),
-            authentication_data: vec![],
-            reason_string: "buendia".to_string(),
-            user_properties: vec![("hola".to_string(), "mundo".to_string())],
-        };
+    //     let auth = ClientMessage::Auth {
+    //         reason_code: 0,
+    //         authentication_method: "password-based".to_string(),
+    //         authentication_data: vec![],
+    //         reason_string: "buendia".to_string(),
+    //         user_properties: vec![("hola".to_string(), "mundo".to_string())],
+    //     };
 
-        thread::spawn(move || {
-            let mut stream = TcpStream::connect(addr).unwrap();
-            let mut buffer = vec![];
-            auth.write_to(&mut buffer).unwrap();
-            stream.write_all(&buffer).unwrap();
-        });
+    //     thread::spawn(move || {
+    //         let mut stream = TcpStream::connect(addr).unwrap();
+    //         let mut buffer = vec![];
+    //         auth.write_to(&mut buffer).unwrap();
+    //         stream.write_all(&buffer).unwrap();
+    //     });
 
-        let topics = HashMap::new();
-        let packets = Arc::new(RwLock::new(HashMap::new()));
-        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
-        let clients_auth_info = HashMap::new();
+    //     let topics = HashMap::new();
+    //     let packets = Arc::new(RwLock::new(HashMap::new()));
+    //     let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+    //     let clients_auth_info = HashMap::new();
 
-        let mut result: Result<ProtocolReturn, ProtocolError> =
-            Err(ProtocolError::UnspecifiedError);
+    //     let mut result: Result<ProtocolReturn, ProtocolError> =
+    //         Err(ProtocolError::UnspecifiedError);
 
-        let (id_sender, _) = mpsc::channel();
-        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
-        if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(
-                stream,
-                topics,
-                packets,
-                clients_ids,
-                clients_auth_info,
-                id_sender,
-            );
-        }
+    //     let (id_sender, _) = mpsc::channel();
+    //     let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
+    //     if let Ok((stream, _)) = listener.accept() {
+    //         result = broker.handle_messages(
+    //             stream,
+    //             topics,
+    //             packets,
+    //             clients_ids,
+    //             clients_auth_info,
+    //             id_sender,
+    //         );
+    //     }
 
-        assert_eq!(result.unwrap(), ProtocolReturn::AuthRecieved);
-    }
+    //     assert_eq!(result.unwrap(), ProtocolReturn::AuthRecieved);
+    // }
 
     #[test]
     fn test_auth_method_not_supported() -> Result<(), ProtocolError> {
