@@ -3,12 +3,13 @@ mod tests {
     use rustic_city_eye::{
         monitoring::incident::Incident,
         mqtt::{
+            broker::Broker,
             broker_message::BrokerMessage,
             client::handle_message,
             client_return::ClientReturn,
             connack_properties::ConnackProperties,
             protocol_error::ProtocolError,
-            publish_properties::{PublishProperties, TopicProperties},
+            publish::publish_properties::{PublishProperties, TopicProperties},
         },
         utils::{
             incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes,
@@ -17,6 +18,7 @@ mod tests {
     use std::{
         io::Write,
         net::{TcpListener, TcpStream},
+        sync::{mpsc::channel, Arc, Mutex},
         thread,
     };
 
@@ -61,8 +63,10 @@ mod tests {
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
         let pending_messages: Vec<u16> = Vec::new();
+        let (sender, _) = channel();
+        let (tx, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages)
+            result = handle_message(stream, pending_messages, sender, tx)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::ConnackReceived);
@@ -89,8 +93,18 @@ mod tests {
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
         let pending_messages: Vec<u16> = Vec::new();
+        let (sender, recibidor) = channel();
+        let (tx, _) = channel();
+
+        thread::spawn(move || loop {
+            if let Ok(recibido) = recibidor.try_recv() {
+                if recibido {
+                    break;
+                }
+            }
+        });
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages)
+            result = handle_message(stream, pending_messages, sender, tx)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::PubackRecieved);
@@ -113,12 +127,13 @@ mod tests {
             disconnect.write_to(&mut buffer).unwrap();
             stream.write_all(&buffer).unwrap();
         });
-
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
         let pending_messages: Vec<u16> = Vec::new();
+        let (sender, _) = channel();
+        let (tx, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages)
+            handle_message(stream, pending_messages, sender, tx);
         }
 
         assert_eq!(result.unwrap(), ClientReturn::DisconnectRecieved);
@@ -144,8 +159,11 @@ mod tests {
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
         let pending_messages: Vec<u16> = Vec::new();
+        let (sender, _) = channel();
+        let (tx, _) = channel();
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages)
+            result = handle_message(stream, pending_messages, sender, tx)
         }
         assert_eq!(result.unwrap(), ClientReturn::SubackRecieved);
     }
@@ -193,8 +211,15 @@ mod tests {
         let pending_messages: Vec<u16> = Vec::new();
         //agregar id 1 a pending messages
         //pending_messages.push(1);
+        let (sender, _) = channel();
+        let (_tx, _): (
+            std::sync::mpsc::Sender<bool>,
+            std::sync::mpsc::Receiver<bool>,
+        ) = channel();
+
+        let (tx, _rx) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages.clone())
+            result = handle_message(stream, pending_messages.clone(), sender, tx)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::PublishDeliveryRecieved);
@@ -221,15 +246,16 @@ mod tests {
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
         let pending_messages: Vec<u16> = Vec::new();
+        let (sender, _) = channel();
+        let (tx, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages)
+            result = handle_message(stream, pending_messages, sender, tx)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::UnsubackRecieved);
     }
 
     #[test]
-
     fn test_recibir_pingresp() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
@@ -245,10 +271,45 @@ mod tests {
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
         let pending_messages: Vec<u16> = Vec::new();
+        let (sender, _) = channel();
+        let (tx, _) = channel();
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages)
+            result = handle_message(stream, pending_messages, sender, tx)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::PingrespRecieved);
+    }
+
+    #[test]
+    fn test_recibir_auth() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let auth = BrokerMessage::Auth {
+            reason_code: 0x00_u8,
+            authentication_method: "password-based".to_string(),
+            authentication_data: vec![0x00_u8, 0x01_u8],
+            reason_string: "success".to_string(),
+            user_properties: vec![("juan".to_string(), "hola".to_string())],
+        };
+
+        thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            let mut buffer = vec![];
+            auth.write_to(&mut buffer).unwrap();
+            stream.write_all(&buffer).unwrap();
+        });
+
+        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
+
+        let pending_messages: Vec<u16> = Vec::new();
+        let (sender, _) = channel();
+        let (tx, _) = channel();
+        if let Ok((stream, _)) = listener.accept() {
+            result = handle_message(stream, pending_messages, sender, tx)
+        }
+
+        assert_eq!(result.unwrap(), ClientReturn::AuthRecieved);
     }
 }

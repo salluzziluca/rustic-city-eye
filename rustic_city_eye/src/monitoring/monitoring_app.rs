@@ -1,18 +1,18 @@
 //! Se conecta mediante TCP a la dirección asignada por los args que le ingresan
 //! en su constructor.
 
-use std::sync::mpsc::{self, Sender};
+use std::collections::HashMap;
+use std::sync::mpsc::{self, Receiver, Sender};
 
+use crate::drones::drone_system::DroneSystem;
 use crate::monitoring::incident::Incident;
-use crate::mqtt::connect_config::ConnectConfig;
+use crate::mqtt::client_message::{self, ClientMessage};
 use crate::mqtt::messages_config::MessagesConfig;
-use crate::mqtt::publish_config::PublishConfig;
-use crate::mqtt::publish_properties::{PublishProperties, TopicProperties};
-use crate::mqtt::{
-    client::Client, connect_properties, protocol_error::ProtocolError, will_properties,
-};
+use crate::mqtt::publish::publish_config::PublishConfig;
+use crate::mqtt::publish::publish_properties::{PublishProperties, TopicProperties};
+use crate::mqtt::{client::Client, protocol_error::ProtocolError};
 use crate::surveilling::camera::Camera;
-use crate::surveilling::camera_system::*;
+use crate::surveilling::camera_system::CameraSystem;
 use crate::utils::incident_payload::IncidentPayload;
 use crate::utils::location::Location;
 use crate::utils::payload_types::PayloadTypes;
@@ -22,8 +22,10 @@ use crate::utils::payload_types::PayloadTypes;
 pub struct MonitoringApp {
     send_to_client_channel: Sender<Box<dyn MessagesConfig + Send>>,
     monitoring_app_client: Client,
-    camera_system: CameraSystem,
+    camera_system: CameraSystem<Client>,
     incidents: Vec<Incident>,
+    drone_system: DroneSystem,
+    recieve_from_client: Receiver<ClientMessage>,
 }
 
 #[allow(dead_code)]
@@ -32,62 +34,32 @@ impl MonitoringApp {
     /// Crea el cliente de la app de monitoreo y lo conecta al broker
     /// Crea un sistema de cámaras y agrega una cámara al sistema
     pub fn new(args: Vec<String>) -> Result<MonitoringApp, ProtocolError> {
-        let will_properties = will_properties::WillProperties::new(
-            1,
-            1,
-            1,
-            "a".to_string(),
-            "a".to_string(),
-            [1, 2, 3].to_vec(),
-            vec![("a".to_string(), "a".to_string())],
-        );
-
-        let connect_properties = connect_properties::ConnectProperties::new(
-            30,
-            1,
-            20,
-            20,
-            true,
-            true,
-            vec![("hola".to_string(), "chau".to_string())],
-            "password-based".to_string(),
-            vec![1, 2, 3],
-        );
+        let connect_config =
+            client_message::Connect::read_connect_config("./src/monitoring/connect_config.json")?;
 
         let address = args[2].to_string() + ":" + &args[3].to_string();
-        let camera_system_args = vec![
-            args[2].clone(),
-            args[3].clone(),
-            "camera_system".to_string(),
-            "CamareandoCamaritas123".to_string(),
-        ];
 
-        let connect_config = ConnectConfig::new(
-            true,
-            true,
-            1,
-            true,
-            35,
-            connect_properties,
-            "kvtr33".to_string(),
-            will_properties,
-            "camera system".to_string(),
-            "soy el monitoring y me desconecte".to_string(),
-            args[0].clone(),
-            args[1].clone(),
+        let camera_system = match CameraSystem::<Client>::with_real_client(address.clone()) {
+            Ok(camera_system) => camera_system,
+            Err(err) => return Err(err),
+        };
+        let drone_system = DroneSystem::new(
+            "src/drone_system/drone_config.json".to_string(),
+            address.clone(),
         );
-
-        let camera_system = CameraSystem::new(camera_system_args)?;
         let (tx, rx) = mpsc::channel();
+        let (tx2, rx2) = mpsc::channel();
 
         let monitoring_app = MonitoringApp {
             send_to_client_channel: tx,
             incidents: Vec::new(),
             camera_system,
-            monitoring_app_client: match Client::new(rx, address, connect_config) {
+            monitoring_app_client: match Client::new(rx, address, connect_config, tx2) {
                 Ok(client) => client,
                 Err(err) => return Err(err),
             },
+            drone_system,
+            recieve_from_client: rx2,
         };
 
         Ok(monitoring_app)
@@ -95,7 +67,7 @@ impl MonitoringApp {
 
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
         self.monitoring_app_client.client_run()?;
-        self.camera_system.run_client()?;
+        self.camera_system.run_client(None)?;
         Ok(())
     }
 
@@ -129,7 +101,23 @@ impl MonitoringApp {
         let _ = self.send_to_client_channel.send(Box::new(publish_config));
     }
 
-    pub fn get_cameras(&self) -> Vec<Camera> {
+    pub fn add_drone(
+        &mut self,
+        location: Location,
+        drone_center_id: u32,
+    ) -> Result<(), ProtocolError> {
+        match self.drone_system.add_drone(location, drone_center_id) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(ProtocolError::DroneError(e.to_string())),
+        }
+    }
+
+    pub fn add_drone_center(&mut self, location: Location) -> u32 {
+        self.drone_system
+            .add_drone_center(location)
+            .map_or(0, |id| id)
+    }
+    pub fn get_cameras(&self) -> HashMap<u32, Camera> {
         self.camera_system.get_cameras().clone()
     }
 

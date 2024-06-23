@@ -1,6 +1,11 @@
-use crate::{utils::location::Location, utils::writer::write_string};
+use serde::Deserialize;
 
-#[derive(Debug, Clone, PartialEq)]
+use crate::{
+    mqtt::protocol_error::ProtocolError,
+    utils::{location::Location, writer::write_string},
+};
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[allow(dead_code)]
 pub struct Incident {
     location: Location,
@@ -15,7 +20,7 @@ impl Incident {
         self.location.clone()
     }
 
-    pub fn write_to(&self, stream: &mut dyn std::io::prelude::Write) -> std::io::Result<()> {
+    pub fn write_to(&self, stream: &mut dyn std::io::prelude::Write) -> Result<(), ProtocolError> {
         let longitude_string = self.location.long.to_string();
         write_string(stream, &longitude_string)?;
 

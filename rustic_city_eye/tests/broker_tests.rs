@@ -2,12 +2,14 @@
 mod tests {
     use rustic_city_eye::monitoring::incident::Incident;
     use rustic_city_eye::mqtt::broker::Broker;
-    use rustic_city_eye::mqtt::connect_properties::ConnectProperties;
-    use rustic_city_eye::mqtt::publish_properties::{PublishProperties, TopicProperties};
+    use rustic_city_eye::mqtt::client_message::{self, Connect};
+    use rustic_city_eye::mqtt::connect::connect_properties::ConnectProperties;
+    use rustic_city_eye::mqtt::connect::last_will::LastWill;
+    use rustic_city_eye::mqtt::connect::will_properties::WillProperties;
+    use rustic_city_eye::mqtt::publish::publish_properties::{PublishProperties, TopicProperties};
     use rustic_city_eye::mqtt::subscribe_properties::SubscribeProperties;
     use rustic_city_eye::mqtt::subscription::Subscription;
     use rustic_city_eye::mqtt::topic::Topic;
-    use rustic_city_eye::mqtt::will_properties::WillProperties;
     use rustic_city_eye::mqtt::{
         client_message::ClientMessage, protocol_error::ProtocolError,
         protocol_return::ProtocolReturn,
@@ -18,7 +20,7 @@ mod tests {
     use std::collections::HashMap;
     use std::io::Write;
     use std::net::{TcpListener, TcpStream};
-    use std::sync::{Arc, RwLock};
+    use std::sync::{mpsc, Arc, RwLock};
     use std::thread;
 
     #[test]
@@ -35,60 +37,39 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
+        let (id_sender, _) = mpsc::channel();
 
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream, topics, packets);
+            result = broker.handle_messages(
+                stream,
+                topics,
+                packets,
+                clients_ids,
+                clients_auth_info,
+                id_sender,
+            );
         }
 
         assert!(result.is_err());
     }
+
     #[test]
-    fn test_connect() {
+    fn test_connect() -> Result<(), ProtocolError> {
         // Set up a listener on a local port.
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
 
-        let connect_propierties = ConnectProperties {
-            session_expiry_interval: 1,
-            receive_maximum: 2,
-            maximum_packet_size: 10,
-            topic_alias_maximum: 99,
-            request_response_information: true,
-            request_problem_information: false,
-            user_properties: vec![
-                ("Hola".to_string(), "Mundo".to_string()),
-                ("Chau".to_string(), "Mundo".to_string()),
-            ],
-            authentication_method: "test".to_string(),
-            authentication_data: vec![1_u8, 2_u8, 3_u8, 4_u8, 5_u8],
-        };
-        let will_properties = WillProperties::new(
-            120,
-            1,
-            30,
-            "plain".to_string(),
-            "topic".to_string(),
-            vec![1, 2, 3, 4, 5],
-            vec![("propiedad".to_string(), "valor".to_string())],
-        );
-        let connect = ClientMessage::Connect {
-            clean_start: true,
-            last_will_flag: true,
-            last_will_qos: 1,
-            last_will_retain: true,
-            keep_alive: 35,
-            properties: connect_propierties,
-            client_id: "kvtr33".to_string(),
-            will_properties,
-            last_will_topic: "topic".to_string(),
-            last_will_message: "chauchis".to_string(),
-            username: "prueba".to_string(),
-            password: "".to_string(),
-        };
+        let connect_config =
+            client_message::Connect::read_connect_config("./src/monitoring/connect_config.json")
+                .unwrap();
+
+        let connect = ClientMessage::Connect(connect_config.clone());
 
         thread::spawn(move || {
             let mut stream = TcpStream::connect(addr).unwrap();
@@ -99,15 +80,36 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
-
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        let clients_auth_info = HashMap::new();
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
+        let (id_sender, reciever) = mpsc::channel();
+
+        thread::spawn(move || loop {
+            if reciever.try_recv().is_ok() {
+                break;
+            }
+        });
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream, topics, packets);
+            result = match broker.handle_messages(
+                stream,
+                topics,
+                packets,
+                clients_ids,
+                clients_auth_info,
+                id_sender,
+            ) {
+                Ok(r) => Ok(r),
+                Err(e) => return Err(e),
+            };
         }
 
-        assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
+        assert_eq!(result, Ok(ProtocolReturn::ConnackSent));
+
+        Ok(())
     }
 
     #[test]
@@ -115,43 +117,11 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
 
-        let connect_propierties = ConnectProperties {
-            session_expiry_interval: 1,
-            receive_maximum: 2,
-            maximum_packet_size: 10,
-            topic_alias_maximum: 99,
-            request_response_information: true,
-            request_problem_information: false,
-            user_properties: vec![
-                ("Hola".to_string(), "Mundo".to_string()),
-                ("Chau".to_string(), "Mundo".to_string()),
-            ],
-            authentication_method: "test".to_string(),
-            authentication_data: vec![1_u8, 2_u8, 3_u8, 4_u8, 5_u8],
-        };
-        let will_properties = WillProperties::new(
-            120,
-            1,
-            30,
-            "plain".to_string(),
-            "topic".to_string(),
-            vec![1, 2, 3, 4, 5],
-            vec![("propiedad".to_string(), "valor".to_string())],
-        );
-        let connect = ClientMessage::Connect {
-            clean_start: true,
-            last_will_flag: true,
-            last_will_qos: 1,
-            last_will_retain: true,
-            keep_alive: 35,
-            properties: connect_propierties,
-            client_id: "kvtr33".to_string(),
-            will_properties,
-            last_will_topic: "topic".to_string(),
-            last_will_message: "chauchis".to_string(),
-            username: "prueba".to_string(),
-            password: "".to_string(),
-        };
+        let connect_config =
+            client_message::Connect::read_connect_config("./src/monitoring/connect_config.json")
+                .unwrap();
+
+        let connect = ClientMessage::Connect(connect_config.clone());
 
         thread::spawn(move || {
             let mut stream = TcpStream::connect(addr).unwrap();
@@ -162,12 +132,28 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
+        let clients_ids: Arc<RwLock<HashMap<_, (Option<TcpStream>, Option<LastWill>)>>> =
+            Arc::new(RwLock::new(HashMap::new()));
+        //add an id to the clients_ids
+        clients_ids
+            .write()
+            .unwrap()
+            .insert("monitoring_app".to_string(), (None, None));
+        let clients_auth_info = HashMap::new();
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
-        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
-        if let Ok((stream_clone, _)) = listener.accept() {
-            result = broker.handle_messages(stream_clone, topics.clone(), packets.clone());
+        let (id_sender, _) = mpsc::channel();
+        if let Ok((stream, _)) = listener.accept() {
+            result = broker.handle_messages(
+                stream,
+                topics,
+                packets,
+                clients_ids,
+                clients_auth_info,
+                id_sender.clone(),
+            );
         }
 
         assert!(result.is_ok());
@@ -202,20 +188,22 @@ mod tests {
             vec![("propiedad".to_string(), "valor".to_string())],
         );
 
-        let connect = ClientMessage::Connect {
-            clean_start: true,
-            last_will_flag: true,
-            last_will_qos: 1,
-            last_will_retain: true,
-            keep_alive: 35,
-            properties: connect_propierties,
-            client_id: "kvtr33".to_string(),
+        let connect = Connect::new(
+            true,
+            true,
+            1,
+            true,
+            35,
+            connect_propierties,
+            "kvtr33".to_string(),
             will_properties,
-            last_will_topic: "topic".to_string(),
-            last_will_message: "chauchis".to_string(),
-            username: "prueba".to_string(),
-            password: "".to_string(),
-        };
+            "topic".to_string(),
+            "chauchis".to_string(),
+            "prueba".to_string(),
+            "".to_string(),
+        );
+
+        let connect = ClientMessage::Connect(connect);
 
         thread::spawn(move || {
             let mut stream = TcpStream::connect(addr).unwrap();
@@ -226,8 +214,22 @@ mod tests {
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
+        let topics = HashMap::new();
+        let packets = Arc::new(RwLock::new(HashMap::new()));
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        let clients_auth_info = HashMap::new();
+
+        let mut result: Result<ProtocolReturn, ProtocolError> =
+            Err(ProtocolError::UnspecifiedError);
         if let Ok((stream_clone, _)) = listener.accept() {
-            result = broker.handle_messages(stream_clone, topics, packets);
+            result = broker.handle_messages(
+                stream_clone,
+                topics,
+                packets,
+                clients_ids,
+                clients_auth_info,
+                id_sender,
+            );
         }
 
         assert!(result.is_ok());
@@ -265,12 +267,23 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
+
+        let (id_sender, _) = mpsc::channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream, topics, packets);
+            result = broker.handle_messages(
+                stream,
+                topics,
+                packets,
+                clients_ids,
+                clients_auth_info,
+                id_sender,
+            );
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::SubackSent);
@@ -303,7 +316,7 @@ mod tests {
             qos: 1,
             retain_flag: 1,
             payload: PayloadTypes::IncidentLocation(incident_payload),
-            dup_flag: 1,
+            dup_flag: 0,
             properties,
         };
         thread::spawn(move || {
@@ -315,15 +328,89 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
+
+        let (id_sender, _) = mpsc::channel();
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream, topics, packets);
+            result = broker.handle_messages(
+                stream,
+                topics,
+                packets,
+                clients_ids,
+                clients_auth_info,
+                id_sender,
+            );
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::PubackSent);
+    }
+
+    #[test]
+    fn test_publish_qos0() {
+        // Set up a listener on a local port.
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let topic_properties = TopicProperties {
+            topic_alias: 10,
+            response_topic: "String".to_string(),
+        };
+
+        let properties = PublishProperties::new(
+            1,
+            10,
+            topic_properties,
+            [1, 2, 3].to_vec(),
+            "a".to_string(),
+            1,
+            "a".to_string(),
+        );
+        let location = Location::new(1.1, 1.12);
+        let new = Incident::new(location);
+        let incident_payload = incident_payload::IncidentPayload::new(new);
+        let publish = ClientMessage::Publish {
+            packet_id: 1,
+            topic_name: "mensajes para juan".to_string(),
+            qos: 0,
+            retain_flag: 1,
+            payload: PayloadTypes::IncidentLocation(incident_payload),
+            dup_flag: 0,
+            properties,
+        };
+        thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            let mut buffer = vec![];
+            publish.write_to(&mut buffer).unwrap();
+            stream.write_all(&buffer).unwrap();
+        });
+
+        let topics = HashMap::new();
+        let packets = Arc::new(RwLock::new(HashMap::new()));
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        let clients_auth_info = HashMap::new();
+
+        let mut result: Result<ProtocolReturn, ProtocolError> =
+            Err(ProtocolError::UnspecifiedError);
+
+        let (id_sender, _) = mpsc::channel();
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
+
+        if let Ok((stream, _)) = listener.accept() {
+            result = broker.handle_messages(
+                stream,
+                topics,
+                packets,
+                clients_ids,
+                clients_auth_info,
+                id_sender,
+            );
+        }
+
+        assert_eq!(result.unwrap(), ProtocolReturn::NoAckSent);
     }
 
     #[test]
@@ -357,12 +444,25 @@ mod tests {
 
         let t = Topic::new();
         topics.insert("mensajes para juan".to_string(), t);
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
+
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
-        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
+
+        let (id_sender, _) = mpsc::channel();
+
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream, topics, packets);
+            result = broker.handle_messages(
+                stream,
+                topics,
+                packets,
+                clients_ids,
+                clients_auth_info,
+                id_sender,
+            );
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::UnsubackSent);
@@ -387,13 +487,23 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
+        let (id_sender, _) = mpsc::channel();
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream, topics, packets);
+            result = broker.handle_messages(
+                stream,
+                topics,
+                packets,
+                clients_ids,
+                clients_auth_info,
+                id_sender,
+            );
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::DisconnectRecieved);
@@ -415,13 +525,23 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
+        let (id_sender, _) = mpsc::channel();
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream, topics, packets);
+            result = broker.handle_messages(
+                stream,
+                topics,
+                packets,
+                clients_ids,
+                clients_auth_info,
+                id_sender,
+            );
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::PingrespSent);
@@ -449,50 +569,80 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
+        let (id_sender, _) = mpsc::channel();
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream, topics, packets);
+            result = broker.handle_messages(
+                stream,
+                topics,
+                packets,
+                clients_ids,
+                clients_auth_info,
+                id_sender,
+            );
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::AuthRecieved);
     }
 
     #[test]
-    fn test_auth_method_not_supported() {
+    fn test_auth_method_not_supported() -> Result<(), ProtocolError> {
+        // Set up a listener on a local port.
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
 
-        let auth = ClientMessage::Auth {
-            reason_code: 0,
-            authentication_method: "metodo de juancito".to_string(),
-            authentication_data: vec![],
-            reason_string: "buendia".to_string(),
-            user_properties: vec![("hola".to_string(), "mundo".to_string())],
-        };
+        let connect_config = client_message::Connect::read_connect_config(
+            "./tests/connect_config_test/config_with_invalid_auth_method.json",
+        )
+        .unwrap();
+
+        let connect = ClientMessage::Connect(connect_config.clone());
 
         thread::spawn(move || {
             let mut stream = TcpStream::connect(addr).unwrap();
             let mut buffer = vec![];
-            auth.write_to(&mut buffer).unwrap();
+            connect.write_to(&mut buffer).unwrap();
             stream.write_all(&buffer).unwrap();
         });
 
-        let topics = HashMap::new();
-        let packets = Arc::new(RwLock::new(HashMap::new()));
+        let topics: Arc<RwLock<HashMap<String, (Option<TcpStream>, Option<LastWill>)>>> =
+            Arc::new(RwLock::new(HashMap::new()));
+        let packets: Arc<RwLock<HashMap<u16, ClientMessage>>> =
+            Arc::new(RwLock::new(HashMap::new()));
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
+        let topics = HashMap::new();
+        let packets = Arc::new(RwLock::new(HashMap::new()));
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        let clients_auth_info = HashMap::new();
+
+        let mut result: Result<ProtocolReturn, ProtocolError> =
+            Err(ProtocolError::UnspecifiedError);
+
+        let (id_sender, _) = mpsc::channel();
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream, topics, packets);
+            result = broker.handle_messages(
+                stream,
+                topics,
+                packets,
+                clients_ids,
+                clients_auth_info,
+                id_sender,
+            );
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
+
+        Ok(())
     }
 
     #[test]
@@ -525,20 +675,22 @@ mod tests {
             vec![("propiedad".to_string(), "valor".to_string())],
         );
 
-        let connect = ClientMessage::Connect {
-            clean_start: true,
-            last_will_flag: true,
-            last_will_qos: 1,
-            last_will_retain: true,
-            keep_alive: 35,
-            properties: connect_propierties,
-            client_id: "kvtr33".to_string(),
+        let connect = Connect::new(
+            true,
+            true,
+            1,
+            true,
+            35,
+            connect_propierties,
+            "kvtr33".to_string(),
             will_properties,
-            last_will_topic: "topic".to_string(),
-            last_will_message: "chauchis".to_string(),
-            username: "prueba".to_string(),
-            password: "".to_string(),
-        };
+            "topic".to_string(),
+            "chauchis".to_string(),
+            "prueba".to_string(),
+            "".to_string(),
+        );
+
+        let connect = ClientMessage::Connect(connect);
 
         thread::spawn(move || {
             let mut stream = TcpStream::connect(addr).unwrap();
@@ -547,15 +699,30 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let topics = HashMap::new();
-        let packets = Arc::new(RwLock::new(HashMap::new()));
+        let topics: Arc<RwLock<HashMap<String, (Option<TcpStream>, Option<LastWill>)>>> =
+            Arc::new(RwLock::new(HashMap::new()));
+        let packets: Arc<RwLock<HashMap<u16, ClientMessage>>> =
+            Arc::new(RwLock::new(HashMap::new()));
 
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
 
+        let topics = HashMap::new();
+        let packets = Arc::new(RwLock::new(HashMap::new()));
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        let clients_auth_info = HashMap::new();
+
+        let (id_sender, _) = mpsc::channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream, topics.clone(), packets.clone());
+            result = broker.handle_messages(
+                stream,
+                topics.clone(),
+                packets.clone(),
+                clients_ids,
+                clients_auth_info,
+                id_sender,
+            );
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
@@ -579,8 +746,23 @@ mod tests {
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
+        let (id_sender, _) = mpsc::channel();
+        let topics = HashMap::new();
+        let packets = Arc::new(RwLock::new(HashMap::new()));
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        let clients_auth_info = HashMap::new();
+
+        let mut result: Result<ProtocolReturn, ProtocolError> =
+            Err(ProtocolError::UnspecifiedError);
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream, topics.clone(), packets.clone());
+            result = broker.handle_messages(
+                stream,
+                topics.clone(),
+                packets.clone(),
+                clients_ids,
+                clients_auth_info,
+                id_sender,
+            );
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::DisconnectRecieved);
@@ -619,20 +801,22 @@ mod tests {
             vec![("propiedad".to_string(), "valor".to_string())],
         );
 
-        let connect = ClientMessage::Connect {
-            clean_start: true,
-            last_will_flag: true,
-            last_will_qos: 1,
-            last_will_retain: true,
-            keep_alive: 35,
-            properties: connect_propierties,
-            client_id: "kvtr33".to_string(),
+        let connect = Connect::new(
+            true,
+            true,
+            1,
+            true,
+            35,
+            connect_propierties,
+            "kvtr33".to_string(),
             will_properties,
-            last_will_topic: "topic".to_string(),
-            last_will_message: "chauchis".to_string(),
-            username: "prueba".to_string(),
-            password: "".to_string(),
-        };
+            "topic".to_string(),
+            "chauchis".to_string(),
+            "prueba".to_string(),
+            "".to_string(),
+        );
+
+        let connect = ClientMessage::Connect(connect);
 
         thread::spawn(move || {
             let mut stream = TcpStream::connect(addr).unwrap();
@@ -641,11 +825,24 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
+        let topics = HashMap::new();
+        let packets = Arc::new(RwLock::new(HashMap::new()));
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        let clients_auth_info = HashMap::new();
+        let (id_sender, _) = mpsc::channel();
+
         let mut result: Result<ProtocolReturn, ProtocolError> =
             Err(ProtocolError::UnspecifiedError);
 
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream, topics.clone(), packets.clone());
+            result = broker.handle_messages(
+                stream,
+                topics.clone(),
+                packets.clone(),
+                clients_ids,
+                clients_auth_info,
+                id_sender,
+            );
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
