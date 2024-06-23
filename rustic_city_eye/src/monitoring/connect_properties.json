@@ -1,0 +1,20 @@
+{
+    "session_expiry_interval": 30,
+    "receive_maximum": 1,
+    "maximum_packet_size": 20,
+    "topic_alias_maximum": 20,
+    "request_response_information": true,
+    "request_problem_information": true,
+    "user_properties": [
+        [
+            "hola",
+            "chau"
+        ]
+    ],
+    "authentication_method": "password-based",
+    "authentication_data": [
+        1,
+        2,
+        3
+    ]
+}

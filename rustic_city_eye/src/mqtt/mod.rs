@@ -23,9 +23,10 @@ pub mod reader;
 pub mod subscribe_properties;
 pub mod subscription;
 
+pub mod will_properties;
 pub mod writer;
 
-pub mod will_properties;
+pub mod connect_config;
 
 pub mod topic;
 

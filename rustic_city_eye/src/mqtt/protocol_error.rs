@@ -2,7 +2,7 @@ use std::fmt;
 
 ///Here are detailed all the errors that the protocol is capable of throwing.
 /// Unspecified se usa de placeholder para los results de los tests
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ProtocolError {
     ConectionError,
     InvalidQOS,
@@ -15,12 +15,42 @@ pub enum ProtocolError {
     UnsubscribeError,
     UnspecifiedError,
     PubackWithoutPendingID,
+    WriteError,
+    ReadingConfigFileError,
+    MissingWillMessageProperties,
+    ChanellError(String),
+    ReadingClientsFileError,
+    NotReceivedMessageError,
+    ExpectedConnack,
+    AuthError,
+    AbnormalDisconnection,
+    DroneError(String),
+    CameraError(String),
 }
 
 impl fmt::Display for ProtocolError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ProtocolError::ConectionError => write!(f, "Error al conectar al broker."),
+            ProtocolError::ReadingConfigFileError => {
+                write!(f, "Error al leer el archivo de configuracion del connect.")
+            }
+            ProtocolError::NotReceivedMessageError => {
+                write!(f, "Error: no ha llegado ningun mensaje.")
+            }
+            ProtocolError::AuthError => {
+                write!(f, "Error al autenticar al cliente")
+            }
+            ProtocolError::ExpectedConnack => {
+                write!(f, "Error: no ha llegado un mensaje del tipo connack.")
+            }
+            ProtocolError::ReadingClientsFileError => {
+                write!(f, "Error al leer el archivo de clientes.")
+            }
+            ProtocolError::MissingWillMessageProperties => {
+                write!(f, "Error: faltan propiedades del will message.")
+            }
+            ProtocolError::WriteError => write!(f, "Error escribir el mensaje."),
             ProtocolError::InvalidQOS => write!(f, "Error: Valor de QoS inválido. Debe ser 0 o 1."),
             ProtocolError::InvalidNumberOfArguments => {
                 write!(f, "Error: número de argumentos inválido")
@@ -43,13 +73,28 @@ impl fmt::Display for ProtocolError {
             ProtocolError::UnspecifiedError => {
                 write!(f, "Error no especificado")
             }
+            ProtocolError::ChanellError(ref err) => {
+                write!(
+                    f,
+                    "Error al enviar o recibir mensajes por el canal: {}",
+                    err
+                )
+            }
+            ProtocolError::AbnormalDisconnection => {
+                write!(f, "Error: desconexión anormal.")
+            }
+            ProtocolError::DroneError(ref err) => {
+                write!(f, "Error de protocolo: {}", err)
+            }
+            ProtocolError::CameraError(ref err) => {
+                write!(f, "Error de protocolo: {}", err)
+            }
         }
     }
 }
 
 #[cfg(test)]
 #[test]
-
 fn test_display_protocol_error() {
     assert_eq!(
         ProtocolError::ConectionError.to_string(),

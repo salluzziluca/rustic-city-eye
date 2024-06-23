@@ -1,5 +1,7 @@
 use std::{any::Any, fmt, io::Write};
 
+use super::protocol_error::ProtocolError;
+
 /// La API del cliente le permite a sus usuarios enviar packets del tipo Publish.
 /// Dentro de este tipo de packets, hay un campo llamado Payload, que contiene el
 /// application message que el usuario de la API quiere enviar.
@@ -7,8 +9,7 @@ use std::{any::Any, fmt, io::Write};
 /// La idea es que el usuario haga uso de este trait, de forma tal que el que implemente
 /// este trait sea capaz de escribir y leer instancias de si mismo en un stream.
 pub trait Payload {
-    fn write_to(&self, stream: &mut dyn Write) -> std::io::Result<()>;
-    // fn read_from(&self, stream: &mut dyn Read) -> Result<PayloadTypes, Error>;
+    fn write_to(&self, stream: &mut dyn Write) -> Result<(), ProtocolError>;
     fn as_any(&self) -> &dyn Any;
 }
 
@@ -38,9 +39,11 @@ mod tests {
     }
 
     impl Payload for TestPayload {
-        fn write_to(&self, stream: &mut dyn Write) -> std::io::Result<()> {
+        fn write_to(&self, stream: &mut dyn Write) -> Result<(), ProtocolError> {
             let value_string = self.value.to_string();
-            stream.write_all(value_string.as_bytes())?;
+            let _ = stream
+                .write_all(value_string.as_bytes())
+                .map_err(|_e| ProtocolError::WriteError);
             Ok(())
         }
 

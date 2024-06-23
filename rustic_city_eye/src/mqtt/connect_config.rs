@@ -1,6 +1,11 @@
-use crate::mqtt::{connect_properties::ConnectProperties, will_properties::WillProperties};
+use crate::mqtt::connect::{
+    connect_properties::ConnectProperties, will_properties::WillProperties,
+};
 
-use super::{client_message::ClientMessage, messages_config::MessagesConfig};
+use super::{
+    client_message::{ClientMessage, Connect},
+    messages_config::MessagesConfig,
+};
 #[derive(Clone)]
 pub struct ConnectConfig {
     pub(crate) clean_start: bool,
@@ -19,20 +24,22 @@ pub struct ConnectConfig {
 
 impl MessagesConfig for ConnectConfig {
     fn parse_message(&self, _packet_id: u16) -> ClientMessage {
-        ClientMessage::Connect {
-            clean_start: self.clean_start,
-            last_will_flag: self.last_will_flag,
-            last_will_qos: self.last_will_qos,
-            last_will_retain: self.last_will_retain,
-            keep_alive: self.keep_alive,
-            properties: self.properties.clone(),
-            client_id: self.client_id.clone(),
-            will_properties: self.will_properties.clone(),
-            last_will_topic: self.last_will_topic.clone(),
-            last_will_message: self.last_will_message.clone(),
-            username: self.username.clone(),
-            password: self.password.clone(),
-        }
+        let connect = Connect::new(
+            self.clone().clean_start,
+            self.clone().last_will_flag,
+            self.clone().last_will_qos,
+            self.clone().last_will_retain,
+            self.clone().keep_alive,
+            self.clone().properties,
+            self.clone().client_id,
+            self.clone().will_properties,
+            self.clone().last_will_topic,
+            self.clone().last_will_message,
+            self.clone().username,
+            self.clone().password,
+        );
+        let connect_message = ClientMessage::Connect(connect);
+        connect_message
     }
 }
 
@@ -66,6 +73,22 @@ impl ConnectConfig {
             username,
             password,
         }
+    }
+    pub fn to_connect(self) -> Connect {
+        Connect::new(
+            self.clone().clean_start,
+            self.clone().last_will_flag,
+            self.clone().last_will_qos,
+            self.clone().last_will_retain,
+            self.clone().keep_alive,
+            self.clone().properties,
+            self.clone().client_id,
+            self.clone().will_properties,
+            self.clone().last_will_topic,
+            self.clone().last_will_message,
+            self.clone().username,
+            self.clone().password,
+        )
     }
 }
 
@@ -112,21 +135,19 @@ fn test_parse_message() {
 
     let connect_message = connect_config.parse_message(1);
 
-    assert_eq!(
-        connect_message,
-        ClientMessage::Connect {
-            clean_start: true,
-            last_will_flag: true,
-            last_will_qos: 1,
-            last_will_retain: true,
-            keep_alive: 35,
-            properties: connect_properties,
-            client_id: "juancito".to_string(),
-            will_properties,
-            last_will_topic: "camera system".to_string(),
-            last_will_message: "soy el monitoring y me desconecte".to_string(),
-            username: "a".to_string(),
-            password: "a".to_string(),
-        }
+    let connect = Connect::new(
+        true,
+        true,
+        1,
+        true,
+        35,
+        connect_properties.clone(),
+        "juancito".to_string(),
+        will_properties.clone(),
+        "camera system".to_string(),
+        "soy el monitoring y me desconecte".to_string(),
+        "a".to_string(),
+        "a".to_string(),
     );
+    assert_eq!(connect_message, ClientMessage::Connect(connect));
 }

@@ -1,8 +1,12 @@
-use crate::utils::{reader::*, writer::*};
+use serde::{Deserialize, Serialize};
 
 use std::io::{BufReader, BufWriter, Error, ErrorKind, Read, Write};
 
-#[derive(Debug, PartialEq, Clone)]
+use crate::mqtt::protocol_error::ProtocolError;
+use crate::utils::{reader::*, writer::*};
+
+/// Contiene las propiedades de un Connect packet.
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct ConnectProperties {
     pub session_expiry_interval: u32,
     pub receive_maximum: u16,
@@ -41,45 +45,63 @@ impl ConnectProperties {
         }
     }
 
-    pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), Error> {
+    pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), ProtocolError> {
         let mut writer = BufWriter::new(stream);
 
         let session_expiry_interval_id: u8 = 0x11_u8;
 
-        writer.write_all(&[session_expiry_interval_id])?;
+        let _ = writer
+            .write_all(&[session_expiry_interval_id])
+            .map_err(|_e| ProtocolError::WriteError);
         write_u32(&mut writer, &self.session_expiry_interval)?;
 
         let authentication_method_id: u8 = 0x15_u8;
-        writer.write_all(&[authentication_method_id])?;
+        let _ = writer
+            .write_all(&[authentication_method_id])
+            .map_err(|_e| ProtocolError::WriteError);
         write_string(&mut writer, &self.authentication_method)?;
 
         let authentication_data_id: u8 = 0x16_u8;
-        writer.write_all(&[authentication_data_id])?;
+        let _ = writer
+            .write_all(&[authentication_data_id])
+            .map_err(|_e| ProtocolError::WriteError);
         write_bin_vec(&mut writer, &self.authentication_data)?;
 
         let request_problem_information_id: u8 = 0x17_u8;
-        writer.write_all(&[request_problem_information_id])?;
+        let _ = writer
+            .write_all(&[request_problem_information_id])
+            .map_err(|_e| ProtocolError::WriteError);
         write_bool(&mut writer, &self.request_problem_information)?;
 
         let request_response_information_id: u8 = 0x19_u8; // 25
 
-        writer.write_all(&[request_response_information_id])?;
+        let _ = writer
+            .write_all(&[request_response_information_id])
+            .map_err(|_e| ProtocolError::WriteError);
         write_bool(&mut writer, &self.request_response_information)?;
 
         let receive_maximum_id: u8 = 0x21_u8; // 33
-        writer.write_all(&[receive_maximum_id])?;
+        let _ = writer
+            .write_all(&[receive_maximum_id])
+            .map_err(|_e| ProtocolError::WriteError);
         write_u16(&mut writer, &self.receive_maximum)?;
 
         let topic_alias_maximum_id: u8 = 0x22_u8; // 34
-        writer.write_all(&[topic_alias_maximum_id])?;
+        let _ = writer
+            .write_all(&[topic_alias_maximum_id])
+            .map_err(|_e| ProtocolError::WriteError);
         write_u16(&mut writer, &self.topic_alias_maximum)?;
 
         let user_properties_id: u8 = 0x26_u8; // 38
-        writer.write_all(&[user_properties_id])?;
+        let _ = writer
+            .write_all(&[user_properties_id])
+            .map_err(|_e| ProtocolError::WriteError);
         write_tuple_vec(&mut writer, &self.user_properties)?;
 
         let maximum_packet_size_id: u8 = 0x27_u8; // 39
-        writer.write_all(&[maximum_packet_size_id])?;
+        let _ = writer
+            .write_all(&[maximum_packet_size_id])
+            .map_err(|_e| ProtocolError::WriteError);
         write_u32(&mut writer, &self.maximum_packet_size)?;
 
         Ok(())
@@ -287,13 +309,55 @@ impl ConnectPropertiesBuilder {
         self
     }
 }
+#[allow(dead_code)]
 
+fn read_json_to_connect_properties(json_data: &str) -> Result<ConnectProperties, Error> {
+    let connect_properties: ConnectProperties = serde_json::from_str(json_data)?;
+    Ok(connect_properties)
+}
 #[cfg(test)]
 mod tests {
     use core::panic;
     use std::io::Cursor;
 
     use super::*;
+
+    #[test]
+    fn test_read_json_to_connect_properties() {
+        let json_data = r#"{
+            "session_expiry_interval": 30,
+            "receive_maximum": 1,
+            "maximum_packet_size": 20,
+            "topic_alias_maximum": 20,
+            "request_response_information": true,
+            "request_problem_information": true,
+            "user_properties": [
+                [
+                    "hola",
+                    "chau"
+                ]
+            ],
+            "authentication_method": "password-based",
+            "authentication_data": [
+                1,
+                2,
+                3
+            ]
+        }"#;
+        let connect_properties = read_json_to_connect_properties(json_data).unwrap();
+        let expected_connect_properties = ConnectProperties::new(
+            30,
+            1,
+            20,
+            20,
+            true,
+            true,
+            vec![("hola".to_string(), "chau".to_string())],
+            "password-based".to_string(),
+            vec![1, 2, 3],
+        );
+        assert_eq!(connect_properties, expected_connect_properties);
+    }
 
     #[test]
     fn test_01_connect_properties_ok() {
