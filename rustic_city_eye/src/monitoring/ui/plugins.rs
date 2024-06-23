@@ -122,7 +122,7 @@ pub fn drones(
 ) -> impl Plugin {
     let mut images_vec = vec![];
 
-    for (_id, drone) in drones {
+    for drone in drones.values_mut() {
         let mut image = Image::new(drone.image.texture.clone(), drone.position);
 
         if drone.select(last_clicked) {

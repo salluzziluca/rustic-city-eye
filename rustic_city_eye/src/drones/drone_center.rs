@@ -62,7 +62,12 @@ impl DroneCenter {
             &self.drone_config_path.to_string(),
             self.address.to_string(),
         )?;
-        drone.run_drone();
+        match drone.run_drone(){
+            Ok(_) => {}
+            Err(e) => {
+                return Err(e);
+            }
+        }
         self.drones.insert(id, drone);
         Ok(id)
     }

@@ -790,9 +790,7 @@ mod tests {
                 Ok(stream) => stream,
                 Err(_) => return,
             };
-            match stream.write_all(b"Hello, world!") {
-                Ok(_) => (),
-                Err(_) => return,
+            if stream.write_all(b"Hello, world!").is_ok() {
             };
         });
 

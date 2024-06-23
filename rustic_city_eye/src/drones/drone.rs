@@ -6,7 +6,7 @@ use crate::{
         client::Client,
         client_message::{self, ClientMessage},
         messages_config,
-        publish::publish_config::{self, PublishConfig},
+        publish::publish_config::PublishConfig,
     },
     utils::{location::Location, payload_types::PayloadTypes},
 };
@@ -232,9 +232,6 @@ impl Drone {
                         &self.location.long,
                         &self.target_location.lat,
                         &self.target_location.long,
-                        &self.center_location.lat,
-                        &self.center_location.long,
-                        &self.drone_config.get_operation_radius(),
                     );
                     self.location.lat = new_lat;
                     self.location.long = new_long;
@@ -243,9 +240,6 @@ impl Drone {
                     // println!("Target location: ({}, {})", self.target_location.lat, self.target_location.long);
                     self.update_location(new_lat, new_long)?;
                     self.handle_low_battery(
-                        self.center_location.clone(),
-                        self.drone_config.get_operation_radius(),
-                        self.drone_config.get_movement_rate(),
                     )?;
 
                     last_move_time = current_time;
@@ -264,9 +258,6 @@ impl Drone {
         current_long: &f64,
         target_lat: &f64,
         target_long: &f64,
-        center_lat: &f64,
-        center_long: &f64,
-        radius: &f64,
     ) -> (f64, f64) {
         let direction_lat = target_lat - current_lat;
         let direction_long = target_long - current_long;
@@ -274,8 +265,8 @@ impl Drone {
         let unit_direction_lat = direction_lat / magnitude;
         let unit_direction_long = direction_long / magnitude;
 
-        let mut new_lat = current_lat + unit_direction_lat * speed;
-        let mut new_long = current_long + unit_direction_long * speed;
+        let new_lat = current_lat + unit_direction_lat * speed;
+        let new_long = current_long + unit_direction_long * speed;
         // let distance_from_center =
         //     ((new_lat - center_lat).powi(2) + (new_long - center_long).powi(2)).sqrt();
 
@@ -298,7 +289,7 @@ impl Drone {
         let publish_config =
             match PublishConfig::read_config("src/drones/publish_config.json", payload) {
                 Ok(config) => config,
-                Err(e) => return Err(DroneError::ReadingConfigFileError),
+                Err(_) => return Err(DroneError::ReadingConfigFileError),
             };
         println!("publish_config: {:?}", publish_config);
         self.send_to_client_channel
@@ -309,12 +300,8 @@ impl Drone {
 
     fn handle_low_battery(
         &mut self,
-        center_location: Location,
-        radius: f64,
-        movement_rate: i64,
     ) -> Result<(), DroneError> {
         if self.drone_state == DroneState::LowBatteryLevel {
-            let former_location = self.location.clone();
 
             self.drone_movement()?;
             self.charge_battery()?;
@@ -553,7 +540,6 @@ mod tests {
                 "127.0.0.1:5004".to_string(),
             )
             .unwrap();
-            let target_location = location::Location::new(0.001, 0.001);
             let radius = 0.005;
             let _ = drone.drone_movement();
 
