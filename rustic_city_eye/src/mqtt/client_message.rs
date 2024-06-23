@@ -532,7 +532,7 @@ impl ClientMessage {
                 write_u8(&mut writer, &REASON_STRING_ID)?;
                 write_string(&mut writer, reason_string)?;
 
-                write_string(&mut writer, &client_id)?;
+                write_string(&mut writer, client_id)?;
 
                 let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
                 Ok(())
@@ -887,7 +887,7 @@ impl ClientMessage {
 
                 for _ in 0..payload_length {
                     let topic = read_string(stream)?;
-                    if topic == "" {
+                    if topic.is_empty() {
                         return Err(Error::new(std::io::ErrorKind::Other, "Invalid topic name"));
                     }
                     let client_id = read_string(stream)?;
