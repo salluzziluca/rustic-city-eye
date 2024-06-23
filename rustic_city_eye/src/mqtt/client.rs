@@ -343,6 +343,7 @@ impl Client {
                     let packet_id = self.assign_packet_id();
 
                     let message = message_config.parse_message(packet_id);
+                    println!("Mensaje a enviar: {:?}", message);
 
                     match message {
                         ClientMessage::Connect { 0: _ } => todo!(),

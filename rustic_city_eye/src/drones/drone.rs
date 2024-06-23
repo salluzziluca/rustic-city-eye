@@ -103,6 +103,9 @@ impl Drone {
             Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
         };
 
+        self.update_location()?;
+        self.update_location()?;
+
         println!("Drone {} is running", self.id);
         let self_clone = Arc::new(Mutex::new(self.clone()));
         std::thread::spawn(move || {
@@ -238,7 +241,7 @@ impl Drone {
 
                     // println!("Drone is on location: ({}, {})", self.location.lat, self.location.long);
                     // println!("Target location: ({}, {})", self.target_location.lat, self.target_location.long);
-                    self.update_location(new_lat, new_long)?;
+                    // self.update_location()?;
                     self.handle_low_battery(
                     )?;
 
@@ -279,19 +282,18 @@ impl Drone {
         (new_lat, new_long)
     }
 
-    fn update_location(&mut self, new_lat: f64, new_long: f64) -> Result<(), DroneError> {
+    fn update_location(&mut self) -> Result<(), DroneError> {
         // println!(
         //     "Drone {} is moving to new location: ({}, {})",
-        //     self.id, new_lat, new_long
+        //     self.id, self.location.lat, self.location.long
         // );
-        self.location = Location::new(new_lat, new_long);
         let payload = PayloadTypes::LocationPayload(self.location.clone());
         let publish_config =
             match PublishConfig::read_config("src/drones/publish_config.json", payload) {
                 Ok(config) => config,
                 Err(_) => return Err(DroneError::ReadingConfigFileError),
             };
-        println!("publish_config: {:?}", publish_config);
+        // println!("publish_config: {:?}", publish_config);
         self.send_to_client_channel
             .send(Box::new(publish_config))
             .map_err(|_| DroneError::ReadingConfigFileError)?;
