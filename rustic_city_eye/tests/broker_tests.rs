@@ -131,6 +131,7 @@ mod tests {
 
         let topics = HashMap::new();
         let packets = Arc::new(RwLock::new(HashMap::new()));
+        #[allow(clippy::type_complexity)]
         let clients_ids: Arc<RwLock<HashMap<_, (Option<TcpStream>, Option<LastWill>)>>> =
             Arc::new(RwLock::new(HashMap::new()));
         //add an id to the clients_ids
@@ -750,7 +751,7 @@ mod tests {
 
         // verifico la lista de desconectados
         let offline_clients = broker.get_offline_clients();
-        assert!(offline_clients.contains_key(&"kvtr33".to_string()));
+        assert!(offline_clients.contains_key("kvtr33"));
 
         // verificio que no este en la lista de conectados
         let online_clients = broker.get_clients_ids();

@@ -12,14 +12,10 @@ pub struct SubscribeConfig {
 
 impl MessagesConfig for SubscribeConfig {
     fn parse_message(&self, packet_id: u16) -> ClientMessage {
-        let subscription = Subscription::new(
-            self.topic_name.clone(),
-            "juancito".to_string(),
-            self.qos.clone(),
-        );
+        let subscription =
+            Subscription::new(self.topic_name.clone(), "juancito".to_string(), self.qos);
         //creo un vector cno la subscription
-        let mut subscriptions = Vec::new();
-        subscriptions.push(subscription);
+        let subscriptions = vec![subscription];
 
         ClientMessage::Subscribe {
             packet_id,

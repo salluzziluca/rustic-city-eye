@@ -44,6 +44,7 @@ pub struct Broker {
 
     /// Contiene los clientes desconectados del broker y sus mensajes pendientes.
     offline_clients: Arc<RwLock<HashMap<String, Vec<ClientMessage>>>>,
+    #[allow(clippy::type_complexity)]
     clients_ids: Arc<RwLock<HashMap<String, (Option<TcpStream>, Option<LastWill>)>>>,
 
     /// Los clientes se guardan en un HashMap en el cual
@@ -202,6 +203,7 @@ impl Broker {
                                         || err == ProtocolError::AbnormalDisconnection
                                     {
                                         let client_id_guard = client_id;
+                                        #[allow(clippy::type_complexity)]
                                         let clients_ids_guard: std::sync::RwLockReadGuard<
                                             HashMap<String, (Option<TcpStream>, Option<LastWill>)>,
                                         > = match clients_ids_clone2.read() {
@@ -233,6 +235,7 @@ impl Broker {
     }
 
     /// Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
+    #[allow(clippy::type_complexity)]
     pub fn handle_client(
         self,
         stream: TcpStream,
@@ -451,7 +454,8 @@ impl Broker {
 
     /// Lee del stream un mensaje y lo procesa
     /// Devuelve un ProtocolReturn con informacion del mensaje recibido
-    /// O ProtocolError en caso de error
+    /// O ProtocolError en caso de erro    #[allow(clippy::type_complexity)]
+    #[allow(clippy::type_complexity)]
     pub fn handle_messages(
         &self,
         mut stream: TcpStream,
