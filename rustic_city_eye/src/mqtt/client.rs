@@ -1,6 +1,5 @@
 use rand::Rng;
 use std::{
-    collections::HashMap,
     net::TcpStream,
     sync::{
         mpsc::{self, Receiver, Sender},
@@ -36,8 +35,12 @@ pub struct Client {
     // stream es el socket que se conecta al broker
     stream: Arc<Mutex<TcpStream>>,
 
+    // las subscriptions es un vector de topics a los que el cliente está subscrito
+    pub subscriptions: Arc<Mutex<Vec<String>>>,
+
+    // client_id es el identificador del cliente
+    pub client_id: String,
     // las subscriptions son un hashmap de topic y sub_id
-    pub subscriptions: Arc<Mutex<HashMap<String, u8>>>,
     // user_id: u32,
     pub packets_ids: Arc<Mutex<Vec<u16>>>,
 
@@ -69,7 +72,6 @@ impl Client {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
         };
-        let connect = ClientMessage::Connect(connect);
 
         println!("Enviando connect message to broker");
 
@@ -92,14 +94,14 @@ impl Client {
                         0x00_u8 => {
                             println!("Conexion exitosa!");
 
-                            let _user_id = Client::assign_user_id();
-
+                            let client_id = connect.client_id.clone();
                             Ok(Client {
                                 receiver_channel: Arc::new(Mutex::new(receiver_channel)),
                                 stream: stream_clone,
-                                subscriptions: Arc::new(Mutex::new(HashMap::new())),
+                                subscriptions: Arc::new(Mutex::new(Vec::new())),
                                 packets_ids: Arc::new(Mutex::new(Vec::new())),
                                 sender_channel,
+                                client_id,
                             })
                         }
                         _ => {
@@ -144,36 +146,12 @@ impl Client {
     pub fn subscribe(
         message: ClientMessage,
         packet_id: u16,
-        topic: &str,
         mut stream: TcpStream,
-        subscriptions: Arc<Mutex<HashMap<String, u8>>>,
     ) -> Result<u16, ClientError> {
-        let sub_id = Client::assign_subscription_id();
-        let topic = topic.to_string();
-
-        let subscriptions = subscriptions.clone();
-
-        subscriptions.lock().unwrap().insert(topic.clone(), sub_id);
-
         match message.write_to(&mut stream) {
             Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
-    }
-
-    fn assign_subscription_id() -> u8 {
-        let mut rng = rand::thread_rng();
-
-        let sub_id: u8 = rng.gen();
-
-        sub_id
-    }
-
-    fn assign_user_id() -> u32 {
-        let mut rng = rand::thread_rng();
-
-        let user_id: u32 = rng.gen();
-        user_id
     }
 
     pub fn unsubscribe(
@@ -187,11 +165,23 @@ impl Client {
         }
     }
 
+    fn _assign_subscription_id() -> u8 {
+        let mut rng = rand::thread_rng();
+
+        let sub_id: u8 = rng.gen();
+
+        sub_id
+    }
+
     ///recibe un string que indica la razón de la desconexión y un stream y envia un disconnect message al broker
     /// segun el str reason recibido, modifica el reason_code y el reason_string del mensaje
     ///
     /// devuelve el packet_id del mensaje enviado o un ClientError en caso de error
-    pub fn disconnect(reason: &str, mut stream: TcpStream) -> Result<u16, ClientError> {
+    pub fn handle_disconnect(
+        client_id: String,
+        reason: &str,
+        mut stream: TcpStream,
+    ) -> Result<u16, ClientError> {
         let packet_id = 1;
         let reason_code: u8;
         let reason_string: String;
@@ -216,7 +206,7 @@ impl Client {
             reason_code,
             session_expiry_interval: 0,
             reason_string,
-            user_properties: vec![("propiedad".to_string(), "valor".to_string())],
+            client_id,
         };
 
         match disconnect.write_to(&mut stream) {
@@ -280,13 +270,11 @@ impl Client {
             )
         });
 
-        let subscriptions_clone = self.subscriptions.clone();
         let sender_channel_clone = self.sender_channel.clone();
         let _read_messages = threadpool.execute(move || {
             Client::receive_messages(
                 stream_clone_two,
                 recieve_receiver,
-                subscriptions_clone,
                 reciever_sender,
                 sender_channel_clone,
             )
@@ -298,7 +286,6 @@ impl Client {
     pub fn receive_messages(
         stream: TcpStream,
         receiver: Receiver<u16>,
-        subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
         sender: Sender<bool>,
         sender_channel: Sender<ClientMessage>,
     ) -> Result<(), ProtocolError> {
@@ -314,7 +301,6 @@ impl Client {
             if let Ok(stream_clone) = stream.try_clone() {
                 match handle_message(
                     stream_clone,
-                    subscriptions_clone.clone(),
                     pending_messages.clone(),
                     sender.clone(),
                     sender_channel.clone(),
@@ -344,7 +330,7 @@ impl Client {
         receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
         mut desconectar: bool,
         sender: Sender<u16>,
-        subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
+        subscriptions_clone: Arc<Mutex<Vec<String>>>,
         receiver: Receiver<bool>,
     ) -> Result<(), ProtocolError> {
         while !desconectar {
@@ -430,81 +416,48 @@ impl Client {
                                 return Err::<(), ProtocolError>(ProtocolError::StreamError);
                             }
                         },
-
                         ClientMessage::Subscribe {
                             packet_id,
-                            topic_name,
                             properties,
-                        } => {
-                            if subscriptions_clone
-                                .lock()
-                                .unwrap()
-                                .contains_key(&topic_name.to_string())
-                            {
-                                println!("Ya estoy subscrito a este topic");
-                            }
-
-                            match stream.try_clone() {
-                                Ok(stream_clone) => {
-                                    let subscribe = ClientMessage::Subscribe {
-                                        packet_id,
-                                        topic_name: topic_name.clone(),
-                                        properties,
-                                    };
-                                    if let Ok(packet_id) = Client::subscribe(
-                                        subscribe,
-                                        packet_id,
-                                        &topic_name,
-                                        stream_clone,
-                                        subscriptions_clone.clone(),
-                                    ) {
-                                        match sender.send(packet_id) {
-                                            Ok(_) => {
-                                                let provitional_sub_id = 1;
-                                                let topic_new = topic_name.to_string();
-                                                subscriptions_clone
-                                                    .lock()
-                                                    .unwrap()
-                                                    .insert(topic_new, provitional_sub_id);
-                                            }
-                                            Err(_) => {
-                                                println!(
-                                                    "Error al enviar el packet_id del suback al receiver"
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                                Err(_) => {
-                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
-                                }
-                            }
-                        }
-                        ClientMessage::Unsubscribe {
-                            packet_id,
-                            topic_name,
-                            properties,
+                            payload,
                         } => match stream.try_clone() {
                             Ok(stream_clone) => {
-                                let unsubscribe = ClientMessage::Unsubscribe {
+                                let subscribe = ClientMessage::Subscribe {
                                     packet_id,
-                                    topic_name: topic_name.clone(),
                                     properties,
+                                    payload: payload.clone(),
                                 };
 
-                                if let Ok(packet_id) =
-                                    Client::unsubscribe(unsubscribe, stream_clone, packet_id)
-                                {
-                                    match sender.send(packet_id) {
-                                        Ok(_) => {
-                                            let topic_new = topic_name.to_string();
-                                            subscriptions_clone.lock().unwrap().remove(&topic_new);
+                                for p in payload {
+                                    if let Ok(stream) = stream_clone.try_clone() {
+                                        if let Ok(packet_id) =
+                                            Client::subscribe(subscribe.clone(), packet_id, stream)
+                                        {
+                                            match sender.send(packet_id) {
+                                                Ok(_) => {
+                                                    let topic_new = p.topic.to_string();
+                                                    match subscriptions_clone.lock() {
+                                                        Ok(mut guard) => {
+                                                            guard.push(topic_new);
+                                                        }
+                                                        Err(_) => {
+                                                            return Err::<(), ProtocolError>(
+                                                                ProtocolError::StreamError,
+                                                            );
+                                                        }
+                                                    }
+                                                }
+                                                Err(_) => {
+                                                    return Err::<(), ProtocolError>(
+                                                        ProtocolError::StreamError,
+                                                    );
+                                                }
+                                            }
                                         }
-                                        Err(_) => {
-                                            println!(
-                                                    "Error al enviar el packet_id del unsuback al receiver"
-                                                )
-                                        }
+                                    } else {
+                                        return Err::<(), ProtocolError>(
+                                            ProtocolError::StreamError,
+                                        );
                                     }
                                 }
                             }
@@ -512,18 +465,76 @@ impl Client {
                                 return Err::<(), ProtocolError>(ProtocolError::StreamError);
                             }
                         },
+                        ClientMessage::Unsubscribe {
+                            packet_id,
+                            properties,
+                            payload,
+                        } => match stream.try_clone() {
+                            Ok(stream_clone) => {
+                                let unsubscribe = ClientMessage::Unsubscribe {
+                                    packet_id,
+                                    properties,
+                                    payload: payload.clone(),
+                                };
 
+                                for p in payload {
+                                    if let Ok(stream) = stream_clone.try_clone() {
+                                        if let Ok(packet_id) = Client::unsubscribe(
+                                            unsubscribe.clone(),
+                                            stream,
+                                            packet_id,
+                                        ) {
+                                            match sender.send(packet_id) {
+                                                Ok(_) => {
+                                                    let topic_new = p.topic.to_string();
+                                                    match subscriptions_clone.lock() {
+                                                        Ok(mut guard) => {
+                                                            guard.retain(|x| x != &topic_new);
+                                                        }
+                                                        Err(_) => {
+                                                            return Err::<(), ProtocolError>(
+                                                                ProtocolError::StreamError,
+                                                            );
+                                                        }
+                                                    }
+                                                }
+                                                Err(_) => {
+                                                    return Err::<(), ProtocolError>(
+                                                        ProtocolError::StreamError,
+                                                    );
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        return Err::<(), ProtocolError>(
+                                            ProtocolError::StreamError,
+                                        );
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                            }
+                        },
                         ClientMessage::Disconnect {
                             reason_code: _,
                             session_expiry_interval: _,
                             reason_string: _,
-                            user_properties: _,
+                            client_id,
                         } => {
-                            let reason = "normal";
-
                             match stream.try_clone() {
                                 Ok(stream_clone) => {
-                                    if let Ok(packet_id) = Client::disconnect(reason, stream_clone)
+                                    let reason = "normal";
+
+                                    let _disconnect = ClientMessage::Disconnect {
+                                        reason_code: 0x00,
+                                        session_expiry_interval: 0,
+                                        reason_string: "Disconnecting".to_string(),
+                                        client_id: client_id.clone(),
+                                    };
+
+                                    if let Ok(packet_id) =
+                                        Client::handle_disconnect(client_id, reason, stream_clone)
                                     {
                                         match sender.send(packet_id) {
                                             Ok(_) => continue,
@@ -543,7 +554,6 @@ impl Client {
                             }
                             break;
                         }
-
                         ClientMessage::Pingreq => {
                             match stream.try_clone() {
                                 Ok(mut stream_clone) => {
@@ -610,7 +620,6 @@ impl ClientTrait for Client {
 /// O ProtocolError en caso de error
 pub fn handle_message(
     mut stream: TcpStream,
-    subscriptions_clone: Arc<Mutex<HashMap<String, u8>>>,
     pending_messages: Vec<u16>,
     sender: Sender<bool>,
     sender_chanell: Sender<ClientMessage>,
@@ -659,7 +668,6 @@ pub fn handle_message(
                 packet_id_msb,
                 packet_id_lsb,
                 reason_code: _,
-                sub_id,
             } => {
                 for pending_message in &pending_messages {
                     let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
@@ -668,18 +676,6 @@ pub fn handle_message(
                         println!("suback con id {} {} recibido", packet_id_msb, packet_id_lsb);
                     }
                 }
-
-                //busca el sub_id 1 en el hash de subscriptions
-                //si lo encuentra, lo reemplaza por el sub_id que llega en el mensaje
-                let mut topic = String::new();
-                let mut lock = subscriptions_clone.lock().unwrap();
-                for (key, value) in lock.iter() {
-                    if *value == 1 {
-                        topic.clone_from(key);
-                    }
-                }
-                lock.remove(&topic);
-                lock.insert(topic, sub_id);
 
                 println!("Recibi un mensaje {:?}", message);
                 Ok(ClientReturn::SubackRecieved)
@@ -781,13 +777,7 @@ mod tests {
 
     #[test]
     fn test_assign_subscription_id() {
-        let sub_id = Client::assign_subscription_id();
+        let sub_id = Client::_assign_subscription_id();
         assert_ne!(sub_id, 0);
-    }
-
-    #[test]
-    fn test_assign_user_id() {
-        let user_id = Client::assign_user_id();
-        assert_ne!(user_id, 0);
     }
 }

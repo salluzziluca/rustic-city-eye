@@ -69,12 +69,9 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
         let camera_system_client = client_factory(rx, address, connect_config, tx2)?;
 
         let subscribe_config = SubscribeConfig::new(
-            "incidente".to_string(),
-            SubscribeProperties::new(
-                0,
-                vec![("propiedad".to_string(), "valor".to_string())],
-                vec![0, 1, 2, 3],
-            ),
+            "cameras".to_string(),
+            1,
+            SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]),
         );
 
         let _ = tx.send(Box::new(subscribe_config));
