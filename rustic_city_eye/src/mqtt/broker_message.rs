@@ -152,7 +152,6 @@ impl BrokerMessage {
                 write_u8(&mut writer, reason_code)?;
 
                 //sub_id
-                write_u8(&mut writer, sub_id)?;
                 let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
 
                 Ok(())
