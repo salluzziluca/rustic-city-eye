@@ -94,7 +94,7 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
     {
         self.camera_system_client.get_publish_end_channel()
     }
-    pub fn add_camera(&mut self, location: Location) -> Option<u32> {
+    pub fn add_camera(&mut self, location: Location) -> Result<u32, CameraError> {
         let mut rng = rand::thread_rng();
 
         let mut id = rng.gen();
@@ -105,7 +105,10 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
 
         let camera = Camera::new(location, id);
         self.cameras.insert(id, camera);
-        Some(id)
+
+        // self.publish_cameras_update()?;
+
+        Ok(id)
     }
 
     pub fn get_cameras(&self) -> &HashMap<u32, Camera> {
@@ -224,6 +227,8 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
             self.activate_cameras_by_camera_location(loc)?;
         }
 
+        self.publish_cameras_update()?;
+
         Ok(())
     }
 
@@ -282,6 +287,8 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
         for loc in locations_to_activate {
             self.deactivate_cameras_by_camera_location(loc)?;
         }
+
+        self.publish_cameras_update()?;
 
         Ok(())
     }
@@ -370,7 +377,9 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
             }
         };
         match self.send_message(Box::new(publish_config)) {
-            Ok(_) => {}
+            Ok(_) => {
+                println!("Sentid publish cameras update to client");
+            }
             Err(_) => {
                 return Err(CameraError::SendError);
             }
@@ -966,9 +975,6 @@ mod tests {
                 assert!(!camera.get_sleep_mode());
             }
 
-            // Publico cuando las camaras se encienden
-            camera_system.publish_cameras_update().unwrap();
-
             let message = reciever.recv().unwrap();
             //conver message to a ClientMessage
             let packet_id = camera_system.camera_system_client.assign_packet_id();
@@ -995,8 +1001,6 @@ mod tests {
                 assert!(camera.get_sleep_mode());
             }
 
-            //vuelvo a publicar cuando las camaras se apagan
-            camera_system.publish_cameras_update().unwrap();
             let message = reciever.recv().unwrap();
             //conver message to a ClientMessage
             let packet_id = camera_system.camera_system_client.assign_packet_id();
