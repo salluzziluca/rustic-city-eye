@@ -20,7 +20,6 @@ use crate::{
     },
     surveilling::camera::Camera,
     utils::{location::Location, payload_types::PayloadTypes},
-    utils::{location::Location, payload_types::PayloadTypes},
 };
 
 const AREA_DE_ALCANCE: f64 = 10.0;
