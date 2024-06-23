@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::sync::{Arc, RwLock};
+use std::collections::HashMap;
 
 use super::subscription::Subscription;
 
@@ -11,7 +12,7 @@ pub struct Topic {
     /// Hashmap de subscriptores.
     users: Arc<RwLock<Vec<Subscription>>>,
     // vector de hijos
-    // hijos: Vec<Topic>,
+    subtopics: HashMap<String, Topic>,
 }
 
 impl Default for Topic {
@@ -25,7 +26,12 @@ impl Topic {
     pub fn new() -> Self {
         Self {
             users: Arc::new(RwLock::new(Vec::new())),
+            subtopics: HashMap::new(),
         }
+    }
+
+    pub fn add_subtopic(&mut self, topic: String) {
+        self.subtopics.insert(topic, Topic::new());
     }
 
     /// Agrega un usuario a un topic
@@ -139,5 +145,24 @@ mod tests {
         assert_eq!(result, 0x00);
         let result = topic.remove_user_from_topic(subscription);
         assert_eq!(result, 0x00);
+    }
+
+    #[test]
+    fn test_get_topic_users() {
+        let mut topic = Topic::new();
+        let user_id = "user".to_string();
+        let subscription = Subscription::new("topic".to_string(), user_id, 1);
+        let result = topic.add_user_to_topic(subscription.clone());
+        assert_eq!(result, 0x00);
+        let users = topic.get_topic_users();
+        assert_eq!(users.len(), 1);
+        assert_eq!(users[0], subscription);
+    }
+
+    #[test]
+    fn test_add_subtopic() {
+        let mut topic = Topic::new();
+        topic.add_subtopic("subtopic".to_string());
+        assert_eq!(topic.subtopics.len(), 1);
     }
 }

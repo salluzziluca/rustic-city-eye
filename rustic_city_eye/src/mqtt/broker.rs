@@ -85,8 +85,28 @@ impl Broker {
         let mut topics = HashMap::new();
         let topic_readings = Broker::process_topic_config_file(file_path)?;
 
+        // /raiz
+        // /raiz/topic1
+        // /raiz/topic2
+        // /raiz/topic3
+        // /raiz/topic1/subtopic1
+        // /raiz/topic1/subtopic2
+        // /raiz/topic2/subtopic3
+
         for topic in topic_readings {
-            topics.insert(topic, Topic::new());
+            let mut topic_parts = topic.split('/').collect::<Vec<&str>>();
+            let mut topic_name = topic_parts.pop().unwrap().to_string();
+            let mut parent_topic = topic_parts.join("/");
+            if parent_topic.is_empty() {
+                parent_topic = "/".to_string();
+            }
+
+            if !topics.contains_key(&parent_topic) {
+                topics.insert(parent_topic.clone(), Topic::new());
+            }
+
+            let parent_topic = topics.get_mut(&parent_topic).unwrap();
+            parent_topic.add_subtopic(topic_name);
         }
 
         Ok(topics)
