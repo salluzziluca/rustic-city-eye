@@ -115,22 +115,22 @@ impl MonitoringApp {
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
         self.monitoring_app_client.client_run()?;   
         let _ = CameraSystem::<Client>::run_client(None, self.camera_system.clone());
-        let reciever_clone = Arc::clone(&self.recieve_from_client.clone());
+        // let reciever_clone = Arc::clone(&self.recieve_from_client.clone());
         
-        thread::spawn(move || {
-            loop{
-                let lock = reciever_clone.lock().unwrap();
-                match lock.recv() {
-                    Ok(message) => {
-                        println!("Message received en monitoriung: {:?}", message);
-                    }
-                    Err(e) => {
-                        println!("Error receiving message: {:?}", e);
-                    }
-                }
+        // thread::spawn(move || {
+        //     loop{
+        //         let lock = reciever_clone.lock().unwrap();
+        //         match lock.recv() {
+        //             Ok(message) => {
+        //                 println!("Message received en monitoriung: {:?}", message);
+        //             }
+        //             Err(e) => {
+        //                 println!("Error receiving message: {:?}", e);
+        //             }
+        //         }
                 
-            }
-        });
+        //     }
+        // });
         Ok(())
     }
 
