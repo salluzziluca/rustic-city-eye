@@ -106,7 +106,13 @@ impl Drone {
 
         let _t1 = std::thread::spawn(move || {
             let self_clone: Arc<Mutex<Drone>> = Arc::clone(&self_clone2);
-            let mut self_locked = self_clone.lock().unwrap();
+            let mut self_locked = match self_clone.lock() {
+                Ok(locked) => locked,
+                Err(e) => {
+                    println!("Error acquiring lock: {:?}", e);
+                    return;
+                }
+            };
             let location_clone = self_locked.location.clone();
             let operation_radius = self_locked.drone_config.get_operation_radius();
             let movement_rate = self_locked.drone_config.get_movement_rate();
@@ -382,7 +388,10 @@ mod tests {
         thread::spawn(move || {
             {
                 let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
+                let mut ready = match lock.lock() {
+                    Ok(ready) => ready,
+                    Err(e) => panic!("Error acquiring lock: {:?}", e),
+                };
                 *ready = true;
                 cvar.notify_all();
             }

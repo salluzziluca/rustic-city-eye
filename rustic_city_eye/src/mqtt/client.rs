@@ -144,7 +144,7 @@ impl Client {
         {
             println!("Enviando publish");
             match message.write_to(&mut stream) {
-                Ok(()) => {Ok(packet_id)},
+                Ok(()) => Ok(packet_id),
                 Err(_) => Err(ClientError::new("Error al enviar mensaje")),
             }
         } else {
@@ -158,9 +158,7 @@ impl Client {
         mut stream: TcpStream,
     ) -> Result<u16, ClientError> {
         match message.write_to(&mut stream) {
-            Ok(()) => {
-                Ok(packet_id)
-            }
+            Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
@@ -345,7 +343,10 @@ impl Client {
     ) -> Result<(), ProtocolError> {
         while !desconectar {
             loop {
-                let lock = receiver_channel.lock().unwrap();
+                let lock = match receiver_channel.lock() {
+                    Ok(lock) => lock,
+                    Err(_) => return Err(ProtocolError::StreamError),
+                };
                 if let Ok(message_config) = lock.recv() {
                     let packet_id = self.assign_packet_id();
 
@@ -372,14 +373,18 @@ impl Client {
                                     dup_flag,
                                     properties: properties.clone(),
                                 };
-
-                                if let Ok(packet_id) = Client::publish_message(
-                                    publish,
-                                    stream_clone.try_clone().unwrap(),
-                                    packet_id,
-                                ) {
+                                let stream_clone2 = match stream_clone.try_clone() {
+                                    Ok(stream) => stream,
+                                    Err(_) => return Err(ProtocolError::StreamError),
+                                };
+                                if let Ok(packet_id) =
+                                    Client::publish_message(publish, stream_clone2, packet_id)
+                                {
                                     if qos == 1 {
-                                        let stream_clone = stream_clone.try_clone().unwrap();
+                                        let stream_clone = match stream_clone.try_clone() {
+                                            Ok(stream) => stream,
+                                            Err(_) => return Err(ProtocolError::StreamError),
+                                        };
                                         match sender.send(packet_id) {
                                             Ok(_) => {
                                                 if let Ok(puback_recieved) = receiver.try_recv() {
@@ -673,9 +678,7 @@ pub fn handle_message(
                     if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {}
                 }
                 match sender.send(true) {
-                    Ok(_) => {
-                        Ok(ClientReturn::PubackRecieved)
-                    }
+                    Ok(_) => Ok(ClientReturn::PubackRecieved),
                     Err(e) => Err(ProtocolError::ChanellError(e.to_string())),
                 }
             }
@@ -730,8 +733,8 @@ pub fn handle_message(
                     properties,
                     payload,
                 }) {
-                    Ok(_) => println!("Publish enviado correctamente!"),
-                    Err(e) => println!("Error al enviar publish al cliente: {:?}", e),
+                    Ok(_) => {}
+                    Err(e) => println!("Error al enviar publish al sistema: {:?}", e),
                 }
 
                 Ok(ClientReturn::PublishDeliveryRecieved)

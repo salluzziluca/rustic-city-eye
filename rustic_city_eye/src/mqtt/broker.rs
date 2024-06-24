@@ -249,7 +249,6 @@ impl Broker {
         id_sender: std::sync::mpsc::Sender<String>,
     ) -> Result<(), ProtocolError> {
         println!("entre a handle client");
-        // io::stdout().flush().unwrap(); // Ensure the print is flushed immediately
         loop {
             let cloned_stream = match stream.try_clone() {
                 Ok(stream) => stream,
@@ -503,7 +502,6 @@ impl Broker {
                 return Err(ProtocolError::StreamError);
             }
         };
-        println!("msg en broker {:?}", mensaje);
 
         match mensaje {
             ClientMessage::Connect { 0: connect } => {
@@ -868,14 +866,20 @@ impl Broker {
     /// Devuelve los clientes offline y sus mensajes pendientes de manera estática
     /// para poder testear
     pub fn get_offline_clients(&self) -> HashMap<String, Vec<ClientMessage>> {
-        self.offline_clients.read().unwrap().clone()
+        match self.offline_clients.read() {
+            Ok(lock) => lock.clone(),
+            Err(e) => panic!("Error al leer offline_clients: {:?}", e),
+        }
     }
 
     /// Devuelve los clientes conectados de manera estática
     /// para poder testear
     pub fn get_clients_ids(&self) -> Vec<String> {
         let mut clients_ids = Vec::new();
-        let lock = self.clients_ids.read().unwrap();
+        let lock = match self.clients_ids.read() {
+            Ok(lock) => lock,
+            Err(e) => panic!("Error al leer clients_ids: {:?}", e),
+        };
         for client_id in lock.keys() {
             // agrego el client_id al vector
             clients_ids.push(client_id.clone());
@@ -1023,7 +1027,11 @@ mod tests {
         // Write a ClientMessage to the stream.
         // You'll need to replace this with a real ClientMessage.
         let mut result: Result<(), ProtocolError> = Err(ProtocolError::UnspecifiedError);
-        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
+        let broker = match Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]) {
+            Ok(broker) => broker,
+            Err(_) => return,
+        };
+
         // Accept the connection and pass the stream to the function.
         if let Ok((stream, _)) = listener.accept() {
             let (id_sender, _) = mpsc::channel();

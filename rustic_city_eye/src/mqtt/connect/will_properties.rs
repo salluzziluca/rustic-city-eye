@@ -193,7 +193,11 @@ impl WillProperties {
             topic_alias: 10,
             response_topic: "String".to_string(),
         };
-        let first_property = self.user_properties.first().unwrap();
+        let first_property = match self.user_properties.first() {
+            Some(property) => property,
+            None => panic!("No user properties found"),
+        };
+
         PublishProperties::new(
             self.payload_format_indicator,
             self.message_expiry_interval as u32,

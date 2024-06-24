@@ -163,7 +163,12 @@ mod tests {
                 addr.to_string(),
             );
 
-            let id = drone_center.add_drone(location).unwrap();
+            let id = match drone_center.add_drone(location) {
+                Ok(id) => id,
+                Err(e) => {
+                    panic!("Error adding drone to drone center: {:?}", e)
+                }
+            };
 
             let drone = drone_center.get_drone_by_id(id);
 

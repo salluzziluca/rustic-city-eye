@@ -46,8 +46,6 @@ impl DroneConfig {
         let config_file = match File::open(file_path) {
             Ok(file) => file,
             Err(e) => {
-                let current_dir = env::current_dir().unwrap();
-                println!("Current directory: {}", current_dir.display());
                 println!(
                     "Error al abrir el archivo de configuracion del Drone: {:?}",
                     e,

@@ -6,7 +6,6 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-
 use crate::drones::drone_system::DroneSystem;
 use crate::monitoring::incident::Incident;
 
@@ -113,10 +112,10 @@ impl MonitoringApp {
     }
 
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
-        self.monitoring_app_client.client_run()?;   
+        self.monitoring_app_client.client_run()?;
         let _ = CameraSystem::<Client>::run_client(None, self.camera_system.clone());
         // let reciever_clone = Arc::clone(&self.recieve_from_client.clone());
-        
+
         // thread::spawn(move || {
         //     loop{
         //         let lock = reciever_clone.lock().unwrap();
@@ -128,22 +127,26 @@ impl MonitoringApp {
         //                 println!("Error receiving message: {:?}", e);
         //             }
         //         }
-                
+
         //     }
         // });
         Ok(())
     }
 
     pub fn add_camera(&mut self, location: Location) {
-        let mut lock = self.camera_system.lock().unwrap();
+        let mut lock = match self.camera_system.lock() {
+            Ok(lock) => lock,
+            Err(e) => {
+                println!("Error locking camera system: {:?}", e);
+                return;
+            }
+        };
         match lock.add_camera(location) {
             Ok(_) => {}
             Err(e) => {
                 println!("Error adding camera: {:?}", e);
             }
         }
-
-        println!("SOY EL MONTORING Y MIS CAMARAS SON {:?}", lock.get_cameras());
     }
 
     pub fn add_incident(&mut self, location: Location) {
@@ -189,7 +192,12 @@ impl MonitoringApp {
             .map_or(0, |id| id)
     }
     pub fn get_cameras(&self) -> HashMap<u32, Camera> {
-        let lock = self.camera_system.lock().unwrap();
+        let lock = match self.camera_system.lock() {
+            Ok(lock) => lock,
+            Err(e) => {
+                panic!("Error locking camera system: {:?}", e);
+            }
+        };
         lock.get_cameras().clone()
     }
 
@@ -200,7 +208,13 @@ impl MonitoringApp {
     pub fn update_drone_location(&self) -> HashMap<u32, Location> {
         let mut drone_locations = HashMap::new();
         loop {
-            let lock = self.recieve_from_client.lock().unwrap();
+            let lock = match self.recieve_from_client.lock() {
+                Ok(lock) => lock,
+                Err(e) => {
+                    println!("Error locking reciever: {:?}", e);
+                    return drone_locations;
+                }
+            };
             match lock.try_recv() {
                 Ok(message) => match message {
                     ClientMessage::Publish {

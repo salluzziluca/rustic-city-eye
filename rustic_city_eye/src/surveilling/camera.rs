@@ -2,7 +2,10 @@ use std::io::{Error, Read, Write};
 
 use serde::Deserialize;
 
-use crate::utils::{location::Location, reader::{read_bool, read_string, read_u32}};
+use crate::utils::{
+    location::Location,
+    reader::{read_bool, read_string, read_u32},
+};
 
 use super::camera_error::CameraError;
 
@@ -54,8 +57,26 @@ impl Camera {
         let longitude = read_string(stream)?;
         let sleep_mode = read_bool(stream)?;
 
+        let lat = match latitude.parse::<f64>() {
+            Ok(lat) => lat,
+            Err(_) => {
+                return Err(Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Invalid latitude",
+                ))
+            }
+        };
+        let long = match longitude.parse::<f64>() {
+            Ok(long) => long,
+            Err(_) => {
+                return Err(Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Invalid longitude",
+                ))
+            }
+        };
         Ok(Camera {
-            location: Location::new(latitude.parse().unwrap(), longitude.parse().unwrap()),
+            location: Location::new(lat, long),
             id,
             sleep_mode,
         })

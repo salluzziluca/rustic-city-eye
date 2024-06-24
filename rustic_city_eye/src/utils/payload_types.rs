@@ -83,25 +83,39 @@ impl Payload for PayloadTypes {
 impl PayloadTypes {
     /// Dependiendo del id del payload que se lea, se va a reconstruir el payload a partir de lo
     /// leido efectivamente del stream.
-    pub fn read_from(
-        stream: &mut dyn Read,
-    ) -> Result<PayloadTypes, std::io::Error> {
+    pub fn read_from(stream: &mut dyn Read) -> Result<PayloadTypes, std::io::Error> {
         let payload_type_id = read_u8(stream)?;
 
         let payload_type = match payload_type_id {
             1 => {
                 let longitude_string = read_string(stream)?;
-                let long = longitude_string.parse::<f64>().unwrap();
+                let long = match longitude_string.parse::<f64>() {
+                    Ok(long) => long,
+                    Err(_) => {
+                        return Err(Error::new(
+                            ErrorKind::InvalidData,
+                            "Invalid longitude".to_string(),
+                        ))
+                    }
+                };
 
                 let latitude_string = read_string(stream)?;
 
-                let lat = latitude_string.parse::<f64>().unwrap();
+                let lat = match latitude_string.parse::<f64>() {
+                    Ok(lat) => lat,
+                    Err(_) => {
+                        return Err(Error::new(
+                            ErrorKind::InvalidData,
+                            "Invalid latitude".to_string(),
+                        ))
+                    }
+                };
 
                 let location = Location::new(lat, long);
                 let incident = Incident::new(location);
 
                 PayloadTypes::IncidentLocation(IncidentPayload::new(incident))
-            },
+            }
             4 => {
                 let lenght = read_u8(stream)?;
                 let mut cameras = Vec::new();
@@ -114,13 +128,37 @@ impl PayloadTypes {
             }
             5 => {
                 let drone_id_string = read_string(stream)?;
-                let drone_id = drone_id_string.parse::<u32>().unwrap();
+                let drone_id = match drone_id_string.parse::<u32>() {
+                    Ok(drone_id) => drone_id,
+                    Err(_) => {
+                        return Err(Error::new(
+                            ErrorKind::InvalidData,
+                            "Invalid drone id".to_string(),
+                        ))
+                    }
+                };
 
                 let longitude_string = read_string(stream)?;
-                let long = longitude_string.parse::<f64>().unwrap();
+                let long = match longitude_string.parse::<f64>() {
+                    Ok(long) => long,
+                    Err(_) => {
+                        return Err(Error::new(
+                            ErrorKind::InvalidData,
+                            "Invalid longitude".to_string(),
+                        ))
+                    }
+                };
 
                 let latitude_string = read_string(stream)?;
-                let lat = latitude_string.parse::<f64>().unwrap();
+                let lat = match latitude_string.parse::<f64>() {
+                    Ok(lat) => lat,
+                    Err(_) => {
+                        return Err(Error::new(
+                            ErrorKind::InvalidData,
+                            "Invalid latitude".to_string(),
+                        ))
+                    }
+                };
 
                 let location = Location::new(lat, long);
 

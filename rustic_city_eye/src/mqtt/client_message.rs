@@ -185,22 +185,23 @@ impl Connect {
             return None;
         }
 
+        let last_will_topic = self.last_will_topic?;
+        let last_will_message = self.last_will_message?;
+        let will_properties = self.will_properties?;
+
         Some(LastWill::new(
-            self.last_will_topic.unwrap(),
-            self.last_will_message.unwrap(),
+            last_will_topic,
+            last_will_message,
             self.last_will_qos,
             self.last_will_retain,
-            self.will_properties.unwrap(),
+            will_properties,
         ))
     }
     /// Abre un archivo de configuracion con propiedades y guarda sus lecturas.
     pub fn read_connect_config(file_path: &str) -> Result<Connect, ProtocolError> {
-        let current_dir = env::current_dir().unwrap();
-        println!("Current directory: {}", current_dir.display());
         let config_file = match File::open(file_path) {
             Ok(file) => file,
-            Err(e) => {
-                println!("AAAAAAAAAA{:?}", e);
+            Err(_) => {
                 return Err(ProtocolError::ReadingConfigFileError);
             }
         };
@@ -1020,9 +1021,7 @@ impl ClientMessage {
                     ))?,
                 })
             }
-            _ => {
-                Err(Error::new(std::io::ErrorKind::Other, "Invalid header"))
-            }
+            _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
 }
