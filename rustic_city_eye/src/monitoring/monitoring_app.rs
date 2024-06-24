@@ -169,9 +169,10 @@ impl MonitoringApp {
     }
 
     pub fn get_drones(&self) -> HashMap<u32, Location> {
-        let r = self.active_drones.lock().unwrap().clone();
-        // println!("{:?}", r);
-        r
+        match self.active_drones.lock(){
+            Ok(active_drones) => active_drones.clone(),
+            Err(_) => HashMap::new(),        
+        }
     }
 }
 
@@ -179,7 +180,10 @@ pub fn update_drone_location(
     recieve_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
 ) {
-    let receiver = recieve_from_client.lock().unwrap();
+    let receiver = match recieve_from_client.lock(){
+        Ok(receiver) => receiver,
+        Err(_) => return,
+    };
 
     loop {
         if let Ok(message) = receiver.try_recv() {
@@ -195,7 +199,10 @@ pub fn update_drone_location(
                 } => {
                     println!("Received message: {:?}", payload);
                     if topic_name == "drone_locations" {
-                        let mut active_drones = active_drones.try_lock().unwrap();
+                        let mut active_drones = match active_drones.try_lock(){
+                            Ok(active_drones) => active_drones,
+                            Err(_) => return,
+                        };
                         if let PayloadTypes::DroneLocation(id, drone_locationn) = payload {
                             active_drones.insert(id, drone_locationn);
                         }

@@ -110,23 +110,30 @@ impl Drone {
         let self_clone = Arc::new(Mutex::new(self.clone()));
         std::thread::spawn(move || {
             let self_clone: Arc<Mutex<Drone>> = Arc::clone(&self_clone);
-            let mut self_locked = self_clone.lock().unwrap();
+            let mut self_locked = match self_clone.lock(){
+                Ok(locked) => locked,
+                Err(e) => {
+                    println!("Error locking drone: {:?}", e);
+                    return;
+                }
+            };
             let _ = self_locked.battery_discharge();
         });
         let self_clone2 = Arc::new(Mutex::new(self.clone()));
 
         let _t1 = std::thread::spawn(move || {
             let self_clone: Arc<Mutex<Drone>> = Arc::clone(&self_clone2);
-            let mut self_locked = self_clone.lock().unwrap();
+            let mut self_locked = match self_clone.lock(){
+                Ok(locked) => locked,
+                Err(e) => {
+                    println!("Error locking drone: {:?}", e);
+                    return;
+                }
+            
+            };
 
             println!("Drone {} is moving", self_locked.id);
-            // let mut movement = Movement{
-            //     location: self_locked.location.clone(),
-            //     center_location: self_locked.center_location.clone(),
-            //     radius: self_locked.drone_config.get_operation_radius(),
-            //     target_location: self_locked.target_location.clone(),
-            //     movement_rate: self_locked.drone_config.get_movement_rate(),
-            // };
+
             match self_locked.drone_movement() {
                 Ok(_) => (),
                 Err(e) => {
@@ -227,12 +234,6 @@ impl Drone {
             }
 
             if self.battery_level > 0 {
-                // let current_time = Utc::now();
-                // let elapsed_time = current_time
-                //     .signed_duration_since(last_move_time)
-                //     .num_milliseconds();
-
-                // if elapsed_time >= self.drone_config.get_movement_rate() {
                 let (new_lat, new_long) = self.calculate_new_position(
                     0.001,
                     &self.location.lat,
@@ -243,19 +244,9 @@ impl Drone {
                 self.location.lat = new_lat;
                 self.location.long = new_long;
 
-                // println!(
-                //     "Drone is on location: ({}, {})",
-                //     self.location.lat, self.location.long
-                // );
-                // println!(
-                //     "Target location: ({}, {})",
-                //     self.target_location.lat, self.target_location.long
-                // );
                 self.update_location();
                 self.handle_low_battery()?;
 
-                // last_move_time = current_time;
-                // }
             } else {
                 self.drone_state = DroneState::LowBatteryLevel;
                 return Err(DroneError::BatteryEmpty);
@@ -279,14 +270,6 @@ impl Drone {
 
         let new_lat = current_lat + unit_direction_lat * speed;
         let new_long = current_long + unit_direction_long * speed;
-        // let distance_from_center =
-        //     ((new_lat - center_lat).powi(2) + (new_long - center_long).powi(2)).sqrt();
-
-        // if distance_from_center > *radius {
-        //     let scaling_factor = radius / distance_from_center;
-        //     new_lat = center_lat + (new_lat - center_lat) * scaling_factor;
-        //     new_long = center_long + (new_long - center_long) * scaling_factor;
-        // }
 
         (new_lat, new_long)
     }
@@ -302,9 +285,15 @@ impl Drone {
                 return;
             }
         };
-        self.send_to_client_channel
+
+        match self.send_to_client_channel
             .send(Box::new(publish_config))
-            .unwrap();
+            {
+                Ok(_) => (),
+                Err(e) => {
+                    println!("Error sending to client channel: {:?}", e);
+                }
+            };
     }
 
     fn handle_low_battery(&mut self) -> Result<(), DroneError> {

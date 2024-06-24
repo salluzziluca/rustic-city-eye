@@ -10,6 +10,7 @@ use crate::mqtt::publish::publish_properties::{PublishProperties, TopicPropertie
 use crate::utils::{reader::*, writer::*};
 
 use super::connect::connect_properties::ConnectProperties;
+use super::connect::last_will;
 use super::connect::will_properties::WillProperties;
 use super::messages_config::MessagesConfig;
 use super::payload::Payload;
@@ -184,18 +185,33 @@ impl Connect {
         if !self.last_will_flag {
             return None;
         }
+        let last_will_topic = match self.last_will_topic{
+            Some(topic) => topic,
+            None => return None,
+        };
+        let last_will_message = match self.last_will_message{
+            Some(message) => message,
+            None => return None,
+        };
+        let will_properties = match self.will_properties{
+            Some(properties) => properties,
+            None => return None,
+        };
 
         Some(LastWill::new(
-            self.last_will_topic.unwrap(),
-            self.last_will_message.unwrap(),
+            last_will_topic,
+            last_will_message,
             self.last_will_qos,
             self.last_will_retain,
-            self.will_properties.unwrap(),
+            will_properties,
         ))
     }
     /// Abre un archivo de configuracion con propiedades y guarda sus lecturas.
     pub fn read_connect_config(file_path: &str) -> Result<Connect, ProtocolError> {
-        let current_dir = env::current_dir().unwrap();
+        let current_dir = match env::current_dir(){
+            Ok(dir) => dir,
+            Err(_) => return Err(ProtocolError::ReadingConfigFileError),
+        };
         println!("Current directory: {}", current_dir.display());
         let config_file = match File::open(file_path) {
             Ok(file) => file,

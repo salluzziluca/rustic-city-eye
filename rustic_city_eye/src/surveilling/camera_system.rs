@@ -155,7 +155,12 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         let mut self_clone = self.clone();
         let _handle = thread::spawn(move || {
             loop {
-                let lock = self_clone.reciev_from_client.lock().unwrap();
+                let lock = match self_clone.reciev_from_client.lock(){
+                    Ok(lock) => lock,
+                    Err(_) => {
+                        continue;
+                    }
+                };
                 if let Some(ref reciever) = reciever {
                     match reciever.recv() {
                         Ok(client_message::ClientMessage::Publish {
@@ -364,7 +369,12 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
     ) -> Result<(), CameraError> {
         let packet_id = self.camera_system_client.assign_packet_id();
         let message = message.parse_message(packet_id);
-        let lock = self.send_to_client_channel.lock().unwrap();
+        let lock = match self.send_to_client_channel.lock(){
+            Ok(lock) => lock,
+            Err(_) => {
+                return Err(CameraError::SendError);
+            }
+        };
         match lock.send(Box::new(message)) {
             Ok(_) => {}
             Err(e) => {
@@ -392,12 +402,15 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             if (!self.snapshot.contains(&camera.clone()))
                 || (self.snapshot.contains(&camera.clone())
                     && camera.get_sleep_mode()
-                        != self
+                        != match self
                             .snapshot
                             .iter()
                             .find(|&x| x == camera)
-                            .unwrap()
-                            .get_sleep_mode())
+                            {
+                                Some(camera) => camera.get_sleep_mode(),
+                                None => false,
+                            }
+                    )
             {
                 cameras.push(camera.clone());
             }

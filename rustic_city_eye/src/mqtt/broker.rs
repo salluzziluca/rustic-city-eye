@@ -867,14 +867,20 @@ impl Broker {
     /// Devuelve los clientes offline y sus mensajes pendientes de manera estática
     /// para poder testear
     pub fn get_offline_clients(&self) -> HashMap<String, Vec<ClientMessage>> {
-        self.offline_clients.read().unwrap().clone()
+        match self.offline_clients.read(){
+            Ok(lock) => lock.clone(),
+            Err(_) => HashMap::new(),
+        }
     }
 
     /// Devuelve los clientes conectados de manera estática
     /// para poder testear
     pub fn get_clients_ids(&self) -> Vec<String> {
         let mut clients_ids = Vec::new();
-        let lock = self.clients_ids.read().unwrap();
+        let lock = match self.clients_ids.read(){
+            Ok(lock) => lock,
+            Err(_) => return clients_ids,
+        };
         for client_id in lock.keys() {
             // agrego el client_id al vector
             clients_ids.push(client_id.clone());

@@ -346,7 +346,10 @@ impl Client {
     ) -> Result<(), ProtocolError> {
         while !desconectar {
             loop {
-                let lock = receiver_channel.lock().unwrap();
+                let lock = match receiver_channel.lock(){
+                    Ok(lock) => lock,
+                    Err(_) => return Err(ProtocolError::StreamError),
+                };
                 if let Ok(message_config) = lock.recv() {
                     let packet_id = self.assign_packet_id();
 
@@ -376,11 +379,17 @@ impl Client {
 
                                 if let Ok(packet_id) = Client::publish_message(
                                     publish,
-                                    stream_clone.try_clone().unwrap(),
+                                    match stream_clone.try_clone(){
+                                        Ok(stream) => stream,
+                                        Err(_) => return Err(ProtocolError::StreamError),
+                                    },
                                     packet_id,
                                 ) {
                                     if qos == 1 {
-                                        let stream_clone = stream_clone.try_clone().unwrap();
+                                        let stream_clone = match stream_clone.try_clone(){
+                                            Ok(stream) => stream,
+                                            Err(_) => return Err(ProtocolError::StreamError),
+                                        };
                                         match sender.send(packet_id) {
                                             Ok(_) => {
                                                 if let Ok(puback_recieved) = receiver.try_recv() {

@@ -58,7 +58,10 @@ impl SubscribeConfig {
         }
     }
     pub fn write_config_to_json_file(&self, path: &str) {
-        let json = serde_json::to_string(&self).unwrap();
+        let json = match serde_json::to_string(&self){
+            Ok(json) => json,
+            Err(e) => panic!("Error converting PublishConfig to json: {}", e),
+        };
         match std::fs::write(path, json) {
             Ok(_) => {}
             Err(e) => panic!("Error writing PublishConfig to json file: {}", e),
