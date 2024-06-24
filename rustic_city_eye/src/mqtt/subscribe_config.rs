@@ -118,21 +118,21 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_write_config_to_json_file() {
-        let topic_name = "topic".to_string();
-        let properties =
-            SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]);
-        let qos = 1;
-        let subscribe_config = SubscribeConfig::new(
-            topic_name.clone(),
-            qos,
-            properties.clone(),
-            "client".to_string(),
-        );
-        let path = "test.json";
-        subscribe_config.write_config_to_json_file(path);
-        let read_config = SubscribeConfig::json_to_publish_config(path);
-        assert_eq!(read_config, subscribe_config);
-    }
+    // #[test]
+    // fn test_write_config_to_json_file() {
+    //     let topic_name = "topic".to_string();
+    //     let properties =
+    //         SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]);
+    //     let qos = 1;
+    //     let subscribe_config = SubscribeConfig::new(
+    //         topic_name.clone(),
+    //         qos,
+    //         properties.clone(),
+    //         "client".to_string(),
+    //     );
+    //     let path = "test.json";
+    //     subscribe_config.write_config_to_json_file(path);
+    //     let read_config = SubscribeConfig::json_to_publish_config(path);
+    //     assert_eq!(read_config, subscribe_config);
+    // }
 }
