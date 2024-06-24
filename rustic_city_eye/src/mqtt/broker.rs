@@ -380,7 +380,7 @@ impl Broker {
                     }
                 }
 
-                if esta_offline && es_qos_1 {
+                if esta_offline {
                     if let Ok(mut lock) = self.offline_clients.write() {
                         if let Some(messages) = lock.get_mut(&user.client_id) {
                             messages.push(m);
