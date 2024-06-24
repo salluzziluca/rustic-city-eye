@@ -53,7 +53,7 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
     ///
     /// Envia un connect segun la configuracion del archivo connect_config.json
     ///
-    /// Se subscribe a los mensajes de tipo "accidente"
+    /// Se subscribe a los mensajes de tipo "incidente"
     ///
     pub fn new<F>(address: String, client_factory: F) -> Result<CameraSystem<T>, ProtocolError>
     where
@@ -74,15 +74,12 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
         let subscribe_config = SubscribeConfig::new(
             "incidente".to_string(),
             1,
-            SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]),
+            SubscribeProperties::new(1, vec![]),
         );
 
         match tx.send(Box::new(subscribe_config)) {
-            Ok(_) => {
-                println!("el sub se mando ok")
-            }
-            Err(e) => {
-                println!("Error sending message: {:?}", e);
+            Ok(_) => {}
+            Err(_) => {
                 return Err(ProtocolError::SendError(
                     "Error sending message".to_string(),
                 ));

@@ -78,7 +78,6 @@ impl Client {
             Err(_) => return Err(ProtocolError::StreamError),
         };
         let connect_message = ClientMessage::Connect(connect.clone());
-        // println!("Connect: {:?}", connect);
 
         println!("Enviando connect message to broker");
 
@@ -657,6 +656,9 @@ pub fn handle_message(
     _sender_chanell_: Sender<ClientMessage>,
 ) -> Result<ClientReturn, ProtocolError> {
     if let Ok(message) = BrokerMessage::read_from(&mut stream) {
+
+        println!("mensaje {:?}", message);
+
         match message {
             BrokerMessage::Connack {
                 session_present: _,

@@ -6,13 +6,16 @@ use std::sync::mpsc::{self, Receiver, Sender};
 
 use crate::drones::drone_system::DroneSystem;
 use crate::monitoring::incident::Incident;
-use crate::mqtt::client_message::{self, ClientMessage};
-use crate::mqtt::messages_config::MessagesConfig;
-use crate::mqtt::publish::publish_config::PublishConfig;
-use crate::mqtt::publish::publish_properties::{PublishProperties, TopicProperties};
-use crate::mqtt::subscribe_config::SubscribeConfig;
-use crate::mqtt::subscribe_properties::SubscribeProperties;
-use crate::mqtt::{client::Client, protocol_error::ProtocolError};
+
+use crate::mqtt::{
+    client_message::{self, ClientMessage},
+    messages_config::MessagesConfig,
+    publish::{publish_properties::{PublishProperties, TopicProperties}, publish_config::PublishConfig},
+    subscribe_config::SubscribeConfig,
+    subscribe_properties::SubscribeProperties,
+    {client::Client, protocol_error::ProtocolError}
+};
+
 use crate::surveilling::camera::Camera;
 use crate::surveilling::camera_system::CameraSystem;
 use crate::utils::incident_payload::IncidentPayload;
@@ -54,23 +57,6 @@ impl MonitoringApp {
             Receiver<Box<dyn MessagesConfig + Send>>,
         ) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
-        // let subscribe_config = SubscribeConfig::new(
-        //     "incidente".to_string(),
-        //     1,
-        //     SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]),
-        // );
-
-        // match tx.send(Box::new(subscribe_config)) {
-        //     Ok(_) => {
-        //         println!("el sub se mando ok")
-        //     }
-        //     Err(e) => {
-        //         println!("Error sending message: {:?}", e);
-        //         return Err(ProtocolError::SendError(
-        //             "Error sending message".to_string(),
-        //         ));
-        //     }
-        // }
 
         let monitoring_app = MonitoringApp {
             send_to_client_channel: tx,

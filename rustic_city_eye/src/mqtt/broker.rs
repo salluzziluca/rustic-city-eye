@@ -253,12 +253,10 @@ impl Broker {
         loop {
             let cloned_stream = match stream.try_clone() {
                 Ok(stream) => stream,
-                Err(e) => {
-                    println!("Error al clonar ELSTREAMAAA stream: {:?}", e);
+                Err(_) => {
                     return Err(ProtocolError::StreamError);
                 }
             };
-            println!("entre a handle client LOOOP");
             match stream.peek(&mut [0]) {
                 Ok(_) => {}
                 Err(_) => return Err(ProtocolError::AbnormalDisconnection),
@@ -427,7 +425,7 @@ impl Broker {
         lock.insert(packet_id, message);
     }
 
-    ///Envia el mensaje de Last Will al cliente.
+    /// Envia el mensaje de Last Will al cliente.
     ///
     /// Se encarga de la logica necesaria segun los parametros del Last Will y sus properties
     ///
@@ -621,7 +619,7 @@ impl Broker {
                 let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
                 let reason_code = self.handle_publish(msg, topics.clone(), topic_name)?;
-                if qos == 1 && dup_flag == 0 {
+                if qos == 1 {
                     let puback = BrokerMessage::Puback {
                         packet_id_msb: packet_id_bytes[0],
                         packet_id_lsb: packet_id_bytes[1],
