@@ -12,13 +12,6 @@ Primer Cuatrimestre de 2024.
 - Demarchi, Ignacio.
 - Giacobbe, Juan Ignacio.
 - Saluzzi, Luca.
-[mqtt]
-
-[drone_system::drone::Drone]
-
-[drone_system]
-
-[surveilling::camera_system::CameraSystem]
 
 # Índice
 
