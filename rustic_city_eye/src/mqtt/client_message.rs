@@ -863,6 +863,7 @@ impl ClientMessage {
                 Ok(ClientMessage::Connect(connect))
             }
             0x30 => {
+                println!("Reading publish message");
                 let topic_properties = TopicProperties {
                     topic_alias: 10,
                     response_topic: "String".to_string(),

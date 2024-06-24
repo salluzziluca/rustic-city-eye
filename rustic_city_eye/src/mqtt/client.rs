@@ -438,7 +438,6 @@ impl Client {
                                     properties,
                                     payload: payload.clone(),
                                 };
-                                println!("Mensaje recibidOOOOOo {:?}", subscribe);
                                 for p in payload {
                                     if let Ok(stream) = stream_clone.try_clone() {
                                         if let Ok(packet_id) =

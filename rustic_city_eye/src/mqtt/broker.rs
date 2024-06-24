@@ -503,7 +503,6 @@ impl Broker {
                 return Err(ProtocolError::StreamError);
             }
         };
-        println!("msg en broker {:?}", mensaje);
 
         match mensaje {
             ClientMessage::Connect { 0: connect } => {

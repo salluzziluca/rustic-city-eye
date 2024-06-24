@@ -289,7 +289,7 @@ impl Drone {
     fn update_location(&mut self) {
         let publish_config = match PublishConfig::read_config(
             "src/drones/publish_config.json",
-            PayloadTypes::LocationPayload(self.location.clone()),
+            PayloadTypes::DroneLocation(self.id, self.location.clone()),
         ) {
             Ok(config) => config,
             Err(e) => {
