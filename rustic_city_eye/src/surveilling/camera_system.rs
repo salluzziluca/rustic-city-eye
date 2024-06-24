@@ -4,6 +4,7 @@ use std::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,
     },
+    thread,
 };
 
 use rand::Rng;
@@ -48,7 +49,7 @@ impl<T: ClientTrait + Clone> Clone for CameraSystem<T> {
     }
 }
 
-impl<T: ClientTrait + Clone> CameraSystem<T> {
+impl<'a, T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
     /// Crea un nuevo camera system con un cliente de mqtt
     ///
     /// Envia un connect segun la configuracion del archivo connect_config.json
@@ -151,68 +152,92 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
         reciever: Option<Receiver<ClientMessage>>,
     ) -> Result<(), ProtocolError> {
         self.camera_system_client.client_run()?;
+        let mut self_clone = self.clone();
+        let handle = thread::spawn(move || {
+            loop {
+                let lock = self_clone.reciev_from_client.lock().unwrap();
+                if let Some(ref reciever) = reciever {
+                    match reciever.recv() {
+                        Ok(client_message::ClientMessage::Publish {
+                            topic_name,
+                            payload: PayloadTypes::IncidentLocation(payload),
+                            ..
+                        }) => {
+                            println!("acaso me HA LLEGADO UN PUBLISH????");
+                            println!("topic_name: {:?}", topic_name);
+                            if topic_name != "accidente" {
+                                continue;
+                            }
+                            let location = payload.get_incident().get_location();
+                            drop(lock); // Release the lock here
+                            match self_clone
+                                .activate_cameras(location)
+                                .map_err(|e| ProtocolError::CameraError(e.to_string()))
+                            {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    println!("Error activating cameras: {:?}", e);
+                                }
+                            }
 
-        loop {
-            let lock = self.reciev_from_client.lock().unwrap();
-            if let Some(ref reciever) = reciever {
-                match reciever.try_recv() {
-                    Ok(client_message::ClientMessage::Publish {
-                        topic_name,
-                        payload: PayloadTypes::IncidentLocation(payload),
-                        ..
-                    }) => {
-                        println!("acaso me HA LLEGADO UN PUBLISH????");
-
-                        println!("topic_name: {:?}", topic_name);
-                        if topic_name != "accidente" {
                             continue;
                         }
-                        let location = payload.get_incident().get_location();
-                        drop(lock); // Release the lock here
-                        self.activate_cameras(location)
-                            .map_err(|e| ProtocolError::CameraError(e.to_string()))?;
-
-                        continue;
-                    }
-                    Ok(_) => continue, // Handle other message types if necessary
-                    Err(e) => {
-                        return Err(ProtocolError::ChanellError(e.to_string()));
-                    }
-                }
-            } else {
-                match lock.try_recv() {
-                    Ok(client_message::ClientMessage::Publish {
-                        topic_name,
-                        payload: PayloadTypes::IncidentLocation(payload),
-                        ..
-                    }) => {
-                        println!("acaso me HA LLEGADO UN PUBLISH????");
-
-                        if topic_name == "accidente" {
-                            let location = payload.get_incident().get_location();
-                            drop(lock); // Release the lock here
-                            self.activate_cameras(location)
-                                .map_err(|e| ProtocolError::CameraError(e.to_string()))?;
-
-                            continue;
-                        } else if topic_name == "accidenteresuelto" {
-                            let location = payload.get_incident().get_location();
-                            drop(lock); // Release the lock here
-                            self.deactivate_cameras(location)
-                                .map_err(|e| ProtocolError::CameraError(e.to_string()))?;
+                        Ok(_) => continue, // Handle other message types if necessary
+                        Err(e) => {
+                            println!("Error receiving message: {:?}", e);
                             continue;
                         }
                     }
-                    Ok(cosa) => {
-                        println!("cosa: {:?}", cosa);
-                        continue;
-                    } // Handle other message types if necessary
-                    Err(e) => {
-                        return Err(ProtocolError::ChanellError(e.to_string()));
+                } else {
+                    match lock.recv() {
+                        Ok(client_message::ClientMessage::Publish {
+                            topic_name,
+                            payload: PayloadTypes::IncidentLocation(payload),
+                            ..
+                        }) => {
+                            println!("AYUDA POR FAVOR");
+                            println!("acaso me HA LLEGADO UN PUBLISH????");
+                            if topic_name == "accidente" {
+                                let location = payload.get_incident().get_location();
+                                drop(lock); // Release the lock here
+                                match self_clone
+                                    .activate_cameras(location)
+                                    .map_err(|e| ProtocolError::CameraError(e.to_string()))
+                                {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        println!("Error activating cameras: {:?}", e);
+                                    }
+                                }
+
+                                continue;
+                            } else if topic_name == "accidenteresuelto" {
+                                let location = payload.get_incident().get_location();
+                                drop(lock); // Release the lock here
+                                match self_clone
+                                    .deactivate_cameras(location)
+                                    .map_err(|e| ProtocolError::CameraError(e.to_string()))
+                                {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        println!("Error deactivating cameras: {:?}", e);
+                                    }
+                                }
+                                continue;
+                            }
+                        }
+                        Ok(cosa) => {
+                            println!("COSAS RARAS ACA DIOS MIO: {:?}", cosa);
+                            continue;
+                        } // Handle other message types if necessary
+                        Err(_) => {
+                            continue;
+                        }
                     }
                 }
             }
-        }
+        });
+        Ok(())
     }
 
     /// Recibe una location y activas todas las camaras que esten a menos de AREA_DE_ALCANCE de esta.

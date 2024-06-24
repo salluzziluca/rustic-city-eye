@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::thread;
 
 use crate::drones::drone_system::DroneSystem;
 use crate::monitoring::incident::Incident;
@@ -77,9 +78,13 @@ impl MonitoringApp {
     }
 
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
-        self.monitoring_app_client.client_run()?;
-        self.camera_system.run_client(None)?;
+        let mut monitoring_app_client = self.monitoring_app_client.clone();
+        monitoring_app_client.client_run()?;
 
+        let mut camera_system = self.camera_system.clone();
+        let handle = thread::spawn(move || {
+            camera_system.run_client(None);
+        });
         let subscribe_properties = SubscribeProperties::new(1, Vec::new());
         let subscribe_config = SubscribeConfig::new(
             "drone_location".to_string(),
