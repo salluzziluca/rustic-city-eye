@@ -8,6 +8,7 @@ pub mod utils;
 pub mod mqtt {
     pub mod connect {
         pub mod connect_properties;
+        pub mod last_will;
         pub mod will_properties;
     }
     pub mod publish {
@@ -25,6 +26,7 @@ pub mod mqtt {
     pub mod protocol_error;
     pub mod reason_code;
     pub mod subscribe_properties;
+    pub mod subscription;
     pub mod topic;
 
     pub mod broker;
@@ -44,13 +46,16 @@ pub mod monitoring {
 
 pub mod surveilling {
     pub mod camera;
+    pub mod camera_error;
     pub mod camera_system;
 }
 
-pub mod drone_system {
+pub mod drones {
     pub mod drone;
+    pub mod drone_center;
     pub mod drone_config;
     pub mod drone_state;
+    pub mod drone_system;
 
     pub mod drone_error;
 }

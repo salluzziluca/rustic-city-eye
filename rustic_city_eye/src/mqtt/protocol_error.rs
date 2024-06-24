@@ -18,11 +18,15 @@ pub enum ProtocolError {
     WriteError,
     ReadingConfigFileError,
     MissingWillMessageProperties,
-    ChanellError,
+    ChanellError(String),
     ReadingClientsFileError,
     NotReceivedMessageError,
     ExpectedConnack,
     AuthError,
+    AbnormalDisconnection,
+    DroneError(String),
+    CameraError(String),
+    SendError(String),
 }
 
 impl fmt::Display for ProtocolError {
@@ -70,8 +74,24 @@ impl fmt::Display for ProtocolError {
             ProtocolError::UnspecifiedError => {
                 write!(f, "Error no especificado")
             }
-            ProtocolError::ChanellError => {
-                write!(f, "Error al enviar o recibir mensajes por el canal.")
+            ProtocolError::ChanellError(ref err) => {
+                write!(
+                    f,
+                    "Error al enviar o recibir mensajes por el canal: {}",
+                    err
+                )
+            }
+            ProtocolError::AbnormalDisconnection => {
+                write!(f, "Error: desconexión anormal.")
+            }
+            ProtocolError::DroneError(ref err) => {
+                write!(f, "Error de protocolo: {}", err)
+            }
+            ProtocolError::CameraError(ref err) => {
+                write!(f, "Error de protocolo: {}", err)
+            }
+            ProtocolError::SendError(ref err) => {
+                write!(f, "Error al enviar mensaje: {}", err)
             }
         }
     }
@@ -79,7 +99,6 @@ impl fmt::Display for ProtocolError {
 
 #[cfg(test)]
 #[test]
-
 fn test_display_protocol_error() {
     assert_eq!(
         ProtocolError::ConectionError.to_string(),

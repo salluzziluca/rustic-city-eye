@@ -6,6 +6,8 @@ use std::io::Read;
 use std::io::Write;
 
 use crate::mqtt::protocol_error::ProtocolError;
+use crate::mqtt::publish::publish_properties::PublishProperties;
+use crate::mqtt::publish::publish_properties::TopicProperties;
 use crate::utils::{reader::*, writer::*};
 
 const WILL_DELAY_INTERVAL_ID: u8 = 0x18;
@@ -181,6 +183,31 @@ impl WillProperties {
             user_properties,
         })
     }
+
+    pub fn get_last_will_delay_interval(&self) -> u32 {
+        self.last_will_delay_interval
+    }
+    /// Convierte las will properties en publish properties
+    pub fn to_publish_properties(&self) -> PublishProperties {
+        let topic_properties = TopicProperties {
+            topic_alias: 10,
+            response_topic: "String".to_string(),
+        };
+        let first_property = match self.user_properties.first() {
+            Some(property) => property,
+            None => panic!("No user properties found"),
+        };
+
+        PublishProperties::new(
+            self.payload_format_indicator,
+            self.message_expiry_interval as u32,
+            topic_properties,
+            self.correlation_data.clone(),
+            first_property.0.clone(),
+            3,
+            self.response_topic.clone(),
+        )
+    }
 }
 #[allow(dead_code)]
 fn read_json_to_will_properties(json_data: &str) -> Result<WillProperties, Error> {
@@ -249,5 +276,32 @@ mod tests {
         };
 
         assert_eq!(will_properties, read_will_properties);
+    }
+
+    #[test]
+    fn test_to_publish_properties() {
+        let will_properties = WillProperties::new(
+            120,
+            1,
+            30,
+            "plain".to_string(),
+            "topic".to_string(),
+            vec![1, 2, 3, 4, 5],
+            vec![("propiedad".to_string(), "valor".to_string())],
+        );
+        let publish_properties = will_properties.to_publish_properties();
+        let expected_publish_properties = PublishProperties::new(
+            1,
+            30,
+            TopicProperties {
+                topic_alias: 10,
+                response_topic: "String".to_string(),
+            },
+            vec![1, 2, 3, 4, 5],
+            "propiedad".to_string(),
+            3,
+            "topic".to_string(),
+        );
+        assert_eq!(publish_properties, expected_publish_properties);
     }
 }

@@ -2,7 +2,10 @@ use egui::{Align2, RichText, Ui, Window};
 use rustic_city_eye::{monitoring::monitoring_app::MonitoringApp, utils::location::Location};
 use walkers::MapMemory;
 
-use crate::{camera_view::CameraView, drone_view::DroneView, incident_view::IncidentView, MyMap};
+use crate::{
+    camera_view::CameraView, drone_center_view::DroneCenterView, drone_view::DroneView,
+    incident_view::IncidentView, MyMap,
+};
 
 /// Simple GUI to zoom in and out.
 /// Se updatea el zoom level con cada click en los botones de zoom
@@ -76,8 +79,8 @@ pub fn add_incident_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monito
         });
 }
 
-pub fn add_drone_window(ui: &Ui, map: &mut MyMap, _monitoring_app: &mut MonitoringApp) {
-    Window::new("Add Drone")
+pub fn add_drone_center_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut MonitoringApp) {
+    Window::new("Add Drone Center")
         .collapsible(false)
         .resizable(false)
         .title_bar(false)
@@ -86,13 +89,47 @@ pub fn add_drone_window(ui: &Ui, map: &mut MyMap, _monitoring_app: &mut Monitori
             ui.horizontal(|ui| {
                 if ui.button(RichText::new("📡").heading()).clicked() {
                     if let Some(position) = map.click_watcher.clicked_at {
-                        // let location = Location::new(position.lat(), position.lon());
-                        // monitoring_app.add_drone(location);
-                        map.drones.push(DroneView {
-                            image: map.drone_icon.clone(),
+                        let location = Location::new(position.lat(), position.lon());
+                        monitoring_app.add_drone_center(location);
+                        map.drone_centers.push(DroneCenterView {
+                            image: map.drone_center_icon.clone(),
                             position,
                             clicked: false,
                         });
+                    }
+                }
+            });
+        });
+}
+
+pub fn add_drone_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut MonitoringApp) {
+    Window::new("Add Drone")
+        .collapsible(false)
+        .resizable(false)
+        .title_bar(false)
+        .anchor(Align2::RIGHT_TOP, [-10., 170.])
+        .show(ui.ctx(), |ui| {
+            ui.horizontal(|ui| {
+                if ui.button(RichText::new("🛸").heading()).clicked() {
+                    if let Some(position) = map.click_watcher.clicked_at {
+                        let location = Location::new(position.lat(), position.lon());
+                        let id = match monitoring_app.add_drone(location, 0) {
+                            Ok(result) => result,
+                            Err(e) => {
+                                println!("Error adding drone: {}", e);
+                                return;
+                            }
+                        };
+
+                        map.drones.insert(
+                            id,
+                            DroneView {
+                                image: map.drone_icon.clone(),
+                                position,
+                                clicked: false,
+                                // id,
+                            },
+                        );
                     }
                 }
             });
@@ -112,7 +149,7 @@ pub fn add_disconnect_window(
         .anchor(Align2::RIGHT_BOTTOM, [-10., -30.])
         .show(ui.ctx(), |ui| {
             ui.horizontal(|ui| {
-                if ui.button(RichText::new("DIsconnect").heading()).clicked() {
+                if ui.button(RichText::new("Disconnect").heading()).clicked() {
                     // monitoring_app.disconnect();    No está implementado?
                     map.cameras.clear();
                     map.incidents.clear();
@@ -155,16 +192,18 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, _monitoring_app: &mut Monitor
                     // }
                     map.incidents.retain(|incident| !incident.clicked);
 
-                    map.drones.retain(|drone| !drone.clicked);
+                    map.drones.retain(|_id, drone| !drone.clicked);
                     // for drone in &map.drones {
                     //     if drone.clicked {
                     //         let index = map.drones.iter().position(|d| d.position == position);
                     //         if let Some(index) = index {
                     //             map.drones.remove(index);
-                    //             // monitoring_app.remove_drone(position);
+                    //             // monitoring_app.remove_drone(id_center, drone_id, location);
                     //         }
                     //     }
                     // }
+                    map.drone_centers
+                        .retain(|drone_center| !drone_center.clicked);
                 }
             });
         });

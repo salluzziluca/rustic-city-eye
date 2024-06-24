@@ -3,6 +3,7 @@ mod tests {
     use rustic_city_eye::{
         monitoring::incident::Incident,
         mqtt::{
+            broker::Broker,
             broker_message::BrokerMessage,
             client::handle_message,
             client_return::ClientReturn,
@@ -10,15 +11,15 @@ mod tests {
             protocol_error::ProtocolError,
             publish::publish_properties::{PublishProperties, TopicProperties},
         },
+        surveilling::camera_system::CameraSystem,
         utils::{
             incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes,
         },
     };
     use std::{
-        collections::HashMap,
         io::Write,
         net::{TcpListener, TcpStream},
-        sync::{mpsc::channel, Arc, Mutex},
+        sync::{mpsc::channel, Arc, Condvar, Mutex},
         thread,
     };
 
@@ -62,11 +63,11 @@ mod tests {
 
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
-        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
         let pending_messages: Vec<u16> = Vec::new();
         let (sender, _) = channel();
+        let (tx, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, subscriptions, pending_messages, sender)
+            result = handle_message(stream, pending_messages, sender, tx)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::ConnackReceived);
@@ -92,9 +93,9 @@ mod tests {
 
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
-        let subscriptions: Arc<Mutex<HashMap<String, u8>>> = Arc::new(Mutex::new(HashMap::new()));
         let pending_messages: Vec<u16> = Vec::new();
         let (sender, recibidor) = channel();
+        let (tx, _) = channel();
 
         thread::spawn(move || loop {
             if let Ok(recibido) = recibidor.try_recv() {
@@ -104,7 +105,7 @@ mod tests {
             }
         });
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, subscriptions, pending_messages, sender)
+            result = handle_message(stream, pending_messages, sender, tx)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::PubackRecieved);
@@ -127,14 +128,13 @@ mod tests {
             disconnect.write_to(&mut buffer).unwrap();
             stream.write_all(&buffer).unwrap();
         });
-
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
-        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
         let pending_messages: Vec<u16> = Vec::new();
         let (sender, _) = channel();
+        let (tx, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, subscriptions, pending_messages, sender)
+            result = handle_message(stream, pending_messages, sender, tx);
         }
 
         assert_eq!(result.unwrap(), ClientReturn::DisconnectRecieved);
@@ -149,7 +149,6 @@ mod tests {
             packet_id_msb: 3,
             packet_id_lsb: 1,
             reason_code: 3,
-            sub_id: 2,
         };
         thread::spawn(move || {
             let mut stream = TcpStream::connect(addr).unwrap();
@@ -160,11 +159,11 @@ mod tests {
 
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
-        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
         let pending_messages: Vec<u16> = Vec::new();
         let (sender, _) = channel();
+        let (tx, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, subscriptions, pending_messages, sender)
+            result = handle_message(stream, pending_messages, sender, tx)
         }
         assert_eq!(result.unwrap(), ClientReturn::SubackRecieved);
     }
@@ -209,18 +208,14 @@ mod tests {
 
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
-        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
         let pending_messages: Vec<u16> = Vec::new();
         //agregar id 1 a pending messages
         //pending_messages.push(1);
         let (sender, _) = channel();
+
+        let (tx, _rx) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(
-                stream,
-                subscriptions.clone(),
-                pending_messages.clone(),
-                sender,
-            )
+            result = handle_message(stream, pending_messages.clone(), sender, tx)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::PublishDeliveryRecieved);
@@ -246,11 +241,11 @@ mod tests {
 
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
-        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
         let pending_messages: Vec<u16> = Vec::new();
         let (sender, _) = channel();
+        let (tx, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, subscriptions, pending_messages, sender)
+            result = handle_message(stream, pending_messages, sender, tx)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::UnsubackRecieved);
@@ -271,11 +266,11 @@ mod tests {
 
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
-        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
         let pending_messages: Vec<u16> = Vec::new();
         let (sender, _) = channel();
+        let (tx, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, subscriptions, pending_messages, sender)
+            result = handle_message(stream, pending_messages, sender, tx)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::PingrespRecieved);
@@ -303,13 +298,47 @@ mod tests {
 
         let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
 
-        let subscriptions = Arc::new(Mutex::new(HashMap::new()));
         let pending_messages: Vec<u16> = Vec::new();
         let (sender, _) = channel();
+        let (tx, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, subscriptions, pending_messages, sender)
+            result = handle_message(stream, pending_messages, sender, tx)
         }
 
         assert_eq!(result.unwrap(), ClientReturn::AuthRecieved);
+    }
+
+    #[test]
+    fn test_creo_cliente_y_envio_sub_por_channel() {
+        let args = vec!["127.0.0.1".to_string(), "5097".to_string()];
+        let mut broker = match Broker::new(args) {
+            Ok(broker) => broker,
+            Err(e) => panic!("Error creating broker: {:?}", e),
+        };
+
+        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+        let server_ready_clone = server_ready.clone();
+        thread::spawn(move || {
+            {
+                let (lock, cvar) = &*server_ready_clone;
+                let mut ready = lock.lock().unwrap();
+                *ready = true;
+                cvar.notify_all();
+            }
+            let _ = broker.server_run();
+        });
+
+        // Wait for the server to start
+        {
+            let (lock, cvar) = &*server_ready;
+            let mut ready = lock.lock().unwrap();
+            while !*ready {
+                ready = cvar.wait(ready).unwrap();
+            }
+        }
+
+        let _handle = thread::spawn(move || {
+            let mut _camera_system = CameraSystem::with_real_client("127.0.0.1::5097".to_string());
+        });
     }
 }

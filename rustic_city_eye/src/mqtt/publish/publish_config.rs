@@ -1,11 +1,16 @@
+use std::{fs::File, io::BufReader};
+
+use serde::Deserialize;
+
 use crate::{
     mqtt::{
         client_message::ClientMessage, messages_config::MessagesConfig,
-        publish::publish_properties::PublishProperties,
+        protocol_error::ProtocolError, publish::publish_properties::PublishProperties,
     },
     utils::payload_types::PayloadTypes,
 };
 
+#[derive(Deserialize, Debug, Clone, PartialEq)]
 pub struct PublishConfig {
     pub(crate) dup_flag: usize,
     pub(crate) qos: usize,
@@ -28,7 +33,6 @@ impl MessagesConfig for PublishConfig {
         }
     }
 }
-
 impl PublishConfig {
     pub fn new(
         dup_flag: usize,
@@ -46,6 +50,46 @@ impl PublishConfig {
             payload,
             publish_properties,
         }
+    }
+
+    pub fn read_json_to_publish_config(payload: PayloadTypes, json_data: &str) -> PublishConfig {
+        let config: PublishConfig = match serde_json::from_str(json_data) {
+            Ok(config) => config,
+            Err(e) => panic!("Error reading json to PublishConfig: {}", e),
+        };
+
+        PublishConfig {
+            dup_flag: config.dup_flag,
+            qos: config.qos,
+            retain_flag: config.retain_flag,
+            topic_name: config.topic_name,
+            payload,
+            publish_properties: config.publish_properties,
+        }
+    }
+    /// Abre un archivo de configuracion con propiedades y guarda sus lecturas.
+    pub fn read_config(
+        file_path: &str,
+        payload: PayloadTypes,
+    ) -> Result<PublishConfig, ProtocolError> {
+        let config_file = match File::open(file_path) {
+            Ok(file) => file,
+            Err(_) => return Err(ProtocolError::ReadingConfigFileError),
+        };
+
+        let reader: BufReader<File> = BufReader::new(config_file);
+        let config: PublishConfig = match serde_json::from_reader(reader) {
+            Ok(c) => c,
+            Err(_) => return Err(ProtocolError::ReadingConfigFileError),
+        };
+        Ok(PublishConfig {
+            dup_flag: config.dup_flag,
+            qos: config.qos,
+            retain_flag: config.retain_flag,
+            topic_name: config.topic_name,
+            payload,
+            publish_properties: config.publish_properties,
+        })
     }
 }
 
@@ -99,4 +143,68 @@ mod tests {
             }
         );
     }
+
+    // #[test]
+    // fn test_read_json_to_publish_config() {
+    //     let topic_properties = TopicProperties {
+    //         topic_alias: 10,
+    //         response_topic: "String".to_string(),
+    //     };
+    //     let location = Location::new(12.1, 25.0);
+    //     let incident = Incident::new(location);
+    //     let incident_payload = incident_payload::IncidentPayload::new(incident);
+    //     let publish_prop = PublishProperties::new(
+    //         1,
+    //         10,
+    //         topic_properties,
+    //         [1, 2, 3].to_vec(),
+    //         "a".to_string(),
+    //         1,
+    //         "a".to_string(),
+    //     );
+    //     let publish_config = PublishConfig::new(
+    //         1,
+    //         1,
+    //         1,
+    //         "topic".to_string(),
+    //         PayloadTypes::IncidentLocation(incident_payload.clone()).clone(),
+    //         publish_prop.clone(),
+    //     );
+    //     let json_data = r#"{
+    //         "dup_flag": 1,
+    //         "qos": 1,
+    //         "retain_flag": 1,
+    //         "topic_name": "topic",
+    //         "payload": {
+    //             "IncidentLocation": {
+    //                 "id": 1,
+    //                 "incident": {
+    //                     "location": {
+    //                         "lat": 12.1,
+    //                         "long": 25.0
+    //                     }
+    //                 }
+    //             }
+    //         },
+    //         "publish_properties": {
+    //             "payload_format_indicator": 1,
+    //             "message_expiry_interval": 10,
+    //             "topic_alias": 10,
+    //             "topic_properties": {
+    //                 "topic_alias": 10,
+    //                 "response_topic": "String"
+    //             },
+    //             "correlation_data": [1, 2, 3],
+    //             "user_property": "a",
+    //             "subscription_identifier": 1,
+    //             "content_type": "a"
+    //         }
+    //     }"#;
+    //     let client_message = PublishConfig::read_config(
+    //         json_data,
+    //         PayloadTypes::IncidentLocation(incident_payload.clone()).clone(),
+    //     )
+    //     .unwrap();
+    //     assert_eq!(client_message, publish_config);
+    // }
 }

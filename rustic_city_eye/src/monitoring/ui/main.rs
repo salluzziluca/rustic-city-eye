@@ -1,4 +1,5 @@
 mod camera_view;
+mod drone_center_view;
 mod drone_view;
 mod incident_view;
 mod plugins;
@@ -7,7 +8,8 @@ mod windows;
 use eframe::{run_native, App, CreationContext, NativeOptions};
 use egui::{CentralPanel, RichText, TextStyle};
 use plugins::*;
-use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
+use rustic_city_eye::{monitoring::monitoring_app::MonitoringApp, utils::location::Location};
+use std::collections::HashMap;
 use walkers::{sources::OpenStreetMap, Map, MapMemory, Position, Texture, Tiles};
 use windows::*;
 
@@ -20,9 +22,20 @@ struct MyMap {
     camera_radius: ImagesPluginData,
     incident_icon: ImagesPluginData,
     incidents: Vec<incident_view::IncidentView>,
-    drones: Vec<drone_view::DroneView>,
+    drones: HashMap<u32, drone_view::DroneView>,
     drone_icon: ImagesPluginData,
+    drone_centers: Vec<drone_center_view::DroneCenterView>,
+    drone_center_icon: ImagesPluginData,
     zoom_level: f32,
+}
+impl MyMap {
+    fn update_drones(&mut self, new_drone_locations: HashMap<u32, Location>) {
+        for (id, location) in new_drone_locations {
+            if let Some(drone) = self.drones.get_mut(&id) {
+                drone.position = Position::from_lon_lat(location.long, location.lat);
+            }
+        }
+    }
 }
 
 struct MyApp {
@@ -43,7 +56,6 @@ impl ImagesPluginData {
             texture,
             x_scale: scale,
             y_scale: scale,
-            original_scale,
         }
     }
 }
@@ -124,6 +136,7 @@ impl MyApp {
     fn handle_map(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         CentralPanel::default().show(ctx, |ui| {
             let last_clicked = self.map.click_watcher.clicked_at;
+
             ui.add(
                 Map::new(
                     Some(&mut self.map.tiles),
@@ -145,14 +158,22 @@ impl MyApp {
                     &mut self.map.drones,
                     self.map.zoom_level,
                     last_clicked,
+                ))
+                .with_plugin(drone_centers(
+                    &mut self.map.drone_centers,
+                    self.map.zoom_level,
+                    last_clicked,
                 )),
             );
             zoom(ui, &mut self.map.map_memory, &mut self.map.zoom_level);
 
             if let Some(monitoring_app) = &mut self.monitoring_app {
+                let new_locations = monitoring_app.update_drone_location();
+                self.map.update_drones(new_locations);
                 add_camera_window(ui, &mut self.map, monitoring_app);
                 add_incident_window(ui, &mut self.map, monitoring_app);
                 add_drone_window(ui, &mut self.map, monitoring_app);
+                add_drone_center_window(ui, &mut self.map, monitoring_app);
                 add_disconnect_window(ui, &mut self.map, monitoring_app, &mut self.connected);
                 add_remove_window(ui, &mut self.map, monitoring_app)
             }
@@ -172,25 +193,31 @@ impl App for MyApp {
 
 fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
     egui_extras::install_image_loaders(&cc.egui_ctx);
-    let camera_bytes = include_bytes!("assets/Camera.png");
+    let camera_bytes = include_bytes!("../assets/Camera.png");
     let camera_icon = match Texture::new(camera_bytes, &cc.egui_ctx) {
         Ok(t) => ImagesPluginData::new(t, 1.0, 0.1), // Initialize with zoom level 1.0
         Err(_) => todo!(),
     };
 
-    let incident_bytes = include_bytes!("assets/Incident.png");
+    let incident_bytes = include_bytes!("../assets/Incident.png");
     let incident_icon = match Texture::new(incident_bytes, &cc.egui_ctx) {
         Ok(t) => ImagesPluginData::new(t, 1.0, 0.15), // Initialize with zoom level 1.0
         Err(_) => todo!(),
     };
 
-    let drone_bytes = include_bytes!("assets/Drone.png");
+    let drone_bytes = include_bytes!("../assets/Drone.png");
     let drone_icon = match Texture::new(drone_bytes, &cc.egui_ctx) {
         Ok(t) => ImagesPluginData::new(t, 1.0, 0.08), // Initialize with zoom level 1.0
         Err(_) => todo!(),
     };
 
-    let circle_bytes = include_bytes!("assets/circle.png");
+    let drone_center_bytes = include_bytes!("../assets/DroneCenter.png");
+    let drone_center_icon = match Texture::new(drone_center_bytes, &cc.egui_ctx) {
+        Ok(t) => ImagesPluginData::new(t, 1.0, 0.1), // Initialize with zoom level 1.0
+        Err(_) => todo!(),
+    };
+
+    let circle_bytes = include_bytes!("../assets/circle.png");
     let circle_icon = match Texture::new(circle_bytes, &cc.egui_ctx) {
         Ok(t) => ImagesPluginData::new(t, 1.0, 0.2), // Initialize with zoom level 1.0
         Err(_) => todo!(),
@@ -211,8 +238,10 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
             camera_icon,
             incident_icon,
             camera_radius: circle_icon,
-            drones: vec![],
+            drones: HashMap::new(),
             drone_icon,
+            drone_centers: vec![],
+            drone_center_icon,
             zoom_level: 1.0,
         },
         monitoring_app: None,

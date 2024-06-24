@@ -24,7 +24,7 @@
             3
         ]
     },
-    "client_id": "monitoring_app",
+    "client_id": "drone",
     "will_properties": {
         "last_will_delay_interval": 1,
         "payload_format_indicator": 1,
@@ -43,9 +43,9 @@
             ]
         ]
     },
-    "last_will_topic": "monitoring",
+    "last_will_topic": "drone",
     "last_will_message": "soy el monitoring y me desconecte",
-    "username": "monitoreo",
+    "username": "drone",
     "password": [
         109,
         111,

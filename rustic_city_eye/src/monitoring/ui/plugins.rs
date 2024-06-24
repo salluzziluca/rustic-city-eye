@@ -1,11 +1,13 @@
+use std::collections::HashMap;
+
 use egui::Response;
 use walkers::{
     extras::{Image, Images, Texture},
     Plugin, Position, Projector,
 };
 
-use crate::incident_view::IncidentView;
 use crate::{camera_view::CameraView, drone_view::DroneView};
+use crate::{drone_center_view::DroneCenterView, incident_view::IncidentView};
 
 #[derive(Default, Clone)]
 pub struct ClickWatcher {
@@ -52,7 +54,6 @@ pub struct ImagesPluginData {
     pub texture: Texture,
     pub x_scale: f32,
     pub y_scale: f32,
-    pub original_scale: f32,
 }
 
 // Creates a built-in `Images` plugin with an example image.
@@ -115,13 +116,13 @@ pub fn incidents(
 }
 
 pub fn drones(
-    drones: &mut Vec<DroneView>,
+    drones: &mut HashMap<u32, DroneView>,
     zoom_level: f32,
     last_clicked: Option<Position>,
 ) -> impl Plugin {
     let mut images_vec = vec![];
 
-    for drone in drones {
+    for (_id, drone) in drones {
         let mut image = Image::new(drone.image.texture.clone(), drone.position);
 
         if drone.select(last_clicked) {
@@ -133,6 +134,32 @@ pub fn drones(
             image.scale(
                 drone.image.x_scale * zoom_level,
                 drone.image.y_scale * zoom_level,
+            );
+        }
+        images_vec.push(image);
+    }
+    Images::new(images_vec)
+}
+
+pub fn drone_centers(
+    drone_centers: &mut Vec<DroneCenterView>,
+    zoom_level: f32,
+    last_clicked: Option<Position>,
+) -> impl Plugin {
+    let mut images_vec = vec![];
+
+    for drone_center in drone_centers {
+        let mut image = Image::new(drone_center.image.texture.clone(), drone_center.position);
+
+        if drone_center.select(last_clicked) {
+            image.scale(
+                drone_center.image.x_scale * zoom_level * 1.5,
+                drone_center.image.y_scale * zoom_level * 1.5,
+            );
+        } else {
+            image.scale(
+                drone_center.image.x_scale * zoom_level,
+                drone_center.image.y_scale * zoom_level,
             );
         }
         images_vec.push(image);

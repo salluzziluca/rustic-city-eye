@@ -1,8 +1,10 @@
+use serde::Deserialize;
+
 use crate::{
     monitoring::incident::Incident, mqtt::protocol_error::ProtocolError, utils::writer::write_u8,
 };
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct IncidentPayload {
     id: u8,
     incident: Incident,
@@ -23,5 +25,9 @@ impl IncidentPayload {
 
         self.incident.write_to(stream)?;
         Ok(())
+    }
+
+    pub fn get_incident(&self) -> Incident {
+        self.incident.clone()
     }
 }

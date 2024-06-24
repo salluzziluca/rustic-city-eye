@@ -1,9 +1,11 @@
+use serde::Deserialize;
+
 use crate::{
     mqtt::protocol_error::ProtocolError,
     utils::{location::Location, writer::write_string},
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[allow(dead_code)]
 pub struct Incident {
     location: Location,
