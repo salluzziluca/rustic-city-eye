@@ -12,12 +12,19 @@ Primer Cuatrimestre de 2024.
 - Demarchi, Ignacio.
 - Giacobbe, Juan Ignacio.
 - Saluzzi, Luca.
+[mqtt]
+
+[drone_system::drone::Drone]
+
+[drone_system]
+
+[mqt::camera_system]
 
 # Índice
 
 1. [Introducción](#introducción)
-    1. [¿Qué es un Sistema de Mensajería Asincrónico?](#qué-es-un-sistema-de-mensajería-asincrónico)
-    2. [¿Qué es un Message Broker?](#qué-es-un-message-broker)
+    1. [¿Qué es un Sistema de Mensajería Asincrónico?](##qué-es-un-sistema-de-mensajería-asincrónico)
+    2. [¿Qué es un Message Broker?](##qué-es-un-message-broker)
     3. [Protocolos de Mensajería Asincrónica](#protocolos-de-mensajería-asincrónica)
         1. [Advanced Message Queuing Protocol(AMQP)](#advanced-message-queuing-protocolamqp)
         2. [Message Queuing Telemetry Transport(MQTT)](#message-queuing-telemetry-transportmqtt)
@@ -47,7 +54,7 @@ Un ejemplo cotidiano en el que usamos este tipo de sistemas de mensajerías es a
 
 Un Message Broker tiene como principal función traducir los mensajes entre protocolos de mensajería formales. Esto permite que servicios interdependientes "hablen" directamente entre sí, aunque estén escritos en lenguajes diferentes o se implementen en plataformas distintas.
 
-![broker](./img/broker.png)
+![broker](https://i.ibb.co/ZNR5BDd/image.png)
 
 Los Message Brokers son capaces de validar, almacenar, encaminar y entregar mensajes a los destinos apropiados. Sirven de intermediarios entre aplicaciones, permitiendo a los remitentes emitir mensajes sin saber dónde están los receptores, si están activos o no, o cuántos hay. Esto facilita el desacoplamiento de procesos y servicios dentro de los sistemas.
 
@@ -63,7 +70,7 @@ Los Message Brokers pueden incluir gestores de colas para manejar las interaccio
 
 En este protocolo, los mensajes se publican primero en una bolsa del Broker. La bolsa, actuando como agente de enrutamiento, reenvía estos mensajes a la cola adecuada utilizando sus reglas de enrutamiento.
 
-![amqp](./img/amqp.png)
+![amqp](https://i.ibb.co/JxY9SLg/image.png)
 
 #### Ventajas de utilizar el protocolo
 
@@ -85,7 +92,7 @@ AMQP es una opción sólida para construir una red de mensajería asincrónica e
 
 En este protocolo, los publishers publican mensajes en un topic de un Broker. A continuación, el mismo Broker difunde estos mensajes a todos los consumidores suscritos al topic.
 
-![mqtt](./img/mqtt.png)
+![mqtt](https://i.ibb.co/C7pjQgC/image.png)
 
 #### Ventajas de utilizar el protocolo
 
@@ -126,7 +133,7 @@ Desde la cátedra se nos recomendó seguir el patrón de comunicación *publishe
 >
 > MQTT es un protocolo de mensajería específicos que sigue la arquitectura publisher-suscriber.  Utiliza un modelo basado en intermediarios en el que los clientes se conectan a un intermediario(en nuestro caso será el Broker) y los mensajes se publican en topics. Los suscriptores pueden suscribirse a temas específicos y recibir los mensajes publicados.
 
-![pubsub](./img/pubsub.png)
+![pubsub](https://i.ibb.co/KKsjNVk/image.png)
 
 ### Desacoplamiento del Publisher y Suscriber
 
@@ -144,7 +151,7 @@ Como MQTT sigue la arquitectura pub/sub, la escalabilidad es algo natural en est
 
 > La arquitectura cliente-servidor es un modelo fundamental en la organización de sistemas de software y redes, donde las aplicaciones se dividen en dos partes principales: el cliente, que solicita y consume servicios, y el servidor, que provee recursos o servicios a través de una red. Esta estructura facilita la distribución de tareas y responsabilidades, permitiendo la escalabilidad, la modularidad y la centralización del control. En este modelo, los clientes envían peticiones al servidor, que responde proporcionando los datos solicitados o ejecutando acciones específicas, garantizando así una interacción eficiente y controlada entre los usuarios y los sistemas informáticos.
 
-![clientserver](./img/clientserver.png)
+![clientserver](https://i.ibb.co/DbbMRRC/image.png)
 
 Para MQTT, tenemos dos entidades principales: el Client, y el Broker. El Client va a enviar mensajes al Broker, éste los procesará, y enviará un llamado acknoledgement message al Client, indicando el estado del mensaje que se envió en un principio.
 
@@ -202,10 +209,13 @@ Esta posee 4 botones. Uno para agregar cámaras, otro para incidentes y 2 perten
 
 Para agregar un elemento al sistema uno debe primero seleccionar un punto en el mapa y luego elegir que tipo de entidad quiere crear. En el caso de los drones, es necesario primero crear una central de drones que los aloje, no se pueden crear drones sin una central.
 
-Al crear/reportar un incidente, se activaran las camaras que esten en el rango requerido. El camera system recibirá un publish message mediante el broker que indicará que hubo un incidente en cierta Location. Este entonces activará las camaras que se encuentren en ese rango y enviará al broker un publish cuyo payload será un array de las camaras que variaron su estado.
+Al crear/reportar un incidente, se activaran las camaras que esten en el rango requerido. El camera system recibirá un publish message mediante el broker que indicará que hubo un incidente en cierta Location. Este entonces activará las camaras que se encuentren a rango del incidente, asi como las camaras lindantes a las recientement activadas.
 
 # Sistema Central de Cámaras
 
 El sistema de camaras es la entidad encargada de gestionar todas las camaras de la aplicación. Este tiene como tipo de dato principal un hashmap del tipo `<ID, Camera>`. A este se le puede pedir crear una camara nueva, o modificar al estado de las camaras actuales.
+Cuando el sistema reciba del broker un incidente, levantar las camaras necesarias y enviará por medio de un publish todas las camaras *que hayan cambiado de estado*. De esta forma es el camera system el que se encarga de la logica del analisis de sus camaras y el resto de clientes solo reciben el diferencial de camaras modificadas.
+
+Cuando un incidente es resuelto, se desactivan las camaras utilizando un mecanismo practicamente identico al anterior. Primero se desactivan las camaras que se encuentran en rango, y estas luego envian una señal a sus camaras vecinas para que tambien se apaguen, si asi corresponde.
 
 # Software de Control de Agentes(Drones)
