@@ -1035,9 +1035,7 @@ impl ClientMessage {
                     ))?,
                 })
             }
-            _ => {
-                Err(Error::new(std::io::ErrorKind::Other, "Invalid header"))
-            }
+            _ => Err(Error::new(std::io::ErrorKind::Other, "Invalid header")),
         }
     }
 }

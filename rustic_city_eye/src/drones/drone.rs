@@ -1,6 +1,13 @@
-use std::{sync::{mpsc::{self, Sender}, Arc, Mutex}, thread::sleep, time::Duration};
+use std::{
+    sync::{
+        mpsc::{self},
+        Arc, Mutex,
+    },
+    thread::sleep,
+    time::Duration,
+};
 
-use super::{drone_config::DroneConfig, drone_error::DroneError, drone_location::DroneLocation, drone_state::DroneState};
+use super::{drone_config::DroneConfig, drone_error::DroneError, drone_state::DroneState};
 use crate::{
     mqtt::{
         client::Client,
@@ -44,7 +51,6 @@ pub struct Drone {
 
     #[allow(dead_code)]
     recieve_from_client: Arc<Mutex<mpsc::Receiver<ClientMessage>>>,
-
 }
 
 impl Drone {
@@ -99,7 +105,6 @@ impl Drone {
                 return Err(DroneError::ProtocolError(e.to_string()));
             }
         };
-
 
         println!("Drone {} is running", self.id);
         let self_clone = Arc::new(Mutex::new(self.clone()));
@@ -322,8 +327,6 @@ impl Drone {
         Ok(())
     }
 }
-
-
 
 // #[cfg(test)]
 // mod tests {

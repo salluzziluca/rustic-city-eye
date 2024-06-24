@@ -55,14 +55,11 @@ impl MonitoringApp {
             Ok(camera_system) => camera_system,
             Err(err) => return Err(err),
         };
-        let drone_system = DroneSystem::new(
-            "src/drones/drone_config.json".to_string(),
-            address.clone(),
-        );
-        let (tx, rx): (
-            Sender<Box<dyn MessagesConfig + Send>>,
-            Receiver<Box<dyn MessagesConfig + Send>>,
-        ) = mpsc::channel();
+        let drone_system =
+            DroneSystem::new("src/drones/drone_config.json".to_string(), address.clone());
+        type MessagesConfigSender = Sender<Box<dyn MessagesConfig + Send>>;
+        type MessagesConfigReceiver = Receiver<Box<dyn MessagesConfig + Send>>;
+        let (tx, rx): (MessagesConfigSender, MessagesConfigReceiver) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
 
         let monitoring_app_client = match Client::new(rx, address, connect_config, tx2) {
@@ -95,13 +92,12 @@ impl MonitoringApp {
             monitoring_app_client,
             drone_system,
             receive_from_client: Arc::clone(&receive_from_client),
-            active_drones: Arc::clone(&active_drones)};
-        thread::spawn(move || {
-            loop {
-                let receiver_clone = Arc::clone(&receive_from_client);
-                let active_drones_clone = Arc::clone(&active_drones); 
-                update_drone_location(receiver_clone, active_drones_clone);
-            }
+            active_drones: Arc::clone(&active_drones),
+        };
+        thread::spawn(move || loop {
+            let receiver_clone = Arc::clone(&receive_from_client);
+            let active_drones_clone = Arc::clone(&active_drones);
+            update_drone_location(receiver_clone, active_drones_clone);
         });
         Ok(monitoring_app)
     }
@@ -172,20 +168,22 @@ impl MonitoringApp {
         self.incidents.clone()
     }
 
-    pub fn get_drones(&self) -> HashMap<u32, Location>{
+    pub fn get_drones(&self) -> HashMap<u32, Location> {
         let r = self.active_drones.lock().unwrap().clone();
         // println!("{:?}", r);
         r
     }
-
 }
 
-pub fn update_drone_location(recieve_from_client: Arc<Mutex<Receiver<ClientMessage>>>, active_drones: Arc<Mutex<HashMap<u32, Location>>>) {
-    let receiver =  recieve_from_client.lock().unwrap();
+pub fn update_drone_location(
+    recieve_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
+    active_drones: Arc<Mutex<HashMap<u32, Location>>>,
+) {
+    let receiver = recieve_from_client.lock().unwrap();
 
     loop {
-        match receiver.try_recv() {
-            Ok(message) => match message {
+        if let Ok(message) = receiver.try_recv() {
+            match message {
                 ClientMessage::Publish {
                     packet_id: _,
                     topic_name,
@@ -213,8 +211,6 @@ pub fn update_drone_location(recieve_from_client: Arc<Mutex<Receiver<ClientMessa
                     todo!()
                 }
                 _ => {}
-            },
-            Err(_) => {
             }
         }
     }

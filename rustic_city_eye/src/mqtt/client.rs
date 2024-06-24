@@ -674,9 +674,7 @@ pub fn handle_message(
                     if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {}
                 }
                 match sender.send(true) {
-                    Ok(_) => {
-                        Ok(ClientReturn::PubackRecieved)
-                    }
+                    Ok(_) => Ok(ClientReturn::PubackRecieved),
                     Err(e) => Err(ProtocolError::ChanellError(e.to_string())),
                 }
             }

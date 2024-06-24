@@ -49,7 +49,7 @@ impl<T: ClientTrait + Clone> Clone for CameraSystem<T> {
     }
 }
 
-impl<'a, T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
+impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
     /// Crea un nuevo camera system con un cliente de mqtt
     ///
     /// Envia un connect segun la configuracion del archivo connect_config.json
