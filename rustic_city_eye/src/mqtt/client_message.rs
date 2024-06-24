@@ -10,7 +10,6 @@ use crate::mqtt::publish::publish_properties::{PublishProperties, TopicPropertie
 use crate::utils::{reader::*, writer::*};
 
 use super::connect::connect_properties::ConnectProperties;
-use super::connect::last_will;
 use super::connect::will_properties::WillProperties;
 use super::messages_config::MessagesConfig;
 use super::payload::Payload;
