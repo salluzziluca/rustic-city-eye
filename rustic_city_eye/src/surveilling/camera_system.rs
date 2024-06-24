@@ -29,6 +29,8 @@ const NIVEL_DE_PROXIMIDAD_MAXIMO: f64 = 1.0;
 use super::camera_error::CameraError;
 #[derive(Debug)]
 #[allow(dead_code)]
+/// Entidad encargada de gestionar todas las camaras. Tiene como parametro a su instancia de cliente, utiliza un hash `<ID, Camera>` como estructura principal y diferentes channels para comunicarse con su cliente.
+/// Los mensajes recibidos le llegan mediante el channel `reciev_from_client` y envia una config con los mensajes que quiere enviar mediante `send_to_client_channel``
 pub struct CameraSystem<T: ClientTrait + Clone> {
     pub send_to_client_channel: Arc<Mutex<Sender<Box<dyn MessagesConfig + Send>>>>,
     camera_system_client: T,

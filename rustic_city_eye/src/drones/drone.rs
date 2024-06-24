@@ -15,12 +15,12 @@ use std::f64::consts::PI;
 #[derive(Debug, Clone)]
 pub struct Drone {
     // ID unico para cada Drone.
-    id: u32,
+    pub id: u32,
     ///posicion actual del Drone.
-    location: Location,
+    pub location: Location,
 
     ///posicion del centro de drones al que pertenece.
-    center_location: Location,
+    pub center_location: Location,
     /// La configuracion del Drone contiene el nivel de bateria del mismo y
     /// el radio de operacion.
     target_location: Location,
@@ -34,11 +34,11 @@ pub struct Drone {
     /// - LowBatteryLevel: el Drone se quedo sin bateria, por lo que va a su central a cargarse, y no va a volver a
     ///                    funcionar hasta que tenga el nivel de bateria completo(al terminar de cargarse, vuelve a
     ///                    tener el estado Waiting).
-    drone_state: DroneState,
+    pub drone_state: DroneState,
 
-    drone_client: Client,
+    pub drone_client: Client,
 
-    battery_level: i64,
+    pub battery_level: i64,
 
     send_to_client_channel: mpsc::Sender<Box<dyn messages_config::MessagesConfig + Send>>,
 

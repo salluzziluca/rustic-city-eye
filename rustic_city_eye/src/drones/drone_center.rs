@@ -11,9 +11,9 @@ use super::drone_error::DroneError;
 /// Tiene su ID unico, su ubicación, la dirección a la que se conecta
 /// y el path de su configuración.
 pub struct DroneCenter {
-    id: u32,
-    location: Location,
-    drones: HashMap<u32, Drone>,
+    pub id: u32,
+    pub location: Location,
+    pub drones: HashMap<u32, Drone>,
     drone_config_path: String,
     address: String,
 }

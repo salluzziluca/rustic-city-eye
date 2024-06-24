@@ -18,7 +18,7 @@ Primer Cuatrimestre de 2024.
 
 [drone_system]
 
-[mqt::camera_system]
+[surveilling::camera_system::CameraSystem]
 
 # Índice
 
@@ -199,9 +199,9 @@ El protocolo MQTT en su versión 5.0(el que implementamos para el proyecto), sop
 
 Es la aplicación principal del proyecto. La idea es que pueda recibir la carga de incidentes por parte del usuario, y notificar a la red ante la aparición de un incidente nuevo y los cambios de estado del mismo (iniciado, resuelto, etc).
 
-La aplicación de monitoreo cuenta con una instancia de Client, el cual se va a intentar conectar a un Broker corriendo en un puerto especificado desde la interfaz gráfica, y también se va a proceder a tomar un username y una password provenientes de la interfaz, procediendo así con la autenticación del Client. En caso de error, la aplicación no se cierra, sino que arroja una alerta del error, y se le pide al usuario que complete el formulario de "login" nuevamente.
+La aplicación de monitoreo cuenta con una instancia de [Client][mqtt::client::Client], el cual se va a intentar conectar a un Broker corriendo en un puerto especificado desde la interfaz gráfica, y también se va a tomar un username y una password provenientes de la interfaz, procediendo así con la autenticación del Client. En caso de error, la aplicación no se cierra, sino que arroja una alerta del error, y se le pide al usuario que complete el formulario de "login" nuevamente.
 
-La aplicación al crearse va a crear una instancia de un Sistema Central de Cámaras, y la idea es que junto a los agentes que el usuario agregue se comuniquen entre sí para resolver los incidentes que el usuario agregue desde la interfaz gráfica.
+La aplicación crea una instancia de un [Sistema Central de Cámaras][surveilling::camera_system::CameraSystem], y la idea es que junto a los agentes que el usuario agregue se comuniquen entre sí para resolver los incidentes que el usuario cree desde la interfaz gráfica.
 
 En la misma se puede visualizar el estado completo del sistema, incluyendo el mapa geográfico de la región con los incidentes activos, y la posición y el estado de cada agente (dron) y cada cámara de vigilancia.
 
@@ -213,9 +213,19 @@ Al crear/reportar un incidente, se activaran las camaras que esten en el rango r
 
 # Sistema Central de Cámaras
 
-El sistema de camaras es la entidad encargada de gestionar todas las camaras de la aplicación. Este tiene como tipo de dato principal un hashmap del tipo `<ID, Camera>`. A este se le puede pedir crear una camara nueva, o modificar al estado de las camaras actuales.
-Cuando el sistema reciba del broker un incidente, levantar las camaras necesarias y enviará por medio de un publish todas las camaras *que hayan cambiado de estado*. De esta forma es el camera system el que se encarga de la logica del analisis de sus camaras y el resto de clientes solo reciben el diferencial de camaras modificadas.
+El [sistema de camaras ][surveilling::camera_system::CameraSystem]  es la entidad encargada de gestionar todas las camaras de la aplicación. Este tiene como tipo de dato principal un hashmap del tipo `<ID, Camera>`. A este se le puede pedir crear una camara nueva, o modificar al estado de las camaras actuales.
+Cuando el sistema reciba del broker un incidente, levantar las camaras necesarias y enviará por medio de un publish todas las camaras *que hayan cambiado de estado*. De esta forma es el camera system el que se encarga de la logica del analisis de sus camaras y el resto de clientes solo reciben el diferencial de camaras modificadas. Este comportamiento se puede ver en [esta funcion.][surveilling::camera_system::CameraSystem::activate_cameras]
 
-Cuando un incidente es resuelto, se desactivan las camaras utilizando un mecanismo practicamente identico al anterior. Primero se desactivan las camaras que se encuentran en rango, y estas luego envian una señal a sus camaras vecinas para que tambien se apaguen, si asi corresponde.
+Cuando un incidente es resuelto, se desactivan las camaras utilizando un mecanismo practicamente identico al anterior([deactivate cameras][surveilling::camera_system::CameraSystem::deactivate_cameras]). Primero se desactivan las camaras que se encuentran en rango, y estas luego envian una señal a sus camaras vecinas para que tambien se apaguen, si asi corresponde.
 
 # Software de Control de Agentes(Drones)
+
+Para la gestion de agentes autonomos se utilizan 3 estructuras [drone system][drones::drone_system::DroneSystem]  , [drone_centers][drones::drone_center::DroneCenter] y [drones][dronee::Drone]. El drone system lleva apunte de sus drone centers y estos a su vez de cada uno de sus drones.
+
+Cada drone es un cliente y recibe mediante publish las notifiaciones de los incidentes. En caso de que ir a resolver el incidente no le suponga alejarse de su rango maximo de operacion (determinado por su drone center), se dirigira hacia esa direccion.
+
+Mientras no reciba ningun tipo de notificacion de accidente, el drone se quedará esperando, volando dentro de su rango de operacion. Cuando su bateria se agote, ira a cargarse a su drone center. Esto se logra mediante dos threads, uno que se encarga del movimiento del drone y otro de la carga y descarga de bateria
+
+El dron tiene 3 estados: Waiting (esperando a recibir algun incidente), Attending Incident y Low Battery. Cuando se encuentre en este ultimo es cuand se dirigirá a su estación de carga.
+
+Estos comportamientos se llevan a cabo en [run_drone][drones::drone::Drone::run_drone], con la utilizacion de [battery_discharge][drones::drone::Drone::battery_discharge] y [charge_battery][drones::drone::Drone::charge_battery] para la carga y descarga de bateria respectivamente.
