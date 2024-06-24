@@ -121,7 +121,7 @@ mod tests {
             let mut drone_center = DroneCenter::new(
                 1,
                 location.clone(),
-                "./src/drones/drone_config.json".to_string(),
+                "src/drones/drone_config.json".to_string(),
                 addr.to_string(),
             );
 
