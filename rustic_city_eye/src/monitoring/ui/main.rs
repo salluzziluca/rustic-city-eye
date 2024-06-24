@@ -154,11 +154,7 @@ impl MyApp {
                     self.map.zoom_level,
                     last_clicked,
                 ))
-                .with_plugin(drones(
-                    &mut self.map.drones,
-                    0.8,
-                    last_clicked,
-                ))
+                .with_plugin(drones(&mut self.map.drones, 0.8, last_clicked))
                 .with_plugin(drone_centers(
                     &mut self.map.drone_centers,
                     self.map.zoom_level,

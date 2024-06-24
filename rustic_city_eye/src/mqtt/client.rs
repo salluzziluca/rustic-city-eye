@@ -373,13 +373,15 @@ impl Client {
                                     dup_flag,
                                     properties: properties.clone(),
                                 };
-                                let stream_clone2 = match stream_clone.try_clone() {
-                                    Ok(stream) => stream,
-                                    Err(_) => return Err(ProtocolError::StreamError),
-                                };
-                                if let Ok(packet_id) =
-                                    Client::publish_message(publish, stream_clone2, packet_id)
-                                {
+
+                                if let Ok(packet_id) = Client::publish_message(
+                                    publish,
+                                    match stream_clone.try_clone() {
+                                        Ok(stream) => stream,
+                                        Err(_) => return Err(ProtocolError::StreamError),
+                                    },
+                                    packet_id,
+                                ) {
                                     if qos == 1 {
                                         let stream_clone = match stream_clone.try_clone() {
                                             Ok(stream) => stream,

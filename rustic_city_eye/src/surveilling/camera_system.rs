@@ -51,7 +51,7 @@ impl<T: ClientTrait + Clone> Clone for CameraSystem<T> {
     }
 }
 
-impl<'a, T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
+impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
     /// Crea un nuevo camera system con un cliente de mqtt
     ///
     /// Envia un connect segun la configuracion del archivo connect_config.json
@@ -397,7 +397,7 @@ impl<'a, T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         let packet_id = self.camera_system_client.assign_packet_id();
         let message = message.parse_message(packet_id);
         let lock = match self.send_to_client_channel.lock() {
-            Ok(guard) => guard,
+            Ok(lock) => lock,
             Err(_) => {
                 return Err(CameraError::SendError);
             }
@@ -429,8 +429,12 @@ impl<'a, T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             let camera_vieja = self.snapshot.iter().find(|&x| x == camera).cloned();
 
             if (!self.snapshot.contains(&camera.clone()))
-                || ((self.snapshot.contains(&camera.clone()) && camera_vieja.is_some())
-                    && camera.get_sleep_mode() != camera_vieja.clone().unwrap().get_sleep_mode())
+                || (self.snapshot.contains(&camera.clone())
+                    && camera.get_sleep_mode()
+                        != match self.snapshot.iter().find(|&x| x == camera) {
+                            Some(camera) => camera.get_sleep_mode(),
+                            None => false,
+                        })
             {
                 println!("camera: {:?}", camera.clone());
                 if camera_vieja.is_some() {

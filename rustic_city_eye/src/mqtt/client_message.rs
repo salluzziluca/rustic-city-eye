@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::mqtt::subscribe_properties::SubscribeProperties;
 use crate::utils::payload_types::PayloadTypes;
+use std::env;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Error, ErrorKind, Read, Write};
 
@@ -183,6 +184,18 @@ impl Connect {
         if !self.last_will_flag {
             return None;
         }
+        let last_will_topic = match self.clone().last_will_topic {
+            Some(topic) => topic,
+            None => return None,
+        };
+        let last_will_message = match self.clone().last_will_message {
+            Some(message) => message,
+            None => return None,
+        };
+        let will_properties = match self.clone().will_properties {
+            Some(properties) => properties,
+            None => return None,
+        };
 
         let last_will_topic = self.last_will_topic?;
         let last_will_message = self.last_will_message?;
@@ -198,6 +211,11 @@ impl Connect {
     }
     /// Abre un archivo de configuracion con propiedades y guarda sus lecturas.
     pub fn read_connect_config(file_path: &str) -> Result<Connect, ProtocolError> {
+        let current_dir = match env::current_dir() {
+            Ok(dir) => dir,
+            Err(_) => return Err(ProtocolError::ReadingConfigFileError),
+        };
+        println!("Current directory: {}", current_dir.display());
         let config_file = match File::open(file_path) {
             Ok(file) => file,
             Err(_) => {

@@ -868,7 +868,7 @@ impl Broker {
     pub fn get_offline_clients(&self) -> HashMap<String, Vec<ClientMessage>> {
         match self.offline_clients.read() {
             Ok(lock) => lock.clone(),
-            Err(e) => panic!("Error al leer offline_clients: {:?}", e),
+            Err(_) => HashMap::new(),
         }
     }
 
@@ -878,7 +878,7 @@ impl Broker {
         let mut clients_ids = Vec::new();
         let lock = match self.clients_ids.read() {
             Ok(lock) => lock,
-            Err(e) => panic!("Error al leer clients_ids: {:?}", e),
+            Err(_) => return clients_ids,
         };
         for client_id in lock.keys() {
             // agrego el client_id al vector
@@ -1015,10 +1015,7 @@ mod tests {
                 Ok(stream) => stream,
                 Err(_) => return,
             };
-            match stream.write_all(b"Hello, world!") {
-                Ok(_) => (),
-                Err(_) => (),
-            }
+            if stream.write_all(b"Hello, world!").is_ok() {}
         });
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));

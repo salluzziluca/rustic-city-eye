@@ -94,7 +94,7 @@ impl PayloadTypes {
                     Err(_) => {
                         return Err(Error::new(
                             ErrorKind::InvalidData,
-                            "Invalid longitude".to_string(),
+                            "Error while reading payload".to_string(),
                         ))
                     }
                 };
@@ -106,7 +106,7 @@ impl PayloadTypes {
                     Err(_) => {
                         return Err(Error::new(
                             ErrorKind::InvalidData,
-                            "Invalid latitude".to_string(),
+                            "Error while reading payload".to_string(),
                         ))
                     }
                 };
@@ -133,7 +133,7 @@ impl PayloadTypes {
                     Err(_) => {
                         return Err(Error::new(
                             ErrorKind::InvalidData,
-                            "Invalid drone id".to_string(),
+                            "Error while reading payload".to_string(),
                         ))
                     }
                 };
@@ -144,7 +144,7 @@ impl PayloadTypes {
                     Err(_) => {
                         return Err(Error::new(
                             ErrorKind::InvalidData,
-                            "Invalid longitude".to_string(),
+                            "Error while reading payload".to_string(),
                         ))
                     }
                 };
@@ -155,7 +155,7 @@ impl PayloadTypes {
                     Err(_) => {
                         return Err(Error::new(
                             ErrorKind::InvalidData,
-                            "Invalid latitude".to_string(),
+                            "Error while reading payload".to_string(),
                         ))
                     }
                 };

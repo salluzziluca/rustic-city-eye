@@ -101,7 +101,10 @@ mod tests {
         thread::spawn(move || {
             {
                 let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
+                let mut ready = match lock.lock(){
+                    Ok(ready) => ready,
+                    Err(e) => panic!("Error locking mutex: {:?}", e),
+                };
                 *ready = true;
                 cvar.notify_all();
             }
@@ -111,9 +114,15 @@ mod tests {
         // Wait for the server to start
         {
             let (lock, cvar) = &*server_ready;
-            let mut ready = lock.lock().unwrap();
+            let mut ready = match lock.lock(){
+                Ok(ready) => ready,
+                Err(e) => panic!("Error locking mutex: {:?}", e),
+            };
             while !*ready {
-                ready = cvar.wait(ready).unwrap();
+                ready = match cvar.wait(ready){
+                    Ok(ready) => ready,
+                    Err(e) => panic!("Error waiting for condition variable: {:?}", e),
+                };
             }
         }
         let handle = thread::spawn(move || {

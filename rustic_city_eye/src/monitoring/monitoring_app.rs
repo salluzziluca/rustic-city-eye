@@ -56,10 +56,9 @@ impl MonitoringApp {
         };
         let drone_system =
             DroneSystem::new("src/drones/drone_config.json".to_string(), address.clone());
-        let (tx, rx): (
-            Sender<Box<dyn MessagesConfig + Send>>,
-            Receiver<Box<dyn MessagesConfig + Send>>,
-        ) = mpsc::channel();
+        type MessagesConfigSender = Sender<Box<dyn MessagesConfig + Send>>;
+        type MessagesConfigReceiver = Receiver<Box<dyn MessagesConfig + Send>>;
+        let (tx, rx): (MessagesConfigSender, MessagesConfigReceiver) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
 
         let monitoring_app_client = match Client::new(rx, address, connect_config, tx2) {
@@ -212,9 +211,10 @@ impl MonitoringApp {
     }
 
     pub fn get_drones(&self) -> HashMap<u32, Location> {
-        let r = self.active_drones.lock().unwrap().clone();
-        // println!("{:?}", r);
-        r
+        match self.active_drones.lock() {
+            Ok(active_drones) => active_drones.clone(),
+            Err(_) => HashMap::new(),
+        }
     }
 }
 
@@ -222,11 +222,14 @@ pub fn update_drone_location(
     recieve_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
 ) {
-    let receiver = recieve_from_client.lock().unwrap();
+    let receiver = match recieve_from_client.lock() {
+        Ok(receiver) => receiver,
+        Err(_) => return,
+    };
 
     loop {
-        match receiver.try_recv() {
-            Ok(message) => match message {
+        if let Ok(message) = receiver.try_recv() {
+            match message {
                 ClientMessage::Publish {
                     packet_id: _,
                     topic_name,
@@ -238,7 +241,10 @@ pub fn update_drone_location(
                 } => {
                     println!("Received message: {:?}", payload);
                     if topic_name == "drone_locations" {
-                        let mut active_drones = active_drones.try_lock().unwrap();
+                        let mut active_drones = match active_drones.try_lock() {
+                            Ok(active_drones) => active_drones,
+                            Err(_) => return,
+                        };
                         if let PayloadTypes::DroneLocation(id, drone_locationn) = payload {
                             active_drones.insert(id, drone_locationn);
                         }
@@ -254,8 +260,7 @@ pub fn update_drone_location(
                     todo!()
                 }
                 _ => {}
-            },
-            Err(_) => {}
+            }
         }
     }
 }
