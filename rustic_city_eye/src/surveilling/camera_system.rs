@@ -446,6 +446,8 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         if updated_cameras.is_empty() {
             return Ok(());
         }
+        println!("publicando el estado de las camaras a el broker");
+
         let publish_config = match PublishConfig::read_config(
             "./src/surveilling/publish_config_update.json",
             PayloadTypes::CamerasUpdatePayload(updated_cameras),
