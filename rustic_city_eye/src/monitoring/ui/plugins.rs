@@ -127,8 +127,8 @@ pub fn drones(
 
         if drone.select(last_clicked) {
             image.scale(
-                drone.image.x_scale * zoom_level * 1.5,
-                drone.image.y_scale * zoom_level * 1.5,
+                drone.image.x_scale * zoom_level * 1.3,
+                drone.image.y_scale * zoom_level * 1.3,
             );
         } else {
             image.scale(

@@ -85,6 +85,7 @@ impl Client {
         }
 
         if let Ok(message) = BrokerMessage::read_from(&mut *stream_lock) {
+            println!("Recibí un mensaje: {:?}", message);
             match message {
                 BrokerMessage::Connack {
                     session_present: _,

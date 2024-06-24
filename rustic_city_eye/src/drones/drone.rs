@@ -78,11 +78,12 @@ impl Drone {
     ) -> Result<Drone, DroneError> {
         let drone_config = DroneConfig::new(config_file_path)?;
 
-        let connect_config =
+        let mut connect_config =
             match client_message::Connect::read_connect_config("src/drones/connect_config.json") {
                 Ok(config) => config,
                 Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
             };
+        connect_config.client_id = id.to_string();
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
 
@@ -90,7 +91,7 @@ impl Drone {
             Ok(client) => client,
             Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
         };
-        let target_location = center_location.clone();
+        let target_location = location.clone();
         Ok(Drone {
             id,
             location,
@@ -258,14 +259,14 @@ impl Drone {
                 self.location.lat = new_lat;
                 self.location.long = new_long;
 
-                println!(
-                    "Drone is on location: ({}, {})",
-                    self.location.lat, self.location.long
-                );
-                println!(
-                    "Target location: ({}, {})",
-                    self.target_location.lat, self.target_location.long
-                );
+                // println!(
+                //     "Drone is on location: ({}, {})",
+                //     self.location.lat, self.location.long
+                // );
+                // println!(
+                //     "Target location: ({}, {})",
+                //     self.target_location.lat, self.target_location.long
+                // );
                 match self.update_location() {
                     Ok(_) => (),
                     Err(e) => {

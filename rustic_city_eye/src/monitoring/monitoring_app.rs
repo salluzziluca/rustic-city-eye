@@ -83,7 +83,6 @@ impl MonitoringApp {
                 match receiver.try_recv() {
                     Ok(location) => {
                         drone_locations.insert(location.id, location.location);
-                        println!("Updated drone location");
                     }
                     Err(e) => match e {
                         mpsc::TryRecvError::Empty => {}
