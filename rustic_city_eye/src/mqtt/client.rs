@@ -244,44 +244,50 @@ impl Client {
     ///
     /// El thread de lectura (read_messages) se encarga de leer los mensajes que le llegan del broker.
     pub fn client_run(&mut self) -> Result<(), ProtocolError> {
-        let (write_sender, receive_receiver) = mpsc::channel();
-        let (receiver_sender, write_receiver) = mpsc::channel();
+        let (write_sender, recieve_receiver) = mpsc::channel();
+        let (reciever_sender, write_receiver) = mpsc::channel();
 
         let receiver_channel = self.receiver_channel.clone();
-        let sender_channel = self.sender_channel.clone();
-        let stream_lock = self.stream.lock().map_err(|_| ProtocolError::StreamError)?;
 
-        let stream_clone_one = stream_lock
-            .try_clone()
-            .map_err(|_| ProtocolError::StreamError)?;
-        let stream_clone_two = stream_lock
-            .try_clone()
-            .map_err(|_| ProtocolError::StreamError)?;
+        let desconectar = false;
+        let stream_lock = match self.stream.lock() {
+            Ok(stream) => stream,
+            Err(_) => return Err(ProtocolError::StreamError),
+        };
+
+        let stream_clone_one = match stream_lock.try_clone() {
+            Ok(stream) => stream,
+            Err(_) => return Err(ProtocolError::StreamError),
+        };
+        let stream_clone_two = match stream_lock.try_clone() {
+            Ok(stream) => stream,
+            Err(_) => return Err(ProtocolError::StreamError),
+        };
 
         let threadpool = ThreadPool::new(5);
+
         let subscriptions_clone = self.subscriptions.clone();
 
         let cloned_self = self.clone();
         let _write_messages = threadpool.execute(move || {
-            cloned_self
-                .write_messages(
-                    stream_clone_one,
-                    receiver_channel,
-                    write_sender,
-                    subscriptions_clone,
-                    write_receiver,
-                )
-                .unwrap();
+            cloned_self.write_messages(
+                stream_clone_one,
+                receiver_channel,
+                desconectar,
+                write_sender,
+                subscriptions_clone,
+                write_receiver,
+            )
         });
 
+        let sender_channel_clone = self.sender_channel.clone();
         let _read_messages = threadpool.execute(move || {
             Client::receive_messages(
                 stream_clone_two,
-                receive_receiver,
-                receiver_sender,
-                sender_channel,
+                recieve_receiver,
+                reciever_sender,
+                sender_channel_clone,
             )
-            .unwrap();
         });
 
         Ok(())
