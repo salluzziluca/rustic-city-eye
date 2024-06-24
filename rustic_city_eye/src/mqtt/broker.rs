@@ -193,6 +193,9 @@ impl Broker {
                 Err(err) => return Err(err),
             }
         }
+
+        
+
         Ok(())
     }
 
