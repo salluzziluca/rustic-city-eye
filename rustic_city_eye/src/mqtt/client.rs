@@ -1,6 +1,5 @@
 use rand::Rng;
 use std::{
-    io::Write,
     net::TcpStream,
     sync::{
         mpsc::{self, Receiver, Sender},
@@ -27,6 +26,7 @@ pub trait ClientTrait {
     fn get_publish_end_channel(
         &self,
     ) -> Arc<std::sync::Mutex<std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>>>;
+    fn get_client_id(&self) -> String;
 }
 impl Clone for Box<dyn ClientTrait> {
     fn clone(&self) -> Box<dyn ClientTrait> {
@@ -78,6 +78,7 @@ impl Client {
             Err(_) => return Err(ProtocolError::StreamError),
         };
         let connect_message = ClientMessage::Connect(connect.clone());
+        // println!("Connect: {:?}", connect);
 
         println!("Enviando connect message to broker");
 
@@ -86,11 +87,6 @@ impl Client {
             Err(_) => println!("Error al enviar connect message"),
         }
         //flush
-        if let Ok(()) = stream_lock.flush() {
-            println!("Flushed");
-        } else {
-            println!("Error al flushear");
-        }
 
         if let Ok(message) = BrokerMessage::read_from(&mut *stream_lock) {
             match message {
@@ -644,6 +640,9 @@ impl ClientTrait for Client {
     {
         self.get_publish_end_channel()
     }
+    fn get_client_id(&self) -> String {
+        self.client_id.clone()
+    }
 }
 
 /// Lee del stream un mensaje y lo procesa
@@ -653,12 +652,9 @@ pub fn handle_message(
     mut stream: TcpStream,
     pending_messages: Vec<u16>,
     sender: Sender<bool>,
-    _sender_chanell_: Sender<ClientMessage>,
+    sender_chanell: Sender<ClientMessage>,
 ) -> Result<ClientReturn, ProtocolError> {
     if let Ok(message) = BrokerMessage::read_from(&mut stream) {
-
-        println!("mensaje {:?}", message);
-
         match message {
             BrokerMessage::Connack {
                 session_present: _,
@@ -679,7 +675,7 @@ pub fn handle_message(
                 }
                 match sender.send(true) {
                     Ok(_) => {
-                        println!("puback {:?}", message);
+                        println!("AAAApuback {:?}", message);
                         Ok(ClientReturn::PubackRecieved)
                     }
                     Err(e) => Err(ProtocolError::ChanellError(e.to_string())),
@@ -716,28 +712,30 @@ pub fn handle_message(
             }
             BrokerMessage::PublishDelivery {
                 packet_id,
-                topic_name: _,
-                qos: _,
-                retain_flag: _,
-                dup_flag: _,
-                properties: _,
+                topic_name,
+                qos,
+                retain_flag,
+                dup_flag,
+                properties,
                 payload,
             } => {
                 println!(
                     "PublishDelivery con id {} recibido, payload: {:?}",
                     packet_id, payload
                 );
-                // sender_chanell
-                //     .send(ClientMessage::Publish {
-                //         packet_id,
-                //         topic_name,
-                //         qos,
-                //         retain_flag,
-                //         dup_flag,
-                //         properties,
-                //         payload,
-                //     })
-                //     .unwrap();
+                match sender_chanell.send(ClientMessage::Publish {
+                    packet_id,
+                    topic_name,
+                    qos,
+                    retain_flag,
+                    dup_flag,
+                    properties,
+                    payload,
+                }) {
+                    Ok(_) => println!("Publish enviado al SYSTEMA"),
+                    Err(e) => println!("Error al enviar publish al cliente: {:?}", e),
+                }
+
                 Ok(ClientReturn::PublishDeliveryRecieved)
             }
             BrokerMessage::Unsuback {

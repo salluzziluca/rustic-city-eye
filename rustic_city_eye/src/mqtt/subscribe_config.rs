@@ -1,19 +1,23 @@
+use serde::{Deserialize, Serialize};
+
 use crate::mqtt::subscribe_properties::SubscribeProperties;
 
 use super::{
     client_message::ClientMessage, messages_config::MessagesConfig, subscription::Subscription,
 };
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SubscribeConfig {
     pub(crate) topic_name: String,
     pub(crate) qos: u8,
     pub(crate) properties: SubscribeProperties,
+    pub(crate) client_id: String,
 }
 
 impl MessagesConfig for SubscribeConfig {
     fn parse_message(&self, packet_id: u16) -> ClientMessage {
         let subscription =
-            Subscription::new(self.topic_name.clone(), "juancito".to_string(), self.qos);
+            Subscription::new(self.topic_name.clone(), self.client_id.clone(), self.qos);
         //creo un vector cno la subscription
         let subscriptions = vec![subscription];
 
@@ -26,11 +30,38 @@ impl MessagesConfig for SubscribeConfig {
 }
 
 impl SubscribeConfig {
-    pub fn new(topic_name: String, qos: u8, properties: SubscribeProperties) -> SubscribeConfig {
+    pub fn new(
+        topic_name: String,
+        qos: u8,
+        properties: SubscribeProperties,
+        client_id: String,
+    ) -> SubscribeConfig {
         SubscribeConfig {
             topic_name,
             qos,
             properties,
+            client_id,
+        }
+    }
+
+    pub fn json_to_publish_config(path: &str) -> SubscribeConfig {
+        let config: SubscribeConfig = match serde_json::from_str(path) {
+            Ok(config) => config,
+            Err(e) => panic!("Error reading json to PublishConfig: {}", e),
+        };
+
+        SubscribeConfig {
+            topic_name: config.topic_name,
+            qos: config.qos,
+            properties: config.properties,
+            client_id: config.client_id,
+        }
+    }
+    pub fn write_config_to_json_file(&self, path: &str) {
+        let json = serde_json::to_string(&self).unwrap();
+        match std::fs::write(path, json) {
+            Ok(_) => {}
+            Err(e) => panic!("Error writing PublishConfig to json file: {}", e),
         }
     }
 }
@@ -45,7 +76,12 @@ mod tests {
         let properties =
             SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]);
         let qos = 1;
-        let subscribe_config = SubscribeConfig::new(topic_name.clone(), qos, properties.clone());
+        let subscribe_config = SubscribeConfig::new(
+            topic_name.clone(),
+            qos,
+            properties.clone(),
+            "client".to_string(),
+        );
         assert_eq!(subscribe_config.topic_name, topic_name);
         assert_eq!(subscribe_config.qos, qos);
         assert_eq!(subscribe_config.properties, properties);
@@ -58,7 +94,12 @@ mod tests {
             SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]);
 
         let qos = 1;
-        let subscribe_config = SubscribeConfig::new(topic_name.clone(), qos, properties.clone());
+        let subscribe_config = SubscribeConfig::new(
+            topic_name.clone(),
+            qos,
+            properties.clone(),
+            "client".to_string(),
+        );
         let packet_id = 1;
         let message = subscribe_config.parse_message(packet_id);
         match message {
@@ -75,5 +116,23 @@ mod tests {
             }
             _ => panic!("Wrong message type"),
         }
+    }
+
+    #[test]
+    fn test_write_config_to_json_file() {
+        let topic_name = "topic".to_string();
+        let properties =
+            SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]);
+        let qos = 1;
+        let subscribe_config = SubscribeConfig::new(
+            topic_name.clone(),
+            qos,
+            properties.clone(),
+            "client".to_string(),
+        );
+        let path = "test.json";
+        subscribe_config.write_config_to_json_file(path);
+        let read_config = SubscribeConfig::json_to_publish_config(path);
+        assert_eq!(read_config, subscribe_config);
     }
 }

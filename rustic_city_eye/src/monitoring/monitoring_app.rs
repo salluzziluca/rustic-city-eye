@@ -10,10 +10,13 @@ use crate::monitoring::incident::Incident;
 use crate::mqtt::{
     client_message::{self, ClientMessage},
     messages_config::MessagesConfig,
-    publish::{publish_properties::{PublishProperties, TopicProperties}, publish_config::PublishConfig},
+    publish::{
+        publish_config::PublishConfig,
+        publish_properties::{PublishProperties, TopicProperties},
+    },
     subscribe_config::SubscribeConfig,
     subscribe_properties::SubscribeProperties,
-    {client::Client, protocol_error::ProtocolError}
+    {client::Client, protocol_error::ProtocolError},
 };
 
 use crate::surveilling::camera::Camera;
@@ -78,8 +81,12 @@ impl MonitoringApp {
         self.camera_system.run_client(None)?;
 
         let subscribe_properties = SubscribeProperties::new(1, Vec::new());
-        let subscribe_config =
-            SubscribeConfig::new("drone_location".to_string(), 1, subscribe_properties);
+        let subscribe_config = SubscribeConfig::new(
+            "drone_location".to_string(),
+            1,
+            subscribe_properties,
+            self.monitoring_app_client.client_id.clone(),
+        );
         match self.send_to_client_channel.send(Box::new(subscribe_config)) {
             Ok(_) => {}
             Err(e) => {

@@ -70,11 +70,12 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
         let camera_system_client = client_factory(rx, address, connect_config, tx2)?;
-
+        let client_id = camera_system_client.get_client_id();
         let subscribe_config = SubscribeConfig::new(
             "incidente".to_string(),
             1,
             SubscribeProperties::new(1, vec![]),
+            client_id,
         );
 
         match tx.send(Box::new(subscribe_config)) {
@@ -160,6 +161,8 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
                         payload: PayloadTypes::IncidentLocation(payload),
                         ..
                     }) => {
+                        println!("acaso me HA LLEGADO UN PUBLISH????");
+
                         println!("topic_name: {:?}", topic_name);
                         if topic_name != "accidente" {
                             continue;
@@ -183,6 +186,8 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
                         payload: PayloadTypes::IncidentLocation(payload),
                         ..
                     }) => {
+                        println!("acaso me HA LLEGADO UN PUBLISH????");
+
                         if topic_name == "accidente" {
                             let location = payload.get_incident().get_location();
                             drop(lock); // Release the lock here
@@ -198,7 +203,10 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
                             continue;
                         }
                     }
-                    Ok(_) => continue, // Handle other message types if necessary
+                    Ok(cosa) => {
+                        println!("cosa: {:?}", cosa);
+                        continue;
+                    } // Handle other message types if necessary
                     Err(e) => {
                         return Err(ProtocolError::ChanellError(e.to_string()));
                     }
@@ -1059,6 +1067,10 @@ mod tests {
                 >,
             > {
                 Arc::new(std::sync::Mutex::new(std::sync::mpsc::channel().1))
+            }
+
+            fn get_client_id(&self) -> String {
+                "mock".to_string()
             }
         }
 

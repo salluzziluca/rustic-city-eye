@@ -289,6 +289,7 @@ impl Broker {
         topic_name: String,
         subscription: Subscription,
     ) -> Result<u8, ProtocolError> {
+        println!("entre a handle subscribe");
         let reason_code;
         if let Some(topic) = topics.get_mut(&topic_name) {
             match topic.add_user_to_topic(subscription) {
@@ -315,15 +316,38 @@ impl Broker {
         mut topics: HashMap<String, Topic>,
         topic_name: String,
     ) -> Result<u8, ProtocolError> {
+        //convert the ClientMessage to ClientMessage:Publish
+        let mensaje = match message.clone() {
+            ClientMessage::Publish {
+                packet_id,
+                topic_name,
+                qos,
+                retain_flag,
+                payload,
+                dup_flag,
+                properties,
+            } => BrokerMessage::PublishDelivery {
+                packet_id,
+                topic_name,
+                qos,
+                retain_flag,
+                payload,
+                dup_flag,
+                properties,
+            },
+            _ => return Err(ProtocolError::UnspecifiedError),
+        };
         // verifico si el topic exite
         if let Some(topic) = topics.get_mut(&topic_name) {
             //obtengo los users que corresponden a ese topic
             let users = topic.get_topic_users();
+            println!("users subscriptos al topic {:?}", users);
+            let message_clone = message.clone();
             for user in users {
                 //verifico si el user esta conectado
                 let mut es_qos_1 = false;
                 let mut esta_offline = false;
-                let m = message.clone();
+
                 match self.clients_ids.read() {
                     Ok(clients) => {
                         if let Some(tuple) = clients.get(&user.client_id) {
@@ -332,7 +356,7 @@ impl Broker {
                                 let mut stream_clone =
                                     stream.try_clone().expect("Failed to clone stream");
                                 //envio el mensaje al user
-                                match m.write_to(&mut stream_clone) {
+                                match mensaje.write_to(&mut stream_clone) {
                                     Ok(_) => {
                                         println!("Mensaje enviado a {}", user.client_id);
                                     }
@@ -367,9 +391,9 @@ impl Broker {
                 if esta_offline && es_qos_1 {
                     if let Ok(mut lock) = self.offline_clients.write() {
                         if let Some(messages) = lock.get_mut(&user.client_id) {
-                            messages.push(m);
+                            messages.push(message_clone.clone());
                         } else {
-                            lock.insert(user.client_id, vec![m]);
+                            lock.insert(user.client_id, vec![message_clone.clone()]);
                         }
                     } else {
                         return Ok(0x80_u8);
