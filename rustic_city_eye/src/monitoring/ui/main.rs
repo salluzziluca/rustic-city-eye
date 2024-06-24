@@ -168,7 +168,7 @@ impl MyApp {
             zoom(ui, &mut self.map.map_memory, &mut self.map.zoom_level);
 
             if let Some(monitoring_app) = &mut self.monitoring_app {
-                let new_locations = monitoring_app.update_drone_location();
+                let new_locations = monitoring_app.get_drones();
                 self.map.update_drones(new_locations);
                 add_camera_window(ui, &mut self.map, monitoring_app);
                 add_incident_window(ui, &mut self.map, monitoring_app);

@@ -961,8 +961,7 @@ mod tests {
                 Ok(stream) => stream,
                 Err(_) => return,
             };
-            if stream.write_all(b"Hello, world!").is_ok() {
-            };
+            if stream.write_all(b"Hello, world!").is_ok() {};
         });
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));

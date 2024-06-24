@@ -3,6 +3,8 @@
 
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 use crate::drones::drone_location::DroneLocation;
 use crate::drones::drone_system::DroneSystem;
@@ -29,7 +31,8 @@ pub struct MonitoringApp {
     incidents: Vec<Incident>,
     drone_system: DroneSystem,
     recieve_from_client: Receiver<ClientMessage>,
-    receive_from_drone_system: Receiver<DroneLocation>,
+    receive_from_drone_system: Arc<Mutex<Receiver<DroneLocation>>>,
+    active_drones: Arc<Mutex<HashMap<u32, Location>>>,
 }
 
 #[allow(dead_code)]
@@ -47,13 +50,18 @@ impl MonitoringApp {
             Ok(camera_system) => camera_system,
             Err(err) => return Err(err),
         };
+        let (tx3, rx3) = mpsc::channel();
+
         let drone_system = DroneSystem::new(
             "src/drones/drone_config.json".to_string(),
             address.clone(),
+            tx3,
         );
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
 
+        let receive_from_drone_system = Arc::new(Mutex::new(rx3));
+        let active_drones = Arc::new(Mutex::new(HashMap::new()));
         let monitoring_app = MonitoringApp {
             send_to_client_channel: tx,
             incidents: Vec::new(),
@@ -64,7 +72,29 @@ impl MonitoringApp {
             },
             drone_system,
             recieve_from_client: rx2,
+            receive_from_drone_system: receive_from_drone_system.clone(),
+            active_drones: active_drones.clone(),
         };
+
+        thread::spawn(move || {
+            loop {
+                let receiver = receive_from_drone_system.lock().unwrap();
+                let mut drone_locations = active_drones.lock().unwrap();
+                match receiver.try_recv() {
+                    Ok(location) => {
+                        drone_locations.insert(location.id, location.location);
+                        println!("Updated drone location");
+                    }
+                    Err(e) => match e {
+                        mpsc::TryRecvError::Empty => {}
+                        mpsc::TryRecvError::Disconnected => {
+                            println!("Disconnected from drone system");
+                            break;
+                        }
+                    },
+                }
+            }
+        });
 
         Ok(monitoring_app)
     }
@@ -141,42 +171,28 @@ impl MonitoringApp {
         self.incidents.clone()
     }
 
-    pub fn update_drone_location(&self) -> HashMap<u32, Location> {
-        let mut drone_locations = HashMap::new();
-        loop {
-            match self.recieve_from_client.try_recv() {
-                Ok(message) => match message {
-                    ClientMessage::Publish {
-                        packet_id: _,
-                        topic_name,
-                        qos: _,
-                        retain_flag: _,
-                        payload,
-                        dup_flag: _,
-                        properties: _,
-                    } => {
-                        if topic_name == "drone_location" {
-                            if let PayloadTypes::DroneLocation(id, drone_locationn) = payload {
-                                drone_locations.insert(id, drone_locationn);
-                                println!("Updated drone location");
-                            }
-                        }
-                    }
-                    ClientMessage::Auth {
-                        reason_code: _,
-                        authentication_data: _n_data,
-                        reason_string: _,
-                        user_properties: _,
-                        authentication_method: _,
-                    } => {
-                        todo!()
-                    }
-                    _ => {}
-                },
-                Err(_) => {
-                    return drone_locations;
-                }
-            }
-        }
+    pub fn get_drones(&self) -> HashMap<u32, Location> {
+        self.active_drones.lock().unwrap().clone()
     }
+
+    // pub fn update_drone_location(&self) -> HashMap<u32, Location> {
+    //     let mut drone_locations = HashMap::new();
+    //     loop {
+    //         match self.receive_from_drone_system.try_recv() {
+    //             Ok(location) => {
+    //                 drone_locations.insert(location.id, location.location);
+    //                 println!("Updated drone location");
+    //             }
+    //             Err(e) => {
+    //                 match e {
+    //                     mpsc::TryRecvError::Empty => {}
+    //                     mpsc::TryRecvError::Disconnected => {
+    //                         println!("Disconnected from drone system");
+    //                     }
+    //                 }
+    //                 return drone_locations;
+    //             }
+    //         }
+    //     }
+    // }
 }
