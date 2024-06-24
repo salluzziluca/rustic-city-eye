@@ -1,3 +1,5 @@
+#![doc = include_str!(".././src/doc/informe.md")]
+
 pub mod doc;
 pub mod utils;
 #[doc = include_str!("doc/informe.md")]

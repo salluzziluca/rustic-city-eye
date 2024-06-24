@@ -158,10 +158,7 @@ impl Client {
         mut stream: TcpStream,
     ) -> Result<u16, ClientError> {
         match message.write_to(&mut stream) {
-            Ok(()) => {
-                println!("el sub fue enviado");
-                Ok(packet_id)
-            }
+            Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
@@ -346,7 +343,7 @@ impl Client {
     ) -> Result<(), ProtocolError> {
         while !desconectar {
             loop {
-                let lock = match receiver_channel.lock(){
+                let lock = match receiver_channel.lock() {
                     Ok(lock) => lock,
                     Err(_) => return Err(ProtocolError::StreamError),
                 };
@@ -379,14 +376,14 @@ impl Client {
 
                                 if let Ok(packet_id) = Client::publish_message(
                                     publish,
-                                    match stream_clone.try_clone(){
+                                    match stream_clone.try_clone() {
                                         Ok(stream) => stream,
                                         Err(_) => return Err(ProtocolError::StreamError),
                                     },
                                     packet_id,
                                 ) {
                                     if qos == 1 {
-                                        let stream_clone = match stream_clone.try_clone(){
+                                        let stream_clone = match stream_clone.try_clone() {
                                             Ok(stream) => stream,
                                             Err(_) => return Err(ProtocolError::StreamError),
                                         };
@@ -738,8 +735,8 @@ pub fn handle_message(
                     properties,
                     payload,
                 }) {
-                    Ok(_) => println!("Publish enviado correctamente!"),
-                    Err(e) => println!("Error al enviar publish al cliente: {:?}", e),
+                    Ok(_) => {}
+                    Err(e) => println!("Error al enviar publish al sistema: {:?}", e),
                 }
 
                 Ok(ClientReturn::PublishDeliveryRecieved)

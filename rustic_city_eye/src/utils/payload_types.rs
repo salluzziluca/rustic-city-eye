@@ -1,6 +1,6 @@
 use std::{
     any::Any,
-    io::{Error, ErrorKind},
+    io::{Error, ErrorKind, Read},
 };
 
 use serde::Deserialize;
@@ -83,24 +83,32 @@ impl Payload for PayloadTypes {
 impl PayloadTypes {
     /// Dependiendo del id del payload que se lea, se va a reconstruir el payload a partir de lo
     /// leido efectivamente del stream.
-    pub fn read_from(
-        stream: &mut dyn std::io::prelude::Read,
-    ) -> Result<PayloadTypes, std::io::Error> {
+    pub fn read_from(stream: &mut dyn Read) -> Result<PayloadTypes, std::io::Error> {
         let payload_type_id = read_u8(stream)?;
 
         let payload_type = match payload_type_id {
             1 => {
                 let longitude_string = read_string(stream)?;
-                let long = match longitude_string.parse::<f64>(){
+                let long = match longitude_string.parse::<f64>() {
                     Ok(long) => long,
-                    Err(_) => return Err(Error::new(ErrorKind::InvalidData, "Error while reading payload".to_string())),
+                    Err(_) => {
+                        return Err(Error::new(
+                            ErrorKind::InvalidData,
+                            "Error while reading payload".to_string(),
+                        ))
+                    }
                 };
 
                 let latitude_string = read_string(stream)?;
 
-                let lat = match latitude_string.parse::<f64>(){
+                let lat = match latitude_string.parse::<f64>() {
                     Ok(lat) => lat,
-                    Err(_) => return Err(Error::new(ErrorKind::InvalidData, "Error while reading payload".to_string())),
+                    Err(_) => {
+                        return Err(Error::new(
+                            ErrorKind::InvalidData,
+                            "Error while reading payload".to_string(),
+                        ))
+                    }
                 };
 
                 let location = Location::new(lat, long);
@@ -108,24 +116,48 @@ impl PayloadTypes {
 
                 PayloadTypes::IncidentLocation(IncidentPayload::new(incident))
             }
+            4 => {
+                let lenght = read_u8(stream)?;
+                let mut cameras = Vec::new();
+                for _ in 0..lenght {
+                    let camera = Camera::read_from(stream)?;
+                    cameras.push(camera);
+                }
+
+                PayloadTypes::CamerasUpdatePayload(cameras)
+            }
             5 => {
                 let drone_id_string = read_string(stream)?;
-                let drone_id =match drone_id_string.parse::<u32>(){
+                let drone_id = match drone_id_string.parse::<u32>() {
                     Ok(drone_id) => drone_id,
-                    Err(_) => return Err(Error::new(ErrorKind::InvalidData, "Error while reading payload".to_string())),
+                    Err(_) => {
+                        return Err(Error::new(
+                            ErrorKind::InvalidData,
+                            "Error while reading payload".to_string(),
+                        ))
+                    }
                 };
 
                 let longitude_string = read_string(stream)?;
-                let long = match longitude_string.parse::<f64>(){
+                let long = match longitude_string.parse::<f64>() {
                     Ok(long) => long,
-                    Err(_) => return Err(Error::new(ErrorKind::InvalidData, "Error while reading payload".to_string())),
-                
+                    Err(_) => {
+                        return Err(Error::new(
+                            ErrorKind::InvalidData,
+                            "Error while reading payload".to_string(),
+                        ))
+                    }
                 };
 
                 let latitude_string = read_string(stream)?;
-                let lat =match  latitude_string.parse::<f64>(){
+                let lat = match latitude_string.parse::<f64>() {
                     Ok(lat) => lat,
-                    Err(_) => return Err(Error::new(ErrorKind::InvalidData, "Error while reading payload".to_string())),
+                    Err(_) => {
+                        return Err(Error::new(
+                            ErrorKind::InvalidData,
+                            "Error while reading payload".to_string(),
+                        ))
+                    }
                 };
 
                 let location = Location::new(lat, long);

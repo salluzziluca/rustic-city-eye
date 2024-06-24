@@ -7,7 +7,7 @@ use super::drone_error::DroneError;
 
 #[derive(Debug)]
 pub struct DroneSystem {
-    drone_centers: HashMap<u32, DroneCenter>,
+    pub drone_centers: HashMap<u32, DroneCenter>,
     drone_config_path: String,
     address: String,
 }

@@ -184,18 +184,22 @@ impl Connect {
         if !self.last_will_flag {
             return None;
         }
-        let last_will_topic = match self.last_will_topic{
+        let last_will_topic = match self.clone().last_will_topic {
             Some(topic) => topic,
             None => return None,
         };
-        let last_will_message = match self.last_will_message{
+        let last_will_message = match self.clone().last_will_message {
             Some(message) => message,
             None => return None,
         };
-        let will_properties = match self.will_properties{
+        let will_properties = match self.clone().will_properties {
             Some(properties) => properties,
             None => return None,
         };
+
+        let last_will_topic = self.last_will_topic?;
+        let last_will_message = self.last_will_message?;
+        let will_properties = self.will_properties?;
 
         Some(LastWill::new(
             last_will_topic,
@@ -207,15 +211,14 @@ impl Connect {
     }
     /// Abre un archivo de configuracion con propiedades y guarda sus lecturas.
     pub fn read_connect_config(file_path: &str) -> Result<Connect, ProtocolError> {
-        let current_dir = match env::current_dir(){
+        let current_dir = match env::current_dir() {
             Ok(dir) => dir,
             Err(_) => return Err(ProtocolError::ReadingConfigFileError),
         };
         println!("Current directory: {}", current_dir.display());
         let config_file = match File::open(file_path) {
             Ok(file) => file,
-            Err(e) => {
-                println!("AAAAAAAAAA{:?}", e);
+            Err(_) => {
                 return Err(ProtocolError::ReadingConfigFileError);
             }
         };
@@ -895,7 +898,7 @@ impl ClientMessage {
                 );
                 let packet_id = read_u16(stream)?;
                 let topic_name = read_string(stream)?;
-                PublishProperties::read_from(stream)?;
+                let properties = PublishProperties::read_from(stream)?;
 
                 let payload = PayloadTypes::read_from(stream)?;
 
@@ -1061,7 +1064,10 @@ mod tests {
 
     use crate::{
         monitoring::incident::Incident,
-        mqtt::connect::{connect_properties::ConnectProperties, will_properties::WillProperties},
+        mqtt::{
+            connect::{connect_properties::ConnectProperties, will_properties::WillProperties},
+            publish::publish_properties::TopicProperties,
+        },
         utils::{incident_payload::IncidentPayload, location::Location},
     };
 

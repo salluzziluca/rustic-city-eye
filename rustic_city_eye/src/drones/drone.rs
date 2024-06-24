@@ -22,12 +22,12 @@ use std::f64::consts::PI;
 #[derive(Debug, Clone)]
 pub struct Drone {
     // ID unico para cada Drone.
-    id: u32,
+    pub id: u32,
     ///posicion actual del Drone.
-    location: Location,
+    pub location: Location,
 
     ///posicion del centro de drones al que pertenece.
-    center_location: Location,
+    pub center_location: Location,
     /// La configuracion del Drone contiene el nivel de bateria del mismo y
     /// el radio de operacion.
     target_location: Location,
@@ -41,11 +41,11 @@ pub struct Drone {
     /// - LowBatteryLevel: el Drone se quedo sin bateria, por lo que va a su central a cargarse, y no va a volver a
     ///                    funcionar hasta que tenga el nivel de bateria completo(al terminar de cargarse, vuelve a
     ///                    tener el estado Waiting).
-    drone_state: DroneState,
+    pub drone_state: DroneState,
 
-    drone_client: Client,
+    pub drone_client: Client,
 
-    battery_level: i64,
+    pub battery_level: i64,
 
     send_to_client_channel: mpsc::Sender<Box<dyn messages_config::MessagesConfig + Send>>,
 
@@ -110,7 +110,7 @@ impl Drone {
         let self_clone = Arc::new(Mutex::new(self.clone()));
         std::thread::spawn(move || {
             let self_clone: Arc<Mutex<Drone>> = Arc::clone(&self_clone);
-            let mut self_locked = match self_clone.lock(){
+            let mut self_locked = match self_clone.lock() {
                 Ok(locked) => locked,
                 Err(e) => {
                     println!("Error locking drone: {:?}", e);
@@ -123,13 +123,12 @@ impl Drone {
 
         let _t1 = std::thread::spawn(move || {
             let self_clone: Arc<Mutex<Drone>> = Arc::clone(&self_clone2);
-            let mut self_locked = match self_clone.lock(){
+            let mut self_locked = match self_clone.lock() {
                 Ok(locked) => locked,
                 Err(e) => {
                     println!("Error locking drone: {:?}", e);
                     return;
                 }
-            
             };
 
             println!("Drone {} is moving", self_locked.id);
@@ -246,7 +245,6 @@ impl Drone {
 
                 self.update_location();
                 self.handle_low_battery()?;
-
             } else {
                 self.drone_state = DroneState::LowBatteryLevel;
                 return Err(DroneError::BatteryEmpty);
@@ -286,14 +284,12 @@ impl Drone {
             }
         };
 
-        match self.send_to_client_channel
-            .send(Box::new(publish_config))
-            {
-                Ok(_) => (),
-                Err(e) => {
-                    println!("Error sending to client channel: {:?}", e);
-                }
-            };
+        match self.send_to_client_channel.send(Box::new(publish_config)) {
+            Ok(_) => (),
+            Err(e) => {
+                println!("Error sending to client channel: {:?}", e);
+            }
+        };
     }
 
     fn handle_low_battery(&mut self) -> Result<(), DroneError> {
@@ -315,7 +311,30 @@ impl Drone {
         self.target_location = Location::new(new_target_lat, new_target_long);
         Ok(())
     }
+    // fn update_current_location(&mut self) {
+    //     let publish_config = match PublishConfig::read_config(
+    //         "src/drones/publish_config.json",
+    //         PayloadTypes::LocationPayload(self.location.clone()),
+    //     ) {
+    //         Ok(config) => config,
+    //         Err(e) => {
+    //             println!("Error reading publish config: {:?}", e);
+    //             return;
+    //         }
+    //     };
+    //     self.send_to_client_channel
+    //         .send(Box::new(publish_config))
+    //         .unwrap();
+    // }
 }
+// #[cfg(test)]
+// mod tests {
+//     use core::panic;
+//     #[cfg(test)]
+//     use std::{
+//         sync::{Arc, Condvar, Mutex},
+//         thread,
+//     };
 
 // #[cfg(test)]
 // mod tests {

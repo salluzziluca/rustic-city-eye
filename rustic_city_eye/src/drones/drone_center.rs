@@ -11,9 +11,9 @@ use super::drone_error::DroneError;
 /// Tiene su ID unico, su ubicación, la dirección a la que se conecta
 /// y el path de su configuración.
 pub struct DroneCenter {
-    id: u32,
-    location: Location,
-    drones: HashMap<u32, Drone>,
+    pub id: u32,
+    pub location: Location,
+    pub drones: HashMap<u32, Drone>,
     drone_config_path: String,
     address: String,
 }
@@ -163,7 +163,12 @@ mod tests {
                 addr.to_string(),
             );
 
-            let id = drone_center.add_drone(location).unwrap();
+            let id = match drone_center.add_drone(location) {
+                Ok(id) => id,
+                Err(e) => {
+                    panic!("Error adding drone to drone center: {:?}", e)
+                }
+            };
 
             let drone = drone_center.get_drone_by_id(id);
 
