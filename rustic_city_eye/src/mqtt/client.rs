@@ -144,7 +144,7 @@ impl Client {
         {
             println!("Enviando publish");
             match message.write_to(&mut stream) {
-                Ok(()) => Ok(packet_id),
+                Ok(()) => {Ok(packet_id)},
                 Err(_) => Err(ClientError::new("Error al enviar mensaje")),
             }
         } else {
@@ -159,7 +159,6 @@ impl Client {
     ) -> Result<u16, ClientError> {
         match message.write_to(&mut stream) {
             Ok(()) => {
-                println!("el sub fue enviado");
                 Ok(packet_id)
             }
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
@@ -438,7 +437,6 @@ impl Client {
                                     properties,
                                     payload: payload.clone(),
                                 };
-                                println!("Mensaje recibidOOOOOo {:?}", subscribe);
                                 for p in payload {
                                     if let Ok(stream) = stream_clone.try_clone() {
                                         if let Ok(packet_id) =

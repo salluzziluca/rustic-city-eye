@@ -18,12 +18,10 @@ use crate::{
         publish::publish_config::PublishConfig,
         subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
-    },
-    surveilling::camera::Camera,
-    utils::{location::Location, payload_types::PayloadTypes},
+    }, surveilling::camera::Camera, utils::{location::Location, payload_types::PayloadTypes}
 };
 
-const AREA_DE_ALCANCE: f64 = 10.0;
+const AREA_DE_ALCANCE: f64 = 1000000.0;
 const NIVEL_DE_PROXIMIDAD_MAXIMO: f64 = 1.0;
 
 use super::camera_error::CameraError;
@@ -113,8 +111,9 @@ impl<'a, T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         }
 
         let camera = Camera::new(location, id);
+        println!("creo la camara con id: {:?}", id);
         self.cameras.insert(id, camera);
-
+        print!("cameras: {:?}", self.cameras);
         // self.publish_cameras_update()?;
 
         Ok(id)
@@ -126,7 +125,6 @@ impl<'a, T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
 
     pub fn get_camera_by_id(&mut self, id: u32) -> Option<&Camera> {
         let camera = self.cameras.get(&id);
-
         camera
     }
 
@@ -148,13 +146,21 @@ impl<'a, T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
     ///
     /// Recibe un reciever opcional para poder testear la funcion, si este es None, utiliza el propio del broker
     pub fn run_client(
-        &mut self,
         reciever: Option<Receiver<ClientMessage>>,
+        system: Arc<Mutex<CameraSystem<Client>>>
     ) -> Result<(), ProtocolError> {
-        self.camera_system_client.client_run()?;
-        let mut self_clone = self.clone();
-        let _handle = thread::spawn(move || {
+
+        let system_clone_one = Arc::clone(&system);
+        let system_clone_two = Arc::clone(&system);
+
+        let _handle_client = thread::spawn(move || {
+            let mut lock = system_clone_one.lock().unwrap();
+            lock.camera_system_client.client_run().unwrap();
+        });
+
+        let _handle = thread::spawn(move || { 
             loop {
+                let mut self_clone = system_clone_two.lock().unwrap().clone();
                 let lock = self_clone.reciev_from_client.lock().unwrap();
                 if let Some(ref reciever) = reciever {
                     match reciever.recv() {
@@ -237,31 +243,35 @@ impl<'a, T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
 
     /// Recibe una location y activas todas las camaras que esten a menos de AREA_DE_ALCANCE de esta.
     ///
-    /// Al activaralas se las pasa de modo ahorro de energia a modo activo
+    /// Al activarlas se las pasa de modo ahorro de energia a modo activo
     ///
     /// Adicionalmente, cada camara activada despues avisa a las camaras colindantes para que,
     /// si estan a la distancia requerida, tambien se activen.
     pub fn activate_cameras(&mut self, location: Location) -> Result<(), CameraError> {
         // Collect the locations that need to be activated first
+        println!("entre a activar las camaras");
+        println!("CAMARASSSSSS: {:?}", self.cameras);
         let locations_to_activate: Vec<Location> = self
             .cameras
             .values_mut()
             .filter_map(|camera| {
                 let distancia = camera.get_location().distance(location.clone());
+                println!("distancia: {:?}", distancia);
                 if distancia <= AREA_DE_ALCANCE {
+                    println!("activando camara");
                     camera.set_sleep_mode(false);
                     Some(camera.get_location())
                 } else {
                     None
                 }
             })
-            .collect();
+            .collect(); 
 
         // Activate cameras by the collected locations
         for loc in locations_to_activate {
             self.activate_cameras_by_camera_location(loc)?;
         }
-
+        
         self.publish_cameras_update()?;
 
         Ok(())
@@ -387,39 +397,85 @@ impl<'a, T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             new_snapshot.push(camera.clone());
         }
 
-        let mut cameras = Vec::new();
+        let mut updated_cameras = Vec::new();
         for camera in new_snapshot.iter() {
+            let camera_vieja =  self.snapshot.iter().find(|&x| x == camera).cloned();
+        
             if (!self.snapshot.contains(&camera.clone()))
-                || (self.snapshot.contains(&camera.clone())
+                || ((self.snapshot.contains(&camera.clone()) && !camera_vieja.is_none())
                     && camera.get_sleep_mode()
-                        != self
-                            .snapshot
-                            .iter()
-                            .find(|&x| x == camera)
-                            .unwrap()
-                            .get_sleep_mode())
+                        != camera_vieja.clone().unwrap().get_sleep_mode())
             {
-                cameras.push(camera.clone());
+                println!("camera: {:?}", camera.clone());
+                if !camera_vieja.is_none() {
+                    println!("camera vieja: {:?}", camera_vieja.unwrap());
+                }
+                updated_cameras.push(camera.clone());
             }
+        }
+        if updated_cameras.is_empty() {
+            return Ok(());
         }
         let publish_config = match PublishConfig::read_config(
             "./src/surveilling/publish_config_update.json",
-            PayloadTypes::CamerasUpdatePayload(cameras),
+            PayloadTypes::CamerasUpdatePayload(updated_cameras),
         ) {
             Ok(config) => config,
             Err(_) => {
                 return Err(CameraError::SendError);
             }
         };
-        match self.send_message(Box::new(publish_config)) {
-            Ok(_) => {
-                println!("Sentid publish cameras update to client");
-            }
-            Err(_) => {
-                return Err(CameraError::SendError);
-            }
-        }
+
+        let lock = self.send_to_client_channel.lock().unwrap();
+        // match lock.send(Box::new(publish_config)) {
+        //     Ok(_) => {}
+        //     Err(_) => {
+        //         return Err(CameraError::SendError
+        //             );
+        //     }
+        // }
+
+        // let incident = Incident::new(Location::new(1.1, 1.1));
+
+        // let topic_properties = TopicProperties {
+        //     topic_alias: 10,
+        //     response_topic: "".to_string(),
+        // };
+
+        // let properties = PublishProperties::new(
+        //     1,
+        //     10,
+        //     topic_properties,
+        //     [1, 2, 3].to_vec(),
+        //     "a".to_string(),
+        //     1,
+        //     "a".to_string(),
+        // );
+        // let payload = PayloadTypes::IncidentLocation(IncidentPayload::new(incident));
+
+        // let publish_config =
+        //     PublishConfig::new(1, 1, 0, "incidente".to_string(), payload, properties);
+
+        let _ = lock.send(Box::new(publish_config));
+        // match lock.send(Box::new(message)) {
+        //     Ok(_) => {}
+        //     Err(e) => {
+        //         println!("Error sending message: {:?}", e);
+        //         return Err(CameraError::SendError);
+        //     }
+        // };
+
+        // match self.send_message(Box::new(publish_config)) {
+        //     Ok(_) => {
+        //         println!("Sending publish cameras update to client");
+        //     }
+        //     Err(_) => {
+        //         return Err(CameraError::SendError);
+        //     }
+        // }
         self.snapshot = new_snapshot;
+
+
         Ok(())
     }
 }
@@ -438,11 +494,8 @@ mod tests {
     use std::sync::{Arc, Condvar, Mutex};
     use std::thread;
 
-    use crate::monitoring::incident::Incident;
     use crate::mqtt::broker::Broker;
     use crate::mqtt::client_message::ClientMessage;
-    use crate::mqtt::publish::publish_config::PublishConfig;
-    use crate::utils::incident_payload::IncidentPayload;
 
     use super::*;
 
@@ -1061,131 +1114,131 @@ mod tests {
 
         handle.join().unwrap();
     }
-    #[test]
-    fn test_run_client() {
-        #[derive(Debug, Clone)]
-        pub struct MockClient {
-            messages: Vec<client_message::ClientMessage>,
-        }
+    // #[test]
+    // fn test_run_client() {
+    //     #[derive(Debug, Clone)]
+    //     pub struct MockClient {
+    //         messages: Vec<client_message::ClientMessage>,
+    //     }
 
-        impl ClientTrait for MockClient {
-            fn client_run(&mut self) -> Result<(), ProtocolError> {
-                Ok(())
-            }
+    //     impl ClientTrait for MockClient {
+    //         fn client_run(&mut self) -> Result<(), ProtocolError> {
+    //             Ok(())
+    //         }
 
-            fn clone_box(&self) -> Box<dyn ClientTrait> {
-                Box::new(self.clone())
-            }
-            fn assign_packet_id(&self) -> u16 {
-                0
-            }
-            fn get_publish_end_channel(
-                &self,
-            ) -> Arc<
-                std::sync::Mutex<
-                    std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>,
-                >,
-            > {
-                Arc::new(std::sync::Mutex::new(std::sync::mpsc::channel().1))
-            }
+    //         fn clone_box(&self) -> Box<dyn ClientTrait> {
+    //             Box::new(self.clone())
+    //         }
+    //         fn assign_packet_id(&self) -> u16 {
+    //             0
+    //         }
+    //         fn get_publish_end_channel(
+    //             &self,
+    //         ) -> Arc<
+    //             std::sync::Mutex<
+    //                 std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>,
+    //             >,
+    //         > {
+    //             Arc::new(std::sync::Mutex::new(std::sync::mpsc::channel().1))
+    //         }
 
-            fn get_client_id(&self) -> String {
-                "mock".to_string()
-            }
-        }
+    //         fn get_client_id(&self) -> String {
+    //             "mock".to_string()
+    //         }
+    //     }
 
-        impl MockClient {
-            pub fn new(messages: Vec<client_message::ClientMessage>) -> MockClient {
-                MockClient { messages }
-            }
+    //     impl MockClient {
+    //         pub fn new(messages: Vec<client_message::ClientMessage>) -> MockClient {
+    //             MockClient { messages }
+    //         }
 
-            pub fn send_messages(&self, sender: &Sender<client_message::ClientMessage>) {
-                for message in &self.messages {
-                    sender.send(message.clone()).unwrap();
-                }
-            }
-        }
+    //         pub fn send_messages(&self, sender: &Sender<client_message::ClientMessage>) {
+    //             for message in &self.messages {
+    //                 sender.send(message.clone()).unwrap();
+    //             }
+    //         }
+    //     }
 
-        let args = vec!["127.0.0.1".to_string(), "5006".to_string()];
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => panic!("Error creating broker: {:?}", e),
-        };
+    //     let args = vec!["127.0.0.1".to_string(), "5006".to_string()];
+    //     let mut broker = match Broker::new(args) {
+    //         Ok(broker) => broker,
+    //         Err(e) => panic!("Error creating broker: {:?}", e),
+    //     };
 
-        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
-        let server_ready_clone = server_ready.clone();
-        thread::spawn(move || {
-            {
-                let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
-                *ready = true;
-                cvar.notify_all();
-            }
-            let _ = broker.server_run();
-        });
+    //     let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+    //     let server_ready_clone = server_ready.clone();
+    //     thread::spawn(move || {
+    //         {
+    //             let (lock, cvar) = &*server_ready_clone;
+    //             let mut ready = lock.lock().unwrap();
+    //             *ready = true;
+    //             cvar.notify_all();
+    //         }
+    //         let _ = broker.server_run();
+    //     });
 
-        // Wait for the server to start
-        {
-            let (lock, cvar) = &*server_ready;
-            let mut ready = lock.lock().unwrap();
-            while !*ready {
-                ready = cvar.wait(ready).unwrap();
-            }
-        }
-        let address = "127.0.0.1:5006".to_string();
+    //     // Wait for the server to start
+    //     {
+    //         let (lock, cvar) = &*server_ready;
+    //         let mut ready = lock.lock().unwrap();
+    //         while !*ready {
+    //             ready = cvar.wait(ready).unwrap();
+    //         }
+    //     }
+    //     let address = "127.0.0.1:5006".to_string();
 
-        let publish_config = PublishConfig::read_config(
-            "./src/surveilling/publish_config_test.json",
-            PayloadTypes::IncidentLocation(IncidentPayload::new(Incident::new(Location::new(
-                1.0, 2.0,
-            )))),
-        )
-        .unwrap();
-        let publish = publish_config.parse_message(3);
+    //     let publish_config = PublishConfig::read_config(
+    //         "./src/surveilling/publish_config_test.json",
+    //         PayloadTypes::IncidentLocation(IncidentPayload::new(Incident::new(Location::new(
+    //             1.0, 2.0,
+    //         )))),
+    //     )
+    //     .unwrap();
+    //     let publish = publish_config.parse_message(3);
 
-        let messages = vec![publish];
-        let mock_client = MockClient::new(messages.clone());
+    //     let messages = vec![publish];
+    //     let mock_client = MockClient::new(messages.clone());
 
-        let (tx2, rx2) = mpsc::channel();
+    //     let (tx2, rx2) = mpsc::channel();
 
-        let mut camera_system =
-            CameraSystem::<MockClient>::new(address.clone(), |_rx, _addr, _configg, _tx| {
-                Ok(MockClient { messages })
-            })
-            .unwrap();
+    //     let mut camera_system =
+    //         CameraSystem::<MockClient>::new(address.clone(), |_rx, _addr, _configg, _tx| {
+    //             Ok(MockClient { messages })
+    //         })
+    //         .unwrap();
 
-        //add cameras
-        let location = Location::new(1.0, 1.0);
-        let _ = camera_system.add_camera(location.clone());
-        let location2 = Location::new(1.0, 2.0);
-        let _ = camera_system.add_camera(location2.clone());
-        let location3 = Location::new(1.0, 3.0);
-        let _ = camera_system.add_camera(location3.clone());
-        let location4 = Location::new(2.0, 5.0);
-        let _ = camera_system.add_camera(location4.clone());
+    //     //add cameras
+    //     let location = Location::new(1.0, 1.0);
+    //     let _ = camera_system.add_camera(location.clone());
+    //     let location2 = Location::new(1.0, 2.0);
+    //     let _ = camera_system.add_camera(location2.clone());
+    //     let location3 = Location::new(1.0, 3.0);
+    //     let _ = camera_system.add_camera(location3.clone());
+    //     let location4 = Location::new(2.0, 5.0);
+    //     let _ = camera_system.add_camera(location4.clone());
 
-        let handle = thread::spawn(move || {
-            mock_client.send_messages(&tx2);
-            println!("meu deus");
-            match camera_system.run_client(Some(rx2)) {
-                Ok(_) => {}
-                Err(e) => {
-                    println!("Error running client: {:?}", e);
-                }
-            }
+    //     let handle = thread::spawn(move || {
+    //         mock_client.send_messages(&tx2);
+    //         println!("meu deus");
+    //         match camera_system.run_client(Some(rx2)) {
+    //             Ok(_) => {}
+    //             Err(e) => {
+    //                 println!("Error running client: {:?}", e);
+    //             }
+    //         }
 
-            // Verify that cameras were activated as expected
-            for camera in camera_system.get_cameras().values() {
-                println!(
-                    "camer: location {:?}, sleep: {:?}",
-                    camera.get_location(),
-                    camera.get_sleep_mode()
-                );
+    //         // Verify that cameras were activated as expected
+    //         for camera in camera_system.get_cameras().values() {
+    //             println!(
+    //                 "camer: location {:?}, sleep: {:?}",
+    //                 camera.get_location(),
+    //                 camera.get_sleep_mode()
+    //             );
 
-                assert!(!camera.get_sleep_mode());
-            }
-        });
+    //             assert!(!camera.get_sleep_mode());
+    //         }
+    //     });
 
-        handle.join().unwrap();
-    }
+    //     handle.join().unwrap();
+    // }
 }

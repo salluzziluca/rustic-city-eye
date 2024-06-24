@@ -863,23 +863,9 @@ impl ClientMessage {
                 Ok(ClientMessage::Connect(connect))
             }
             0x30 => {
-                let topic_properties = TopicProperties {
-                    topic_alias: 10,
-                    response_topic: "String".to_string(),
-                };
-
-                let properties = PublishProperties::new(
-                    1,
-                    10,
-                    topic_properties,
-                    [1, 2, 3].to_vec(),
-                    "a".to_string(),
-                    1,
-                    "a".to_string(),
-                );
                 let packet_id = read_u16(stream)?;
                 let topic_name = read_string(stream)?;
-                PublishProperties::read_from(stream)?;
+                let properties = PublishProperties::read_from(stream)?;
 
                 let payload = PayloadTypes::read_from(stream)?;
 
