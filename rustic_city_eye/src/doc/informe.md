@@ -5,33 +5,32 @@
 Primer Cuatrimestre de 2024.
 
 ## Grupo: Rustic City Eye
-### Integrantes:
+
+### Integrantes
+
 - Carranza, Lihuén.
 - Demarchi, Ignacio.
 - Giacobbe, Juan Ignacio.
 - Saluzzi, Luca.
 
 # Índice
-1. [Introducción](#Introducción) </br>
-    1.1. [¿Qué es un Sistema de Mensajería Asincrónico?](#¿Qué-es-un-Sistema-de-Mensajería-Asincrónico?)</br>
-    1.2. [¿Qué es un Message Broker?](#¿Qué-es-un-Message-Broker?)</br>
-    1.3. [Protocolos de Mensajería Asincrónica](#Protocolos-de-Mensajería-Asincrónica)</br>
-    1.4. [Advanced Message Queuing Protocol(AMQP)](#Advanced-Message-Queuing-Protocol(AMQP))</br>
-    1.5. [Message Queuing Telemetry Transport(MQTT)](#Message-Queuing-Telemetry-Transport(MQTT))</br>
-    1.6. [¿Qué protocolo vamos a implementar?](#¿Qué-protocolo-vamos-a-implementar?)</br>
-2. [Servicio de Mensajería](#Servicio-de-Mensajería)</br>
-    2.1.  [Patrón publisher-suscriber](#Patrón-publisher-suscriber)</br>
-    2.2. [Arquitectura Cliente-Servidor](#Arquitectura-Cliente-Servidor)</br>
-    2.3. [Requerimientos del servicio](#Requerimientos-del-servicio)</br>
 
-3. [Aplicación de Monitoreo](#Aplicación-de-Monitoreo)
-* [Resultados](#resultados)</br>
-* [Conclusiones](#conclusiones)</br>
-
-
+1. [Introducción](#introducción)
+    1. [¿Qué es un Sistema de Mensajería Asincrónico?](#qué-es-un-sistema-de-mensajería-asincrónico)
+    2. [¿Qué es un Message Broker?](#qué-es-un-message-broker)
+    3. [Protocolos de Mensajería Asincrónica](#protocolos-de-mensajería-asincrónica)
+        1. [Advanced Message Queuing Protocol(AMQP)](#advanced-message-queuing-protocolamqp)
+        2. [Message Queuing Telemetry Transport(MQTT)](#message-queuing-telemetry-transportmqtt)
+    4. [¿Qué protocolo vamos a implementar?](#que-protocolo-vamos-a-implementar)
+2. [Servicio de Mensajería](#servicio-de-mensajería)
+3. [Aplicación de Monitoreo](#aplicación-de-monitoreo)
+4. [Sistema Central de Cámaras](#sistema-central-de-cámaras)
+5. [Software de Control de Agentes(Drones)](#software-de-control-de-agentesdrones)
 
 # Introducción
+
 ## ¿Qué es un Sistema de Mensajería Asincrónico?
+>
 >Un **Sistema de Mensajería Asincrónico** es una plataforma que permite la comunicación entre diferentes partes sin que estas necesiten estar simultáneamente activas. Ambos participantes de una conversación tienen la libertad de comenzar, pausar y resumir conversaciones en sus propios términos, sin necesidad de tenerlos conectados a tiempo real.
 
 Al utilizar este tipo de sistemas de mensajería, distintos procesos se comunican entre sí intercambiando mensajes de una manera asincrónica. Un cliente introduce un comando o una petición a un servicio a través de un mensaje, y si este necesita responder, envía un mensaje otra vez al mismo cliente.
@@ -39,7 +38,6 @@ Al utilizar este tipo de sistemas de mensajería, distintos procesos se comunica
 Debido a que estamos en un contexto de comunicación asincrónica, el cliente asume que la respuesta no va a ser recibida instantáneamente, y que incluso puede no tenerla. No necesitamos que los procesos que se comunican estén intercambiando mensajes a tiempo real.
 
 Aplicar este tipo de mensajería evita la pérdida de datos valiosos y permite que los sistemas sigan funcionando incluso ante los problemas intermitentes de conectividad o latencia habituales en las redes públicas. La mensajería asíncrona garantiza que los mensajes se entreguen una vez (y sólo una vez) en el orden correcto con respecto a otros mensajes.
-
 
 Un ejemplo cotidiano en el que usamos este tipo de sistemas de mensajerías es al intercambiar correos electrónicos con otra persona: nosotros enviamos un mensaje, y el receptor del mismo no tiene la necesidad de respondernos al instante(incluso, puede que no obtengamos respuesta...). No tenemos la necesidad de tener a ambas partes conectadas a tiempo real.
 
@@ -58,7 +56,8 @@ Para proporcionar un almacenamiento de mensajes fiable y una entrega garantizada
 Los Message Brokers pueden incluir gestores de colas para manejar las interacciones entre múltiples colas de mensajes, así como servicios que proporcionan funciones de enrutamiento de datos, traducción de mensajes, persistencia y gestión del estado del cliente.
 
 ## Protocolos de Mensajería Asincrónica
-> Los **Protocolos de Mensajería Asincrónica** son conjuntos de reglas y estándares que facilitan la entrega eficiente de mensajes entre sistemas o aplicaciones sin la necesidad de una respuesta inmediata. 
+>
+> Los **Protocolos de Mensajería Asincrónica** son conjuntos de reglas y estándares que facilitan la entrega eficiente de mensajes entre sistemas o aplicaciones sin la necesidad de una respuesta inmediata.
 
 ### Advanced Message Queuing Protocol(AMQP)
 
@@ -66,21 +65,21 @@ En este protocolo, los mensajes se publican primero en una bolsa del Broker. La 
 
 ![amqp](./img/amqp.png)
 
-#### Ventajas de utilizar el protocolo:
+#### Ventajas de utilizar el protocolo
+
 - Soporta un mecanismo de enrutamiento sotisficado.
 - No solo define el formato del mensaje, sino también define las reglas de interacción entre las entidades del sistema de mensajería. Esto incluye cómo establecer una conexión, cómo mantener una sesión y cómo garantizar una comunicación segura.
 - Admite una amplia gama de patrones de mensajería y ofrece sólidas garantías de entrega, como la entrega de mensajes at-most-once, at-least-once, and exactly-once. También ofrece funciones flexibles de enrutamiento de mensajes, lo que lo convierte en una potente herramienta para construir sistemas distribuidos complejos.
 - En términos de fiabilidad y entrega de mensajes, AMQP asegura que los mensajes se entreguen de forma fiable a los destinatarios previstos, incluso ante fallos de la red o del sistema.
 - Ofrece funciones de seguridad sólidas. Soporta SSL/TLS para cifrado y SASL para autenticación e integridad. AMQP también ofrece soporte para multi-tenancy seguro, que permite a varios usuarios compartir el mismo sistema de mensajería manteniendo sus mensajes privados y separados.
 
-#### Desventajas de utilizar el protocolo:
+#### Desventajas de utilizar el protocolo
 
 - La implementación y configuración inicial de AMQP puede ser más compleja en comparación con otros protocolos más simples. Requiere un entendimiento más profundo de los conceptos de colas, exchanges y enrutamiento, lo cual puede implicar una curva de aprendizaje mayor para los desarrolladores y administradores de sistemas.
 - Aunque AMQP está optimizado para el rendimiento, el uso de características avanzadas como confirmaciones de entrega y colas persistentes puede requerir más recursos computacionales y de almacenamiento en comparación con protocolos más ligeros y menos robustos.
 - Debido a su flexibilidad y configurabilidad, la implementación inicial y el mantenimiento continuo de una infraestructura basada en AMQP pueden requerir más tiempo y recursos en comparación con soluciones más simples y menos personalizables.
 
-AMQP es una opción sólida para construir una red de mensajería asincrónica en el contexto de nuestro proyecto gracias a su robustez, escalabilidad y garantías de entrega de mensajes. 
-
+AMQP es una opción sólida para construir una red de mensajería asincrónica en el contexto de nuestro proyecto gracias a su robustez, escalabilidad y garantías de entrega de mensajes.
 
 ### Message Queuing Telemetry Transport(MQTT)
 
@@ -88,24 +87,24 @@ En este protocolo, los publishers publican mensajes en un topic de un Broker. A 
 
 ![mqtt](./img/mqtt.png)
 
-#### Ventajas de utilizar el protocolo:
+#### Ventajas de utilizar el protocolo
+
 - Es más sencillo y ligero, lo que facilita su uso en dispositivos con recursos limitados. Utiliza una estructura de paquetes ligera que reduce los datos transmitidos por la red.
 - Admite SSL/TLS para cifrado y autenticación. También proporciona un sencillo mecanismo de nombre de usuario/contraseña para la autenticación del cliente.
 - Al ser ligero, requiere menos potencia de cálculo y, por tanto, un hardware menos costoso. También utiliza menos ancho de banda de red, lo que puede ahorrarle recursos a las aplicaciones y/o sistemas que lo usen.
-- Utiliza un modelo de publisher/subscriber (pub/sub) que facilita la comunicación asincrónica entre múltiples dispositivos y aplicaciones. 
+- Utiliza un modelo de publisher/subscriber (pub/sub) que facilita la comunicación asincrónica entre múltiples dispositivos y aplicaciones.
 - Está diseñado para manejar conexiones inestables y pérdidas ocasionales de conectividad de red, lo cual es común en entornos móviles o con cobertura variable. En el contexto del proyecto, los drones pueden mantener la conexión y reanudar la transmisión de datos de vigilancia cuando la conectividad se restablezca.
 
+#### Desventajas de utilizar el protocolo
 
-#### Desventajas de utilizar el protocolo:
 - Aunque MQTT es adecuado para un gran número de dispositivos conectados, puede enfrentar limitaciones en términos de escalabilidad horizontal en comparación con protocolos como AMQP, que están optimizados para manejar volúmenes muy grandes de mensajes y conexiones.
 - Al estar diseñado para ser simple y eficiente, carece de algunas características avanzadas que son ofrecidas por otros protocolos más complejos como AMQP. Por ejemplo, MQTT no soporta enrutamiento avanzado de mensajes o colas persistentes de la misma manera que AMQP.
 - Aunque MQTT ofrece opciones de seguridad básicas como autenticación y cifrado TLS/SSL, puede no ser tan robusto como AMQP en términos de características de seguridad avanzadas y personalización.
 - A diferencia de AMQP, que puede manejar desconexiones temporales y reintentos automáticos de entrega de mensajes, MQTT depende en gran medida de la disponibilidad continua de la red para la entrega de mensajes en tiempo real.
 
-
 MQTT es una excelente opción para implementaciones de redes de mensajería asincrónica en entornos como la vigilancia con drones autónomos, debido a su simplicidad, eficiencia y soporte para pub/sub.
 
-## ¿Qué protocolo vamos a implementar?
+## ¿Que protocolo vamos a implementar?
 
 Luego de haber estudiado distintos protocolos de message broking, como por ejemplo AMQP y MQTT, como así también los requerimientos del proyecto, **hemos decidido implementar el protocolo MQTT**.
 
@@ -117,31 +116,29 @@ A diferencia de MQTT, AMQP requiere de más recursos computacionales y de almace
 
 Aunque AMQP por su parte es un protocolo más seguro y robusto que MQTT, consideramos que este último se adapta mejor a las necesidades de nuestro proyecto, por lo que decidimos por implementar este protocolo.
 
-
 # Servicio de Mensajería
 
 Luego de haber tomado la decisión de implementar el protocolo de message broking MQTT para nuestro proyecto, comenzamos con los requerimientos funcionales de nuestro servicio de mensajería.
 
 Desde la cátedra se nos recomendó seguir el patrón de comunicación *publisher-suscriber*, y la arquitectura *cliente-servidor* para construir el servicio de mensajería.
 
-
 ## Patrón publisher-suscriber
+>
 > MQTT es un protocolo de mensajería específicos que sigue la arquitectura publisher-suscriber.  Utiliza un modelo basado en intermediarios en el que los clientes se conectan a un intermediario(en nuestro caso será el Broker) y los mensajes se publican en topics. Los suscriptores pueden suscribirse a temas específicos y recibir los mensajes publicados.
 
 ![pubsub](./img/pubsub.png)
 
 ### Desacoplamiento del Publisher y Suscriber
+
 MQTT desacopla espacialmente al publisher y al suscriber, lo que significa que sólo necesitan conocer el nombre de host/IP y el puerto del broker para publicar o recibir mensajes. Además, MQTT desacopla por tiempo, lo que permite al Broker almacenar mensajes para clientes que no están en línea. Para almacenar mensajes deben cumplirse dos condiciones: que el cliente se haya conectado con una sesión persistente y se haya suscrito a un tema con una calidad de servicio superior a 0.
 
 ### Filtrado de Mensajes
 
 MQTT utiliza el filtrado de mensajes basado en asuntos. Cada mensaje contiene un topic que el broker puede utilizar para determinar si un cliente suscriptor recibe el mensaje o no. Para manejar los desafíos de un sistema pub/sub, MQTT tiene tres niveles de Quality of Services (QoS). Se puede especificar fácilmente que un mensaje se entregue correctamente desde el cliente al broker o desde el broker a un cliente. Sin embargo, existe la posibilidad de que nadie se suscriba al topic en cuestión. Para mantener la flexibilidad del árbol de topics jerárquico, es importante diseñar el árbol de topics con mucho cuidado y dejar espacio para futuros casos de uso.
 
-
 ### Escalabilidad
 
 Como MQTT sigue la arquitectura pub/sub, la escalabilidad es algo natural en este protocolo, lo que lo hace ideal para las aplicaciones que vamos a desarrollar. A pesar de sus ventajas, escalar a millones de conexiones puede suponer un reto para Pub/Sub. En estos casos, se pueden utilizar nodos Broker agrupados para distribuir la carga entre varios servidores, mientras que los balanceadores de carga pueden garantizar que el tráfico se distribuya uniformemente.
-
 
 ## Arquitectura Cliente-Servidor
 
@@ -165,11 +162,12 @@ Para MQTT, tenemos dos entidades principales: el Client, y el Broker. El Client 
 - Es responsable de autenticar y autorizar a los clientes.
 
 ## Requerimientos del servicio
+
 Tuvimos en cuenta ciertos requerimientos al desarrollar nuestro servicio de mensajería especificados en la consigna, y que fueron de ayuda para tomar la decisión final de implementar el protocolo MQTT.
 
 ### Seguridad
 
-Se implementó un método de autenticación "password-based" el cual, como su nombre lo indica, es basado en contraseñas. 
+Se implementó un método de autenticación "password-based" el cual, como su nombre lo indica, es basado en contraseñas.
 
 Al iniciar un Broker, éste levanta un archivo que contiene información sobre los distintos usuarios que están registrados, guardando su client_id, su username, y su password.
 
@@ -190,10 +188,9 @@ El protocolo MQTT en su versión 5.0(el que implementamos para el proyecto), sop
 
 ### Logging
 
-
 # Aplicación de Monitoreo
 
-Es la aplicación principal del proyecto. La idea es que pueda recibir la carga de incidentes por parte del usuario, y notificar a la red ante la aparición de un incidente nuevo y los cambios de estado del mismo (iniciado, resuelto, etc). 
+Es la aplicación principal del proyecto. La idea es que pueda recibir la carga de incidentes por parte del usuario, y notificar a la red ante la aparición de un incidente nuevo y los cambios de estado del mismo (iniciado, resuelto, etc).
 
 La aplicación de monitoreo cuenta con una instancia de Client, el cual se va a intentar conectar a un Broker corriendo en un puerto especificado desde la interfaz gráfica, y también se va a proceder a tomar un username y una password provenientes de la interfaz, procediendo así con la autenticación del Client. En caso de error, la aplicación no se cierra, sino que arroja una alerta del error, y se le pide al usuario que complete el formulario de "login" nuevamente.
 
@@ -201,7 +198,14 @@ La aplicación al crearse va a crear una instancia de un Sistema Central de Cám
 
 En la misma se puede visualizar el estado completo del sistema, incluyendo el mapa geográfico de la región con los incidentes activos, y la posición y el estado de cada agente (dron) y cada cámara de vigilancia.
 
+Esta posee 4 botones. Uno para agregar cámaras, otro para incidentes y 2 pertenecientes al sistema de Drones.
+
+Para agregar un elemento al sistema uno debe primero seleccionar un punto en el mapa y luego elegir que tipo de entidad quiere crear. En el caso de los drones, es necesario primero crear una central de drones que los aloje, no se pueden crear drones sin una central.
+
+Al crear/reportar un incidente, se activaran las camaras que esten en el rango requerido. El camera system recibirá un publish message mediante el broker que indicará que hubo un incidente en cierta Location. Este entonces activará las camaras que se encuentren en ese rango y enviará al broker un publish cuyo payload será un array de las camaras que variaron su estado.
 
 # Sistema Central de Cámaras
+
+El sistema de camaras es la entidad encargada de gestionar todas las camaras de la aplicación. Este tiene como tipo de dato principal un hashmap del tipo `<ID, Camera>`. A este se le puede pedir crear una camara nueva, o modificar al estado de las camaras actuales.
 
 # Software de Control de Agentes(Drones)
