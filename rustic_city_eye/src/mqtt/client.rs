@@ -676,7 +676,6 @@ pub fn handle_message(
                 }
                 match sender.send(true) {
                     Ok(_) => {
-                        println!("AAAApuback {:?}", message);
                         Ok(ClientReturn::PubackRecieved)
                     }
                     Err(e) => Err(ProtocolError::ChanellError(e.to_string())),
@@ -733,7 +732,7 @@ pub fn handle_message(
                     properties,
                     payload,
                 }) {
-                    Ok(_) => println!("Publish enviado al SYSTEMA"),
+                    Ok(_) => println!("Publish enviado correctamente!"),
                     Err(e) => println!("Error al enviar publish al cliente: {:?}", e),
                 }
 

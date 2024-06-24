@@ -6,7 +6,7 @@ use crate::{
         client::Client,
         client_message::{self, ClientMessage},
         messages_config,
-        publish::publish_config::{self, PublishConfig},
+        publish::publish_config::PublishConfig,
     },
     utils::{location::Location, payload_types::PayloadTypes},
 };
@@ -294,7 +294,7 @@ impl Drone {
         let publish_config =
             match PublishConfig::read_config("src/drones/publish_config.json", payload) {
                 Ok(config) => config,
-                Err(e) => return Err(DroneError::ReadingConfigFileError),
+                Err(_) => return Err(DroneError::ReadingConfigFileError),
             };
         self.send_to_client_channel
             .send(Box::new(publish_config))

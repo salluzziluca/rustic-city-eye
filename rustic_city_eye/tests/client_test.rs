@@ -337,8 +337,8 @@ mod tests {
             }
         }
 
-        let handle = thread::spawn(move || {
-            let mut camera_system = CameraSystem::with_real_client("127.0.0.1::5097".to_string());
+        let _handle = thread::spawn(move || {
+            let mut _camera_system = CameraSystem::with_real_client("127.0.0.1::5097".to_string());
         });
     }
 }

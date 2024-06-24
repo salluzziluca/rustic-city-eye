@@ -96,13 +96,8 @@ impl MonitoringApp {
     }
 
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
-        //let mut monitoring_app_client = self.monitoring_app_client.clone();
         self.monitoring_app_client.client_run()?;
-
-        //let mut camera_system = self.camera_system.clone();
-        //let _handle = thread::spawn(move || {
         let _ = self.camera_system.run_client(None);
-        //});
 
         Ok(())
     }
@@ -122,7 +117,7 @@ impl MonitoringApp {
 
         let topic_properties = TopicProperties {
             topic_alias: 10,
-            response_topic: "String".to_string(),
+            response_topic: "".to_string(),
         };
 
         let properties = PublishProperties::new(
@@ -180,7 +175,7 @@ impl MonitoringApp {
                         dup_flag: _,
                         properties: _,
                     } => {
-                        if topic_name == "drone_location" {
+                        if topic_name == "drone_locations" {
                             if let PayloadTypes::DroneLocation(id, drone_locationn) = payload {
                                 drone_locations.insert(id, drone_locationn);
                                 println!("Updated drone location");

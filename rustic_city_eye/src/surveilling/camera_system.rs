@@ -163,9 +163,7 @@ impl<'a, T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                             payload: PayloadTypes::IncidentLocation(payload),
                             ..
                         }) => {
-                            println!("acaso me HA LLEGADO UN PUBLISH????");
-                            println!("topic_name: {:?}", topic_name);
-                            if topic_name != "accidente" {
+                            if topic_name != "incidente" {
                                 continue;
                             }
                             let location = payload.get_incident().get_location();
@@ -195,9 +193,7 @@ impl<'a, T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                             payload: PayloadTypes::IncidentLocation(payload),
                             ..
                         }) => {
-                            println!("AYUDA POR FAVOR");
-                            println!("acaso me HA LLEGADO UN PUBLISH????");
-                            if topic_name == "accidente" {
+                            if topic_name == "incidente" {
                                 let location = payload.get_incident().get_location();
                                 drop(lock); // Release the lock here
                                 match self_clone
@@ -211,7 +207,7 @@ impl<'a, T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                                 }
 
                                 continue;
-                            } else if topic_name == "accidenteresuelto" {
+                            } else if topic_name == "incidente_resuelto" {
                                 let location = payload.get_incident().get_location();
                                 drop(lock); // Release the lock here
                                 match self_clone
@@ -226,8 +222,7 @@ impl<'a, T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                                 continue;
                             }
                         }
-                        Ok(cosa) => {
-                            println!("COSAS RARAS ACA DIOS MIO: {:?}", cosa);
+                        Ok(_) => {
                             continue;
                         } // Handle other message types if necessary
                         Err(_) => {
