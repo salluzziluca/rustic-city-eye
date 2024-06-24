@@ -153,7 +153,7 @@ impl<'a, T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
     ) -> Result<(), ProtocolError> {
         self.camera_system_client.client_run()?;
         let mut self_clone = self.clone();
-        let handle = thread::spawn(move || {
+        let _handle = thread::spawn(move || {
             loop {
                 let lock = self_clone.reciev_from_client.lock().unwrap();
                 if let Some(ref reciever) = reciever {

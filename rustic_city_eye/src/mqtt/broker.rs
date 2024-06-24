@@ -289,7 +289,6 @@ impl Broker {
         topic_name: String,
         subscription: Subscription,
     ) -> Result<u8, ProtocolError> {
-        println!("entre a handle subscribe");
         let reason_code;
         if let Some(topic) = topics.get_mut(&topic_name) {
             match topic.add_user_to_topic(subscription) {
@@ -337,6 +336,7 @@ impl Broker {
             },
             _ => return Err(ProtocolError::UnspecifiedError),
         };
+
         // verifico si el topic exite
         if let Some(topic) = topics.get_mut(&topic_name) {
             //obtengo los users que corresponden a ese topic
@@ -503,7 +503,6 @@ impl Broker {
                 return Err(ProtocolError::StreamError);
             }
         };
-
         println!("msg en broker {:?}", mensaje);
 
         match mensaje {

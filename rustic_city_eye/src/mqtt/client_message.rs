@@ -470,19 +470,27 @@ impl ClientMessage {
                 Ok(())
             }
             ClientMessage::Subscribe {
-                packet_id: _,
-                properties: _,
+                packet_id,
+                properties,
                 payload,
             } => {
                 // fixed header
-                self.write_first_packet_byte(&mut writer)?;
+                let byte_1: u8 = 0x82_u8;
+                writer
+                    .write_all(&[byte_1])
+                    .map_err(|_e| ProtocolError::WriteError)?;
 
                 // variable header
-                self.write_packet_properties(&mut writer)?;
+                write_u16(&mut writer, packet_id)?;
 
-                //payload
+                //Properties
+                properties.write_properties(&mut writer)?;
+
+                // escribir largo del payload
                 let payload_length = payload.len() as u32;
                 write_u32(&mut writer, &payload_length)?;
+
+                // payload
                 for subscription in payload {
                     write_string(&mut writer, &subscription.topic)?;
                     write_string(&mut writer, &subscription.client_id)?;
@@ -493,19 +501,24 @@ impl ClientMessage {
                 Ok(())
             }
             ClientMessage::Unsubscribe {
-                packet_id: _,
-                properties: _,
+                packet_id,
+                properties,
                 payload,
             } => {
                 // fixed header
                 self.write_first_packet_byte(&mut writer)?;
 
                 // variable header
-                self.write_packet_properties(&mut writer)?;
+                write_u16(&mut writer, packet_id)?;
 
-                //payload
+                // variable header
+                properties.write_properties(&mut writer)?;
+
+                // escribir largo del payload
                 let payload_length = payload.len() as u32;
                 write_u32(&mut writer, &payload_length)?;
+
+                //payload
                 for subscription in payload {
                     write_string(&mut writer, &subscription.topic)?;
                     write_string(&mut writer, &subscription.client_id)?;
@@ -821,7 +834,6 @@ impl ClientMessage {
         stream.read_exact(&mut header)?;
 
         let mut header = u8::from_le_bytes(header);
-        println!("el header en read_from es {}", header);
         let (mut dup_flag, mut qos, mut retain_flag) = (0, 0, 0);
 
         let first_header_digits = header >> 4;
@@ -1023,7 +1035,6 @@ impl ClientMessage {
                 })
             }
             _ => {
-                println!("header: {:?}", header);
                 Err(Error::new(std::io::ErrorKind::Other, "Invalid header"))
             }
         }

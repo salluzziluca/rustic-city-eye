@@ -142,6 +142,7 @@ impl Client {
             properties: _,
         } = message
         {
+            println!("Enviando publish");
             match message.write_to(&mut stream) {
                 Ok(()) => Ok(packet_id),
                 Err(_) => Err(ClientError::new("Error al enviar mensaje")),

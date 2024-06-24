@@ -3,11 +3,11 @@
 
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::thread;
 
 use crate::drones::drone_system::DroneSystem;
 use crate::monitoring::incident::Incident;
 
+use crate::mqtt::client::ClientTrait;
 use crate::mqtt::{
     client_message::{self, ClientMessage},
     messages_config::MessagesConfig,
@@ -62,14 +62,32 @@ impl MonitoringApp {
         ) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
 
+        let monitoring_app_client = match Client::new(rx, address, connect_config, tx2) {
+            Ok(client) => client,
+            Err(err) => return Err(err),
+        };
+
+        let client_id = monitoring_app_client.get_client_id();
+        let subscribe_properties: SubscribeProperties = SubscribeProperties::new(1, Vec::new());
+        let subscribe_config = SubscribeConfig::new(
+            "drone_locations".to_string(),
+            1,
+            subscribe_properties,
+            client_id,
+        );
+        match tx.send(Box::new(subscribe_config)) {
+            Ok(_) => {}
+            Err(e) => {
+                println!("Error sending message: {:?}", e);
+                return Err(ProtocolError::SubscribeError);
+            }
+        };
+
         let monitoring_app = MonitoringApp {
             send_to_client_channel: tx,
             incidents: Vec::new(),
             camera_system,
-            monitoring_app_client: match Client::new(rx, address, connect_config, tx2) {
-                Ok(client) => client,
-                Err(err) => return Err(err),
-            },
+            monitoring_app_client,
             drone_system,
             recieve_from_client: rx2,
         };
@@ -78,27 +96,13 @@ impl MonitoringApp {
     }
 
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
-        let mut monitoring_app_client = self.monitoring_app_client.clone();
-        monitoring_app_client.client_run()?;
+        //let mut monitoring_app_client = self.monitoring_app_client.clone();
+        self.monitoring_app_client.client_run()?;
 
-        let mut camera_system = self.camera_system.clone();
-        let handle = thread::spawn(move || {
-            camera_system.run_client(None);
-        });
-        let subscribe_properties = SubscribeProperties::new(1, Vec::new());
-        let subscribe_config = SubscribeConfig::new(
-            "drone_location".to_string(),
-            1,
-            subscribe_properties,
-            self.monitoring_app_client.client_id.clone(),
-        );
-        match self.send_to_client_channel.send(Box::new(subscribe_config)) {
-            Ok(_) => {}
-            Err(e) => {
-                println!("Error sending message: {:?}", e);
-                return Err(ProtocolError::SubscribeError);
-            }
-        };
+        //let mut camera_system = self.camera_system.clone();
+        //let _handle = thread::spawn(move || {
+        let _ = self.camera_system.run_client(None);
+        //});
 
         Ok(())
     }
