@@ -427,11 +427,11 @@ impl<'a, T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             let camera_vieja = self.snapshot.iter().find(|&x| x == camera).cloned();
 
             if (!self.snapshot.contains(&camera.clone()))
-                || ((self.snapshot.contains(&camera.clone()) && !camera_vieja.is_none())
+                || ((self.snapshot.contains(&camera.clone()) && camera_vieja.is_some())
                     && camera.get_sleep_mode() != camera_vieja.clone().unwrap().get_sleep_mode())
             {
                 println!("camera: {:?}", camera.clone());
-                if !camera_vieja.is_none() {
+                if camera_vieja.is_some() {
                     println!("camera vieja: {:?}", camera_vieja.unwrap());
                 }
                 updated_cameras.push(camera.clone());

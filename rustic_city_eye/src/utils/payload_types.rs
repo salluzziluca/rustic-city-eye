@@ -57,7 +57,7 @@ impl Payload for PayloadTypes {
                 for camera in payload {
                     let mut camera_clone = camera.clone();
                     match camera_clone.write_to(stream) {
-                        Ok(_) => return Ok(()),
+                        Ok(_) => {}
                         Err(_) => return Err(ProtocolError::WriteError),
                     }
                 }

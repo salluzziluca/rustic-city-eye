@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 use super::drone_error::DroneError;
-use std::{env, fs::File, io::BufReader};
+use std::{fs::File, io::BufReader};
 
 /// Sirve para levantar la configuracion del Drone a partir del JSON.
 /// Pone a correr al Drone:

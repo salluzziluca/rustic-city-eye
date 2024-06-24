@@ -4,7 +4,6 @@
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
-use std::thread;
 
 use crate::drones::drone_system::DroneSystem;
 use crate::monitoring::incident::Incident;

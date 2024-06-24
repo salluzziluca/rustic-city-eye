@@ -1017,8 +1017,8 @@ mod tests {
             };
             match stream.write_all(b"Hello, world!") {
                 Ok(_) => (),
-                Err(_) => return,
-            };
+                Err(_) => (),
+            }
         });
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));

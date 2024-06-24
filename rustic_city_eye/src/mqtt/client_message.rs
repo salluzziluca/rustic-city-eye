@@ -2,11 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::mqtt::subscribe_properties::SubscribeProperties;
 use crate::utils::payload_types::PayloadTypes;
-use std::env;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Error, ErrorKind, Read, Write};
 
-use crate::mqtt::publish::publish_properties::{PublishProperties, TopicProperties};
+use crate::mqtt::publish::publish_properties::PublishProperties;
 use crate::utils::{reader::*, writer::*};
 
 use super::connect::connect_properties::ConnectProperties;
@@ -1032,7 +1031,10 @@ mod tests {
 
     use crate::{
         monitoring::incident::Incident,
-        mqtt::connect::{connect_properties::ConnectProperties, will_properties::WillProperties},
+        mqtt::{
+            connect::{connect_properties::ConnectProperties, will_properties::WillProperties},
+            publish::publish_properties::TopicProperties,
+        },
         utils::{incident_payload::IncidentPayload, location::Location},
     };
 
