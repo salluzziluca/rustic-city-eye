@@ -70,7 +70,6 @@ impl<T: ClientTrait + Clone> CameraSystem<T> {
 
         let subscribe_config = SubscribeConfig::new(
             "cameras".to_string(),
-            1,
             SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]),
         );
 

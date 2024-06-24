@@ -54,7 +54,14 @@ pub struct Broker {
 }
 
 impl Broker {
-    ///Chequea que el numero de argumentos sea valido.
+    /// Creación de un nuevo Broker. Se le pasan los argumentos de la línea de comandos.
+    ///
+    /// Si la cantidad de argumentos no es la esperada, se imprime un mensaje de error y se devuelve un error.
+    /// Si la cantidad de argumentos es la esperada, se crea un nuevo Broker con los argumentos pasados.
+    /// Se leen los topics del archivo de topics y se crean los topics correspondientes.
+    /// Se leen los clientes del archivo de clientes y se crean los clientes correspondientes.
+    /// Se inicializan los HashMaps de packets, clients_ids y offline_clients.
+    /// Se devuelve el Broker creado.
     pub fn new(args: Vec<String>) -> Result<Broker, ProtocolError> {
         if args.len() != SERVER_ARGS {
             let app_name = &args[0];
@@ -79,6 +86,11 @@ impl Broker {
         })
     }
 
+    /// Crea los topics iniciales del broker.
+    ///
+    /// Se le pasa el path del archivo de topics.
+    /// Se lee el archivo de topics y se crean los topics correspondientes.
+    /// Se devuelven los topics creados.
     pub fn get_broker_starting_topics(
         file_path: &str,
     ) -> Result<HashMap<String, Topic>, ProtocolError> {
@@ -329,7 +341,6 @@ impl Broker {
             let users = topic.get_topic_users();
             for user in users {
                 //verifico si el user esta conectado
-                let mut es_qos_1 = false;
                 let mut esta_offline = false;
                 let m = message.clone();
                 match self.clients_ids.read() {
@@ -346,9 +357,6 @@ impl Broker {
                                     }
                                     Err(_) => {
                                         // si es qos 1 me guardo el mensaje
-                                        if user.qos == 1 {
-                                            es_qos_1 = true;
-                                        }
                                     }
                                 }
                                 // si el mensaje es qos 1, envio el ack
@@ -693,7 +701,7 @@ impl Broker {
                 let reason_code = Broker::handle_unsubscribe(
                     topics.clone(),
                     payload.topic.clone(),
-                    Subscription::new(payload.topic.clone(), payload.client_id, payload.qos),
+                    Subscription::new(payload.topic.clone(), payload.client_id),
                 )?;
 
                 let unsuback = BrokerMessage::Unsuback {
@@ -874,7 +882,8 @@ mod tests {
 
     #[test]
     fn test_01_creating_broker_config_ok() -> std::io::Result<()> {
-        let topics = Broker::get_broker_starting_topics("./src/monitoring/topics.txt").unwrap();
+        let topics =
+            Broker::get_broker_starting_topics("./src/monitoring/topics_test.txt").unwrap();
         let clients_auth_info =
             Broker::process_clients_file("./src/monitoring/clients.txt").unwrap();
 

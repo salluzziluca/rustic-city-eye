@@ -481,7 +481,6 @@ impl ClientMessage {
                 //payload
                 write_string(&mut writer, &payload.topic)?;
                 write_string(&mut writer, &payload.client_id)?;
-                write_u8(&mut writer, &payload.qos)?;
 
                 let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
                 Ok(())
@@ -500,7 +499,6 @@ impl ClientMessage {
                 //payload
                 write_string(&mut writer, &payload.topic)?;
                 write_string(&mut writer, &payload.client_id)?;
-                write_u8(&mut writer, &payload.qos)?;
 
                 let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
                 Ok(())
@@ -693,7 +691,6 @@ impl ClientMessage {
                 // payload
                 write_string(writer, &payload.topic)?;
                 write_string(writer, &payload.client_id)?;
-                write_u8(writer, &payload.qos)?;
 
                 Ok(())
             }
@@ -710,7 +707,6 @@ impl ClientMessage {
                 //payload
                 write_string(writer, &payload.topic)?;
                 write_string(writer, &payload.client_id)?;
-                write_u8(writer, &payload.qos)?;
 
                 Ok(())
             }
@@ -862,7 +858,6 @@ impl ClientMessage {
                 let payload = Subscription {
                     topic: read_string(stream)?,
                     client_id: read_string(stream)?,
-                    qos: read_u8(stream)?,
                 };
 
                 Ok(ClientMessage::Subscribe {
@@ -879,7 +874,6 @@ impl ClientMessage {
                 let payload = Subscription {
                     topic: read_string(stream)?,
                     client_id: read_string(stream)?,
-                    qos: read_u8(stream)?,
                 };
 
                 Ok(ClientMessage::Unsubscribe {
@@ -1134,7 +1128,6 @@ mod tests {
         let subscription = Subscription {
             topic: "topic".to_string(),
             client_id: "client".to_string(),
-            qos: 1,
         };
 
         let sub = ClientMessage::Subscribe {
@@ -1171,7 +1164,6 @@ mod tests {
         let subscription = Subscription {
             topic: "topic".to_string(),
             client_id: "client".to_string(),
-            qos: 1,
         };
 
         let unsub = ClientMessage::Unsubscribe {
