@@ -5,7 +5,7 @@ use crate::utils::payload_types::PayloadTypes;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Error, ErrorKind, Read, Write};
 
-use crate::mqtt::publish::publish_properties::PublishProperties;
+use crate::mqtt::publish::publish_properties::{PublishProperties, TopicProperties};
 use crate::utils::{reader::*, writer::*};
 
 use super::connect::connect_properties::ConnectProperties;
@@ -863,6 +863,21 @@ impl ClientMessage {
                 Ok(ClientMessage::Connect(connect))
             }
             0x30 => {
+                println!("Reading publish message");
+                let topic_properties = TopicProperties {
+                    topic_alias: 10,
+                    response_topic: "String".to_string(),
+                };
+
+                let properties = PublishProperties::new(
+                    1,
+                    10,
+                    topic_properties,
+                    [1, 2, 3].to_vec(),
+                    "a".to_string(),
+                    1,
+                    "a".to_string(),
+                );
                 let packet_id = read_u16(stream)?;
                 let topic_name = read_string(stream)?;
                 let properties = PublishProperties::read_from(stream)?;

@@ -43,6 +43,7 @@ impl DroneConfig {
 
     /// Toma un path a un archivo de configuracion y levanta el DroneConfig.
     fn read_drone_config(file_path: &str) -> Result<DroneConfig, DroneError> {
+        println!("Reading config file: {}", file_path);
         let config_file = match File::open(file_path) {
             Ok(file) => file,
             Err(e) => {
