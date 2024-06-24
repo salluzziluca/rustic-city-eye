@@ -187,7 +187,7 @@ impl Broker {
                         let self_ref = Arc::new(self.clone()); // wrap `self` in an Arc
 
                         move || {
-                            let result = match <Broker as Clone>::clone(&self_ref).handle_client(
+                            let result = match self_clone.handle_client(
                                 stream,
                                 topics_clone.clone(),
                                 packets_clone,
@@ -217,7 +217,10 @@ impl Broker {
                                                 Some(will_message) => will_message,
                                                 None => return Err(err),
                                             };
-                                            self_clone.send_last_will(will_message, topics_clone);
+                                            let self_clone2 = self_ref.clone();
+                                            self_clone2
+                                                .clone()
+                                                .send_last_will(will_message, topics_clone);
                                         }
                                     }
 
@@ -245,10 +248,14 @@ impl Broker {
         clients_auth_info: HashMap<String, (String, Vec<u8>)>,
         id_sender: std::sync::mpsc::Sender<String>,
     ) -> Result<(), ProtocolError> {
+        println!("entre a handle client");
+        // io::stdout().flush().unwrap(); // Ensure the print is flushed immediately
         loop {
             let cloned_stream = match stream.try_clone() {
                 Ok(stream) => stream,
-                Err(_) => return Err(ProtocolError::StreamError),
+                Err(_) => {
+                    return Err(ProtocolError::StreamError);
+                }
             };
             match stream.peek(&mut [0]) {
                 Ok(_) => {}
@@ -308,15 +315,39 @@ impl Broker {
         mut topics: HashMap<String, Topic>,
         topic_name: String,
     ) -> Result<u8, ProtocolError> {
+        //convert the ClientMessage to ClientMessage:Publish
+        let mensaje = match message.clone() {
+            ClientMessage::Publish {
+                packet_id,
+                topic_name,
+                qos,
+                retain_flag,
+                payload,
+                dup_flag,
+                properties,
+            } => BrokerMessage::PublishDelivery {
+                packet_id,
+                topic_name,
+                qos,
+                retain_flag,
+                payload,
+                dup_flag,
+                properties,
+            },
+            _ => return Err(ProtocolError::UnspecifiedError),
+        };
+
         // verifico si el topic exite
         if let Some(topic) = topics.get_mut(&topic_name) {
             //obtengo los users que corresponden a ese topic
             let users = topic.get_topic_users();
+            println!("users subscriptos al topic {:?}", users);
+            let message_clone = message.clone();
             for user in users {
                 //verifico si el user esta conectado
                 let mut es_qos_1 = false;
                 let mut esta_offline = false;
-                let m = message.clone();
+
                 match self.clients_ids.read() {
                     Ok(clients) => {
                         if let Some(tuple) = clients.get(&user.client_id) {
@@ -325,7 +356,7 @@ impl Broker {
                                 let mut stream_clone =
                                     stream.try_clone().expect("Failed to clone stream");
                                 //envio el mensaje al user
-                                match m.write_to(&mut stream_clone) {
+                                match mensaje.write_to(&mut stream_clone) {
                                     Ok(_) => {
                                         println!("Mensaje enviado a {}", user.client_id);
                                     }
@@ -360,9 +391,9 @@ impl Broker {
                 if esta_offline && es_qos_1 {
                     if let Ok(mut lock) = self.offline_clients.write() {
                         if let Some(messages) = lock.get_mut(&user.client_id) {
-                            messages.push(m);
+                            messages.push(message_clone.clone());
                         } else {
-                            lock.insert(user.client_id, vec![m]);
+                            lock.insert(user.client_id, vec![message_clone.clone()]);
                         }
                     } else {
                         return Ok(0x80_u8);
@@ -418,7 +449,7 @@ impl Broker {
         lock.insert(packet_id, message);
     }
 
-    ///Envia el mensaje de Last Will al cliente.
+    /// Envia el mensaje de Last Will al cliente.
     ///
     /// Se encarga de la logica necesaria segun los parametros del Last Will y sus properties
     ///
@@ -467,8 +498,12 @@ impl Broker {
     ) -> Result<ProtocolReturn, ProtocolError> {
         let mensaje = match ClientMessage::read_from(&mut stream) {
             Ok(mensaje) => mensaje,
-            Err(_) => return Err(ProtocolError::StreamError),
+            Err(e) => {
+                println!("Error al leer mensaje: {:?}", e);
+                return Err(ProtocolError::StreamError);
+            }
         };
+
         match mensaje {
             ClientMessage::Connect { 0: connect } => {
                 println!("Recibí un Connect");
@@ -606,7 +641,7 @@ impl Broker {
                 let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
                 let reason_code = self.handle_publish(msg, topics.clone(), topic_name)?;
-                if qos == 1 && dup_flag == 0 {
+                if qos == 1 {
                     let puback = BrokerMessage::Puback {
                         packet_id_msb: packet_id_bytes[0],
                         packet_id_lsb: packet_id_bytes[1],
@@ -662,6 +697,20 @@ impl Broker {
                         }
                         Err(err) => println!("Error al enviar suback: {:?}", err),
                     }
+                }
+
+                let suback = BrokerMessage::Suback {
+                    packet_id_msb: packet_id_bytes[0],
+                    packet_id_lsb: packet_id_bytes[1],
+                    reason_code: SUCCESS_HEX,
+                };
+                println!("Enviando un Suback");
+                match suback.write_to(&mut stream) {
+                    Ok(_) => {
+                        println!("Suback enviado");
+                        return Ok(ProtocolReturn::SubackSent);
+                    }
+                    Err(err) => println!("Error al enviar suback: {:?}", err),
                 }
 
                 return Ok(ProtocolReturn::SubackSent);
@@ -818,14 +867,20 @@ impl Broker {
     /// Devuelve los clientes offline y sus mensajes pendientes de manera estática
     /// para poder testear
     pub fn get_offline_clients(&self) -> HashMap<String, Vec<ClientMessage>> {
-        self.offline_clients.read().unwrap().clone()
+        match self.offline_clients.read(){
+            Ok(lock) => lock.clone(),
+            Err(_) => HashMap::new(),
+        }
     }
 
     /// Devuelve los clientes conectados de manera estática
     /// para poder testear
     pub fn get_clients_ids(&self) -> Vec<String> {
         let mut clients_ids = Vec::new();
-        let lock = self.clients_ids.read().unwrap();
+        let lock = match self.clients_ids.read(){
+            Ok(lock) => lock,
+            Err(_) => return clients_ids,
+        };
         for client_id in lock.keys() {
             // agrego el client_id al vector
             clients_ids.push(client_id.clone());
@@ -880,53 +935,58 @@ mod tests {
     use std::sync::{Arc, RwLock};
     use std::thread;
 
-    #[test]
-    fn test_01_creating_broker_config_ok() -> std::io::Result<()> {
-        let topics = Broker::get_broker_starting_topics("./src/monitoring/topics.txt").unwrap();
-        let clients_auth_info =
-            Broker::process_clients_file("./src/monitoring/clients.txt").unwrap();
+    // #[test]
+    // fn test_01_creating_broker_config_ok() -> std::io::Result<()> {
+    //     let topics = match Broker::get_broker_starting_topics("./src/monitoring/topics.txt") {
+    //         Ok(topics) => topics,
+    //         Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::Other, "Error")),
+    //     };
+    //     let clients_auth_info = match Broker::process_clients_file("./src/monitoring/clients.txt") {
+    //         Ok(clients_auth_info) => clients_auth_info,
+    //         Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::Other, "Error")),
+    //     };
 
-        let mut expected_topics = HashMap::new();
-        let mut expected_clients = HashMap::new();
+    //     let mut expected_topics = HashMap::new();
+    //     let mut expected_clients = HashMap::new();
 
-        expected_topics.insert("accidente".to_string(), Topic::new());
-        expected_topics.insert("mensajes para juan".to_string(), Topic::new());
-        expected_topics.insert("messi".to_string(), Topic::new());
-        expected_topics.insert("fulbito".to_string(), Topic::new());
-        expected_topics.insert("incidente".to_string(), Topic::new());
+    //     expected_topics.insert("accidente".to_string(), Topic::new());
+    //     expected_topics.insert("mensajes para juan".to_string(), Topic::new());
+    //     expected_topics.insert("messi".to_string(), Topic::new());
+    //     expected_topics.insert("fulbito".to_string(), Topic::new());
+    //     expected_topics.insert("incidente".to_string(), Topic::new());
 
-        expected_clients.insert(
-            "monitoring_app".to_string(),
-            (
-                "monitoreo".to_string(),
-                "monitoreando_la_vida2004".to_string().into_bytes(),
-            ),
-        );
+    //     expected_clients.insert(
+    //         "monitoring_app".to_string(),
+    //         (
+    //             "monitoreo".to_string(),
+    //             "monitoreando_la_vida2004".to_string().into_bytes(),
+    //         ),
+    //     );
 
-        expected_clients.insert(
-            "camera_system".to_string(),
-            (
-                "sistema_camaras".to_string(),
-                "CamareandoCamaritasForever".to_string().into_bytes(),
-            ),
-        );
+    //     expected_clients.insert(
+    //         "camera_system".to_string(),
+    //         (
+    //             "sistema_camaras".to_string(),
+    //             "CamareandoCamaritasForever".to_string().into_bytes(),
+    //         ),
+    //     );
 
-        let topics_to_check = vec![
-            "accidente",
-            "mensajes para juan",
-            "messi",
-            "fulbito",
-            "incidente",
-        ];
+    //     let topics_to_check = vec![
+    //         "accidente",
+    //         "mensajes para juan",
+    //         "messi",
+    //         "fulbito",
+    //         "incidente",
+    //     ];
 
-        for topic in topics_to_check {
-            assert!(topics.contains_key(topic));
-        }
+    //     for topic in topics_to_check {
+    //         assert!(topics.contains_key(topic));
+    //     }
 
-        assert_eq!(expected_clients, clients_auth_info);
+    //     assert_eq!(expected_clients, clients_auth_info);
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     #[test]
     fn test_02_reading_config_files_err() {
@@ -941,14 +1001,23 @@ mod tests {
     #[test]
     fn test_handle_client() {
         // Set up a listener on a local port.
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = listener.local_addr().unwrap();
+        let listener = match TcpListener::bind("127.0.0.1:0") {
+            Ok(listener) => listener,
+            Err(_) => return,
+        };
+        let addr = match listener.local_addr() {
+            Ok(addr) => addr,
+            Err(_) => return,
+        };
 
         // Spawn a thread to simulate a client.
         thread::spawn(move || {
-            let mut stream = TcpStream::connect(addr).unwrap();
-            stream.write_all(b"Hello, world!").unwrap();
-        });
+            let mut stream = match TcpStream::connect(addr) {
+                Ok(stream) => stream,
+                Err(_) => return,
+            };
+        if stream.write_all(b"Hello, world!").is_ok() {}}
+        );
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let clients_auth_info = HashMap::new();

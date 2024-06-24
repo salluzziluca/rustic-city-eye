@@ -24,7 +24,7 @@
             3
         ]
     },
-    "client_id": "camera_system",
+    "client_id": "drone",
     "will_properties": {
         "last_will_delay_interval": 1,
         "payload_format_indicator": 1,
@@ -43,35 +43,33 @@
             ]
         ]
     },
-    "last_will_topic": "camera system",
+    "last_will_topic": "drone",
     "last_will_message": "soy el monitoring y me desconecte",
-    "username": "sistema_camaras",
+    "username": "drone",
     "password": [
-        67,
-        97,
         109,
-        97,
+        111,
+        110,
+        105,
+        116,
+        111,
         114,
         101,
         97,
         110,
         100,
         111,
-        67,
+        95,
+        108,
         97,
-        109,
-        97,
-        114,
-        105,
-        116,
-        97,
-        115,
-        70,
-        111,
-        114,
-        101,
+        95,
         118,
-        101,
-        114
+        105,
+        100,
+        97,
+        50,
+        48,
+        48,
+        52
     ]
 }

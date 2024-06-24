@@ -33,6 +33,7 @@ impl Topic {
     /// Si el usuario ya existe en el tópic, no lo agrega pero la operacion es exitosa de todas maneras ya que el objetivo era concretar la subscription
     /// Retorna el reason code de la operación
     pub fn add_user_to_topic(&mut self, subscription: Subscription) -> u8 {
+        println!("Adding user to topic: {:?}", subscription);
         //verificar si el user_id ya existe en topic users
         let mut existe = false;
         match self.users.read() {

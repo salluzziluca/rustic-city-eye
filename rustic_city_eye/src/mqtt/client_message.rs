@@ -184,18 +184,33 @@ impl Connect {
         if !self.last_will_flag {
             return None;
         }
+        let last_will_topic = match self.last_will_topic{
+            Some(topic) => topic,
+            None => return None,
+        };
+        let last_will_message = match self.last_will_message{
+            Some(message) => message,
+            None => return None,
+        };
+        let will_properties = match self.will_properties{
+            Some(properties) => properties,
+            None => return None,
+        };
 
         Some(LastWill::new(
-            self.last_will_topic.unwrap(),
-            self.last_will_message.unwrap(),
+            last_will_topic,
+            last_will_message,
             self.last_will_qos,
             self.last_will_retain,
-            self.will_properties.unwrap(),
+            will_properties,
         ))
     }
     /// Abre un archivo de configuracion con propiedades y guarda sus lecturas.
     pub fn read_connect_config(file_path: &str) -> Result<Connect, ProtocolError> {
-        let current_dir = env::current_dir().unwrap();
+        let current_dir = match env::current_dir(){
+            Ok(dir) => dir,
+            Err(_) => return Err(ProtocolError::ReadingConfigFileError),
+        };
         println!("Current directory: {}", current_dir.display());
         let config_file = match File::open(file_path) {
             Ok(file) => file,
@@ -411,6 +426,8 @@ impl ClientMessage {
         match self {
             ClientMessage::Connect(connect) => {
                 connect.write_to(&mut writer)?;
+                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
+
                 Ok(())
             }
             ClientMessage::Publish {
@@ -468,19 +485,27 @@ impl ClientMessage {
                 Ok(())
             }
             ClientMessage::Subscribe {
-                packet_id: _,
-                properties: _,
+                packet_id,
+                properties,
                 payload,
             } => {
                 // fixed header
-                self.write_first_packet_byte(&mut writer)?;
+                let byte_1: u8 = 0x82_u8;
+                writer
+                    .write_all(&[byte_1])
+                    .map_err(|_e| ProtocolError::WriteError)?;
 
                 // variable header
-                self.write_packet_properties(&mut writer)?;
+                write_u16(&mut writer, packet_id)?;
 
-                //payload
+                //Properties
+                properties.write_properties(&mut writer)?;
+
+                // escribir largo del payload
                 let payload_length = payload.len() as u32;
                 write_u32(&mut writer, &payload_length)?;
+
+                // payload
                 for subscription in payload {
                     write_string(&mut writer, &subscription.topic)?;
                     write_string(&mut writer, &subscription.client_id)?;
@@ -491,19 +516,24 @@ impl ClientMessage {
                 Ok(())
             }
             ClientMessage::Unsubscribe {
-                packet_id: _,
-                properties: _,
+                packet_id,
+                properties,
                 payload,
             } => {
                 // fixed header
                 self.write_first_packet_byte(&mut writer)?;
 
                 // variable header
-                self.write_packet_properties(&mut writer)?;
+                write_u16(&mut writer, packet_id)?;
 
-                //payload
+                // variable header
+                properties.write_properties(&mut writer)?;
+
+                // escribir largo del payload
                 let payload_length = payload.len() as u32;
                 write_u32(&mut writer, &payload_length)?;
+
+                //payload
                 for subscription in payload {
                     write_string(&mut writer, &subscription.topic)?;
                     write_string(&mut writer, &subscription.client_id)?;
@@ -622,6 +652,7 @@ impl ClientMessage {
                 payload: _,
             } => {
                 let byte_1: u8 = 0x82_u8;
+                println!("estoy mandnado el header {:?}", byte_1);
                 writer
                     .write_all(&[byte_1])
                     .map_err(|_e| ProtocolError::WriteError)?;
@@ -847,6 +878,7 @@ impl ClientMessage {
                 Ok(ClientMessage::Connect(connect))
             }
             0x30 => {
+                println!("Reading publish message");
                 let topic_properties = TopicProperties {
                     topic_alias: 10,
                     response_topic: "String".to_string(),
@@ -1163,7 +1195,7 @@ mod tests {
 
         match ClientMessage::read_from(&mut cursor) {
             Ok(read_publish) => {
-                println!("{:?}", read_publish);
+                // println!("{:?}", read_publish);
                 assert_eq!(publish, read_publish);
             }
             Err(e) => {
@@ -1195,7 +1227,7 @@ mod tests {
             Err(e) => {
                 panic!("no se pudo escribir en el cursor {:?}", e);
             }
-        }
+        };
         cursor.set_position(0);
         let read_sub = match ClientMessage::read_from(&mut cursor) {
             Ok(sub) => sub,

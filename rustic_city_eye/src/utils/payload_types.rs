@@ -26,6 +26,7 @@ pub enum PayloadTypes {
     WillPayload(String),
     LocationPayload(Location),
     CamerasUpdatePayload(Vec<Camera>),
+    DroneLocation(u32, Location),
 }
 
 impl Payload for PayloadTypes {
@@ -60,6 +61,15 @@ impl Payload for PayloadTypes {
                         Err(_) => return Err(ProtocolError::WriteError),
                     }
                 }
+
+                Ok(())
+            }
+            PayloadTypes::DroneLocation(drone_id, location) => {
+                write_u8(stream, &5)?;
+                write_string(stream, &drone_id.to_string())?;
+                write_string(stream, &location.get_latitude().to_string())?;
+                write_string(stream, &location.get_longitude().to_string())?;
+
                 Ok(())
             }
         }
@@ -81,16 +91,46 @@ impl PayloadTypes {
         let payload_type = match payload_type_id {
             1 => {
                 let longitude_string = read_string(stream)?;
-                let long = longitude_string.parse::<f64>().unwrap();
+                let long = match longitude_string.parse::<f64>(){
+                    Ok(long) => long,
+                    Err(_) => return Err(Error::new(ErrorKind::InvalidData, "Error while reading payload".to_string())),
+                };
 
                 let latitude_string = read_string(stream)?;
 
-                let lat = latitude_string.parse::<f64>().unwrap();
+                let lat = match latitude_string.parse::<f64>(){
+                    Ok(lat) => lat,
+                    Err(_) => return Err(Error::new(ErrorKind::InvalidData, "Error while reading payload".to_string())),
+                };
 
                 let location = Location::new(lat, long);
                 let incident = Incident::new(location);
 
                 PayloadTypes::IncidentLocation(IncidentPayload::new(incident))
+            }
+            5 => {
+                let drone_id_string = read_string(stream)?;
+                let drone_id =match drone_id_string.parse::<u32>(){
+                    Ok(drone_id) => drone_id,
+                    Err(_) => return Err(Error::new(ErrorKind::InvalidData, "Error while reading payload".to_string())),
+                };
+
+                let longitude_string = read_string(stream)?;
+                let long = match longitude_string.parse::<f64>(){
+                    Ok(long) => long,
+                    Err(_) => return Err(Error::new(ErrorKind::InvalidData, "Error while reading payload".to_string())),
+                
+                };
+
+                let latitude_string = read_string(stream)?;
+                let lat =match  latitude_string.parse::<f64>(){
+                    Ok(lat) => lat,
+                    Err(_) => return Err(Error::new(ErrorKind::InvalidData, "Error while reading payload".to_string())),
+                };
+
+                let location = Location::new(lat, long);
+
+                PayloadTypes::DroneLocation(drone_id, location)
             }
             _ => {
                 return Err(Error::new(

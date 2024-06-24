@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use egui::Response;
 use walkers::{
     extras::{Image, Images, Texture},
@@ -114,13 +116,13 @@ pub fn incidents(
 }
 
 pub fn drones(
-    drones: &mut Vec<DroneView>,
+    drones: &mut HashMap<u32, DroneView>,
     zoom_level: f32,
     last_clicked: Option<Position>,
 ) -> impl Plugin {
     let mut images_vec = vec![];
 
-    for drone in drones {
+    for drone in drones.values_mut() {
         let mut image = Image::new(drone.image.texture.clone(), drone.position);
 
         if drone.select(last_clicked) {

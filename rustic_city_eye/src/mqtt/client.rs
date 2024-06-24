@@ -26,6 +26,7 @@ pub trait ClientTrait {
     fn get_publish_end_channel(
         &self,
     ) -> Arc<std::sync::Mutex<std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>>>;
+    fn get_client_id(&self) -> String;
 }
 impl Clone for Box<dyn ClientTrait> {
     fn clone(&self) -> Box<dyn ClientTrait> {
@@ -76,13 +77,16 @@ impl Client {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
         };
+        let connect_message = ClientMessage::Connect(connect.clone());
+        // println!("Connect: {:?}", connect);
 
         println!("Enviando connect message to broker");
 
-        match connect.write_to(&mut *stream_lock) {
+        match connect_message.write_to(&mut *stream_lock) {
             Ok(()) => println!("Connect message enviado"),
             Err(_) => println!("Error al enviar connect message"),
         }
+        //flush
 
         if let Ok(message) = BrokerMessage::read_from(&mut *stream_lock) {
             match message {
@@ -98,7 +102,7 @@ impl Client {
                         0x00_u8 => {
                             println!("Conexion exitosa!");
 
-                            let client_id = connect.client_id.clone();
+                            let client_id = connect.client_id;
                             Ok(Client {
                                 receiver_channel: Arc::new(Mutex::new(receiver_channel)),
                                 stream: stream_clone,
@@ -138,6 +142,7 @@ impl Client {
             properties: _,
         } = message
         {
+            println!("Enviando publish");
             match message.write_to(&mut stream) {
                 Ok(()) => Ok(packet_id),
                 Err(_) => Err(ClientError::new("Error al enviar mensaje")),
@@ -153,7 +158,10 @@ impl Client {
         mut stream: TcpStream,
     ) -> Result<u16, ClientError> {
         match message.write_to(&mut stream) {
-            Ok(()) => Ok(packet_id),
+            Ok(()) => {
+                println!("el sub fue enviado");
+                Ok(packet_id)
+            }
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
@@ -338,7 +346,10 @@ impl Client {
     ) -> Result<(), ProtocolError> {
         while !desconectar {
             loop {
-                let lock = receiver_channel.lock().unwrap();
+                let lock = match receiver_channel.lock(){
+                    Ok(lock) => lock,
+                    Err(_) => return Err(ProtocolError::StreamError),
+                };
                 if let Ok(message_config) = lock.recv() {
                     let packet_id = self.assign_packet_id();
 
@@ -368,11 +379,17 @@ impl Client {
 
                                 if let Ok(packet_id) = Client::publish_message(
                                     publish,
-                                    stream_clone.try_clone().unwrap(),
+                                    match stream_clone.try_clone(){
+                                        Ok(stream) => stream,
+                                        Err(_) => return Err(ProtocolError::StreamError),
+                                    },
                                     packet_id,
                                 ) {
                                     if qos == 1 {
-                                        let stream_clone = stream_clone.try_clone().unwrap();
+                                        let stream_clone = match stream_clone.try_clone(){
+                                            Ok(stream) => stream,
+                                            Err(_) => return Err(ProtocolError::StreamError),
+                                        };
                                         match sender.send(packet_id) {
                                             Ok(_) => {
                                                 if let Ok(puback_recieved) = receiver.try_recv() {
@@ -430,7 +447,6 @@ impl Client {
                                     properties,
                                     payload: payload.clone(),
                                 };
-
                                 for p in payload {
                                     if let Ok(stream) = stream_clone.try_clone() {
                                         if let Ok(packet_id) =
@@ -633,6 +649,9 @@ impl ClientTrait for Client {
     {
         self.get_publish_end_channel()
     }
+    fn get_client_id(&self) -> String {
+        self.client_id.clone()
+    }
 }
 
 /// Lee del stream un mensaje y lo procesa
@@ -664,10 +683,7 @@ pub fn handle_message(
                     if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {}
                 }
                 match sender.send(true) {
-                    Ok(_) => {
-                        println!("puback {:?}", message);
-                        Ok(ClientReturn::PubackRecieved)
-                    }
+                    Ok(_) => Ok(ClientReturn::PubackRecieved),
                     Err(e) => Err(ProtocolError::ChanellError(e.to_string())),
                 }
             }
@@ -713,17 +729,19 @@ pub fn handle_message(
                     "PublishDelivery con id {} recibido, payload: {:?}",
                     packet_id, payload
                 );
-                sender_chanell
-                    .send(ClientMessage::Publish {
-                        packet_id,
-                        topic_name,
-                        qos,
-                        retain_flag,
-                        dup_flag,
-                        properties,
-                        payload,
-                    })
-                    .unwrap();
+                match sender_chanell.send(ClientMessage::Publish {
+                    packet_id,
+                    topic_name,
+                    qos,
+                    retain_flag,
+                    dup_flag,
+                    properties,
+                    payload,
+                }) {
+                    Ok(_) => println!("Publish enviado correctamente!"),
+                    Err(e) => println!("Error al enviar publish al cliente: {:?}", e),
+                }
+
                 Ok(ClientReturn::PublishDeliveryRecieved)
             }
             BrokerMessage::Unsuback {

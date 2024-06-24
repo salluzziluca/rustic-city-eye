@@ -8,7 +8,8 @@ mod windows;
 use eframe::{run_native, App, CreationContext, NativeOptions};
 use egui::{CentralPanel, RichText, TextStyle};
 use plugins::*;
-use rustic_city_eye::monitoring::monitoring_app::MonitoringApp;
+use rustic_city_eye::{monitoring::monitoring_app::MonitoringApp, utils::location::Location};
+use std::collections::HashMap;
 use walkers::{sources::OpenStreetMap, Map, MapMemory, Position, Texture, Tiles};
 use windows::*;
 
@@ -21,11 +22,20 @@ struct MyMap {
     camera_radius: ImagesPluginData,
     incident_icon: ImagesPluginData,
     incidents: Vec<incident_view::IncidentView>,
-    drones: Vec<drone_view::DroneView>,
+    drones: HashMap<u32, drone_view::DroneView>,
     drone_icon: ImagesPluginData,
     drone_centers: Vec<drone_center_view::DroneCenterView>,
     drone_center_icon: ImagesPluginData,
     zoom_level: f32,
+}
+impl MyMap {
+    fn update_drones(&mut self, new_drone_locations: HashMap<u32, Location>) {
+        for (id, location) in new_drone_locations {
+            if let Some(drone) = self.drones.get_mut(&id) {
+                drone.position = Position::from_lon_lat(location.long, location.lat);
+            }
+        }
+    }
 }
 
 struct MyApp {
@@ -126,6 +136,7 @@ impl MyApp {
     fn handle_map(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         CentralPanel::default().show(ctx, |ui| {
             let last_clicked = self.map.click_watcher.clicked_at;
+
             ui.add(
                 Map::new(
                     Some(&mut self.map.tiles),
@@ -143,11 +154,7 @@ impl MyApp {
                     self.map.zoom_level,
                     last_clicked,
                 ))
-                .with_plugin(drones(
-                    &mut self.map.drones,
-                    self.map.zoom_level,
-                    last_clicked,
-                ))
+                .with_plugin(drones(&mut self.map.drones, 0.8, last_clicked))
                 .with_plugin(drone_centers(
                     &mut self.map.drone_centers,
                     self.map.zoom_level,
@@ -157,6 +164,8 @@ impl MyApp {
             zoom(ui, &mut self.map.map_memory, &mut self.map.zoom_level);
 
             if let Some(monitoring_app) = &mut self.monitoring_app {
+                let new_locations = monitoring_app.get_drones();
+                self.map.update_drones(new_locations);
                 add_camera_window(ui, &mut self.map, monitoring_app);
                 add_incident_window(ui, &mut self.map, monitoring_app);
                 add_drone_window(ui, &mut self.map, monitoring_app);
@@ -225,7 +234,7 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
             camera_icon,
             incident_icon,
             camera_radius: circle_icon,
-            drones: vec![],
+            drones: HashMap::new(),
             drone_icon,
             drone_centers: vec![],
             drone_center_icon,
