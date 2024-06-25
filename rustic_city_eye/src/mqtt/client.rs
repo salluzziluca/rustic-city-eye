@@ -352,6 +352,8 @@ impl Client {
 
                     let message = message_config.parse_message(packet_id);
 
+                    println!("message {:?}", message);
+
                     match message {
                         ClientMessage::Connect { 0: _ } => todo!(),
                         ClientMessage::Publish {

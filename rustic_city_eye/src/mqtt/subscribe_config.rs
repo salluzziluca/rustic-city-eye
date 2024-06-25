@@ -44,7 +44,7 @@ impl SubscribeConfig {
         }
     }
 
-    pub fn json_to_publish_config(path: &str) -> SubscribeConfig {
+    pub fn json_to_subscribe_config(path: &str) -> SubscribeConfig {
         let config: SubscribeConfig = match serde_json::from_str(path) {
             Ok(config) => config,
             Err(e) => panic!("Error reading json to PublishConfig: {}", e),
@@ -57,6 +57,7 @@ impl SubscribeConfig {
             client_id: config.client_id,
         }
     }
+
     pub fn write_config_to_json_file(&self, path: &str) {
         let json = match serde_json::to_string(&self){
             Ok(json) => json,

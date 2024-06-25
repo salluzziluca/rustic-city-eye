@@ -23,7 +23,9 @@ use crate::mqtt::{
 };
 
 use crate::surveilling::camera::Camera;
-use crate::surveilling::camera_system::CameraSystem;
+// use crate::surveilling::camera_system::CameraSystem;
+use crate::surveilling::neosystem::CameraSystem;
+
 use crate::utils::incident_payload::IncidentPayload;
 use crate::utils::location::Location;
 use crate::utils::payload_types::PayloadTypes;
@@ -33,7 +35,8 @@ use crate::utils::payload_types::PayloadTypes;
 pub struct MonitoringApp {
     send_to_client_channel: Sender<Box<dyn MessagesConfig + Send>>,
     monitoring_app_client: Client,
-    camera_system: Arc<Mutex<CameraSystem<Client>>>,
+    //camera_system: Arc<Mutex<CameraSystem<Client>>>,
+    camera_system: CameraSystem,
     incidents: Vec<Incident>,
     drone_system: DroneSystem,
     receive_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
@@ -50,10 +53,14 @@ impl MonitoringApp {
             client_message::Connect::read_connect_config("src/monitoring/connect_config.json")?;
 
         let address = args[2].to_string() + ":" + &args[3].to_string();
-        let camera_system = match CameraSystem::<Client>::with_real_client(address.clone()) {
-            Ok(camera_system) => camera_system,
-            Err(err) => return Err(err),
-        };
+        // let camera_system = match CameraSystem::<Client>::with_real_client(address.clone()) {
+        //     Ok(camera_system) => camera_system,
+        //     Err(err) => return Err(err),
+        // };
+
+        let camera_system = CameraSystem::new(address.clone()).unwrap();
+
+        
         let drone_system =
             DroneSystem::new("src/drones/drone_config.json".to_string(), address.clone());
         type MessagesConfigSender = Sender<Box<dyn MessagesConfig + Send>>;
@@ -102,7 +109,8 @@ impl MonitoringApp {
         let monitoring_app = MonitoringApp {
             send_to_client_channel: tx,
             incidents: Vec::new(),
-            camera_system: Arc::new(Mutex::new(camera_system)),
+            camera_system,
+            //camera_system: Arc::new(Mutex::new(camera_system)),
             monitoring_app_client,
             drone_system,
             receive_from_client: Arc::clone(&receive_from_client),
@@ -118,7 +126,8 @@ impl MonitoringApp {
 
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
         self.monitoring_app_client.client_run()?;
-        let _ = CameraSystem::<Client>::run_client(None, self.camera_system.clone());
+        self.camera_system.run_client()?;
+        //let _ = CameraSystem::<Client>::run_client(None, self.camera_system.clone());
         // let reciever_clone = Arc::clone(&self.recieve_from_client.clone());
 
         // thread::spawn(move || {
@@ -138,21 +147,21 @@ impl MonitoringApp {
         Ok(())
     }
 
-    pub fn add_camera(&mut self, location: Location) {
-        let mut lock = match self.camera_system.lock() {
-            Ok(lock) => lock,
-            Err(e) => {
-                println!("Error locking camera system: {:?}", e);
-                return;
-            }
-        };
-        match lock.add_camera(location) {
-            Ok(_) => {}
-            Err(e) => {
-                println!("Error adding camera: {:?}", e);
-            }
-        }
-    }
+    // pub fn add_camera(&mut self, location: Location) {
+    //     let mut lock = match self.camera_system.lock() {
+    //         Ok(lock) => lock,
+    //         Err(e) => {
+    //             println!("Error locking camera system: {:?}", e);
+    //             return;
+    //         }
+    //     };
+    //     match lock.add_camera(location) {
+    //         Ok(_) => {}
+    //         Err(e) => {
+    //             println!("Error adding camera: {:?}", e);
+    //         }
+    //     }
+    // }
 
     pub fn add_incident(&mut self, location: Location) {
         let incident = Incident::new(location);
@@ -196,15 +205,15 @@ impl MonitoringApp {
             .add_drone_center(location)
             .map_or(0, |id| id)
     }
-    pub fn get_cameras(&self) -> HashMap<u32, Camera> {
-        let lock = match self.camera_system.lock() {
-            Ok(lock) => lock,
-            Err(e) => {
-                panic!("Error locking camera system: {:?}", e);
-            }
-        };
-        lock.get_cameras().clone()
-    }
+    // pub fn get_cameras(&self) -> HashMap<u32, Camera> {
+    //     let lock = match self.camera_system.lock() {
+    //         Ok(lock) => lock,
+    //         Err(e) => {
+    //             panic!("Error locking camera system: {:?}", e);
+    //         }
+    //     };
+    //     lock.get_cameras().clone()
+    // }
 
     pub fn get_incidents(&self) -> Vec<Incident> {
         self.incidents.clone()

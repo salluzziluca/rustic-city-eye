@@ -1,6 +1,6 @@
-use std::sync::mpsc;
+use std::sync::mpsc::{self, Sender};
 
-use crate::{mqtt::{client::Client, client_message::Connect, protocol_error::ProtocolError}, utils::location::Location};
+use crate::{mqtt::{client::{Client, ClientTrait}, client_message::Connect, messages_config::MessagesConfig, protocol_error::ProtocolError, subscribe_config::SubscribeConfig, subscribe_properties::SubscribeProperties}, utils::location::Location};
 
 use super::neocamera::Camera;
 
@@ -10,24 +10,53 @@ use super::neocamera::Camera;
 #[derive(Debug)]
 pub struct CameraSystem {
     cameras: Vec<Camera>,
-    camera_system_client: Client
+    camera_system_client: Client,
+    send_to_client_channel: Sender<Box<dyn MessagesConfig + Send>>,
 }
 
 
 impl CameraSystem {
     pub fn new(address: String) -> Result<CameraSystem, ProtocolError> {
         let (tx_1, _rx_1) = mpsc::channel();
-        let (_tx_2, rx_2) = mpsc::channel();
+        let (tx_2, rx_2) = mpsc::channel();
 
         let connect =
             Connect::read_connect_config("./src/surveilling/connect_config.json")?;
 
         let camera_system_client = Client::new(rx_2, address, connect, tx_1)?;
 
-        Ok(CameraSystem { 
+        let system = CameraSystem {
             cameras: Vec::new(), 
-            camera_system_client
-        })
+            camera_system_client,
+            send_to_client_channel: tx_2
+        };
+
+        system.subscribe_to_topics()?;
+
+        Ok(system)
+    }
+
+    fn subscribe_to_topics(&self) -> Result<(), ProtocolError> {
+        let client_id = self.camera_system_client.get_client_id();
+        let subscribe_properties: SubscribeProperties = SubscribeProperties::new(1, Vec::new());
+        let subscribe_config = SubscribeConfig::new(
+            "incidente".to_string(),
+            1,
+            subscribe_properties,
+            client_id.clone(),
+        );
+        match self.send_to_client_channel.send(Box::new(subscribe_config)) {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                println!("Error sending message: {:?}", e);
+                return Err(ProtocolError::SubscribeError);
+            }
+        }
+    }
+
+    pub fn run_client(&mut self) -> Result<(), ProtocolError> {
+        self.camera_system_client.client_run()?;
+        Ok(())
     }
 
 
@@ -46,6 +75,7 @@ impl CameraSystem {
             self.cameras.remove(index);
         }
     }
+    
 }
 
 #[cfg(test)]
@@ -71,7 +101,6 @@ mod tests {
         });
 
         let camera_system = CameraSystem::new(addr.to_string());
-
         assert!(camera_system.is_ok());
     }
 
