@@ -48,8 +48,8 @@ pub mod surveilling {
     pub mod camera;
     pub mod camera_error;
     pub mod camera_system;
-    pub mod neosystem;
     pub mod neocamera;
+    pub mod neosystem;
 }
 
 pub mod drones {

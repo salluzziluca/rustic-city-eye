@@ -27,7 +27,7 @@ use crate::surveilling::camera::Camera;
 use crate::surveilling::neosystem::CameraSystem;
 
 use crate::utils::incident_payload::IncidentPayload;
-use crate::utils::location::Location;
+use crate::utils::location::{self, Location};
 use crate::utils::payload_types::PayloadTypes;
 
 #[derive(Debug)]
@@ -58,9 +58,8 @@ impl MonitoringApp {
         //     Err(err) => return Err(err),
         // };
 
-        let camera_system = CameraSystem::new(address.clone()).unwrap();
+        let camera_system = CameraSystem::new(address.clone())?;
 
-        
         let drone_system =
             DroneSystem::new("src/drones/drone_config.json".to_string(), address.clone());
         type MessagesConfigSender = Sender<Box<dyn MessagesConfig + Send>>;
@@ -110,7 +109,6 @@ impl MonitoringApp {
             send_to_client_channel: tx,
             incidents: Vec::new(),
             camera_system,
-            //camera_system: Arc::new(Mutex::new(camera_system)),
             monitoring_app_client,
             drone_system,
             receive_from_client: Arc::clone(&receive_from_client),
@@ -145,6 +143,11 @@ impl MonitoringApp {
         //     }
         // });
         Ok(())
+    }
+
+    pub fn add_camera(&mut self, location: Location) {
+        println!("Agregando camara");
+        self.camera_system.add_camera(location);
     }
 
     // pub fn add_camera(&mut self, location: Location) {

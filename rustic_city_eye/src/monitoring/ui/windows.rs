@@ -41,7 +41,7 @@ pub fn add_camera_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitori
                 if ui.button(RichText::new("📷").heading()).clicked() {
                     if let Some(position) = map.click_watcher.clicked_at {
                         let location = Location::new(position.lat(), position.lon());
-                      //  monitoring_app.add_camera(location);
+                        monitoring_app.add_camera(location);
                         map.cameras.push(CameraView {
                             image: map.camera_icon.clone(),
                             position,
