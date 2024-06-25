@@ -193,9 +193,10 @@ impl WillProperties {
             topic_alias: 10,
             response_topic: "String".to_string(),
         };
+        let binding = ("".to_string(), "".to_string());
         let first_property = match self.user_properties.first() {
             Some(property) => property,
-            None => &("".to_string(), "".to_string()),
+            None => &binding,
         };
         PublishProperties::new(
             self.payload_format_indicator,
