@@ -6,6 +6,8 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
+use eframe::glow::PROVOKING_VERTEX;
+
 use crate::drones::drone_system::DroneSystem;
 use crate::monitoring::incident::Incident;
 
@@ -77,7 +79,7 @@ impl MonitoringApp {
         match tx.send(Box::new(subscribe_config)) {
             Ok(_) => {}
             Err(e) => {
-                println!("Error sending message: {:?}", e);
+                println!("Monitoring: Error sending message: {:?}", e);
                 return Err(ProtocolError::SubscribeError);
             }
         };
@@ -92,7 +94,7 @@ impl MonitoringApp {
         match tx.send(Box::new(subscribe_config)) {
             Ok(_) => {}
             Err(e) => {
-                println!("Error sending message: {:?}", e);
+                println!("Monitoring: Error sending message: {:?}", e);
                 return Err(ProtocolError::SubscribeError);
             }
         };
@@ -126,10 +128,10 @@ impl MonitoringApp {
         //         let lock = reciever_clone.lock().unwrap();
         //         match lock.recv() {
         //             Ok(message) => {
-        //                 println!("Message received en monitoriung: {:?}", message);
+        //                 println!("Monitoring: Message received en monitoriung: {:?}", message);
         //             }
         //             Err(e) => {
-        //                 println!("Error receiving message: {:?}", e);
+        //                 println!("Monitoring: Error receiving message: {:?}", e);
         //             }
         //         }
 
@@ -142,14 +144,14 @@ impl MonitoringApp {
         let mut lock = match self.camera_system.lock() {
             Ok(lock) => lock,
             Err(e) => {
-                println!("Error locking camera system: {:?}", e);
+                println!("Monitoring: Error locking camera system: {:?}", e);
                 return;
             }
         };
         match lock.add_camera(location) {
             Ok(_) => {}
             Err(e) => {
-                println!("Error adding camera: {:?}", e);
+                println!("Monitoring: Error adding camera: {:?}", e);
             }
         }
     }
@@ -239,7 +241,6 @@ pub fn update_drone_location(
                     dup_flag: _,
                     properties: _,
                 } => {
-                    println!("Received message: {:?}", payload);
                     if topic_name == "drone_locations" {
                         let mut active_drones = match active_drones.try_lock() {
                             Ok(active_drones) => active_drones,
@@ -248,6 +249,8 @@ pub fn update_drone_location(
                         if let PayloadTypes::DroneLocation(id, drone_locationn) = payload {
                             active_drones.insert(id, drone_locationn);
                         }
+                    } else if topic_name == "camera_update" {
+                        println!("Monitoring: Camera update received");
                     }
                 }
                 ClientMessage::Auth {

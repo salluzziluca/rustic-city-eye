@@ -108,7 +108,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         }
 
         let camera = Camera::new(location, id);
-        println!("creo la camara con id: {:?}", id);
+        println!("CameraSys: creo la camara con id: {:?}", id);
         self.cameras.insert(id, camera);
         print!("cameras: {:?}", self.cameras);
         // self.publish_cameras_update()?;
@@ -159,7 +159,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             match lock.camera_system_client.client_run() {
                 Ok(_) => {}
                 Err(e) => {
-                    println!("Error running client: {:?}", e);
+                    println!("CameraSys: Error running client: {:?}", e);
                 }
             }
         });
@@ -198,7 +198,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                             {
                                 Ok(_) => {}
                                 Err(e) => {
-                                    println!("Error activating cameras: {:?}", e);
+                                    println!("CameraSys: Error activating cameras: {:?}", e);
                                 }
                             }
 
@@ -206,7 +206,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                         }
                         Ok(_) => continue, // Handle other message types if necessary
                         Err(e) => {
-                            println!("Error receiving message: {:?}", e);
+                            println!("CameraSys: Error receiving message: {:?}", e);
                             continue;
                         }
                     }
@@ -226,7 +226,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                                 {
                                     Ok(_) => {}
                                     Err(e) => {
-                                        println!("Error activating cameras: {:?}", e);
+                                        println!("CameraSys: Error activating cameras: {:?}", e);
                                     }
                                 }
 
@@ -240,7 +240,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                                 {
                                     Ok(_) => {}
                                     Err(e) => {
-                                        println!("Error deactivating cameras: {:?}", e);
+                                        println!("CameraSys: Error deactivating cameras: {:?}", e);
                                     }
                                 }
                                 continue;
@@ -267,7 +267,10 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
     /// si estan a la distancia requerida, tambien se activen.
     pub fn activate_cameras(&mut self, location: Location) -> Result<(), CameraError> {
         // Collect the locations that need to be activated first
-        println!("Camaras antes de ser activadas: {:?}", self.cameras);
+        println!(
+            "CameraSys: Camaras antes de ser activadas: {:?}",
+            self.cameras
+        );
         let locations_to_activate: Vec<Location> = self
             .cameras
             .values_mut()
@@ -281,7 +284,10 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                 }
             })
             .collect();
-        println!("Camaras despues de ser activadas: {:?}", self.cameras);
+        println!(
+            "CameraSys: Camaras despues de ser activadas: {:?}",
+            self.cameras
+        );
         // Activate cameras by the collected locations
         for loc in locations_to_activate {
             self.activate_cameras_by_camera_location(loc)?;
@@ -398,7 +404,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         match lock.send(Box::new(message)) {
             Ok(_) => {}
             Err(e) => {
-                println!("Error sending message: {:?}", e);
+                println!("CameraSys: Error sending message: {:?}", e);
                 return Err(CameraError::SendError);
             }
         };
@@ -429,9 +435,9 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                             None => false,
                         })
             {
-                println!("camera: {:?}", camera.clone());
+                println!("CameraSys: camera: {:?}", camera.clone());
                 if camera_vieja.is_some() {
-                    println!("camera vieja: {:?}", camera_vieja.unwrap());
+                    println!("CameraSys: camera vieja: {:?}", camera_vieja.unwrap());
                 }
                 updated_cameras.push(camera.clone());
             }
@@ -439,7 +445,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         if updated_cameras.is_empty() {
             return Ok(());
         }
-        println!("publicando el estado de las camaras a el broker");
+        println!("CameraSys: publicando el estado de las camaras a el broker");
 
         let publish_config = match PublishConfig::read_config(
             "./src/surveilling/publish_config_update.json",
@@ -490,14 +496,14 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         // match lock.send(Box::new(message)) {
         //     Ok(_) => {}
         //     Err(e) => {
-        //         println!("Error sending message: {:?}", e);
+        //         println!("CameraSys: Error sending message: {:?}", e);
         //         return Err(CameraError::SendError);
         //     }
         // };
 
         // match self.send_message(Box::new(publish_config)) {
         //     Ok(_) => {
-        //         println!("Sending publish cameras update to client");
+        //         println!("CameraSys: Sending publish cameras update to client");
         //     }
         //     Err(_) => {
         //         return Err(CameraError::SendError);
@@ -1253,7 +1259,7 @@ mod tests {
 
         let handle = thread::spawn(move || {
             mock_client.send_messages(&tx2);
-            println!("meu deus");
+            println!("CameraSys: meu deus");
             let arc_system: Arc<Mutex<CameraSystem<Client>>> = Arc::new(Mutex::new(
                 CameraSystem::<Client>::with_real_client(address.to_string()).unwrap(),
             ));
@@ -1261,7 +1267,7 @@ mod tests {
             match CameraSystem::<Client>::run_client(Some(rx2), arc_sys_clone) {
                 Ok(_) => {}
                 Err(e) => {
-                    println!("Error running client: {:?}", e);
+                    println!("CameraSys: Error running client: {:?}", e);
                 }
             }
             let camera_system = arc_system.lock().unwrap();
