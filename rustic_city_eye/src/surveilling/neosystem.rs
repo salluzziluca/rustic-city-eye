@@ -110,7 +110,7 @@ impl CameraSystem {
     pub fn add_camera(&mut self, location: Location) {
         let camera_id = self.cameras.len();
 
-        let new_camera = Camera::new(location, camera_id);
+        let new_camera = Camera::new(location, camera_id, 10.0);
 
         self.cameras.push(new_camera);
     }

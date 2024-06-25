@@ -23,7 +23,6 @@ use crate::mqtt::{
 };
 
 use crate::surveilling::camera::Camera;
-// use crate::surveilling::camera_system::CameraSystem;
 use crate::surveilling::neosystem::CameraSystem;
 
 use crate::utils::incident_payload::IncidentPayload;
