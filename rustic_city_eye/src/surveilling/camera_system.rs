@@ -634,7 +634,7 @@ mod tests {
         });
 
         thread::spawn(move || {
-            let mut camera_system: CameraSystem<Client> =
+            let camera_system: CameraSystem<Client> =
                 CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
             let arc_system = Arc::new(Mutex::new(camera_system));
             assert!(CameraSystem::<Client>::run_client(None, arc_system).is_ok());

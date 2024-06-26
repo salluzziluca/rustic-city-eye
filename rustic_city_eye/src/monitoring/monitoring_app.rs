@@ -6,8 +6,6 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use eframe::glow::PROVOKING_VERTEX;
-
 use crate::drones::drone_system::DroneSystem;
 use crate::monitoring::incident::Incident;
 
@@ -152,12 +150,10 @@ impl MonitoringApp {
             }
         };
         match lock.add_camera(location) {
-            Ok(id) => {
-                return Ok(id);
-            }
+            Ok(id) => Ok(id),
             Err(e) => {
                 println!("Monitoring: Error adding camera: {:?}", e);
-                return Err(ProtocolError::CameraError(e.to_string()));
+                Err(ProtocolError::CameraError(e.to_string()))
             }
         }
     }
