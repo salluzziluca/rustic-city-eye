@@ -1,8 +1,5 @@
 use std::{
-    sync::{
-        mpsc,
-        Arc, Mutex,
-    },
+    sync::{mpsc, Arc, Mutex},
     thread::{self, sleep},
     time::Duration,
 };
@@ -111,7 +108,6 @@ impl Drone {
         let self_clone_one = Arc::clone(&drone_ref);
         let self_clone_two = Arc::clone(&drone_ref);
 
-
         thread::spawn(move || {
             let mut last_discharge_time = Utc::now();
 
@@ -127,33 +123,45 @@ impl Drone {
 
                 let updated_last_discharge_time = lock.battery_discharge(last_discharge_time);
 
+                if lock.location.lat == lock.center_location.lat
+                    && lock.location.long == lock.center_location.long
+                    && lock.drone_state == DroneState::LowBatteryLevel
+                {
+                    match lock.charge_battery() {
+                        Ok(state) => {
+                            lock.drone_state = state;
+                        }
+                        Err(e) => {
+                            println!("Error charging battery: {:?}", e);
+                        }
+                    }
+                }
+
                 if lock.drone_state == DroneState::LowBatteryLevel {
-                    break;
+                    //go to drone center to charge
                 }
                 last_discharge_time = updated_last_discharge_time;
             }
         });
 
-        thread::spawn(move || {
-            loop {
-                sleep(Duration::from_millis(500));
+        thread::spawn(move || loop {
+            sleep(Duration::from_millis(500));
 
-                let self_clone = Arc::clone(&self_clone_two);
-                let mut lock = match self_clone.lock() {
-                    Ok(locked) => locked,
-                    Err(e) => {
-                        println!("Error locking drone: {:?}", e);
-                        return;
-                    }
-                };
+            let self_clone = Arc::clone(&self_clone_two);
+            let mut lock = match self_clone.lock() {
+                Ok(locked) => locked,
+                Err(e) => {
+                    println!("Error locking drone: {:?}", e);
+                    return;
+                }
+            };
 
-                match lock.drone_idle_movement() {
-                    Ok(_) => (),
-                    Err(e) => {
-                        println!("Error moving drone: {:?}", e);
-                    }
-                };
-            }
+            match lock.drone_idle_movement() {
+                Ok(_) => (),
+                Err(e) => {
+                    println!("Error moving drone: {:?}", e);
+                }
+            };
         });
 
         Ok(())
@@ -210,7 +218,7 @@ impl Drone {
             self.battery_level -= 1;
             println!("Battery level: {}", self.battery_level);
 
-            if self.battery_level == 20 {
+            if self.battery_level <= 20 {
                 self.drone_state = DroneState::LowBatteryLevel;
             }
             (current_time, true)
@@ -292,32 +300,31 @@ impl Drone {
             self.update_location();
         } else {
             self.drone_state = DroneState::LowBatteryLevel;
+            self.drone_movement(self.center_location.clone())?;
         }
         Ok(())
     }
-
 
     fn update_drone_position_and_battery(
         &mut self,
         target_location: &Location,
     ) -> Result<(), DroneError> {
-        if self.battery_level > 20 {
-            let (new_lat, new_long) = self.calculate_new_position(
-                0.1,
-                &self.location.lat,
-                &self.location.long,
-                &target_location.lat,
-                &target_location.long,
-            );
-            self.location.lat = new_lat;
-            self.location.long = new_long;
+        // if self.battery_level > 20 {
+        let (new_lat, new_long) = self.calculate_new_position(
+            0.01,
+            &self.location.lat,
+            &self.location.long,
+            &target_location.lat,
+            &target_location.long,
+        );
+        self.location.lat = new_lat;
+        self.location.long = new_long;
 
-            self.update_location();
-            self.handle_low_battery()?;
-        } else {
-            self.drone_state = DroneState::LowBatteryLevel;
-            return Err(DroneError::BatteryEmpty);
-        }
+        self.update_location();
+        // } else {
+        //     //     self.drone_state = DroneState::LowBatteryLevel;
+        //     //     return Err(DroneError::BatteryEmpty);
+        // }
         println!(
             "location lat: {}, location long: {}",
             self.location.lat, self.location.long
@@ -325,13 +332,15 @@ impl Drone {
         Ok(())
     }
     fn drone_movement(&mut self, target_location: Location) -> Result<(), DroneError> {
+        let mut llego = false;
         loop {
-            sleep(Duration::from_millis(1000));
+            sleep(Duration::from_millis(1));
             if (self.location.lat * 100.0).round() / 100.0
                 == (target_location.lat * 100.0).round() / 100.0
                 && (self.location.long * 100.0).round() / 100.0
                     == (target_location.long * 100.0).round() / 100.0
             {
+                llego = true;
                 break;
             }
 
@@ -339,7 +348,6 @@ impl Drone {
         }
         Ok(())
     }
-
     fn calculate_new_position(
         &self,
         speed: f64,
@@ -351,6 +359,9 @@ impl Drone {
         let direction_lat = target_lat - current_lat;
         let direction_long = target_long - current_long;
         let magnitude = (direction_lat.powi(2) + direction_long.powi(2)).sqrt();
+        if magnitude < speed {
+            return (*target_lat, *target_long);
+        }
         let unit_direction_lat = direction_lat / magnitude;
         let unit_direction_long = direction_long / magnitude;
 
@@ -419,16 +430,15 @@ impl Drone {
 
 #[cfg(test)]
 mod tests {
-    use core::panic;
-    #[cfg(test)]
-    use std::{
-        sync::{Arc, Condvar, Mutex},
-        thread,
-    };
 
+    use crate::drones::drone;
     use crate::{
         mqtt::broker::Broker,
         utils::location::{self, Location},
+    };
+    use std::{
+        sync::{Arc, Condvar, Mutex},
+        thread,
     };
 
     use super::*;
@@ -793,6 +803,66 @@ mod tests {
             println!("New location: {:?}", new_location);
             assert!(new_location.lat > 0.0 && new_location.lat < 1.0);
             assert!(new_location.long > 0.0 && new_location.long < 1.0);
+        });
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn drone_con_poca_bateria_va_a_cargarse() {
+        let args = vec!["127.0.0.1".to_string(), "5010".to_string()];
+        let mut broker = match Broker::new(args) {
+            Ok(broker) => broker,
+            Err(e) => panic!("Error creating broker: {:?}", e),
+        };
+
+        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+        let server_ready_clone = server_ready.clone();
+        thread::spawn(move || {
+            {
+                let (lock, cvar) = &*server_ready_clone;
+                let mut ready = lock.lock().unwrap();
+                *ready = true;
+                cvar.notify_all();
+            }
+            let _ = broker.server_run();
+        });
+
+        // Wait for the server to start
+        {
+            let (lock, cvar) = &*server_ready;
+            let mut ready = lock.lock().unwrap();
+            while !*ready {
+                ready = cvar.wait(ready).unwrap();
+            }
+        }
+        let handle = thread::spawn(move || {
+            let mut drone = setup_test_drone("127.0.0.1:5010".to_string());
+            drone.center_location = Location {
+                lat: 2.0,
+                long: 1.0,
+            };
+            drone.location = Location {
+                lat: 0.0,
+                long: 0.0,
+            };
+            let target_location = Location {
+                lat: 1.0,
+                long: 1.0,
+            };
+            drone.drone_state = DroneState::LowBatteryLevel;
+            drone.battery_level = 19;
+            let drone_arc = Arc::new(Mutex::new(drone));
+            let mut se_cargo = false;
+            for _ in 0..100 {
+                let mut drone = drone_arc.lock().unwrap();
+                drone.drone_idle_movement().unwrap();
+                // println!("Drone location: {:?}", drone.location);
+                if (drone.location == drone.center_location) {
+                    se_cargo = true;
+                    break;
+                }
+            }
+            assert!(se_cargo);
         });
         handle.join().unwrap();
     }
