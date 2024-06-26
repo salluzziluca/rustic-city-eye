@@ -58,13 +58,13 @@ pub struct ImagesPluginData {
 
 // Creates a built-in `Images` plugin with an example image.
 pub fn cameras(
-    cameras: &mut Vec<CameraView>,
+    cameras: &mut HashMap<u32, CameraView>,
     zoom_level: f32,
     last_clicked: Option<Position>,
 ) -> impl Plugin {
     let mut images_vec = vec![];
 
-    for camera in cameras {
+    for camera in cameras.values_mut() {
         let mut radius = Image::new(camera.radius.texture.clone(), camera.position);
         radius.scale(
             camera.radius.x_scale * zoom_level,

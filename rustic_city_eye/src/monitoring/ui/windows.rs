@@ -41,13 +41,22 @@ pub fn add_camera_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitori
                 if ui.button(RichText::new("📷").heading()).clicked() {
                     if let Some(position) = map.click_watcher.clicked_at {
                         let location = Location::new(position.lat(), position.lon());
-                        monitoring_app.add_camera(location);
-                        map.cameras.push(CameraView {
-                            image: map.camera_icon.clone(),
-                            position,
-                            radius: map.camera_radius.clone(),
-                            clicked: false,
-                        });
+                        let id = match monitoring_app.add_camera(location) {
+                            Ok(result) => result,
+                            Err(e) => {
+                                println!("Error adding camera: {}", e);
+                                return;
+                            }
+                        };
+                        map.cameras.insert(
+                            id,
+                            CameraView {
+                                image: map.camera_icon.clone(),
+                                position,
+                                radius: map.camera_radius.clone(),
+                                clicked: false,
+                            },
+                        );
                         println!("Camera added: {:?}", position);
                     }
                 }
@@ -179,7 +188,7 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, _monitoring_app: &mut Monitor
                     //         }
                     //     }
                     // }
-                    map.cameras.retain(|camera| !camera.clicked);
+                    map.cameras.retain(|_id, camera| !camera.clicked);
 
                     // for incident in &map.incidents {
                     //     if incident.clicked {

@@ -1308,7 +1308,7 @@ mod tests {
         assert_eq!(disconect, read_disconect);
     }
 
-    // #[test]
+    // #
     // fn test_07_auth_ok() {
     //     let auth = ClientMessage::Auth {
     //         reason_code: 0x00_u8,

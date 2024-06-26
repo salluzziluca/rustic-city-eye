@@ -40,6 +40,7 @@ pub struct MonitoringApp {
     drone_system: DroneSystem,
     receive_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
+    cameras: Arc<Mutex<HashMap<u32, Camera>>>,
 }
 
 #[allow(dead_code)]
@@ -100,7 +101,7 @@ impl MonitoringApp {
         };
         let receive_from_client = Arc::new(Mutex::new(rx2));
         let active_drones = Arc::new(Mutex::new(HashMap::new()));
-
+        let cameras = Arc::new(Mutex::new(HashMap::new()));
         let monitoring_app = MonitoringApp {
             send_to_client_channel: tx,
             incidents: Vec::new(),
@@ -109,11 +110,13 @@ impl MonitoringApp {
             drone_system,
             receive_from_client: Arc::clone(&receive_from_client),
             active_drones: Arc::clone(&active_drones),
+            cameras: Arc::clone(&cameras),
         };
         thread::spawn(move || loop {
             let receiver_clone = Arc::clone(&receive_from_client);
             let active_drones_clone = Arc::clone(&active_drones);
-            update_drone_location(receiver_clone, active_drones_clone);
+            let cameras_clone = Arc::clone(&cameras);
+            update_entities(receiver_clone, active_drones_clone, cameras_clone);
         });
         Ok(monitoring_app)
     }
@@ -140,18 +143,21 @@ impl MonitoringApp {
         Ok(())
     }
 
-    pub fn add_camera(&mut self, location: Location) {
+    pub fn add_camera(&mut self, location: Location) -> Result<u32, ProtocolError> {
         let mut lock = match self.camera_system.lock() {
             Ok(lock) => lock,
             Err(e) => {
                 println!("Monitoring: Error locking camera system: {:?}", e);
-                return;
+                return Err(ProtocolError::LockError);
             }
         };
         match lock.add_camera(location) {
-            Ok(_) => {}
+            Ok(id) => {
+                return Ok(id);
+            }
             Err(e) => {
                 println!("Monitoring: Error adding camera: {:?}", e);
+                return Err(ProtocolError::CameraError(e.to_string()));
             }
         }
     }
@@ -198,31 +204,29 @@ impl MonitoringApp {
             .add_drone_center(location)
             .map_or(0, |id| id)
     }
-    pub fn get_cameras(&self) -> HashMap<u32, Camera> {
-        let lock = match self.camera_system.lock() {
-            Ok(lock) => lock,
-            Err(e) => {
-                panic!("Error locking camera system: {:?}", e);
-            }
-        };
-        lock.get_cameras().clone()
-    }
 
     pub fn get_incidents(&self) -> Vec<Incident> {
         self.incidents.clone()
     }
 
-    pub fn get_drones(&self) -> HashMap<u32, Location> {
+    pub fn get_active_drones(&self) -> HashMap<u32, Location> {
         match self.active_drones.lock() {
             Ok(active_drones) => active_drones.clone(),
             Err(_) => HashMap::new(),
         }
     }
+    pub fn get_cameras(&self) -> HashMap<u32, Camera> {
+        match self.cameras.lock() {
+            Ok(cameras) => cameras.clone(),
+            Err(_) => HashMap::new(),
+        }
+    }
 }
 
-pub fn update_drone_location(
+pub fn update_entities(
     recieve_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
+    cameras: Arc<Mutex<HashMap<u32, Camera>>>,
 ) {
     let receiver = match recieve_from_client.lock() {
         Ok(receiver) => receiver,
@@ -251,6 +255,15 @@ pub fn update_drone_location(
                         }
                     } else if topic_name == "camera_update" {
                         println!("Monitoring: Camera update received");
+                        let mut cameras = match cameras.try_lock() {
+                            Ok(cameras) => cameras,
+                            Err(_) => return,
+                        };
+                        if let PayloadTypes::CamerasUpdatePayload(updated_cameras) = payload {
+                            for camera in updated_cameras {
+                                cameras.insert(camera.get_id(), camera);
+                            }
+                        }
                     }
                 }
                 ClientMessage::Auth {
