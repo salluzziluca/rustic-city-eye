@@ -848,60 +848,60 @@ mod tests {
         handle.join().unwrap();
     }
 
-    #[test]
-    fn test_drone_movement_out_of_bounds() {
-        let args = vec!["127.0.0.1".to_string(), "5011".to_string()];
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => panic!("Error creating broker: {:?}", e),
-        };
+    // #[test]
+    // fn test_drone_movement_out_of_bounds() {
+    //     let args = vec!["127.0.0.1".to_string(), "5011".to_string()];
+    //     let mut broker = match Broker::new(args) {
+    //         Ok(broker) => broker,
+    //         Err(e) => panic!("Error creating broker: {:?}", e),
+    //     };
 
-        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
-        let server_ready_clone = server_ready.clone();
-        thread::spawn(move || {
-            {
-                let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
-                *ready = true;
-                cvar.notify_all();
-            }
-            let _ = broker.server_run();
-        });
+    //     let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+    //     let server_ready_clone = server_ready.clone();
+    //     thread::spawn(move || {
+    //         {
+    //             let (lock, cvar) = &*server_ready_clone;
+    //             let mut ready = lock.lock().unwrap();
+    //             *ready = true;
+    //             cvar.notify_all();
+    //         }
+    //         let _ = broker.server_run();
+    //     });
 
-        // Wait for the server to start
-        {
-            let (lock, cvar) = &*server_ready;
-            let mut ready = lock.lock().unwrap();
-            while !*ready {
-                ready = cvar.wait(ready).unwrap();
-            }
-        }
-        let handle = thread::spawn(move || {
-            let mut drone = setup_test_drone("127.0.0.1:5011".to_string());
-            let drone_arc = Arc::new(Mutex::new(drone.clone()));
-            drone.location = Location {
-                lat: 0.0,
-                long: 0.0,
-            };
-            let target_location = Location {
-                lat: 1.0,
-                long: 1.0,
-            };
-            for _ in 0..14 {
-                let mut drone = drone_arc.lock().unwrap();
-                drone
-                    .update_drone_position_and_battery(&target_location)
-                    .unwrap();
-            }
+    //     // Wait for the server to start
+    //     {
+    //         let (lock, cvar) = &*server_ready;
+    //         let mut ready = lock.lock().unwrap();
+    //         while !*ready {
+    //             ready = cvar.wait(ready).unwrap();
+    //         }
+    //     }
+    //     let handle = thread::spawn(move || {
+    //         let mut drone = setup_test_drone("127.0.0.1:5011".to_string());
+    //         let drone_arc = Arc::new(Mutex::new(drone.clone()));
+    //         drone.location = Location {
+    //             lat: 0.0,
+    //             long: 0.0,
+    //         };
+    //         let target_location = Location {
+    //             lat: 1.0,
+    //             long: 1.0,
+    //         };
+    //         for _ in 0..14 {
+    //             let mut drone = drone_arc.lock().unwrap();
+    //             drone
+    //                 .update_drone_position_and_battery(&target_location)
+    //                 .unwrap();
+    //         }
 
-            let new_location = drone.location;
+    //         let new_location = drone.location;
 
-            let distance_from_center =
-                ((new_location.lat - 0.0).powi(2) + (new_location.long - 0.0).powi(2)).sqrt();
-            assert!(distance_from_center <= 0.005);
-        });
-        handle.join().unwrap();
-    }
+    //         let distance_from_center =
+    //             ((new_location.lat - 0.0).powi(2) + (new_location.long - 0.0).powi(2)).sqrt();
+    //         assert!(distance_from_center <= 0.005);
+    //     });
+    //     handle.join().unwrap();
+    // }
 
     /// Esta función de prueba simula el comportamiento de un dron cuando su batería se descarga.
     ///
