@@ -107,31 +107,39 @@ impl Drone {
         };
 
         println!("Drone {} is running", self.id);
-        let self_clone = Arc::new(Mutex::new(self.clone()));
+        let self_clone_one = Arc::new(Mutex::new(self.clone()));
+        let self_clone_two = Arc::new(Mutex::new(self.clone()));
+
         std::thread::spawn(move || {
-            let self_clone: Arc<Mutex<Drone>> = Arc::clone(&self_clone);
-            let mut self_locked = match self_clone.lock() {
-                Ok(locked) => locked,
-                Err(e) => {
-                    println!("Error locking drone: {:?}", e);
-                    return;
+            let mut last_discharge_time = Utc::now();
+
+            loop {
+                let self_clone = Arc::clone(&self_clone_one);
+                let mut lock = match self_clone.lock() {
+                    Ok(locked) => locked,
+                    Err(e) => {
+                        println!("Error locking drone: {:?}", e);
+                        return;
+                    }
+                };
+
+                let updated_last_discharge_time = lock.battery_discharge(last_discharge_time);
+
+                if lock.drone_state == DroneState::LowBatteryLevel {
+                    break;
                 }
-            };
-            let _ = self_locked.battery_discharge();
+                last_discharge_time = updated_last_discharge_time;
+            }
         });
-        let self_clone2 = Arc::new(Mutex::new(self.clone()));
 
-        let _t1 = std::thread::spawn(move || {
-            let self_clone: Arc<Mutex<Drone>> = Arc::clone(&self_clone2);
-            let mut self_locked = match self_clone.lock() {
+        std::thread::spawn(move || {
+            let mut self_locked = match self_clone_two.lock() {
                 Ok(locked) => locked,
                 Err(e) => {
                     println!("Error locking drone: {:?}", e);
                     return;
                 }
             };
-
-            println!("Drone {} is moving", self_locked.id);
 
             match self_locked.drone_idle_movement() {
                 Ok(_) => (),
@@ -194,10 +202,8 @@ impl Drone {
         if elapsed_time >= discharge_rate {
             self.battery_level -= 1;
             println!("Battery level: {}", self.battery_level);
-            if self.battery_level < 0 {
-                self.battery_level = 0;
-                self.drone_state = DroneState::LowBatteryLevel;
-            } else if self.battery_level < 20 {
+
+            if self.battery_level == 20 {
                 self.drone_state = DroneState::LowBatteryLevel;
             }
             (current_time, true)
@@ -213,21 +219,12 @@ impl Drone {
     ///
     /// Cada vez que se cumpla "un ciclo" de la tasa de descarga, se reduce la bateria del
     /// Drone en un 1%.
-    pub fn battery_discharge(&mut self) -> Result<(), DroneError> {
-        let mut last_discharge_time = Utc::now();
-        loop {
-            let current_time = Utc::now();
-            let (updated_last_discharge_time, updated) =
-                self.update_battery_discharge(last_discharge_time, current_time);
+    pub fn battery_discharge(&mut self, last_discharge_time: DateTime<Utc>) -> DateTime<Utc> {
+        let current_time = Utc::now();
+        let (updated_last_discharge_time, _updated) =
+            self.update_battery_discharge(last_discharge_time, current_time);
 
-            if updated {
-                if self.battery_level <= 0 {
-                    break;
-                }
-            }
-            last_discharge_time = updated_last_discharge_time;
-        }
-        Ok(())
+        updated_last_discharge_time
     }
 
     /// Carga al Drone de acuerdo a la tasa de carga que venga definida en la configuracion.
@@ -265,10 +262,8 @@ impl Drone {
     /// la idea es que el Drone se mueva cada cierto intervalo de tiempo definido por esta tasa de movimiento.
     ///
     fn drone_idle_movement(&mut self) -> Result<(), DroneError> {
-        // let mut last_move_time = Utc::now();
-
         loop {
-            sleep(Duration::from_millis(1000));
+            sleep(Duration::from_millis(500));
             if (self.location.lat * 100.0).round() / 100.0
                 == (self.target_location.lat * 100.0).round() / 100.0
                 && (self.location.long * 100.0).round() / 100.0
@@ -277,7 +272,7 @@ impl Drone {
                 self.update_target_location()?;
             }
 
-            if self.battery_level > 0 {
+            if self.battery_level > 20 {
                 let (new_lat, new_long) = self.calculate_new_position(
                     0.001,
                     &self.location.lat,
@@ -288,19 +283,21 @@ impl Drone {
                 self.location.lat = new_lat;
                 self.location.long = new_long;
 
-                self.update_location();
                 self.handle_low_battery()?;
+                self.update_location();
             } else {
                 self.drone_state = DroneState::LowBatteryLevel;
-                return Err(DroneError::BatteryEmpty);
+                //return Err(DroneError::BatteryEmpty);
             }
         }
     }
+
+
     fn update_drone_position_and_battery(
         &mut self,
         target_location: &Location,
     ) -> Result<(), DroneError> {
-        if self.battery_level > 0 {
+        if self.battery_level > 20 {
             let (new_lat, new_long) = self.calculate_new_position(
                 0.1,
                 &self.location.lat,
@@ -381,6 +378,7 @@ impl Drone {
 
     fn handle_low_battery(&mut self) -> Result<(), DroneError> {
         if self.drone_state == DroneState::LowBatteryLevel {
+            println!("no tnego bateria y el idle losabe");
             self.drone_idle_movement()?;
             self.charge_battery()?;
             self.drone_idle_movement()?;
