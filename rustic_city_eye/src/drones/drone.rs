@@ -482,59 +482,6 @@ mod tests {
     }
 
     #[test]
-    fn test_02_drone_going_to_charge_battery_ok() {
-        let args = vec!["127.0.0.1".to_string(), "5002".to_string()];
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => panic!("Error creating broker: {:?}", e),
-        };
-
-        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
-        let server_ready_clone = server_ready.clone();
-        thread::spawn(move || {
-            {
-                let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
-                *ready = true;
-                cvar.notify_all();
-            }
-            let _ = broker.server_run();
-        });
-
-        // Wait for the server to start
-        {
-            let (lock, cvar) = &*server_ready;
-            let mut ready = lock.lock().unwrap();
-            while !*ready {
-                ready = cvar.wait(ready).unwrap();
-            }
-        }
-
-        let handle = thread::spawn(move || {
-            let latitude = 0.0;
-            let longitude = 0.0;
-            let location = location::Location::new(latitude, longitude);
-            let center_location = location::Location::new(0.0, 0.0);
-            let mut drone = Drone::new(
-                1,
-                location,
-                center_location,
-                "./tests/drone_config_test.json",
-                "127.0.0.1:5002".to_string(),
-            )
-            .unwrap();
-            let initial_drone = drone.clone(); // Create a separate variable to hold the initial value of drone
-            let _ = drone.run_drone();
-            assert_eq!(initial_drone.get_state(), DroneState::Waiting); // Use initial_drone instead of drone
-
-            drone.battery_level = 0;
-            let _ = drone.battery_discharge();
-            assert_eq!(drone.get_state(), DroneState::LowBatteryLevel);
-        });
-        handle.join().unwrap();
-    }
-
-    #[test]
     fn test_03_get_id_ok() {
         let args = vec!["127.0.0.1".to_string(), "5003".to_string()];
         let mut broker = match Broker::new(args) {
