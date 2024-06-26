@@ -1,9 +1,9 @@
 use std::{
     sync::{
-        mpsc::{self},
+        mpsc,
         Arc, Mutex,
     },
-    thread::sleep,
+    thread::{self, sleep},
     time::Duration,
 };
 
@@ -107,10 +107,12 @@ impl Drone {
         };
 
         println!("Drone {} is running", self.id);
-        let self_clone_one = Arc::new(Mutex::new(self.clone()));
-        let self_clone_two = Arc::new(Mutex::new(self.clone()));
+        let drone_ref = Arc::new(Mutex::new(self.clone()));
+        let self_clone_one = Arc::clone(&drone_ref);
+        let self_clone_two = Arc::clone(&drone_ref);
 
-        std::thread::spawn(move || {
+
+        thread::spawn(move || {
             let mut last_discharge_time = Utc::now();
 
             loop {
@@ -132,21 +134,26 @@ impl Drone {
             }
         });
 
-        std::thread::spawn(move || {
-            let mut self_locked = match self_clone_two.lock() {
-                Ok(locked) => locked,
-                Err(e) => {
-                    println!("Error locking drone: {:?}", e);
-                    return;
-                }
-            };
+        thread::spawn(move || {
+            loop {
+                sleep(Duration::from_millis(500));
 
-            match self_locked.drone_idle_movement() {
-                Ok(_) => (),
-                Err(e) => {
-                    println!("Error moving drone: {:?}", e);
-                }
-            };
+                let self_clone = Arc::clone(&self_clone_two);
+                let mut lock = match self_clone.lock() {
+                    Ok(locked) => locked,
+                    Err(e) => {
+                        println!("Error locking drone: {:?}", e);
+                        return;
+                    }
+                };
+
+                match lock.drone_idle_movement() {
+                    Ok(_) => (),
+                    Err(e) => {
+                        println!("Error moving drone: {:?}", e);
+                    }
+                };
+            }
         });
 
         Ok(())
@@ -262,34 +269,31 @@ impl Drone {
     /// la idea es que el Drone se mueva cada cierto intervalo de tiempo definido por esta tasa de movimiento.
     ///
     fn drone_idle_movement(&mut self) -> Result<(), DroneError> {
-        loop {
-            sleep(Duration::from_millis(500));
-            if (self.location.lat * 100.0).round() / 100.0
-                == (self.target_location.lat * 100.0).round() / 100.0
-                && (self.location.long * 100.0).round() / 100.0
-                    == (self.target_location.long * 100.0).round() / 100.0
-            {
-                self.update_target_location()?;
-            }
-
-            if self.battery_level > 20 {
-                let (new_lat, new_long) = self.calculate_new_position(
-                    0.001,
-                    &self.location.lat,
-                    &self.location.long,
-                    &self.target_location.lat,
-                    &self.target_location.long,
-                );
-                self.location.lat = new_lat;
-                self.location.long = new_long;
-
-                self.handle_low_battery()?;
-                self.update_location();
-            } else {
-                self.drone_state = DroneState::LowBatteryLevel;
-                //return Err(DroneError::BatteryEmpty);
-            }
+        if (self.location.lat * 100.0).round() / 100.0
+            == (self.target_location.lat * 100.0).round() / 100.0
+            && (self.location.long * 100.0).round() / 100.0
+                == (self.target_location.long * 100.0).round() / 100.0
+        {
+            self.update_target_location()?;
         }
+
+        if self.battery_level > 20 {
+            let (new_lat, new_long) = self.calculate_new_position(
+                0.001,
+                &self.location.lat,
+                &self.location.long,
+                &self.target_location.lat,
+                &self.target_location.long,
+            );
+            self.location.lat = new_lat;
+            self.location.long = new_long;
+
+            self.handle_low_battery()?;
+            self.update_location();
+        } else {
+            self.drone_state = DroneState::LowBatteryLevel;
+        }
+        Ok(())
     }
 
 
