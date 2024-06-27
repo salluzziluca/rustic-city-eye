@@ -504,7 +504,6 @@ impl ClientMessage {
                 for subscription in payload {
                     write_string(&mut writer, &subscription.topic)?;
                     write_string(&mut writer, &subscription.client_id)?;
-                    write_u8(&mut writer, &subscription.qos)?;
                 }
 
                 writer.flush().map_err(|_e| ProtocolError::WriteError)?;
@@ -532,7 +531,6 @@ impl ClientMessage {
                 for subscription in payload {
                     write_string(&mut writer, &subscription.topic)?;
                     write_string(&mut writer, &subscription.client_id)?;
-                    write_u8(&mut writer, &subscription.qos)?;
                 }
 
                 writer.flush().map_err(|_e| ProtocolError::WriteError)?;
@@ -736,7 +734,6 @@ impl ClientMessage {
                 for subscription in payload {
                     write_string(writer, &subscription.topic)?;
                     write_string(writer, &subscription.client_id)?;
-                    write_u8(writer, &subscription.qos)?;
                 }
                 Ok(())
             }
@@ -758,7 +755,6 @@ impl ClientMessage {
                 for subscription in payload {
                     write_string(writer, &subscription.topic)?;
                     write_string(writer, &subscription.client_id)?;
-                    write_u8(writer, &subscription.qos)?;
                 }
                 Ok(())
             }
@@ -905,12 +901,10 @@ impl ClientMessage {
                         return Err(Error::new(std::io::ErrorKind::Other, "Invalid topic name"));
                     }
                     let client_id = read_string(stream)?;
-                    let qos = read_u8(stream)?;
 
                     payload.push(Subscription {
                         topic,
                         client_id,
-                        qos,
                     });
                 }
 
@@ -931,12 +925,10 @@ impl ClientMessage {
                 for _ in 0..payload_length {
                     let topic = read_string(stream)?;
                     let client_id = read_string(stream)?;
-                    let qos = read_u8(stream)?;
 
                     payload.push(Subscription {
                         topic,
                         client_id,
-                        qos,
                     });
                 }
 
@@ -1194,7 +1186,6 @@ mod tests {
         let vector = vec![Subscription {
             topic: "topic".to_string(),
             client_id: "client".to_string(),
-            qos: 1,
         }];
 
         let sub = ClientMessage::Subscribe {
@@ -1231,7 +1222,6 @@ mod tests {
         let vector = vec![Subscription {
             topic: "topic".to_string(),
             client_id: "client".to_string(),
-            qos: 1,
         }];
 
         let unsub = ClientMessage::Unsubscribe {
