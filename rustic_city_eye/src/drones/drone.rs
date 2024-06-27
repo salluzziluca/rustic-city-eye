@@ -137,9 +137,6 @@ impl Drone {
                     }
                 }
 
-                if lock.drone_state == DroneState::LowBatteryLevel {
-                    //go to drone center to charge
-                }
                 last_discharge_time = updated_last_discharge_time;
             }
         });
@@ -285,7 +282,9 @@ impl Drone {
             self.update_target_location()?;
         }
 
-        if self.battery_level > 20 {
+        if self.drone_state == DroneState::LowBatteryLevel {
+            self.drone_movement(self.center_location.clone())?;
+        } else {
             let (new_lat, new_long) = self.calculate_new_position(
                 0.001,
                 &self.location.lat,
@@ -296,11 +295,7 @@ impl Drone {
             self.location.lat = new_lat;
             self.location.long = new_long;
 
-            self.handle_low_battery()?;
             self.update_location();
-        } else {
-            self.drone_state = DroneState::LowBatteryLevel;
-            self.drone_movement(self.center_location.clone())?;
         }
         Ok(())
     }
@@ -321,10 +316,7 @@ impl Drone {
         self.location.long = new_long;
 
         self.update_location();
-        // } else {
-        //     //     self.drone_state = DroneState::LowBatteryLevel;
-        //     //     return Err(DroneError::BatteryEmpty);
-        // }
+
         println!(
             "location lat: {}, location long: {}",
             self.location.lat, self.location.long
@@ -332,7 +324,6 @@ impl Drone {
         Ok(())
     }
     fn drone_movement(&mut self, target_location: Location) -> Result<(), DroneError> {
-        let mut llego = false;
         loop {
             sleep(Duration::from_millis(1));
             if (self.location.lat * 100.0).round() / 100.0
@@ -340,7 +331,6 @@ impl Drone {
                 && (self.location.long * 100.0).round() / 100.0
                     == (target_location.long * 100.0).round() / 100.0
             {
-                llego = true;
                 break;
             }
 
@@ -359,7 +349,9 @@ impl Drone {
         let direction_lat = target_lat - current_lat;
         let direction_long = target_long - current_long;
         let magnitude = (direction_lat.powi(2) + direction_long.powi(2)).sqrt();
-        if magnitude < speed {
+        let tolerance_factor = 1.0;
+        let effective_range = speed * tolerance_factor;
+        if magnitude < effective_range {
             return (*target_lat, *target_long);
         }
         let unit_direction_lat = direction_lat / magnitude;
@@ -391,23 +383,13 @@ impl Drone {
         };
     }
 
-    fn handle_low_battery(&mut self) -> Result<(), DroneError> {
-        if self.drone_state == DroneState::LowBatteryLevel {
-            println!("no tnego bateria y el idle losabe");
-            self.drone_idle_movement()?;
-            self.charge_battery()?;
-            self.drone_idle_movement()?;
-        }
-        Ok(())
-    }
-
     fn update_target_location(&mut self) -> Result<(), DroneError> {
         let current_time = Utc::now().timestamp_millis() as f64;
         let angle = (current_time / 1000.0) % (2.0 * PI);
-        let new_target_lat =
-            self.center_location.lat + self.drone_config.get_operation_radius() * angle.cos();
-        let new_target_long =
-            self.center_location.long + self.drone_config.get_operation_radius() * angle.sin();
+        let operation_radius = self.drone_config.get_operation_radius();
+        // Ensure the drone stays within the operation radius from the center location
+        let new_target_lat = self.center_location.lat + operation_radius * angle.cos();
+        let new_target_long = self.center_location.long + operation_radius * angle.sin();
         self.target_location = Location::new(new_target_lat, new_target_long);
         Ok(())
     }
