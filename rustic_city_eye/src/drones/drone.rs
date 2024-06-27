@@ -95,9 +95,6 @@ impl Drone {
     /// se cambia el estado del dron a LowBatteryLevel. Y, en el thread de movimiento, se
     /// redirije al dron hacia su estacion de carga.
     pub fn run_drone(&mut self) -> Result<(), DroneError> {
-        let (tx, rx) = mpsc::channel();
-        let (tx2, rx2) = mpsc::channel();
-
         match self.drone_client.client_run() {
             Ok(client) => client,
             Err(e) => {
@@ -124,25 +121,22 @@ impl Drone {
                     }
                 };
 
-                let new_state = rx2.try_recv().unwrap_or(lock.drone_state.clone());
-
-                match new_state {
+                match lock.drone_state.clone() {
                     DroneState::Waiting => {
                         let updated_last_discharge_time =
                             lock.battery_discharge(last_discharge_time);
                         last_discharge_time = updated_last_discharge_time;
                     }
                     DroneState::AttendingIncident => todo!(),
-                    DroneState::LowBatteryLevel => tx.send(lock.drone_state.clone()).unwrap(),
                     DroneState::ChargingBattery => match lock.charge_battery() {
-                        Ok(state) => {
-                            lock.drone_state = state.clone();
-                            tx.send(lock.drone_state.clone()).unwrap();
+                        Ok(_) => {
+                            ()
                         }
                         Err(e) => {
                             println!("Error charging battery: {:?}", e);
                         }
                     },
+                    _ => ()
                 }
             }
         });
@@ -159,10 +153,7 @@ impl Drone {
                 }
             };
 
-            let new_state = rx.try_recv().unwrap_or(lock.drone_state.clone());
-            println!("status en el thread de move {:?}", new_state);
-
-            match new_state {
+            match lock.drone_state.clone() {
                 DroneState::Waiting => {
                     match lock.patrolling_in_operating_radius() {
                         Ok(_) => (),
@@ -173,9 +164,7 @@ impl Drone {
                 DroneState::LowBatteryLevel => {
                     lock.redirect_to_operation_center();
                 }
-                DroneState::ChargingBattery => {
-                    let _ = tx2.send(lock.drone_state.clone());
-                }
+                _ => ()
             };
         });
 
@@ -279,8 +268,7 @@ impl Drone {
                 self.update_battery_charge(start_time, current_time);
 
             if updated && self.battery_level > 99 {
-                self.battery_level = 100;
-                return Ok(DroneState::Waiting);
+                return Ok(self.drone_state.clone());
             }
             start_time = updated_start_time;
         }
