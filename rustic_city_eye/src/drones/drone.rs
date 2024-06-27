@@ -809,7 +809,7 @@ mod tests {
 
     #[test]
     fn drone_con_poca_bateria_va_a_cargarse() {
-        let args = vec!["127.0.0.1".to_string(), "5010".to_string()];
+        let args = vec!["127.0.0.1".to_string(), "5020".to_string()];
         let mut broker = match Broker::new(args) {
             Ok(broker) => broker,
             Err(e) => panic!("Error creating broker: {:?}", e),
@@ -836,7 +836,7 @@ mod tests {
             }
         }
         let handle = thread::spawn(move || {
-            let mut drone = setup_test_drone("127.0.0.1:5010".to_string());
+            let mut drone = setup_test_drone("127.0.0.1:5020".to_string());
             drone.center_location = Location {
                 lat: 2.0,
                 long: 1.0,
