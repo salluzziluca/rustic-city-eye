@@ -58,7 +58,7 @@ impl SubscribeConfig {
         }
     }
     pub fn write_config_to_json_file(&self, path: &str) {
-        let json = match serde_json::to_string(&self){
+        let json = match serde_json::to_string(&self) {
             Ok(json) => json,
             Err(e) => panic!("Error converting PublishConfig to json: {}", e),
         };

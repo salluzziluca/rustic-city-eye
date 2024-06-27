@@ -10,4 +10,5 @@ pub enum DroneState {
     Waiting,
     AttendingIncident,
     LowBatteryLevel,
+    ChargingBattery,
 }

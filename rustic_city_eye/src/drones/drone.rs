@@ -95,6 +95,9 @@ impl Drone {
     /// se cambia el estado del dron a LowBatteryLevel. Y, en el thread de movimiento, se
     /// redirije al dron hacia su estacion de carga.
     pub fn run_drone(&mut self) -> Result<(), DroneError> {
+        let (tx, rx) = mpsc::channel();
+        let (tx2, rx2) = mpsc::channel();
+
         match self.drone_client.client_run() {
             Ok(client) => client,
             Err(e) => {
@@ -121,23 +124,26 @@ impl Drone {
                     }
                 };
 
-                let updated_last_discharge_time = lock.battery_discharge(last_discharge_time);
+                let new_state = rx2.try_recv().unwrap_or(lock.drone_state.clone());
 
-                if lock.location.lat == lock.center_location.lat
-                    && lock.location.long == lock.center_location.long
-                    && lock.drone_state == DroneState::LowBatteryLevel
-                {
-                    match lock.charge_battery() {
+                match new_state {
+                    DroneState::Waiting => {
+                        let updated_last_discharge_time =
+                            lock.battery_discharge(last_discharge_time);
+                        last_discharge_time = updated_last_discharge_time;
+                    }
+                    DroneState::AttendingIncident => todo!(),
+                    DroneState::LowBatteryLevel => tx.send(lock.drone_state.clone()).unwrap(),
+                    DroneState::ChargingBattery => match lock.charge_battery() {
                         Ok(state) => {
-                            lock.drone_state = state;
+                            lock.drone_state = state.clone();
+                            tx.send(lock.drone_state.clone()).unwrap();
                         }
                         Err(e) => {
                             println!("Error charging battery: {:?}", e);
                         }
-                    }
+                    },
                 }
-
-                last_discharge_time = updated_last_discharge_time;
             }
         });
 
@@ -153,10 +159,22 @@ impl Drone {
                 }
             };
 
-            match lock.drone_idle_movement() {
-                Ok(_) => (),
-                Err(e) => {
-                    println!("Error moving drone: {:?}", e);
+            let new_state = rx.try_recv().unwrap_or(lock.drone_state.clone());
+            println!("status en el thread de move {:?}", new_state);
+
+            match new_state {
+                DroneState::Waiting => {
+                    match lock.patrolling_in_operating_radius() {
+                        Ok(_) => (),
+                        Err(_) => todo!(),
+                    };
+                }
+                DroneState::AttendingIncident => todo!(),
+                DroneState::LowBatteryLevel => {
+                    lock.redirect_to_operation_center();
+                }
+                DroneState::ChargingBattery => {
+                    let _ = tx2.send(lock.drone_state.clone());
                 }
             };
         });
@@ -189,7 +207,7 @@ impl Drone {
         if elapsed_time >= charge_rate {
             self.battery_level += 1;
             println!("Battery level: {}", self.battery_level);
-            if self.battery_level >= 100 {
+            if self.battery_level >= 99 {
                 self.battery_level = 100;
                 self.drone_state = DroneState::Waiting;
             }
@@ -211,21 +229,12 @@ impl Drone {
             .signed_duration_since(last_discharge_time)
             .num_milliseconds();
         let discharge_rate = self.drone_config.get_battery_discharge_rate();
-        if self.location == self.center_location {
-            match self.charge_battery() {
-                Ok(state) => {
-                    self.drone_state = state;
-                }
-                Err(e) => {
-                    println!("Error charging battery: {:?}", e);
-                }
-            }
-        }
+
         if elapsed_time >= discharge_rate {
             self.battery_level -= 1;
             println!("Battery level: {}", self.battery_level);
 
-            if self.battery_level <= 20 {
+            if self.battery_level == 20 {
                 self.drone_state = DroneState::LowBatteryLevel;
             }
             (current_time, true)
@@ -233,6 +242,7 @@ impl Drone {
             (last_discharge_time, false)
         }
     }
+
     /// closure del thread de descarga de bateria del Drone.
     ///
     /// Lo que se hace es ir descargando el nivel de bateria del
@@ -249,6 +259,14 @@ impl Drone {
         updated_last_discharge_time
     }
 
+    pub fn battery_charge(&mut self, last_charge_time: DateTime<Utc>) -> DateTime<Utc> {
+        let current_time = Utc::now();
+        let (updated_last_charge_time, _updated) =
+            self.update_battery_charge(last_charge_time, current_time);
+
+        updated_last_charge_time
+    }
+
     /// Carga al Drone de acuerdo a la tasa de carga que venga definida en la configuracion.
     ///
     /// Al llegar al 100%, devuelve un DroneState del tipo Waiting.
@@ -260,11 +278,9 @@ impl Drone {
             let (updated_start_time, updated) =
                 self.update_battery_charge(start_time, current_time);
 
-            if updated {
-                if self.battery_level > 100 {
-                    self.battery_level = 100;
-                    return Ok(DroneState::Waiting);
-                }
+            if updated && self.battery_level > 99 {
+                self.battery_level = 100;
+                return Ok(DroneState::Waiting);
             }
             start_time = updated_start_time;
         }
@@ -293,6 +309,7 @@ impl Drone {
         }
 
         if self.drone_state == DroneState::LowBatteryLevel {
+            println!("bateria baaaja");
             self.drone_movement(self.center_location.clone())?;
         } else {
             let (new_lat, new_long) = self.calculate_new_position(
@@ -310,11 +327,56 @@ impl Drone {
         Ok(())
     }
 
-    fn update_drone_position_and_battery(
-        &mut self,
-        target_location: &Location,
-    ) -> Result<(), DroneError> {
-        // if self.battery_level > 20 {
+    /// Cuando el Drone esta en estado Waiting, lo que hace es patrullar alrededor
+    /// de su radio de operacion.
+    ///
+    /// Esto se logra usando update_target_location, que calcula una nueva posicion
+    /// para seguir "dibujando su circulo".
+    ///
+    /// La idea es que si se llega al current_target_location, el Drone calcule una nueva
+    /// posicion para ir, y que comience a moverse.
+    fn patrolling_in_operating_radius(&mut self) -> Result<(), DroneError> {
+        if (self.location.lat * 100.0).round() / 100.0
+            == (self.target_location.lat * 100.0).round() / 100.0
+            && (self.location.long * 100.0).round() / 100.0
+                == (self.target_location.long * 100.0).round() / 100.0
+        {
+            self.update_target_location()?;
+        }
+
+        let (new_lat, new_long) = self.calculate_new_position(
+            0.001,
+            &self.location.lat,
+            &self.location.long,
+            &self.target_location.lat,
+            &self.target_location.long,
+        );
+        self.location.lat = new_lat;
+        self.location.long = new_long;
+
+        self.update_location();
+
+        Ok(())
+    }
+
+    /// Una vez que el Drone entra en estado de LowBatteryLevel,
+    /// se redirecciona hacia su centro de carga.
+    ///
+    /// Una vez que llega a esta location, cambia su estado a
+    /// ChargingBattery, por lo que el Drone va a comenzar a cargarse.
+    fn redirect_to_operation_center(&mut self) {
+        if (self.location.lat * 100.0).round() / 100.0
+            == (self.center_location.lat * 100.0).round() / 100.0
+            && (self.location.long * 100.0).round() / 100.0
+                == (self.center_location.long * 100.0).round() / 100.0
+        {
+            self.drone_state = DroneState::ChargingBattery;
+        }
+
+        let _ = self.update_drone_position(self.center_location.clone());
+    }
+
+    fn update_drone_position(&mut self, target_location: Location) -> Result<(), DroneError> {
         let (new_lat, new_long) = self.calculate_new_position(
             0.01,
             &self.location.lat,
@@ -326,13 +388,9 @@ impl Drone {
         self.location.long = new_long;
 
         self.update_location();
-
-        println!(
-            "location lat: {}, location long: {}",
-            self.location.lat, self.location.long
-        );
         Ok(())
     }
+
     fn drone_movement(&mut self, target_location: Location) -> Result<(), DroneError> {
         loop {
             sleep(Duration::from_millis(1));
@@ -344,7 +402,7 @@ impl Drone {
                 break;
             }
 
-            self.update_drone_position_and_battery(&target_location)?;
+            self.update_drone_position(target_location.clone())?;
         }
         Ok(())
     }
@@ -422,8 +480,6 @@ impl Drone {
 
 #[cfg(test)]
 mod tests {
-
-    use crate::drones::drone;
     use crate::{
         mqtt::broker::Broker,
         utils::location::{self, Location},
@@ -787,7 +843,7 @@ mod tests {
             for _ in 0..14 {
                 let mut drone = drone_arc.lock().unwrap();
                 drone
-                    .update_drone_position_and_battery(&target_location)
+                    .update_drone_position(target_location.clone())
                     .unwrap();
             }
             let drone = drone_arc.lock().unwrap();
@@ -837,7 +893,7 @@ mod tests {
                 lat: 0.0,
                 long: 0.0,
             };
-            let target_location = Location {
+            let _target_location = Location {
                 lat: 1.0,
                 long: 1.0,
             };
@@ -848,8 +904,7 @@ mod tests {
             for _ in 0..100 {
                 let mut drone = drone_arc.lock().unwrap();
                 drone.drone_idle_movement().unwrap();
-                // println!("Drone location: {:?}", drone.location);
-                if (drone.location == drone.center_location) {
+                if drone.location == drone.center_location {
                     se_cargo = true;
                     break;
                 }
