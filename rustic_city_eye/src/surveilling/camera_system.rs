@@ -166,6 +166,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
 
         let _handle = thread::spawn(move || {
             let mut incident_location: Option<Location> = Option::None;
+            let mut solved_incident_location: Option<Location> = Option::None;
             loop {
                 let mut self_clone = match system_clone_two.lock() {
                     Ok(guard) => guard.clone(),
@@ -174,6 +175,12 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                     }
                 };
                 let mut self_clone2 = match system_clone_two.lock() {
+                    Ok(guard) => guard.clone(),
+                    Err(_) => {
+                        return;
+                    }
+                };
+                let mut self_clone3 = match system_clone_two.lock() {
                     Ok(guard) => guard.clone(),
                     Err(_) => {
                         return;
@@ -231,6 +238,20 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                         }
                         None => {}
                     }
+                    match solved_incident_location {
+                        Some(location) => {
+                            match self_clone3
+                                .activate_cameras(location)
+                                .map_err(|e| ProtocolError::CameraError(e.to_string()))
+                            {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    println!("CameraSys: Error activating cameras: {:?}", e);
+                                }
+                            }
+                        }
+                        None => {}
+                    }
                     match lock.recv() {
                         Ok(client_message::ClientMessage::Publish {
                             topic_name,
@@ -243,17 +264,10 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
 
                                 continue;
                             } else if topic_name == "incidente_resuelto" {
-                                let location = payload.get_incident().get_location();
+                                solved_incident_location =
+                                    Some(payload.get_incident().get_location());
                                 drop(lock); // Release the lock here
-                                match self_clone
-                                    .deactivate_cameras(location)
-                                    .map_err(|e| ProtocolError::CameraError(e.to_string()))
-                                {
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        println!("CameraSys: Error deactivating cameras: {:?}", e);
-                                    }
-                                }
+
                                 continue;
                             }
                         }
