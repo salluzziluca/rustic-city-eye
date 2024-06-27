@@ -6,7 +6,7 @@ use serde::Deserialize;
 /// del tipo Publish con la localizacion del incidente como Payload,
 /// para que las distintas unidades de la aplicacion sepan donde se encuentran
 /// los incidentes a resolver.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Copy)]
 pub struct Location {
     pub long: f64,
     pub lat: f64,
