@@ -103,14 +103,14 @@ pub enum ClientMessage {
         payload: Vec<Subscription>,
     },
     /// Es el ultimo mensaje que el cliente envia antes de desconectarse, este mensaje contiene informacion sobre la razon de la desconexión y propiedades adicionales.
-    /// reason_code es el codigo de la razon de la desconexión.
-    /// session_expiry_interval es el tiempo en segundos que el broker debe mantener la sesion del cliente activa despues de que este se desconecte.
-    /// reason_string es un mensaje de texto que describe la razon de la desconexión.
-    /// client_id es el identificador unico del cliente.
     Disconnect {
+        /// reason_code es el codigo de la razon de la desconexión.
         reason_code: u8,
+        /// session_expiry_interval es el tiempo en segundos que el broker debe mantener la sesion del cliente activa despues de que este se desconecte.
         session_expiry_interval: u32,
+        /// reason_string es un mensaje de texto que describe la razon de la desconexión.
         reason_string: String,
+        /// client_id es el identificador unico del cliente.
         client_id: String,
     },
     /// El Pingreq Message es un mensaje que el cliente envia al broker para mantener la conexion activa.
