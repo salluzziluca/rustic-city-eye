@@ -9,15 +9,13 @@ use super::{
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SubscribeConfig {
     pub(crate) topic_name: String,
-    pub(crate) qos: u8,
     pub(crate) properties: SubscribeProperties,
     pub(crate) client_id: String,
 }
 
 impl MessagesConfig for SubscribeConfig {
     fn parse_message(&self, packet_id: u16) -> ClientMessage {
-        let subscription =
-            Subscription::new(self.topic_name.clone(), self.client_id.clone(), self.qos);
+        let subscription = Subscription::new(self.topic_name.clone(), self.client_id.clone());
         //creo un vector cno la subscription
         let subscriptions = vec![subscription];
 
@@ -32,13 +30,11 @@ impl MessagesConfig for SubscribeConfig {
 impl SubscribeConfig {
     pub fn new(
         topic_name: String,
-        qos: u8,
         properties: SubscribeProperties,
         client_id: String,
     ) -> SubscribeConfig {
         SubscribeConfig {
             topic_name,
-            qos,
             properties,
             client_id,
         }
@@ -52,13 +48,12 @@ impl SubscribeConfig {
 
         SubscribeConfig {
             topic_name: config.topic_name,
-            qos: config.qos,
             properties: config.properties,
             client_id: config.client_id,
         }
     }
     pub fn write_config_to_json_file(&self, path: &str) {
-        let json = match serde_json::to_string(&self){
+        let json = match serde_json::to_string(&self) {
             Ok(json) => json,
             Err(e) => panic!("Error converting PublishConfig to json: {}", e),
         };
@@ -78,15 +73,9 @@ mod tests {
         let topic_name = "topic".to_string();
         let properties =
             SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]);
-        let qos = 1;
-        let subscribe_config = SubscribeConfig::new(
-            topic_name.clone(),
-            qos,
-            properties.clone(),
-            "client".to_string(),
-        );
+        let subscribe_config =
+            SubscribeConfig::new(topic_name.clone(), properties.clone(), "client".to_string());
         assert_eq!(subscribe_config.topic_name, topic_name);
-        assert_eq!(subscribe_config.qos, qos);
         assert_eq!(subscribe_config.properties, properties);
     }
 
@@ -97,12 +86,8 @@ mod tests {
             SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]);
 
         let qos = 1;
-        let subscribe_config = SubscribeConfig::new(
-            topic_name.clone(),
-            qos,
-            properties.clone(),
-            "client".to_string(),
-        );
+        let subscribe_config =
+            SubscribeConfig::new(topic_name.clone(), properties.clone(), "client".to_string());
         let packet_id = 1;
         let message = subscribe_config.parse_message(packet_id);
         match message {
@@ -115,7 +100,6 @@ mod tests {
                 assert_eq!(message_properties, properties);
                 assert_eq!(payload.len(), 1);
                 assert_eq!(payload[0].topic, topic_name);
-                assert_eq!(payload[0].qos, qos);
             }
             _ => panic!("Wrong message type"),
         }

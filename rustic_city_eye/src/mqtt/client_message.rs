@@ -902,10 +902,7 @@ impl ClientMessage {
                     }
                     let client_id = read_string(stream)?;
 
-                    payload.push(Subscription {
-                        topic,
-                        client_id,
-                    });
+                    payload.push(Subscription { topic, client_id });
                 }
 
                 Ok(ClientMessage::Subscribe {
@@ -926,10 +923,7 @@ impl ClientMessage {
                     let topic = read_string(stream)?;
                     let client_id = read_string(stream)?;
 
-                    payload.push(Subscription {
-                        topic,
-                        client_id,
-                    });
+                    payload.push(Subscription { topic, client_id });
                 }
 
                 Ok(ClientMessage::Unsubscribe {
