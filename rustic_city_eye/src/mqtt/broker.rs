@@ -360,10 +360,7 @@ impl Broker {
                                         println!("Mensaje enviado a {}", user.client_id);
                                     }
                                     Err(_) => {
-                                        // si es qos 1 me guardo el mensaje
-                                        if user.qos == 1 {
-                                            es_qos_1 = true;
-                                        }
+                                      
                                     }
                                 }
                                 // si el mensaje es qos 1, envio el ack
