@@ -38,6 +38,7 @@ pub struct MonitoringApp {
     drone_system: DroneSystem,
     receive_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
+    cameras: Arc<Mutex<HashMap<u32, Camera>>>,
 }
 
 #[allow(dead_code)]
@@ -77,7 +78,7 @@ impl MonitoringApp {
         match tx.send(Box::new(subscribe_config)) {
             Ok(_) => {}
             Err(e) => {
-                println!("Error sending message: {:?}", e);
+                println!("Monitoring: Error sending message: {:?}", e);
                 return Err(ProtocolError::SubscribeError);
             }
         };
@@ -92,13 +93,13 @@ impl MonitoringApp {
         match tx.send(Box::new(subscribe_config)) {
             Ok(_) => {}
             Err(e) => {
-                println!("Error sending message: {:?}", e);
+                println!("Monitoring: Error sending message: {:?}", e);
                 return Err(ProtocolError::SubscribeError);
             }
         };
         let receive_from_client = Arc::new(Mutex::new(rx2));
         let active_drones = Arc::new(Mutex::new(HashMap::new()));
-
+        let cameras = Arc::new(Mutex::new(HashMap::new()));
         let monitoring_app = MonitoringApp {
             send_to_client_channel: tx,
             incidents: Vec::new(),
@@ -107,11 +108,13 @@ impl MonitoringApp {
             drone_system,
             receive_from_client: Arc::clone(&receive_from_client),
             active_drones: Arc::clone(&active_drones),
+            cameras: Arc::clone(&cameras),
         };
         thread::spawn(move || loop {
             let receiver_clone = Arc::clone(&receive_from_client);
             let active_drones_clone = Arc::clone(&active_drones);
-            update_drone_location(receiver_clone, active_drones_clone);
+            let cameras_clone = Arc::clone(&cameras);
+            update_entities(receiver_clone, active_drones_clone, cameras_clone);
         });
         Ok(monitoring_app)
     }
@@ -126,10 +129,10 @@ impl MonitoringApp {
         //         let lock = reciever_clone.lock().unwrap();
         //         match lock.recv() {
         //             Ok(message) => {
-        //                 println!("Message received en monitoriung: {:?}", message);
+        //                 println!("Monitoring: Message received en monitoriung: {:?}", message);
         //             }
         //             Err(e) => {
-        //                 println!("Error receiving message: {:?}", e);
+        //                 println!("Monitoring: Error receiving message: {:?}", e);
         //             }
         //         }
 
@@ -138,18 +141,19 @@ impl MonitoringApp {
         Ok(())
     }
 
-    pub fn add_camera(&mut self, location: Location) {
+    pub fn add_camera(&mut self, location: Location) -> Result<u32, ProtocolError> {
         let mut lock = match self.camera_system.lock() {
             Ok(lock) => lock,
             Err(e) => {
-                println!("Error locking camera system: {:?}", e);
-                return;
+                println!("Monitoring: Error locking camera system: {:?}", e);
+                return Err(ProtocolError::LockError);
             }
         };
         match lock.add_camera(location) {
-            Ok(_) => {}
+            Ok(id) => Ok(id),
             Err(e) => {
-                println!("Error adding camera: {:?}", e);
+                println!("Monitoring: Error adding camera: {:?}", e);
+                Err(ProtocolError::CameraError(e.to_string()))
             }
         }
     }
@@ -196,31 +200,29 @@ impl MonitoringApp {
             .add_drone_center(location)
             .map_or(0, |id| id)
     }
-    pub fn get_cameras(&self) -> HashMap<u32, Camera> {
-        let lock = match self.camera_system.lock() {
-            Ok(lock) => lock,
-            Err(e) => {
-                panic!("Error locking camera system: {:?}", e);
-            }
-        };
-        lock.get_cameras().clone()
-    }
 
     pub fn get_incidents(&self) -> Vec<Incident> {
         self.incidents.clone()
     }
 
-    pub fn get_drones(&self) -> HashMap<u32, Location> {
+    pub fn get_active_drones(&self) -> HashMap<u32, Location> {
         match self.active_drones.lock() {
             Ok(active_drones) => active_drones.clone(),
             Err(_) => HashMap::new(),
         }
     }
+    pub fn get_cameras(&self) -> HashMap<u32, Camera> {
+        match self.cameras.lock() {
+            Ok(cameras) => cameras.clone(),
+            Err(_) => HashMap::new(),
+        }
+    }
 }
 
-pub fn update_drone_location(
+pub fn update_entities(
     recieve_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
+    cameras: Arc<Mutex<HashMap<u32, Camera>>>,
 ) {
     let receiver = match recieve_from_client.lock() {
         Ok(receiver) => receiver,
@@ -239,7 +241,6 @@ pub fn update_drone_location(
                     dup_flag: _,
                     properties: _,
                 } => {
-                    println!("Received message: {:?}", payload);
                     if topic_name == "drone_locations" {
                         let mut active_drones = match active_drones.try_lock() {
                             Ok(active_drones) => active_drones,
@@ -247,6 +248,17 @@ pub fn update_drone_location(
                         };
                         if let PayloadTypes::DroneLocation(id, drone_locationn) = payload {
                             active_drones.insert(id, drone_locationn);
+                        }
+                    } else if topic_name == "camera_update" {
+                        println!("Monitoring: Camera update received");
+                        let mut cameras = match cameras.try_lock() {
+                            Ok(cameras) => cameras,
+                            Err(_) => return,
+                        };
+                        if let PayloadTypes::CamerasUpdatePayload(updated_cameras) = payload {
+                            for camera in updated_cameras {
+                                cameras.insert(camera.get_id(), camera);
+                            }
                         }
                     }
                 }

@@ -6,7 +6,7 @@ use std::env;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Error, ErrorKind, Read, Write};
 
-use crate::mqtt::publish::publish_properties::{PublishProperties, TopicProperties};
+use crate::mqtt::publish::publish_properties::PublishProperties;
 use crate::utils::{reader::*, writer::*};
 
 use super::connect::connect_properties::ConnectProperties;
@@ -184,18 +184,6 @@ impl Connect {
         if !self.last_will_flag {
             return None;
         }
-        let last_will_topic = match self.clone().last_will_topic {
-            Some(topic) => topic,
-            None => return None,
-        };
-        let last_will_message = match self.clone().last_will_message {
-            Some(message) => message,
-            None => return None,
-        };
-        let will_properties = match self.clone().will_properties {
-            Some(properties) => properties,
-            None => return None,
-        };
 
         let last_will_topic = self.last_will_topic?;
         let last_will_message = self.last_will_message?;
@@ -882,20 +870,7 @@ impl ClientMessage {
             }
             0x30 => {
                 println!("Reading publish message");
-                let topic_properties = TopicProperties {
-                    topic_alias: 10,
-                    response_topic: "String".to_string(),
-                };
 
-                let properties = PublishProperties::new(
-                    1,
-                    10,
-                    topic_properties,
-                    [1, 2, 3].to_vec(),
-                    "a".to_string(),
-                    1,
-                    "a".to_string(),
-                );
                 let packet_id = read_u16(stream)?;
                 let topic_name = read_string(stream)?;
                 let properties = PublishProperties::read_from(stream)?;
@@ -1308,7 +1283,7 @@ mod tests {
         assert_eq!(disconect, read_disconect);
     }
 
-    // #[test]
+    // #
     // fn test_07_auth_ok() {
     //     let auth = ClientMessage::Auth {
     //         reason_code: 0x00_u8,
