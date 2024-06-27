@@ -188,6 +188,7 @@ impl Drone {
 
         if elapsed_time >= charge_rate {
             self.battery_level += 1;
+            println!("Battery level: {}", self.battery_level);
             if self.battery_level >= 100 {
                 self.battery_level = 100;
                 self.drone_state = DroneState::Waiting;
@@ -210,7 +211,16 @@ impl Drone {
             .signed_duration_since(last_discharge_time)
             .num_milliseconds();
         let discharge_rate = self.drone_config.get_battery_discharge_rate();
-
+        if self.location == self.center_location {
+            match self.charge_battery() {
+                Ok(state) => {
+                    self.drone_state = state;
+                }
+                Err(e) => {
+                    println!("Error charging battery: {:?}", e);
+                }
+            }
+        }
         if elapsed_time >= discharge_rate {
             self.battery_level -= 1;
             println!("Battery level: {}", self.battery_level);
