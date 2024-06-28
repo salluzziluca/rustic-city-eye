@@ -23,6 +23,7 @@ use super::writer::{write_string, write_u8};
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub enum PayloadTypes {
     IncidentLocation(IncidentPayload),
+    AttendingIncident(IncidentPayload),
     WillPayload(String),
     LocationPayload(Location),
     CamerasUpdatePayload(Vec<Camera>),
@@ -69,6 +70,11 @@ impl Payload for PayloadTypes {
                 write_string(stream, &drone_id.to_string())?;
                 write_string(stream, &location.get_latitude().to_string())?;
                 write_string(stream, &location.get_longitude().to_string())?;
+
+                Ok(())
+            }
+            PayloadTypes::AttendingIncident(payload) => {
+                payload.write_to(stream)?;
 
                 Ok(())
             }

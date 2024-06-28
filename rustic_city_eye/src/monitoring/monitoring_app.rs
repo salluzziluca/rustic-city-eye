@@ -88,6 +88,20 @@ impl MonitoringApp {
             "camera_update".to_string(),
             1,
             subscribe_properties,
+            client_id.clone(),
+        );
+        match tx.send(Box::new(subscribe_config)) {
+            Ok(_) => {}
+            Err(e) => {
+                println!("Monitoring: Error sending message: {:?}", e);
+                return Err(ProtocolError::SubscribeError);
+            }
+        };
+        let subscribe_properties: SubscribeProperties = SubscribeProperties::new(1, Vec::new());
+        let subscribe_config = SubscribeConfig::new(
+            "attendingincident".to_string(),
+            1,
+            subscribe_properties,
             client_id,
         );
         match tx.send(Box::new(subscribe_config)) {
@@ -97,6 +111,7 @@ impl MonitoringApp {
                 return Err(ProtocolError::SubscribeError);
             }
         };
+
         let receive_from_client = Arc::new(Mutex::new(rx2));
         let active_drones = Arc::new(Mutex::new(HashMap::new()));
         let cameras = Arc::new(Mutex::new(HashMap::new()));
@@ -259,6 +274,13 @@ pub fn update_entities(
                             for camera in updated_cameras {
                                 cameras.insert(camera.get_id(), camera);
                             }
+                        }
+                    } else if topic_name == "attendingincident" {
+                        if let PayloadTypes::AttendingIncident(incident_payload) = payload {
+                            println!(
+                                "Monitoring:AAAAAAAAAAAAAAA Incident received: {:?}",
+                                incident_payload
+                            );
                         }
                     }
                 }

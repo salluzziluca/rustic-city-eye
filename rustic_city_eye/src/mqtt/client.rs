@@ -142,7 +142,7 @@ impl Client {
             properties: _,
         } = message
         {
-            println!("Enviando publish");
+            // println!("Enviando publish");
             match message.write_to(&mut stream) {
                 Ok(()) => Ok(packet_id),
                 Err(_) => Err(ClientError::new("Error al enviar mensaje")),
@@ -722,10 +722,10 @@ pub fn handle_message(
                 properties,
                 payload,
             } => {
-                println!(
-                    "PublishDelivery con id {} recibido, payload: {:?}",
-                    packet_id, payload
-                );
+                // println!(
+                // "PublishDelivery con id {} recibido, payload: {:?}",
+                // packet_id, payload
+                // );
                 match sender_chanell.send(ClientMessage::Publish {
                     packet_id,
                     topic_name,

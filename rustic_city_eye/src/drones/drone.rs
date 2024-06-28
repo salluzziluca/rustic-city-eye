@@ -6,13 +6,16 @@ use std::{
 
 use super::{drone_config::DroneConfig, drone_error::DroneError, drone_state::DroneState};
 use crate::{
+    monitoring::incident::Incident,
     mqtt::{
         client::Client,
         client_message::{self, ClientMessage},
         messages_config,
         publish::publish_config::PublishConfig,
+        subscribe_config::SubscribeConfig,
+        subscribe_properties::SubscribeProperties,
     },
-    utils::{location::Location, payload_types::PayloadTypes},
+    utils::{incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes},
 };
 use chrono::{DateTime, Utc};
 use std::f64::consts::PI;
@@ -46,7 +49,6 @@ pub struct Drone {
 
     send_to_client_channel: mpsc::Sender<Box<dyn messages_config::MessagesConfig + Send>>,
 
-    #[allow(dead_code)]
     recieve_from_client: Arc<Mutex<mpsc::Receiver<ClientMessage>>>,
 }
 
@@ -69,11 +71,19 @@ impl Drone {
         connect_config.client_id = id.to_string();
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
+        let subscribe_config = SubscribeConfig::new(
+            "incidente".to_string(),
+            1,
+            SubscribeProperties::new(1, vec![]),
+            id.to_string(),
+        );
 
         let drone_client = match Client::new(rx, address, connect_config, tx2) {
             Ok(client) => client,
             Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
         };
+
+        let _ = tx.send(Box::new(subscribe_config));
         let target_location = location.clone();
         Ok(Drone {
             id,
@@ -107,6 +117,7 @@ impl Drone {
         let drone_ref = Arc::new(Mutex::new(self.clone()));
         let self_clone_one = Arc::clone(&drone_ref);
         let self_clone_two = Arc::clone(&drone_ref);
+        let self_clone_three = Arc::clone(&drone_ref);
 
         thread::spawn(move || {
             let mut last_discharge_time = Utc::now();
@@ -127,16 +138,14 @@ impl Drone {
                             lock.battery_discharge(last_discharge_time);
                         last_discharge_time = updated_last_discharge_time;
                     }
-                    DroneState::AttendingIncident => todo!(),
+
                     DroneState::ChargingBattery => match lock.charge_battery() {
-                        Ok(_) => {
-                            ()
-                        }
+                        Ok(_) => (),
                         Err(e) => {
                             println!("Error charging battery: {:?}", e);
                         }
                     },
-                    _ => ()
+                    _ => (),
                 }
             }
         });
@@ -160,12 +169,49 @@ impl Drone {
                         Err(_) => todo!(),
                     };
                 }
-                DroneState::AttendingIncident => todo!(),
+                DroneState::AttendingIncident(location) => {
+                    println!("Esto yendo a solucionar el incidente");
+                    match lock.drone_movement(location.clone()) {
+                        Ok(_) => {
+                            sleep(Duration::from_secs(5));
+                            lock.drone_state = DroneState::Waiting;
+                            lock.patrolling_in_operating_radius().unwrap();
+                            lock.publish_attending_accident(location.clone());
+                        }
+                        Err(_) => todo!(),
+                    };
+                }
                 DroneState::LowBatteryLevel => {
                     lock.redirect_to_operation_center();
                 }
-                _ => ()
+                _ => (),
             };
+        });
+        // Thread for handling messages from clients
+        let recieve_from_client_clone = Arc::clone(&self.recieve_from_client);
+        thread::spawn(move || {
+            loop {
+                let message = {
+                    let lock = recieve_from_client_clone.lock().unwrap();
+                    lock.recv().unwrap() // Simplified for brevity; handle errors as needed
+                }; // Lock is automatically released here
+
+                let mut self_cloned = self_clone_three.lock().unwrap();
+                match message {
+                    client_message::ClientMessage::Publish {
+                        topic_name,
+                        payload: PayloadTypes::IncidentLocation(payload),
+                        ..
+                    } => {
+                        if topic_name != "incidente" {
+                            continue;
+                        }
+                        let location = payload.get_incident().get_location();
+                        self_cloned.drone_state = DroneState::AttendingIncident(location.clone());
+                    }
+                    _ => (),
+                }
+            }
         });
 
         Ok(())
@@ -195,7 +241,7 @@ impl Drone {
 
         if elapsed_time >= charge_rate {
             self.battery_level += 1;
-            println!("Battery level: {}", self.battery_level);
+            // println!("Battery level: {}", self.battery_level);
             if self.battery_level >= 99 {
                 self.battery_level = 100;
                 self.drone_state = DroneState::Waiting;
@@ -221,7 +267,7 @@ impl Drone {
 
         if elapsed_time >= discharge_rate {
             self.battery_level -= 1;
-            println!("Battery level: {}", self.battery_level);
+            // println!("Battery level: {}", self.battery_level);
 
             if self.battery_level == 20 {
                 self.drone_state = DroneState::LowBatteryLevel;
@@ -366,7 +412,7 @@ impl Drone {
 
     fn update_drone_position(&mut self, target_location: Location) -> Result<(), DroneError> {
         let (new_lat, new_long) = self.calculate_new_position(
-            0.01,
+            0.001,
             &self.location.lat,
             &self.location.long,
             &target_location.lat,
@@ -405,7 +451,7 @@ impl Drone {
         let direction_lat = target_lat - current_lat;
         let direction_long = target_long - current_long;
         let magnitude = (direction_lat.powi(2) + direction_long.powi(2)).sqrt();
-        let tolerance_factor = 1.0;
+        let tolerance_factor = 0.6;
         let effective_range = speed * tolerance_factor;
         if magnitude < effective_range {
             return (*target_lat, *target_long);
@@ -449,21 +495,29 @@ impl Drone {
         self.target_location = Location::new(new_target_lat, new_target_long);
         Ok(())
     }
-    // fn update_current_location(&mut self) {
-    //     let publish_config = match PublishConfig::read_config(
-    //         "src/drones/publish_config.json",
-    //         PayloadTypes::LocationPayload(self.location.clone()),
-    //     ) {
-    //         Ok(config) => config,
-    //         Err(e) => {
-    //             println!("Error reading publish config: {:?}", e);
-    //             return;
-    //         }
-    //     };
-    //     self.send_to_client_channel
-    //         .send(Box::new(publish_config))
-    //         .unwrap();
-    // }
+
+    fn publish_attending_accident(&mut self, location: Location) {
+        let incident_payload = IncidentPayload::new(Incident::new(location.clone()));
+        let publish_config = match PublishConfig::read_config(
+            "src/drones/publish_config.json",
+            PayloadTypes::AttendingIncident(incident_payload),
+        ) {
+            Ok(config) => config,
+            Err(e) => {
+                println!("Error reading publish config: {:?}", e);
+                return;
+            }
+        };
+
+        match self.send_to_client_channel.send(Box::new(publish_config)) {
+            Ok(_) => {
+                println!("AAAAAAA ENVIO LAS COSASSSSSS");
+            }
+            Err(e) => {
+                println!("Error sending to client channel: {:?}", e);
+            }
+        };
+    }
 }
 
 #[cfg(test)]

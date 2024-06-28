@@ -1,3 +1,5 @@
+use crate::utils::location::Location;
+
 ///  El Drone puede tener distintos estados:
 /// - Waiting: esta circulando en su radio de operacion, pero no esta atendiendo ningun incidente.
 /// - AttendingIncident: un nuevo incidente fue cargado por la app de monitoreo, y el Drone fue asignado
@@ -8,7 +10,7 @@
 #[derive(Debug, PartialEq, Clone)]
 pub enum DroneState {
     Waiting,
-    AttendingIncident,
+    AttendingIncident(Location),
     LowBatteryLevel,
     ChargingBattery,
 }
