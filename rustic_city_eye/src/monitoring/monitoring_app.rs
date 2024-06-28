@@ -97,12 +97,13 @@ impl MonitoringApp {
                 return Err(ProtocolError::SubscribeError);
             }
         };
+
         let subscribe_properties: SubscribeProperties = SubscribeProperties::new(1, Vec::new());
         let subscribe_config = SubscribeConfig::new(
             "attendingincident".to_string(),
             1,
             subscribe_properties,
-            client_id,
+            client_id.clone(),
         );
         match tx.send(Box::new(subscribe_config)) {
             Ok(_) => {}
@@ -137,20 +138,18 @@ impl MonitoringApp {
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
         self.monitoring_app_client.client_run()?;
         let _ = CameraSystem::<Client>::run_client(None, self.camera_system.clone());
+
         // let reciever_clone = Arc::clone(&self.recieve_from_client.clone());
 
-        // thread::spawn(move || {
-        //     loop{
-        //         let lock = reciever_clone.lock().unwrap();
-        //         match lock.recv() {
-        //             Ok(message) => {
-        //                 println!("Monitoring: Message received en monitoriung: {:?}", message);
-        //             }
-        //             Err(e) => {
-        //                 println!("Monitoring: Error receiving message: {:?}", e);
-        //             }
+        // thread::spawn(move || loop {
+        //     let lock = reciever_clone.lock().unwrap();
+        //     match lock.recv() {
+        //         Ok(message) => {
+        //             println!("Monitoring: Message received en monitoriung: {:?}", message);
         //         }
-
+        //         Err(e) => {
+        //             println!("Monitoring: Error receiving message: {:?}", e);
+        //         }
         //     }
         // });
         Ok(())
@@ -256,11 +255,13 @@ pub fn update_entities(
                     dup_flag: _,
                     properties: _,
                 } => {
+                    println!("Monitoring: Publish received: {:?}", topic_name);
                     if topic_name == "drone_locations" {
-                        let mut active_drones = match active_drones.try_lock() {
-                            Ok(active_drones) => active_drones,
-                            Err(_) => return,
-                        };
+                        let mut active_drones: std::sync::MutexGuard<HashMap<u32, Location>> =
+                            match active_drones.try_lock() {
+                                Ok(active_drones) => active_drones,
+                                Err(_) => return,
+                            };
                         if let PayloadTypes::DroneLocation(id, drone_locationn) = payload {
                             active_drones.insert(id, drone_locationn);
                         }
@@ -276,12 +277,15 @@ pub fn update_entities(
                             }
                         }
                     } else if topic_name == "attendingincident" {
-                        if let PayloadTypes::AttendingIncident(incident_payload) = payload {
-                            println!(
-                                "Monitoring:AAAAAAAAAAAAAAA Incident received: {:?}",
-                                incident_payload
-                            );
-                        }
+                        println!(
+                            "Monitoring:OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOoo Incident received"
+                        );
+                        // if let PayloadTypes::AttendingIncident(incident_payload) = payload {
+                        //     println!(
+                        //         "Monitoring:OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOoo Incident received: {:?}",
+                        //         incident_payload
+                        //     );
+                        // }
                     }
                 }
                 ClientMessage::Auth {

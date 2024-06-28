@@ -485,21 +485,10 @@ impl Drone {
         };
     }
 
-    fn update_target_location(&mut self) -> Result<(), DroneError> {
-        let current_time = Utc::now().timestamp_millis() as f64;
-        let angle = (current_time / 1000.0) % (2.0 * PI);
-        let operation_radius = self.drone_config.get_operation_radius();
-        // Ensure the drone stays within the operation radius from the center location
-        let new_target_lat = self.center_location.lat + operation_radius * angle.cos();
-        let new_target_long = self.center_location.long + operation_radius * angle.sin();
-        self.target_location = Location::new(new_target_lat, new_target_long);
-        Ok(())
-    }
-
     fn publish_attending_accident(&mut self, location: Location) {
         let incident_payload = IncidentPayload::new(Incident::new(location.clone()));
         let publish_config = match PublishConfig::read_config(
-            "src/drones/publish_config.json",
+            "src/drones/publish_attending_incident_config.json",
             PayloadTypes::AttendingIncident(incident_payload),
         ) {
             Ok(config) => config,
@@ -517,6 +506,16 @@ impl Drone {
                 println!("Error sending to client channel: {:?}", e);
             }
         };
+    }
+    fn update_target_location(&mut self) -> Result<(), DroneError> {
+        let current_time = Utc::now().timestamp_millis() as f64;
+        let angle = (current_time / 1000.0) % (2.0 * PI);
+        let operation_radius = self.drone_config.get_operation_radius();
+        // Ensure the drone stays within the operation radius from the center location
+        let new_target_lat = self.center_location.lat + operation_radius * angle.cos();
+        let new_target_long = self.center_location.long + operation_radius * angle.sin();
+        self.target_location = Location::new(new_target_lat, new_target_long);
+        Ok(())
     }
 }
 
