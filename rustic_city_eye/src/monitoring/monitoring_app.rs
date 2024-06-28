@@ -34,7 +34,7 @@ pub struct MonitoringApp {
     send_to_client_channel: Sender<Box<dyn MessagesConfig + Send>>,
     monitoring_app_client: Client,
     camera_system: Arc<Mutex<CameraSystem<Client>>>,
-    incidents: Vec<Incident>,
+    incidents: Arc<Mutex<Vec<Incident>>>,
     drone_system: DroneSystem,
     receive_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
@@ -115,10 +115,11 @@ impl MonitoringApp {
 
         let receive_from_client = Arc::new(Mutex::new(rx2));
         let active_drones = Arc::new(Mutex::new(HashMap::new()));
+        let incidents = Arc::new(Mutex::new(Vec::new()));
         let cameras = Arc::new(Mutex::new(HashMap::new()));
         let monitoring_app = MonitoringApp {
             send_to_client_channel: tx,
-            incidents: Vec::new(),
+            incidents: Arc::clone(&incidents),
             camera_system: Arc::new(Mutex::new(camera_system)),
             monitoring_app_client,
             drone_system,
@@ -130,7 +131,13 @@ impl MonitoringApp {
             let receiver_clone = Arc::clone(&receive_from_client);
             let active_drones_clone = Arc::clone(&active_drones);
             let cameras_clone = Arc::clone(&cameras);
-            update_entities(receiver_clone, active_drones_clone, cameras_clone);
+            let incidents_clone = Arc::clone(&incidents);
+            update_entities(
+                receiver_clone,
+                active_drones_clone,
+                cameras_clone,
+                incidents_clone,
+            );
         });
         Ok(monitoring_app)
     }
@@ -174,7 +181,8 @@ impl MonitoringApp {
 
     pub fn add_incident(&mut self, location: Location) {
         let incident = Incident::new(location);
-        self.incidents.push(incident.clone());
+        let mut incidents = self.incidents.lock().unwrap();
+        incidents.push(incident.clone());
 
         let topic_properties = TopicProperties {
             topic_alias: 10,
@@ -216,7 +224,10 @@ impl MonitoringApp {
     }
 
     pub fn get_incidents(&self) -> Vec<Incident> {
-        self.incidents.clone()
+        match self.incidents.lock() {
+            Ok(incidents) => incidents.clone(),
+            Err(_) => Vec::new(),
+        }
     }
 
     pub fn get_active_drones(&self) -> HashMap<u32, Location> {
@@ -225,6 +236,7 @@ impl MonitoringApp {
             Err(_) => HashMap::new(),
         }
     }
+
     pub fn get_cameras(&self) -> HashMap<u32, Camera> {
         match self.cameras.lock() {
             Ok(cameras) => cameras.clone(),
@@ -237,6 +249,7 @@ pub fn update_entities(
     recieve_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
+    incidents: Arc<Mutex<Vec<Incident>>>,
 ) {
     let receiver = match recieve_from_client.lock() {
         Ok(receiver) => receiver,
@@ -255,7 +268,6 @@ pub fn update_entities(
                     dup_flag: _,
                     properties: _,
                 } => {
-                    println!("Monitoring: Publish received: {:?}", topic_name);
                     if topic_name == "drone_locations" {
                         let mut active_drones: std::sync::MutexGuard<HashMap<u32, Location>> =
                             match active_drones.try_lock() {
@@ -277,15 +289,21 @@ pub fn update_entities(
                             }
                         }
                     } else if topic_name == "attendingincident" {
-                        println!(
-                            "Monitoring:OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOoo Incident received"
-                        );
-                        // if let PayloadTypes::AttendingIncident(incident_payload) = payload {
-                        //     println!(
-                        //         "Monitoring:OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOoo Incident received: {:?}",
-                        //         incident_payload
-                        //     );
-                        // }
+                        println!("payload: {:?}", payload);
+                        if let PayloadTypes::AttendingIncident(incident_payload) = payload {
+                            let mut incidents = incidents.lock().unwrap();
+
+                            for incident in incidents.clone() {
+                                if incident.get_location()
+                                    == incident_payload.get_incident().get_location()
+                                {
+                                    let index =
+                                        incidents.iter().position(|x| *x == incident).unwrap();
+                                    incidents.remove(index);
+                                }
+                            }
+                            println!("Incidents: {:?}", incidents);
+                        }
                     }
                 }
                 ClientMessage::Auth {

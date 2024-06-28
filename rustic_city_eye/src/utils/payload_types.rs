@@ -34,6 +34,7 @@ impl Payload for PayloadTypes {
     fn write_to(&self, stream: &mut dyn std::io::prelude::Write) -> Result<(), ProtocolError> {
         match self {
             PayloadTypes::IncidentLocation(payload) => {
+                write_u8(stream, &1)?;
                 payload.write_to(stream)?;
 
                 Ok(())
@@ -74,6 +75,7 @@ impl Payload for PayloadTypes {
                 Ok(())
             }
             PayloadTypes::AttendingIncident(payload) => {
+                write_u8(stream, &6)?;
                 payload.write_to(stream)?;
 
                 Ok(())
@@ -169,6 +171,34 @@ impl PayloadTypes {
                 let location = Location::new(lat, long);
 
                 PayloadTypes::DroneLocation(drone_id, location)
+            }
+            6 => {
+                let longitude_string = read_string(stream)?;
+                let long = match longitude_string.parse::<f64>() {
+                    Ok(long) => long,
+                    Err(_) => {
+                        return Err(Error::new(
+                            ErrorKind::InvalidData,
+                            "Error while reading payload".to_string(),
+                        ))
+                    }
+                };
+
+                let latitude_string = read_string(stream)?;
+
+                let lat = match latitude_string.parse::<f64>() {
+                    Ok(lat) => lat,
+                    Err(_) => {
+                        return Err(Error::new(
+                            ErrorKind::InvalidData,
+                            "Error while reading payload".to_string(),
+                        ))
+                    }
+                };
+
+                let location = Location::new(lat, long);
+                let incident = Incident::new(location);
+                PayloadTypes::AttendingIncident(IncidentPayload::new(incident))
             }
             _ => {
                 return Err(Error::new(
