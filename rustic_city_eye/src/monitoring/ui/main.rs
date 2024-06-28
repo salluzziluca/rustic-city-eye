@@ -179,7 +179,7 @@ impl MyApp {
                     self.map.zoom_level,
                     last_clicked,
                 ))
-                .with_plugin(drones(&mut self.map.drones, 0.8, last_clicked))
+                .with_plugin(drones(&mut self.map.drones, self.map.zoom_level, last_clicked))
                 .with_plugin(drone_centers(
                     &mut self.map.drone_centers,
                     self.map.zoom_level,
@@ -230,7 +230,7 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
 
     let drone_bytes = include_bytes!("../assets/Drone.png");
     let drone_icon = match Texture::new(drone_bytes, &cc.egui_ctx) {
-        Ok(t) => ImagesPluginData::new(t, 1.0, 0.08), // Initialize with zoom level 1.0
+        Ok(t) => ImagesPluginData::new(t, 1.0, 0.06), // Initialize with zoom level 1.0
         Err(_) => todo!(),
     };
 
