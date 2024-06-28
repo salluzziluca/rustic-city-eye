@@ -134,17 +134,20 @@ impl Client {
         //chequeo si el mensaje es de tipo publish
         if let ClientMessage::Publish {
             packet_id: _,
-            topic_name: _,
+            topic_name,
             qos: _,
             retain_flag: _,
             payload: _,
             dup_flag: _,
             properties: _,
-        } = message
+        } = message.clone()
         {
             // println!("Enviando publish");
             match message.write_to(&mut stream) {
-                Ok(()) => Ok(packet_id),
+                Ok(()) => {
+                    println!("envio publish con topic_name: {:?}", topic_name);
+                    Ok(packet_id)
+                }
                 Err(_) => Err(ClientError::new("Error al enviar mensaje")),
             }
         } else {
