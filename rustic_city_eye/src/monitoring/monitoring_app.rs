@@ -34,7 +34,8 @@ pub struct MonitoringApp {
     send_to_client_channel: Sender<Box<dyn MessagesConfig + Send>>,
     monitoring_app_client: Client,
     camera_system: Arc<Mutex<CameraSystem<Client>>>,
-    incidents: Arc<Mutex<Vec<Incident>>>,
+    // incidents: Arc<Mutex<Vec<Incident>>>,
+    incidents: Arc<Mutex<Vec<(Incident, u8)>>>,
     drone_system: DroneSystem,
     receive_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
@@ -182,7 +183,10 @@ impl MonitoringApp {
     pub fn add_incident(&mut self, location: Location) {
         let incident = Incident::new(location);
         let mut incidents = self.incidents.lock().unwrap();
-        incidents.push(incident.clone());
+
+        let (incident, drones_attending_incident) = (incident.clone(), 0);
+
+        incidents.push((incident.clone(), drones_attending_incident));
 
         let topic_properties = TopicProperties {
             topic_alias: 10,
@@ -225,7 +229,15 @@ impl MonitoringApp {
 
     pub fn get_incidents(&self) -> Vec<Incident> {
         match self.incidents.lock() {
-            Ok(incidents) => incidents.clone(),
+            Ok(incidents) => {
+                let mut incidents_without_drones = Vec::new();
+
+                for (incident, _drone_amount) in incidents.iter() {
+                    incidents_without_drones.push(incident.clone());
+                }
+
+                incidents_without_drones
+            },
             Err(_) => Vec::new(),
         }
     }
@@ -249,7 +261,7 @@ pub fn update_entities(
     recieve_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
-    incidents: Arc<Mutex<Vec<Incident>>>,
+    incidents: Arc<Mutex<Vec<(Incident, u8)>>>,
 ) {
     let receiver = match recieve_from_client.lock() {
         Ok(receiver) => receiver,
@@ -289,19 +301,24 @@ pub fn update_entities(
                             }
                         }
                     } else if topic_name == "attendingincident" {
-                        println!("payload: {:?}", payload);
                         if let PayloadTypes::AttendingIncident(incident_payload) = payload {
                             let mut incidents = incidents.lock().unwrap();
-
-                            for incident in incidents.clone() {
-                                if incident.get_location()
-                                    == incident_payload.get_incident().get_location()
-                                {
-                                    let index =
-                                        incidents.iter().position(|x| *x == incident).unwrap();
-                                    incidents.remove(index);
+                        
+                            let mut to_remove = Vec::new();
+                        
+                            for (incident, count) in incidents.iter_mut() {
+                                if incident.get_location() == incident_payload.get_incident().get_location() {
+                                    *count += 1;
+                        
+                                    if *count == 2 {
+                                        to_remove.push(incident.clone());
+                                    }
                                 }
                             }
+                        
+                            // Remove incidents marked for removal
+                            incidents.retain(|(inc, _)| !to_remove.contains(inc));
+                        
                             println!("Incidents: {:?}", incidents);
                         }
                     }
