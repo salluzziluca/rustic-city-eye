@@ -21,7 +21,7 @@ use crate::mqtt::{
 use crate::utils::payload_types::PayloadTypes;
 use crate::utils::threadpool::ThreadPool;
 
-use super::{connect::last_will::LastWill, topic};
+use super::connect::last_will::LastWill;
 
 static SERVER_ARGS: usize = 2;
 
