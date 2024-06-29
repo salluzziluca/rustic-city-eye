@@ -7,6 +7,7 @@ pub enum DroneError {
     DroneCenterNotFound,
     ProtocolError(String),
     BatteryEmpty,
+    SubscribeError(String),
 }
 
 impl fmt::Display for DroneError {
@@ -26,8 +27,10 @@ impl fmt::Display for DroneError {
                 f,
                 "Error: la bateria del dron está completamente descargada."
             ),
-        }
+            DroneError::SubscribeError(ref err)=> write!(f, "Error de protocolo: {}", err),
+      
     }
+}
 }
 
 #[cfg(test)]

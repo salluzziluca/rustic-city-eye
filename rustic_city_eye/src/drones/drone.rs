@@ -72,6 +72,8 @@ pub struct Drone {
 
     /// A traves de este receiver, el Drone recibe los mensajes provenientes de su Client.
     recieve_from_client: Arc<Mutex<mpsc::Receiver<ClientMessage>>>,
+
+    incidents: Vec<(Incident, u8)>
 }
 
 impl Drone {
@@ -105,7 +107,29 @@ impl Drone {
             Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
         };
 
-        let _ = tx.send(Box::new(subscribe_config));
+        match tx.send(Box::new(subscribe_config)) {
+            Ok(_) => {}
+            Err(e) => {
+                println!("Monitoring: Error sending message: {:?}", e);
+                return Err(DroneError::SubscribeError(e.to_string()))
+    
+            }
+        };
+        let subscribe_properties: SubscribeProperties = SubscribeProperties::new(1, Vec::new());
+        let subscribe_config = SubscribeConfig::new(
+            "attendingincident".to_string(),
+            1,
+            subscribe_properties,
+            id.clone().to_string(),
+        );
+        match tx.send(Box::new(subscribe_config)) {
+            Ok(_) => {}
+            Err(e) => {
+                println!("Monitoring: Error sending message: {:?}", e);
+                return Err(DroneError::SubscribeError(e.to_string()))
+            }
+        };
+
         let target_location = location;
         Ok(Drone {
             id,
@@ -118,6 +142,7 @@ impl Drone {
             battery_level: 100,
             send_to_client_channel: tx,
             recieve_from_client: Arc::new(Mutex::new(rx2)),
+            incidents: Vec::new()
         })
     }
 
@@ -209,10 +234,10 @@ impl Drone {
                     println!("Esto yendo a solucionar el incidente");
                     match lock.drone_movement(location) {
                         Ok(_) => {
+                            lock.publish_attending_accident(location);
                             sleep(Duration::from_secs(DRONE_ATTENDING_INCIDENT_SLEEP_TIME));
                             lock.drone_state = DroneState::Waiting;
                             lock.patrolling_in_operating_radius().unwrap();
-                            lock.publish_attending_accident(location);
                         }
                         Err(e) => {
                             println!("Error while moving to incident: {:?}", e);
@@ -240,12 +265,52 @@ impl Drone {
                 ..
             } = message
             {
-                if topic_name != "incidente" {
-                    continue;
+                match topic_name.as_str() {
+                    "incidente" => {
+                        let location = payload.get_incident().get_location();
+                        self_cloned.drone_state = DroneState::AttendingIncident(location);
+
+                        let (incident, drones_attending_incident) = (payload.get_incident().clone(), 0);
+
+                        self_cloned.incidents.push((incident.clone(), drones_attending_incident));
+                    },
+  
+                    _ => continue
                 }
-                let location = payload.get_incident().get_location();
-                println!("yo, droncito {} recibi el pub de incidente", self_cloned.id);
-                self_cloned.drone_state = DroneState::AttendingIncident(location);
+            } else if let client_message::ClientMessage::Publish {
+                topic_name,
+                payload: PayloadTypes::AttendingIncident(payload),
+                ..
+            } = message {
+
+                match topic_name.as_str() {
+                    "attendingincident" => {
+                        println!("me llego la noti del incidente");
+                        
+                        // Vector to store incidents to remove
+                        let mut to_remove = Vec::new();
+
+                        for (incident, count) in self_cloned.incidents.iter_mut() {
+                            if incident.get_location() == payload.get_incident().get_location() {
+                                *count += 1;
+
+                                if *count == 3 {
+                                    to_remove.push(incident.clone());
+                                }
+                            }
+                        }
+
+                        // Now, after releasing the immutable borrow, you can mutate self_cloned
+                        if !to_remove.is_empty() {
+                            for incident in to_remove {
+                                self_cloned.incidents.retain(|(i, _)| i != &incident);
+                            }
+                            println!("ya ta bro, cambio mi estado porque al pedo ir");
+                            self_cloned.drone_state = DroneState::Waiting;
+                        }
+                    },  
+                    _ => continue
+                }
             }
         });
 
@@ -486,7 +551,8 @@ impl Drone {
     }
 
     fn publish_attending_accident(&mut self, location: Location) {
-        let incident_payload = IncidentPayload::new(Incident::new(location));
+        let incident = Incident::new(location);
+        let incident_payload = IncidentPayload::new(incident.clone());
         let publish_config = match PublishConfig::read_config(
             "src/drones/publish_attending_incident_config.json",
             PayloadTypes::AttendingIncident(incident_payload),
