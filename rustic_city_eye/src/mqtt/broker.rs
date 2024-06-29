@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     fs::File,
     io::{BufRead, BufReader},
-    net::{TcpListener, TcpStream},
+    net::{Shutdown, TcpListener, TcpStream},
     sync::{mpsc, Arc, RwLock},
     thread,
 };
@@ -52,6 +52,9 @@ pub struct Broker {
     /// las claves son los client_ids, y los valores son
     /// tuplas que contienen el username y password.
     clients_auth_info: HashMap<String, (String, Vec<u8>)>,
+
+    /// Contiene los clientes conectados al broker.
+    clients_config: Arc<RwLock<Vec<(String, ClientConfig)>>>,
 }
 
 impl Broker {
@@ -70,6 +73,7 @@ impl Broker {
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let offline_clients = Arc::new(RwLock::new(HashMap::new()));
+        let clients_config = Arc::new(RwLock::new(Vec::new()));
 
         Ok(Broker {
             address,
@@ -78,6 +82,7 @@ impl Broker {
             packets,
             clients_ids,
             offline_clients,
+            clients_config,
         })
     }
 
@@ -296,34 +301,6 @@ impl Broker {
         }
     }
 
-    /// Maneja la subscripcion de un cliente a un topic.
-    /// Devuelve el reason code correspondiente a si la subscripcion fue exitosa o no.
-    /// Si el reason code es 0, el cliente se ha suscrito exitosamente.
-    fn handle_subscribe(
-        mut topics: HashMap<String, Topic>,
-        topic_name: String,
-        subscription: Subscription,
-    ) -> Result<u8, ProtocolError> {
-        let reason_code;
-        if let Some(topic) = topics.get_mut(&topic_name) {
-            match topic.add_user_to_topic(subscription) {
-                0 => {
-                    reason_code = SUCCESS_HEX;
-                }
-                0x92 => {
-                    reason_code = SUB_ID_DUP_HEX;
-                }
-                _ => {
-                    reason_code = UNSPECIFIED_ERROR_HEX;
-                }
-            }
-        } else {
-            reason_code = UNSPECIFIED_ERROR_HEX;
-        }
-
-        Ok(reason_code)
-    }
-
     /// Convierte un mensaje del cliente a un mensaje del broker.
     ///
     /// Retorna el mensaje del broker si la conversion fue exitosa, o un error si no lo fue.
@@ -421,6 +398,38 @@ impl Broker {
         Ok(0x80_u8) // Unspecified Error reason code
     }
 
+    /// Maneja la subscripcion de un cliente a un topic.
+    /// Devuelve el reason code correspondiente a si la subscripcion fue exitosa o no.
+    /// Si el reason code es 0, el cliente se ha suscrito exitosamente.
+    fn handle_subscribe(
+        mut topics: HashMap<String, Topic>,
+        topic_name: String,
+        subscription: Subscription,
+    ) -> Result<u8, ProtocolError> {
+        let reason_code;
+        if let Some(topic) = topics.get_mut(&topic_name) {
+            match topic.add_user_to_topic(subscription) {
+                0 => {
+                    reason_code = SUCCESS_HEX;
+                }
+                0x92 => {
+                    reason_code = SUB_ID_DUP_HEX;
+                }
+                _ => {
+                    reason_code = UNSPECIFIED_ERROR_HEX;
+                }
+            }
+        } else {
+            reason_code = UNSPECIFIED_ERROR_HEX;
+        }
+
+        if reason_code == SUCCESS_HEX {
+            // abro el archivo json con el nombre del cliente y agrego la suscripcion
+        }
+
+        Ok(reason_code)
+    }
+
     /// Maneja la desubscripcion de un cliente a un topic
     /// Devuelve el reason code correspondiente a si la desubscripcion fue exitosa o no
     /// Si el reason code es 0, el cliente se ha desuscrito exitosamente.
@@ -509,6 +518,20 @@ impl Broker {
         let _ = std::fs::write(path, json);
     }
 
+    fn change_client_state(&self, client_id: String, state: bool) {
+        // cambia el estado de un cliente en el archivo json
+        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        let file = std::fs::File::open(path.clone()).unwrap();
+        let client_config: ClientConfig = serde_json::from_reader(file).unwrap();
+        let new_client_config = ClientConfig {
+            client_id: client_config.client_id,
+            state,
+            subscriptions: client_config.subscriptions,
+        };
+        let json = serde_json::to_string(&new_client_config).unwrap();
+        let _ = std::fs::write(path, json);
+    }
+
     /// Lee del stream un mensaje y lo procesa
     /// Devuelve un ProtocolReturn con informacion del mensaje recibido
     /// O ProtocolError en caso de erro    #[allow(clippy::type_complexity)]
@@ -535,44 +558,72 @@ impl Broker {
                 println!("Recibí un Connect");
 
                 // si el cliente ya está conectado, no permite la nueva conexión y la rechaza con CLIENT_DUP
-                match self.clients_ids.read() {
-                    Ok(clients) => {
-                        if clients.contains_key(&connect.client_id) {
-                            let disconnect = BrokerMessage::Disconnect {
-                                reason_code: 0,
-                                session_expiry_interval: 0,
-                                reason_string: "CLIENT_DUP".to_string(),
-                                user_properties: Vec::new(),
-                            };
-
-                            match disconnect.write_to(&mut stream) {
-                                Ok(_) => {
-                                    println!("Disconnect enviado");
-                                    return Ok(ProtocolReturn::DisconnectSent);
-                                }
-                                Err(err) => println!("Error al enviar Disconnect: {:?}", err),
-                            }
-                        }
-                    }
-                    Err(_) => {
-                        // Manejo de error al leer clients_ids
-                    }
-                }
-                // reibe los mensajes de cuando estuvo offline
-                if let Ok(offline_clients) = self.offline_clients.read() {
-                    if offline_clients.contains_key(&connect.client_id) {
-                        if let Some(pending_messages) = offline_clients.get(&connect.client_id) {
-                            for message in pending_messages {
-                                match message.write_to(&mut stream) {
+                match self.clients_config.read() {
+                    Ok(clients_config) => {
+                        for client in clients_config.iter() {
+                            if client.1.client_id == connect.client_id {
+                                let disconnect = BrokerMessage::Disconnect {
+                                    reason_code: 0,
+                                    session_expiry_interval: 0,
+                                    reason_string: "CLIENT_DUP".to_string(),
+                                    user_properties: Vec::new(),
+                                };
+                                match disconnect.write_to(&mut stream) {
                                     Ok(_) => {
-                                        println!("Mensaje enviado a {}", connect.client_id);
+                                        println!("Disconnect enviado");
+                                        self.change_client_state(client.1.client_id.clone(), false);
+                                        return Ok(ProtocolReturn::DisconnectSent);
                                     }
-                                    Err(_) => return Err(ProtocolError::UnspecifiedError),
+                                    Err(err) => println!("Error al enviar Disconnect: {:?}", err),
                                 }
                             }
                         }
                     }
+                    Err(_) => println!("Error al leer clients_config"),
                 }
+
+                //
+                //     match self.clients_ids.read() {
+                //         Ok(clients) => {
+                //             if clients.contains_key(&connect.client_id) {
+                //                 let disconnect = BrokerMessage::Disconnect {
+                //                     reason_code: 0,
+                //                     session_expiry_interval: 0,
+                //                     reason_string: "CLIENT_DUP".to_string(),
+                //                     user_properties: Vec::new(),
+                //                 };
+
+                //                 match disconnect.write_to(&mut stream) {
+                //                     Ok(_) => {
+                //                         println!("Disconnect enviado");
+                //                         return Ok(ProtocolReturn::DisconnectSent);
+                //                     }
+                //                     Err(err) => println!("Error al enviar Disconnect: {:?}", err),
+                //                 }
+                //             }
+                //         }
+                //         Err(_) => {
+                //             // Manejo de error al leer clients_ids
+                //         }
+                //     }
+
+                // if let Ok(offline_clients) = self.offline_clients.read() {
+                //     if offline_clients.contains_key(&connect.client_id) {
+                //         if let Some(pending_messages) = offline_clients.get(&connect.client_id) {
+                //             for message in pending_messages {
+                //                 match message.write_to(&mut stream) {
+                //                     Ok(_) => {
+                //                         println!("Mensaje enviado a {}", connect.client_id);
+                //                     }
+                //                     Err(_) => return Err(ProtocolError::UnspecifiedError),
+                //                 }
+                //             }
+                //         }
+                //     }
+                // }
+
+                // reibe los mensajes de cuando estuvo offline
+                // verifica si el state del cliente es false, si es asi, le envia los mensajes que tenia pendientes
 
                 //si está en offline_clients lo elimino de ahí
                 if let Ok(mut lock) = self.offline_clients.write() {
@@ -818,6 +869,9 @@ impl Broker {
                     return Err(ProtocolError::UnspecifiedError);
                 }
 
+                // cambio el estado del cliente a desconectado
+                self.change_client_state(client_id.clone(), false);
+
                 // agrego el client_id a offline_clients
                 if let Ok(mut lock) = self.offline_clients.write() {
                     lock.insert(client_id, Vec::new());
@@ -917,24 +971,29 @@ impl Broker {
     }
 
     pub fn broker_exit(&self) -> Result<(), ProtocolError> {
-        let clients = self.clients_ids.read().unwrap();
+        let clients = self
+            .clients_ids
+            .read()
+            .map_err(|_| ProtocolError::UnspecifiedError)?;
         for (client_id, (stream, _)) in clients.iter() {
-            if let Some(mut stream_clone) = stream.as_ref() {
+            if let Some(stream) = stream {
+                let mut stream_clone = stream.try_clone().expect("Error al clonar el stream");
                 let disconnect = BrokerMessage::Disconnect {
                     reason_code: 0,
                     session_expiry_interval: 0,
                     reason_string: "SERVER_SHUTDOWN".to_string(),
                     user_properties: Vec::new(),
                 };
-
                 match disconnect.write_to(&mut stream_clone) {
                     Ok(_) => {
-                        println!("Disconnect enviado a {}", client_id);
+                        println!("Disconnect enviado");
+                        self.change_client_state(client_id.clone(), false);
                     }
                     Err(_) => return Err(ProtocolError::UnspecifiedError),
                 }
             }
         }
+
         Ok(())
     }
 }
