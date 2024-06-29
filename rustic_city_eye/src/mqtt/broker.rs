@@ -66,16 +66,17 @@ impl Broker {
 
         let topics = Broker::get_broker_starting_topics("./src/monitoring/topics.txt")?;
         let clients_auth_info = Broker::process_clients_file("./src/monitoring/clients.txt")?;
-
-        let packets = HashMap::new();
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        let packets = Arc::new(RwLock::new(HashMap::new()));
+        let offline_clients = Arc::new(RwLock::new(HashMap::new()));
 
         Ok(Broker {
             address,
             topics,
             clients_auth_info,
-            packets: Arc::new(RwLock::new(packets)),
-            clients_ids: Arc::new(RwLock::new(HashMap::new())),
-            offline_clients: Arc::new(RwLock::new(HashMap::new())),
+            packets,
+            clients_ids,
+            offline_clients,
         })
     }
 
