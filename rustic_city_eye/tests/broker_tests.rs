@@ -246,7 +246,7 @@ mod tests {
             SubscribeProperties::new(1, vec![("propiedad".to_string(), "valor".to_string())]);
 
         let subscription =
-            Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string(), 1);
+            Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string());
 
         let payload = vec![subscription];
 
@@ -420,7 +420,7 @@ mod tests {
             SubscribeProperties::new(1, vec![("propiedad".to_string(), "valor".to_string())]);
 
         let subscription =
-            Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string(), 1);
+            Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string());
 
         let payload = vec![subscription];
 

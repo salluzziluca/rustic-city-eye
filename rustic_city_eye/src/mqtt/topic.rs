@@ -10,8 +10,8 @@ use super::reason_code;
 pub struct Topic {
     /// Hashmap de subscriptores.
     users: Arc<RwLock<Vec<Subscription>>>,
-    // vector de hijos
-    // hijos: Vec<Topic>,
+    // vector de subtopics
+    // subtopic: Vec<Topic>,
 }
 
 impl Default for Topic {
@@ -73,7 +73,7 @@ impl Topic {
         reason_code::SUCCESS_HEX
     }
 
-    pub fn get_topic_users(&self) -> Vec<Subscription> {
+    pub fn get_users_from_topic(&self) -> Vec<Subscription> {
         let lock = match self.users.read() {
             Ok(guard) => guard,
             Err(_) => return Vec::new(),
@@ -103,8 +103,7 @@ mod tests {
     fn test_add_subscriber() {
         let mut topic = Topic::new();
         let user_id = "user".to_string();
-        let qos = 1;
-        let subscription = Subscription::new("topic".to_string(), user_id, qos);
+        let subscription = Subscription::new("topic".to_string(), user_id);
         let result = topic.add_user_to_topic(subscription);
         assert_eq!(result, 0x00);
     }
@@ -113,7 +112,7 @@ mod tests {
     fn test_add_subscriber_duplicate() {
         let mut topic = Topic::new();
         let user_id = "user".to_string();
-        let subscription = Subscription::new("topic".to_string(), user_id, 1);
+        let subscription = Subscription::new("topic".to_string(), user_id);
         let result = topic.add_user_to_topic(subscription.clone());
         assert_eq!(result, 0x00);
         let result = topic.add_user_to_topic(subscription);
@@ -124,7 +123,7 @@ mod tests {
     fn test_remove_subscriber() {
         let mut topic = Topic::new();
         let user_id = "user".to_string();
-        let subscription = Subscription::new("topic".to_string(), user_id, 1);
+        let subscription = Subscription::new("topic".to_string(), user_id);
         let result = topic.add_user_to_topic(subscription.clone());
         assert_eq!(result, 0x00);
         let result = topic.remove_user_from_topic(subscription);
@@ -135,7 +134,7 @@ mod tests {
     fn test_remove_subscriber_no_matching() {
         let mut topic = Topic::new();
         let user_id = "user".to_string();
-        let subscription = Subscription::new("topic".to_string(), user_id, 1);
+        let subscription = Subscription::new("topic".to_string(), user_id);
         let result = topic.add_user_to_topic(subscription.clone());
         assert_eq!(result, 0x00);
         let result = topic.remove_user_from_topic(subscription);

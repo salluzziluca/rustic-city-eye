@@ -71,7 +71,6 @@ impl MonitoringApp {
         let subscribe_properties: SubscribeProperties = SubscribeProperties::new(1, Vec::new());
         let subscribe_config = SubscribeConfig::new(
             "drone_locations".to_string(),
-            1,
             subscribe_properties,
             client_id.clone(),
         );
@@ -84,12 +83,8 @@ impl MonitoringApp {
         };
 
         let subscribe_properties: SubscribeProperties = SubscribeProperties::new(1, Vec::new());
-        let subscribe_config = SubscribeConfig::new(
-            "camera_update".to_string(),
-            1,
-            subscribe_properties,
-            client_id,
-        );
+        let subscribe_config =
+            SubscribeConfig::new("camera_update".to_string(), subscribe_properties, client_id);
         match tx.send(Box::new(subscribe_config)) {
             Ok(_) => {}
             Err(e) => {
