@@ -28,6 +28,7 @@ const MILISECONDS_PER_SECOND: f64 = 1000.0;
 const TWO_PI: f64 = 2.0 * PI;
 const COORDINATE_SCALE_FACTOR: f64 = 100.0;
 const FULL_BATTERY: i64 = 100;
+const ANGLE_SCALING_FACTOR: f64 = 0.6; // Adjust this value to make steps smaller or larger
 
 #[derive(Debug, Clone)]
 pub struct Drone {
@@ -506,7 +507,7 @@ impl Drone {
     }
     fn update_target_location(&mut self) -> Result<(), DroneError> {
         let current_time = Utc::now().timestamp_millis() as f64;
-        let angle = (current_time / MILISECONDS_PER_SECOND) % TWO_PI;
+        let angle = ((current_time * ANGLE_SCALING_FACTOR) / MILISECONDS_PER_SECOND) % TWO_PI;
         let operation_radius = self.drone_config.get_operation_radius();
         // Ensure the drone stays within the operation radius from the center location
         let new_target_lat = self.center_location.lat + operation_radius * angle.cos();
