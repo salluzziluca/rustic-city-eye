@@ -888,6 +888,28 @@ impl Broker {
 
         clients_ids
     }
+
+    pub fn disconnect(&self) -> Result<(), ProtocolError> {
+        let clients = self.clients_ids.read().unwrap();
+        for (client_id, (stream, _)) in clients.iter() {
+            if let Some(mut stream_clone) = stream.as_ref() {
+                let disconnect = BrokerMessage::Disconnect {
+                    reason_code: 0,
+                    session_expiry_interval: 0,
+                    reason_string: "SERVER_SHUTDOWN".to_string(),
+                    user_properties: Vec::new(),
+                };
+
+                match disconnect.write_to(&mut stream_clone) {
+                    Ok(_) => {
+                        println!("Disconnect enviado a {}", client_id);
+                    }
+                    Err(_) => return Err(ProtocolError::UnspecifiedError),
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Aca se realiza la autenticacion del cliente. Solo se debe llamar apenas llega un packet del tipo
