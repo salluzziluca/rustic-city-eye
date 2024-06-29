@@ -9,6 +9,7 @@ use std::{
 
 use crate::mqtt::{
     broker_message::BrokerMessage,
+    client_config::ClientConfig,
     client_message::ClientMessage,
     connack_properties::ConnackProperties,
     protocol_error::ProtocolError,
@@ -498,6 +499,16 @@ impl Broker {
         _ = self.handle_publish(will_publish, topics, will_topic.to_string());
     }
 
+    fn save_client_log_in_json(&self, client_id: String) {
+        // guarda en un archivo json el log de los clientes, con la estructura client_config
+
+        let client_config = ClientConfig::new(client_id.clone());
+        let json = serde_json::to_string(&client_config).unwrap();
+        let path = format!("./src/mqtt/clients/{}.json", client_id);
+
+        let _ = std::fs::write(path, json);
+    }
+
     /// Lee del stream un mensaje y lo procesa
     /// Devuelve un ProtocolReturn con informacion del mensaje recibido
     /// O ProtocolError en caso de erro    #[allow(clippy::type_complexity)]
@@ -578,6 +589,7 @@ impl Broker {
 
                 let will_message = connect.clone().give_will_message();
                 if let Ok(mut clients) = self.clients_ids.write() {
+                    self.save_client_log_in_json(connect.client_id.clone());
                     clients.insert(
                         connect.client_id.clone(),
                         (Some(cloned_stream), will_message),
