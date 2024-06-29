@@ -23,7 +23,7 @@ use crate::{
     utils::{location::Location, payload_types::PayloadTypes},
 };
 
-const AREA_DE_ALCANCE: f64 = 10.0;
+const AREA_DE_ALCANCE: f64 = 0.0025;
 const NIVEL_DE_PROXIMIDAD_MAXIMO: f64 = 1.0;
 
 use super::camera_error::CameraError;
