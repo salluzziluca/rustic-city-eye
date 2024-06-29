@@ -778,20 +778,20 @@ mod tests {
                 CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
             let location = Location::new(5.0, 20.0);
             let id = camera_system.add_camera(location.clone()).unwrap();
-            let location2 = Location::new(5.0, 2.0);
+            let location2 = Location::new(0.0001, 0.0002);
             let id2 = camera_system.add_camera(location2.clone()).unwrap();
-            let location3 = Location::new(10.0, 2.0);
-            let id3 = camera_system.add_camera(location3.clone()).unwrap();
+            let location3 = Location::new(0.0003, 0.0001);
+            let id3: u32 = camera_system.add_camera(location3.clone()).unwrap();
             let location4 = Location::new(10.0, 20.0);
             let id4 = camera_system.add_camera(location4.clone()).unwrap();
-            let location5 = Location::new(1.0, 2.0);
+            let location5 = Location::new(0.0001, 0.0002);
             let id5 = camera_system.add_camera(location5.clone()).unwrap();
             assert_eq!(camera_system.get_cameras().len(), 5);
             assert_eq!(
                 camera_system.get_camera_by_id(id).unwrap().get_location(),
                 location
             );
-            let incident_location = Location::new(1.0, 2.0);
+            let incident_location = Location::new(0.0, 0.0);
             camera_system.activate_cameras(incident_location).unwrap();
             assert!(camera_system.get_camera_by_id(id).unwrap().get_sleep_mode());
             assert!(!camera_system
@@ -852,9 +852,9 @@ mod tests {
         let handle = thread::spawn(move || {
             let mut camera_system =
                 CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
-            let location = Location::new(10.0, 0.0);
+            let location = Location::new(10.0 / 10000.0, 0.0);
             let id = camera_system.add_camera(location.clone()).unwrap();
-            let location2 = Location::new(11.0, 0.0);
+            let location2 = Location::new(11.0 / 10000.0, 0.0);
             let id2 = camera_system.add_camera(location2.clone()).unwrap();
 
             assert_eq!(camera_system.get_cameras().len(), 2);
@@ -956,22 +956,22 @@ mod tests {
         let handle = thread::spawn(move || {
             let mut camera_system =
                 CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
-            let location = Location::new(5.0, 20.0);
+            let location = Location::new(5.0 / 1000.0, 20.0 / 1000.0);
             let id = camera_system.add_camera(location.clone()).unwrap();
-            let location2 = Location::new(5.0, 2.0);
+            let location2 = Location::new(5.0 / 10000.0, 2.0 / 10000.0);
             let id2 = camera_system.add_camera(location2.clone()).unwrap();
-            let location3 = Location::new(10.0, 2.0);
+            let location3 = Location::new(10.0 / 10000.0, 2.0 / 10000.0);
             let id3 = camera_system.add_camera(location3.clone()).unwrap();
-            let location4 = Location::new(10.0, 20.0);
+            let location4 = Location::new(10.0 / 1000.0, 20.0 / 1000.0);
             let id4 = camera_system.add_camera(location4.clone()).unwrap();
-            let location5 = Location::new(1.0, 2.0);
+            let location5 = Location::new(1.0 / 10000.0, 2.0 / 10000.0);
             let id5 = camera_system.add_camera(location5.clone()).unwrap();
             assert_eq!(camera_system.get_cameras().len(), 5);
             assert_eq!(
                 camera_system.get_camera_by_id(id).unwrap().get_location(),
                 location
             );
-            let incident_location = Location::new(1.0, 2.0);
+            let incident_location = Location::new(0.0, 0.0);
             camera_system
                 .activate_cameras(incident_location.clone())
                 .unwrap();
@@ -1047,9 +1047,9 @@ mod tests {
         let handle = thread::spawn(move || {
             let mut camera_system =
                 CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
-            let location = Location::new(10.0, 0.0);
+            let location = Location::new(10.0 / 10000.0, 0.0);
             let id = camera_system.add_camera(location.clone()).unwrap();
-            let location2 = Location::new(11.0, 0.0);
+            let location2 = Location::new(11.0 / 10000.0, 0.0);
             let id2 = camera_system.add_camera(location2.clone()).unwrap();
 
             assert_eq!(camera_system.get_cameras().len(), 2);
@@ -1073,6 +1073,71 @@ mod tests {
         handle.join().unwrap();
     }
 
+    #[test]
+    fn test_12_multiples_incidentes() {
+        let args = vec!["127.0.0.1".to_string(), "5017".to_string()];
+        let mut broker = match Broker::new(args) {
+            Ok(broker) => broker,
+            Err(e) => panic!("Error creating broker: {:?}", e),
+        };
+
+        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+        let server_ready_clone = server_ready.clone();
+        thread::spawn(move || {
+            {
+                let (lock, cvar) = &*server_ready_clone;
+                let mut ready = lock.lock().unwrap();
+                *ready = true;
+                cvar.notify_all();
+            }
+            let _ = broker.server_run();
+        });
+
+        // Wait for the server to start
+        {
+            let (lock, cvar) = &*server_ready;
+            let mut ready = lock.lock().unwrap();
+            while !*ready {
+                ready = cvar.wait(ready).unwrap();
+            }
+        }
+        let addr = "127.0.0.1:5017";
+        let handle = thread::spawn(move || {
+            let mut camera_system =
+                CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
+            let location = Location::new(10.0 / 10000.0, 0.0);
+            let id = camera_system.add_camera(location.clone()).unwrap();
+            let location2 = Location::new(11.0 / 10000.0, 0.0);
+            let id2 = camera_system.add_camera(location2.clone()).unwrap();
+
+            assert_eq!(camera_system.get_cameras().len(), 2);
+
+            let incident_location = Location::new(0.0, 0.0);
+            camera_system.activate_cameras(incident_location).unwrap();
+            assert!(!camera_system.get_camera_by_id(id).unwrap().get_sleep_mode());
+            assert!(!camera_system
+                .get_camera_by_id(id2)
+                .unwrap()
+                .get_sleep_mode());
+
+            let incident_location = Location::new(0.0, 0.0);
+            camera_system.activate_cameras(incident_location).unwrap();
+            assert!(!camera_system.get_camera_by_id(id).unwrap().get_sleep_mode());
+            assert!(!camera_system
+                .get_camera_by_id(id2)
+                .unwrap()
+                .get_sleep_mode());
+
+            let incident_location = Location::new(0.00001, 0.00001);
+            camera_system.activate_cameras(incident_location).unwrap();
+            assert!(!camera_system.get_camera_by_id(id).unwrap().get_sleep_mode());
+            assert!(!camera_system
+                .get_camera_by_id(id2)
+                .unwrap()
+                .get_sleep_mode());
+        });
+        handle.join().unwrap();
+    }
     #[test]
 
     fn test_update_cameras() {
