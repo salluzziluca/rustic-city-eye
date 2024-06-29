@@ -50,7 +50,7 @@ pub struct Client {
     // user_id: u32,
     pub packets_ids: Arc<Mutex<Vec<u16>>>,
 
-    sender_channel: Sender<ClientMessage>,
+    sender_channel: Option<Sender<ClientMessage>>,
 }
 
 impl Client {
@@ -108,7 +108,7 @@ impl Client {
                                 stream: stream_clone,
                                 subscriptions: Arc::new(Mutex::new(Vec::new())),
                                 packets_ids: Arc::new(Mutex::new(Vec::new())),
-                                sender_channel,
+                                sender_channel: Some(sender_channel),
                                 client_id,
                             })
                         }
@@ -282,14 +282,16 @@ impl Client {
         });
 
         let sender_channel_clone = self.sender_channel.clone();
-        let _read_messages = threadpool.execute(move || {
-            Client::receive_messages(
-                stream_clone_two,
-                recieve_receiver,
-                reciever_sender,
-                sender_channel_clone,
-            )
-        });
+        if let Some(sender_channel) = sender_channel_clone {
+            let _read_messages = threadpool.execute(move || {
+                Client::receive_messages(
+                    stream_clone_two,
+                    recieve_receiver,
+                    reciever_sender,
+                    sender_channel,
+                )
+            });
+        }
 
         Ok(())
     }
@@ -332,6 +334,7 @@ impl Client {
     }
 
     pub fn disconnect_client(&mut self) -> Result<(), ProtocolError> {
+        self.sender_channel = None;
         let lock = self.stream.lock().unwrap();
 
         match lock.shutdown(Shutdown::Both) {

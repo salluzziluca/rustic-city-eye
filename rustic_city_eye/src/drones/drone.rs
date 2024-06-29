@@ -63,7 +63,7 @@ pub struct Drone {
 
     /// A traves de este sender, se envia la configuracion de los packets que el Drone
     /// quiera enviar a la red.
-    send_to_client_channel: Option<Sender<Box<dyn messages_config::MessagesConfig + Send>>>,
+    send_to_client_channel: Arc<Mutex<Option<Sender<Box<dyn messages_config::MessagesConfig + Send>>>>>,
 
     /// A traves de este receiver, el Drone recibe los mensajes provenientes de su Client.
     recieve_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
@@ -134,14 +134,15 @@ impl Drone {
             drone_state: DroneState::Waiting,
             drone_client,
             battery_level: 100,
-            send_to_client_channel: Some(tx),
+            send_to_client_channel: Arc::new(Mutex::new(Some(tx))),
             recieve_from_client: Arc::new(Mutex::new(rx2)),
             incidents: Vec::new(),
         })
     }
 
     pub fn disconnect(&mut self) -> Result<(), ProtocolError> {
-        self.send_to_client_channel.take();
+        let mut lock = self.send_to_client_channel.lock().unwrap();
+        *lock = None;
         self.drone_client.disconnect_client()?;
         println!("Cliente del drone {} desconectado correctamente", self.id);
         Ok(())
@@ -289,9 +290,6 @@ impl Drone {
             {
                 match topic_name.as_str() {
                     "attendingincident" => {
-                        println!("me llego la noti del incidente");
-
-                        // Vector to store incidents to remove
                         let mut to_remove = Vec::new();
 
                         for (incident, count) in self_cloned.incidents.iter_mut() {
@@ -309,7 +307,6 @@ impl Drone {
                             for incident in to_remove {
                                 self_cloned.incidents.retain(|(i, _)| i != &incident);
                             }
-                            println!("ya ta bro, cambio mi estado porque al pedo ir");
                             self_cloned.drone_state = DroneState::Waiting;
                         }
                     }
@@ -546,7 +543,8 @@ impl Drone {
             }
         };
 
-        if let Some(sender) = &self.send_to_client_channel {
+        let lock = self.send_to_client_channel.lock().unwrap();
+        if let Some(ref sender) = *lock {
             match sender.send(Box::new(publish_config)) {
                 Ok(_) => (),
                 Err(e) => {
@@ -570,7 +568,8 @@ impl Drone {
             }
         };
 
-        if let Some(sender) = &self.send_to_client_channel {
+        let lock = self.send_to_client_channel.lock().unwrap();
+        if let Some(ref sender) = *lock {
             match sender.send(Box::new(publish_config)) {
                 Ok(_) => {}
                 Err(e) => {
