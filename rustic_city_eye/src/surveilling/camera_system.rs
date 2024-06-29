@@ -174,35 +174,19 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         });
 
         let _handle = thread::spawn(move || {
-            let mut incident_location: Option<Location> = Option::None;
-            let mut solved_incident_location: Option<Location> = Option::None;
+            let mut incident_location: Option<Location> = None;
+            let mut solved_incident_location: Option<Location> = None;
             loop {
-                let mut self_clone = match system_clone_two.lock() {
-                    Ok(guard) => guard.clone(),
-                    Err(_) => {
-                        return;
-                    }
-                };
-                let mut self_clone2 = match system_clone_two.lock() {
-                    Ok(guard) => guard.clone(),
-                    Err(_) => {
-                        return;
-                    }
-                };
-                let mut self_clone3 = match system_clone_two.lock() {
-                    Ok(guard) => guard.clone(),
-                    Err(_) => {
-                        return;
-                    }
-                };
-                let lock = match self_clone.reciev_from_client.lock() {
-                    Ok(guard) => guard,
-                    Err(_) => {
-                        return;
-                    }
-                };
+                let self_clone = Arc::clone(&system_clone_two);
+                let self_clone_two = Arc::clone(&system_clone_two);
 
                 if let Some(ref reciever) = reciever {
+                    let mut self_clone = match self_clone_two.lock() {
+                        Ok(guard) => guard.clone(),
+                        Err(_) => {
+                            return;
+                        }
+                    };
                     match reciever.recv() {
                         Ok(client_message::ClientMessage::Publish {
                             topic_name,
@@ -213,7 +197,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                                 continue;
                             }
                             let location = payload.get_incident().get_location();
-                            drop(lock); // Release the lock here
                             match self_clone
                                 .activate_cameras(location)
                                 .map_err(|e| ProtocolError::CameraError(e.to_string()))
@@ -233,9 +216,16 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                         }
                     }
                 } else {
+                    let mut self_clone = match self_clone.lock() {
+                        Ok(guard) => guard.clone(),
+                        Err(_) => {
+                            return;
+                        }
+                    };
+
                     match incident_location {
                         Some(location) => {
-                            match self_clone2
+                            match self_clone
                                 .activate_cameras(location)
                                 .map_err(|e| ProtocolError::CameraError(e.to_string()))
                             {
@@ -250,7 +240,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                     }
                     match solved_incident_location {
                         Some(location) => {
-                            match self_clone3
+                            match self_clone
                                 .deactivate_cameras(location)
                                 .map_err(|e| ProtocolError::CameraError(e.to_string()))
                             {
@@ -263,7 +253,16 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                         }
                         None => {}
                     }
-                    match lock.recv() {
+
+                    let receiver_channel = self_clone.reciev_from_client;
+                    let receiver_channel_lock = match receiver_channel.lock() {
+                        Ok(guard) => guard,
+                        Err(_) => {
+                            return;
+                        }
+                    };
+
+                    match receiver_channel_lock.recv() {
                         Ok(client_message::ClientMessage::Publish {
                             topic_name,
                             payload: PayloadTypes::IncidentLocation(payload),
@@ -275,21 +274,21 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                             );
                             if topic_name == "incidente" {
                                 incident_location = Some(payload.get_incident().get_location());
-                                drop(lock); // Release the lock here
+                                drop(receiver_channel_lock); // Release the lock here
 
                                 continue;
                             } else if topic_name == "incidente_resuelto" {
                                 println!("ASI ES COÑO LO HE RECIBIDO");
                                 solved_incident_location =
                                     Some(payload.get_incident().get_location());
-                                drop(lock); // Release the lock here
+                                drop(receiver_channel_lock); // Release the lock here
 
                                 continue;
                             }
                         }
                         Ok(_) => {
                             continue;
-                        } // Handle other message types if necessary
+                        }
                         Err(_) => {
                             continue;
                         }
