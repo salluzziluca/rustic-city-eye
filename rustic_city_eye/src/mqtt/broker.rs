@@ -159,6 +159,20 @@ impl Broker {
         println!("Broker escuchando en {}", self.address);
         let threadpool = ThreadPool::new(THREADPOOL_SIZE);
 
+        let self_clone = self.clone();
+        thread::spawn(move || loop {
+            let mut input = String::new();
+            match std::io::stdin().read_line(&mut input) {
+                Ok(_) => {
+                    if input.trim() == "exit" {
+                        let _ = self_clone.broker_exit();
+                        std::process::exit(0);
+                    }
+                }
+                Err(_) => {}
+            }
+        });
+
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
@@ -889,7 +903,7 @@ impl Broker {
         clients_ids
     }
 
-    pub fn disconnect(&self) -> Result<(), ProtocolError> {
+    pub fn broker_exit(&self) -> Result<(), ProtocolError> {
         let clients = self.clients_ids.read().unwrap();
         for (client_id, (stream, _)) in clients.iter() {
             if let Some(mut stream_clone) = stream.as_ref() {
