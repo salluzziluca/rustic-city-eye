@@ -21,7 +21,7 @@ use crate::mqtt::{
 use crate::utils::payload_types::PayloadTypes;
 use crate::utils::threadpool::ThreadPool;
 
-use super::connect::last_will::LastWill;
+use super::{connect::last_will::LastWill, topic};
 
 static SERVER_ARGS: usize = 2;
 
@@ -336,65 +336,46 @@ impl Broker {
             _ => return Err(ProtocolError::UnspecifiedError),
         };
 
-        // verifico si el topic exite
-        if let Some(topic) = topics.get_mut(&topic_name) {
-            //obtengo los users que corresponden a ese topic
-            let users = topic.get_topic_users();
-            println!("users subscriptos al topic {:?}", users);
-            let message_clone = message.clone();
-            for user in users {
-                //verifico si el user esta conectado
-                let mut es_qos_1 = false;
-                let mut esta_offline = false;
+        let topic = match topics.get_mut(&topic_name) {
+            Some(topic) => topic,
+            None => return Err(ProtocolError::UnspecifiedError),
+        };
 
-                match self.clients_ids.read() {
-                    Ok(clients) => {
-                        if let Some(tuple) = clients.get(&user.client_id) {
-                            let tuple_clone = tuple;
-                            if let Some(stream) = &tuple_clone.0 {
-                                let mut stream_clone =
-                                    stream.try_clone().expect("Failed to clone stream");
-                                //envio el mensaje al user
-                                match mensaje.write_to(&mut stream_clone) {
-                                    Ok(_) => {
-                                        println!("Mensaje enviado a {}", user.client_id);
-                                    }
-                                    Err(_) => {
-                                      
-                                    }
-                                }
-                                // si el mensaje es qos 1, envio el ack
-                            }
-                        } else {
-                            match self.offline_clients.read() {
-                                Ok(offline_clients) => {
-                                    if let Some(_stream) = offline_clients.get(&user.client_id) {
-                                        //guardo el mensaje para enviarlo cuando el user se conecte
-                                        esta_offline = true;
-                                    }
-                                }
+        let users = topic.get_users_from_topic();
+
+        for user in users {
+            let mut esta_offline = false;
+            // busco el user en clients_ids
+            match self.clients_ids.read() {
+                Ok(clients) => {
+                    if let Some(tuple) = clients.get(&user.client_id) {
+                        if let Some(stream) = &tuple.0 {
+                            let mut stream_clone =
+                                stream.try_clone().expect("Error al clonar el stream");
+                            match mensaje.write_to(&mut stream_clone) {
+                                Ok(_) => println!("Mensaje enviado a {}", user.client_id),
                                 Err(_) => {
-                                    // Manejo de error al leer offline_clients
+                                    println!("Error al enviar mensaje a {}", user.client_id);
+                                    esta_offline = true;
                                 }
                             }
                         }
                     }
-                    Err(_) => {
-                        // Manejo de error al leer clients_ids
-                    }
-                }
-
-                if esta_offline && es_qos_1 {
-                    if let Ok(mut lock) = self.offline_clients.write() {
-                        if let Some(messages) = lock.get_mut(&user.client_id) {
-                            messages.push(message_clone.clone());
-                        } else {
-                            lock.insert(user.client_id, vec![message_clone.clone()]);
+                    if esta_offline {
+                        //guardo el mensaje en offline_clients
+                        match self.offline_clients.write() {
+                            Ok(mut lock) => {
+                                if let Some(messages) = lock.get_mut(&user.client_id) {
+                                    messages.push(message.clone());
+                                } else {
+                                    lock.insert(user.client_id, vec![message.clone()]);
+                                }
+                            }
+                            Err(_) => return Err(ProtocolError::UnspecifiedError),
                         }
-                    } else {
-                        return Ok(0x80_u8);
                     }
                 }
+                Err(_) => return Err(ProtocolError::UnspecifiedError),
             }
         }
 

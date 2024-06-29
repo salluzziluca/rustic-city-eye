@@ -73,7 +73,7 @@ impl Topic {
         reason_code::SUCCESS_HEX
     }
 
-    pub fn get_topic_users(&self) -> Vec<Subscription> {
+    pub fn get_users_from_topic(&self) -> Vec<Subscription> {
         let lock = match self.users.read() {
             Ok(guard) => guard,
             Err(_) => return Vec::new(),

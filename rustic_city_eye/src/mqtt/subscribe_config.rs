@@ -85,7 +85,6 @@ mod tests {
         let properties =
             SubscribeProperties::new(1, vec![("key".to_string(), "value".to_string())]);
 
-        let qos = 1;
         let subscribe_config =
             SubscribeConfig::new(topic_name.clone(), properties.clone(), "client".to_string());
         let packet_id = 1;
