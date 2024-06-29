@@ -294,6 +294,13 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         Ok(())
     }
 
+    pub fn disconnect(&self) -> Result<(), ProtocolError> {
+        self.camera_system_client.disconnect_client()?;
+        println!("Cliente del system desconectado correctamente");
+
+        Ok(())
+    }
+
     /// Recibe una location y activas todas las camaras que esten a menos de AREA_DE_ALCANCE de esta.
     ///
     /// Al activarlas se las pasa de modo ahorro de energia a modo activo
@@ -1232,6 +1239,10 @@ mod tests {
 
             fn get_client_id(&self) -> String {
                 "mock".to_string()
+            }
+
+            fn disconnect_client(&self) -> Result<(), ProtocolError> {
+                Ok(())
             }
         }
 

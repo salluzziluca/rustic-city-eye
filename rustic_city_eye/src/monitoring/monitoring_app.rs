@@ -246,6 +246,19 @@ impl MonitoringApp {
             Err(_) => HashMap::new(),
         }
     }
+
+    pub fn disconnect(&mut self) -> Result<(), ProtocolError> {
+        self.monitoring_app_client.disconnect_client()?;
+        let system = self.camera_system.lock().unwrap();
+
+        system.disconnect()?;
+        self.drone_system.disconnect_system()?;
+
+        println!("Cliente de la monitoring app desconectado correctamente");
+        
+        Ok(())
+    }
+
 }
 
 pub fn update_entities(

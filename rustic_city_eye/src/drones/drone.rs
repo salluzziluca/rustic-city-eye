@@ -1,5 +1,5 @@
 use std::{
-    sync::{mpsc, Arc, Mutex},
+    sync::{mpsc::{self, Receiver, Sender}, Arc, Mutex},
     thread::{self, sleep},
     time::Duration,
 };
@@ -8,12 +8,7 @@ use super::{drone_config::DroneConfig, drone_error::DroneError, drone_state::Dro
 use crate::{
     monitoring::incident::Incident,
     mqtt::{
-        client::Client,
-        client_message::{self, ClientMessage},
-        messages_config,
-        publish::publish_config::PublishConfig,
-        subscribe_config::SubscribeConfig,
-        subscribe_properties::SubscribeProperties,
+        client::Client, client_message::{self, ClientMessage}, messages_config, protocol_error::ProtocolError, publish::publish_config::PublishConfig, subscribe_config::SubscribeConfig, subscribe_properties::SubscribeProperties
     },
     utils::{incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes},
 };
@@ -68,10 +63,10 @@ pub struct Drone {
 
     /// A traves de este sender, se envia la configuracion de los packets que el Drone
     /// quiera enviar a la red.
-    send_to_client_channel: mpsc::Sender<Box<dyn messages_config::MessagesConfig + Send>>,
+    send_to_client_channel: Option<Sender<Box<dyn messages_config::MessagesConfig + Send>>>,
 
     /// A traves de este receiver, el Drone recibe los mensajes provenientes de su Client.
-    recieve_from_client: Arc<Mutex<mpsc::Receiver<ClientMessage>>>,
+    recieve_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
 
     incidents: Vec<(Incident, u8)>,
 }
@@ -139,10 +134,17 @@ impl Drone {
             drone_state: DroneState::Waiting,
             drone_client,
             battery_level: 100,
-            send_to_client_channel: tx,
+            send_to_client_channel: Some(tx),
             recieve_from_client: Arc::new(Mutex::new(rx2)),
             incidents: Vec::new(),
         })
+    }
+
+    pub fn disconnect(&mut self) -> Result<(), ProtocolError> {
+        self.send_to_client_channel.take();
+        self.drone_client.disconnect_client()?;
+        println!("Cliente del drone {} desconectado correctamente", self.id);
+        Ok(())
     }
 
     /// Esta funcion ejecuta el Drone, creando tres threads:
@@ -544,12 +546,14 @@ impl Drone {
             }
         };
 
-        match self.send_to_client_channel.send(Box::new(publish_config)) {
-            Ok(_) => (),
-            Err(e) => {
-                println!("Error sending to client channel: {:?}", e);
-            }
-        };
+        if let Some(sender) = &self.send_to_client_channel {
+            match sender.send(Box::new(publish_config)) {
+                Ok(_) => (),
+                Err(e) => {
+                    println!("Error sending to client channel: {:?}", e);
+                }
+            };
+        }
     }
 
     fn publish_attending_accident(&mut self, location: Location) {
@@ -566,12 +570,14 @@ impl Drone {
             }
         };
 
-        match self.send_to_client_channel.send(Box::new(publish_config)) {
-            Ok(_) => {}
-            Err(e) => {
-                println!("Error sending to client channel: {:?}", e);
-            }
-        };
+        if let Some(sender) = &self.send_to_client_channel {
+            match sender.send(Box::new(publish_config)) {
+                Ok(_) => {}
+                Err(e) => {
+                    println!("Error sending to client channel: {:?}", e);
+                }
+            };
+        }
     }
     fn update_target_location(&mut self) -> Result<(), DroneError> {
         let current_time = Utc::now().timestamp_millis() as f64;

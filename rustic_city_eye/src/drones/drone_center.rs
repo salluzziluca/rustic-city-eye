@@ -2,6 +2,7 @@ use egui::ahash::HashMap;
 use rand::Rng;
 
 use crate::drones::drone::Drone;
+use crate::mqtt::protocol_error::ProtocolError;
 use crate::utils::location::Location;
 
 use super::drone_error::DroneError;
@@ -40,6 +41,14 @@ impl DroneCenter {
 
     pub fn get_location(&self) -> Location {
         self.location
+    }
+
+    pub fn disconnect_drones(&mut self) -> Result<(), ProtocolError> {
+        for drone in self.drones.values_mut() {
+            drone.disconnect()?;
+        }
+
+        Ok(())
     }
 
     /// Crea un dron y lo agrega al hashmap con un ID que no esté siendo utilizado

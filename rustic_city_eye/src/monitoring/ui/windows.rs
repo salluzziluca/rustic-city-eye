@@ -148,7 +148,7 @@ pub fn add_drone_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitorin
 pub fn add_disconnect_window(
     ui: &Ui,
     map: &mut MyMap,
-    _monitoring_app: &mut MonitoringApp,
+    monitoring_app: &mut MonitoringApp,
     connected: &mut bool,
 ) {
     Window::new("Disconnect")
@@ -159,7 +159,7 @@ pub fn add_disconnect_window(
         .show(ui.ctx(), |ui| {
             ui.horizontal(|ui| {
                 if ui.button(RichText::new("Disconnect").heading()).clicked() {
-                    // monitoring_app.disconnect();    No está implementado?
+                    let _ = monitoring_app.disconnect();
                     map.cameras.clear();
                     map.incidents.clear();
                     *connected = false;
@@ -180,37 +180,12 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, _monitoring_app: &mut Monitor
                     .button(RichText::new("🗑").heading().color(egui::Color32::RED))
                     .clicked()
                 {
-                    // for camera in &map.cameras {
-                    //     if camera.clicked {
-                    //         let index = map.cameras.iter().position(|c| c.position == position);
-                    //         if let Some(index) = index {
-                    //            // monitoring_app.remove_camera(position);
-                    //         }
-                    //     }
-                    // }
                     map.cameras.retain(|_id, camera| !camera.clicked);
 
-                    // for incident in &map.incidents {
-                    //     if incident.clicked {
-                    //         let index = map.incidents.iter().position(|i| i.position == position);
-                    //         if let Some(index) = index {
-                    //             map.incidents.remove(index);
-                    //             // monitoring_app.remove_incident(position);
-                    //         }
-                    //     }
-                    // }
                     map.incidents.retain(|incident| !incident.clicked);
 
                     map.drones.retain(|_id, drone| !drone.clicked);
-                    // for drone in &map.drones {
-                    //     if drone.clicked {
-                    //         let index = map.drones.iter().position(|d| d.position == position);
-                    //         if let Some(index) = index {
-                    //             map.drones.remove(index);
-                    //             // monitoring_app.remove_drone(id_center, drone_id, location);
-                    //         }
-                    //     }
-                    // }
+                 
                     map.drone_centers
                         .retain(|drone_center| !drone_center.clicked);
                 }

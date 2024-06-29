@@ -1,6 +1,6 @@
 use rand::Rng;
 use std::{
-    net::TcpStream,
+    net::{Shutdown, TcpStream},
     sync::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,
@@ -27,6 +27,7 @@ pub trait ClientTrait {
         &self,
     ) -> Arc<std::sync::Mutex<std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>>>;
     fn get_client_id(&self) -> String;
+    fn disconnect_client(&self) -> Result<(), ProtocolError>;
 }
 impl Clone for Box<dyn ClientTrait> {
     fn clone(&self) -> Box<dyn ClientTrait> {
@@ -78,7 +79,6 @@ impl Client {
             Err(_) => return Err(ProtocolError::StreamError),
         };
         let connect_message = ClientMessage::Connect(connect.clone());
-        // println!("Connect: {:?}", connect);
 
         println!("Enviando connect message to broker");
 
@@ -328,6 +328,18 @@ impl Client {
             } else {
                 println!("Error al clonar el stream");
             }
+        }
+    }
+
+    pub fn disconnect_client(&mut self) -> Result<(), ProtocolError> {
+        let lock = self.stream.lock().unwrap();
+
+        match lock.shutdown(Shutdown::Both) {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                println!("Client: Error while shutting down stream: {:?}", e);
+                return Err(ProtocolError::ShutdownError(e.to_string()));
+            },
         }
     }
 
@@ -652,6 +664,18 @@ impl ClientTrait for Client {
     fn get_client_id(&self) -> String {
         self.client_id.clone()
     }
+
+    fn disconnect_client(&self) -> Result<(), ProtocolError> {
+        let lock = self.stream.lock().unwrap();
+
+        match lock.shutdown(Shutdown::Both) {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                println!("Client: Error while shutting down stream: {:?}", e);
+                return Err(ProtocolError::ShutdownError(e.to_string()));
+            },
+        }
+    }
 }
 
 /// Lee del stream un mensaje y lo procesa
@@ -725,10 +749,6 @@ pub fn handle_message(
                 properties,
                 payload,
             } => {
-                // println!(
-                // "PublishDelivery con id {} recibido, payload: {:?}",
-                // packet_id, payload
-                // );
                 match sender_chanell.send(ClientMessage::Publish {
                     packet_id,
                     topic_name,

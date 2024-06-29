@@ -1,6 +1,7 @@
 use egui::ahash::HashMap;
 
 use crate::drones::drone_center::DroneCenter;
+use crate::mqtt::protocol_error::ProtocolError;
 use crate::utils::location::Location;
 
 use super::drone_error::DroneError;
@@ -24,14 +25,18 @@ impl DroneSystem {
         }
     }
 
+    pub fn disconnect_system(&mut self) -> Result<(), ProtocolError> {
+        for center in self.drone_centers.values_mut() {
+            center.disconnect_drones()?;
+        }
+
+        Ok(())
+    }
+
     /// Agrega un nuevo centro de drones al sistema de drones.
     ///
     /// Devuelve su id o DroneError en caso de error.
     pub fn add_drone_center(&mut self, location: Location) -> Result<u32, DroneError> {
-        // let mut rng = rand::thread_rng();
-
-        // let mut id = rng.gen();
-
         let mut id = 0;
         while self.drone_centers.contains_key(&id) {
             id += 1;
