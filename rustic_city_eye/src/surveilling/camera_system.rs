@@ -177,11 +177,11 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             let mut incident_location: Option<Location> = None;
             let mut solved_incident_location: Option<Location> = None;
             loop {
-                let self_clone = Arc::clone(&system_clone_two);
+                let self_clone_one = Arc::clone(&system_clone_two);
                 let self_clone_two = Arc::clone(&system_clone_two);
 
                 if let Some(ref reciever) = reciever {
-                    let mut self_clone = match self_clone_two.lock() {
+                    let mut self_clone = match self_clone_one.lock() {
                         Ok(guard) => guard.clone(),
                         Err(_) => {
                             return;
@@ -216,7 +216,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                         }
                     }
                 } else {
-                    let mut self_clone = match self_clone.lock() {
+                    let mut lock = match self_clone_two.lock() {
                         Ok(guard) => guard.clone(),
                         Err(_) => {
                             return;
@@ -225,7 +225,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
 
                     match incident_location {
                         Some(location) => {
-                            match self_clone
+                            match lock
                                 .activate_cameras(location)
                                 .map_err(|e| ProtocolError::CameraError(e.to_string()))
                             {
@@ -240,7 +240,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                     }
                     match solved_incident_location {
                         Some(location) => {
-                            match self_clone
+                            match lock
                                 .deactivate_cameras(location)
                                 .map_err(|e| ProtocolError::CameraError(e.to_string()))
                             {
@@ -254,7 +254,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                         None => {}
                     }
 
-                    let receiver_channel = self_clone.reciev_from_client;
+                    let receiver_channel = lock.reciev_from_client;
                     let receiver_channel_lock = match receiver_channel.lock() {
                         Ok(guard) => guard,
                         Err(_) => {
