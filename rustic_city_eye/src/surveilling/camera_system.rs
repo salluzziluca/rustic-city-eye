@@ -24,7 +24,7 @@ use crate::{
 };
 
 const AREA_DE_ALCANCE: f64 = 0.0025;
-const NIVEL_DE_PROXIMIDAD_MAXIMO: f64 = 1.0;
+const NIVEL_DE_PROXIMIDAD_MAXIMO: f64 = AREA_DE_ALCANCE;
 
 use super::camera_error::CameraError;
 #[derive(Debug)]
