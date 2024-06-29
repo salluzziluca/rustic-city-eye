@@ -314,7 +314,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             .cameras
             .values_mut()
             .filter_map(|camera| {
-                let distancia = camera.get_location().distance(location.clone());
+                let distancia = camera.get_location().distance(location);
                 if distancia <= AREA_DE_ALCANCE {
                     camera.set_sleep_mode(false);
                     Some(camera.get_location())
@@ -351,7 +351,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         let mut locations_to_activate = Vec::new();
 
         for camera in self.cameras.values_mut() {
-            let distancia = camera.get_location().distance(location.clone());
+            let distancia = camera.get_location().distance(location);
             if distancia <= NIVEL_DE_PROXIMIDAD_MAXIMO && camera.get_sleep_mode() {
                 camera.set_sleep_mode(false);
                 locations_to_activate.push(camera.get_location());
@@ -378,7 +378,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             .cameras
             .values_mut()
             .filter_map(|camera| {
-                let distancia = camera.get_location().distance(location.clone());
+                let distancia = camera.get_location().distance(location);
                 if distancia <= AREA_DE_ALCANCE {
                     camera.set_sleep_mode(true);
                     Some(camera.get_location())
@@ -412,7 +412,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         let mut locations_to_activate = Vec::new();
 
         for camera in self.cameras.values_mut() {
-            let distancia = camera.get_location().distance(location.clone());
+            let distancia = camera.get_location().distance(location);
             if distancia <= NIVEL_DE_PROXIMIDAD_MAXIMO && !camera.get_sleep_mode() {
                 camera.set_sleep_mode(true);
                 locations_to_activate.push(camera.get_location());

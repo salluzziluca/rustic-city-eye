@@ -7,6 +7,8 @@ use crate::utils::location::Location;
 /// - LowBatteryLevel: el Drone se quedo sin bateria, por lo que va a su central a cargarse, y no va a volver a
 ///                    funcionar hasta que tenga el nivel de bateria completo(al terminar de cargarse, vuelve a
 ///                    tener el estado Waiting).
+/// - ChargingBattery: se va a utilizar cuando el Drone este cargando su bateria en su central.
+///                    La idea es que no patrulle ni se ponga a resolver incidentes en este estado.
 #[derive(Debug, PartialEq, Clone)]
 pub enum DroneState {
     Waiting,

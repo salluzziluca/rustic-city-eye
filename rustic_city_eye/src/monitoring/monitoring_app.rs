@@ -34,7 +34,6 @@ pub struct MonitoringApp {
     send_to_client_channel: Arc<Mutex<Sender<Box<dyn MessagesConfig + Send>>>>,
     monitoring_app_client: Client,
     camera_system: Arc<Mutex<CameraSystem<Client>>>,
-    // incidents: Arc<Mutex<Vec<Incident>>>,
     incidents: Arc<Mutex<Vec<(Incident, u8)>>>,
     drone_system: DroneSystem,
     receive_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
@@ -150,20 +149,6 @@ impl MonitoringApp {
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
         self.monitoring_app_client.client_run()?;
         let _ = CameraSystem::<Client>::run_client(None, self.camera_system.clone());
-
-        // let reciever_clone = Arc::clone(&self.recieve_from_client.clone());
-
-        // thread::spawn(move || loop {
-        //     let lock = reciever_clone.lock().unwrap();
-        //     match lock.recv() {
-        //         Ok(message) => {
-        //             println!("Monitoring: Message received en monitoriung: {:?}", message);
-        //         }
-        //         Err(e) => {
-        //             println!("Monitoring: Error receiving message: {:?}", e);
-        //         }
-        //     }
-        // });
         Ok(())
     }
 
@@ -209,7 +194,7 @@ impl MonitoringApp {
         let payload = PayloadTypes::IncidentLocation(IncidentPayload::new(incident));
 
         let publish_config =
-            PublishConfig::new(1, 1, 0, "incidente".to_string(), payload, properties);
+            PublishConfig::new(1, 1, 1, "incidente".to_string(), payload, properties);
         let send_to_client_channel: std::sync::MutexGuard<Sender<Box<dyn MessagesConfig + Send>>> =
             self.send_to_client_channel.lock().unwrap();
 

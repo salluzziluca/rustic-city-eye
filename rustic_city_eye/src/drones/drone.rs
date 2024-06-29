@@ -23,15 +23,19 @@ use std::f64::consts::PI;
 pub struct Drone {
     // ID unico para cada Drone.
     pub id: u32,
+
     ///posicion actual del Drone.
     pub location: Location,
 
     ///posicion del centro de drones al que pertenece.
     pub center_location: Location,
+
     /// La configuracion del Drone contiene el nivel de bateria del mismo y
     /// el radio de operacion.
     target_location: Location,
 
+    /// Contiene configuraciones como la tasa de movimiento, la tasa de carga y descarga de bateria,
+    /// y el radio de operacion.
     drone_config: DroneConfig,
 
     ///  El Drone puede tener distintos estados:
@@ -41,14 +45,21 @@ pub struct Drone {
     /// - LowBatteryLevel: el Drone se quedo sin bateria, por lo que va a su central a cargarse, y no va a volver a
     ///                    funcionar hasta que tenga el nivel de bateria completo(al terminar de cargarse, vuelve a
     ///                    tener el estado Waiting).
+    /// - ChargingBattery: se va a utilizar cuando el Drone este cargando su bateria en su central.
+    ///                    La idea es que no patrulle ni se ponga a resolver incidentes en este estado.
     pub drone_state: DroneState,
 
+    /// Client con el que va a interactuar en la red con las demas aplicaciones.
     pub drone_client: Client,
 
+    /// Nivel de bateria actual del Drone.
     pub battery_level: i64,
 
+    /// A traves de este sender, se envia la configuracion de los packets que el Drone
+    /// quiera enviar a la red.
     send_to_client_channel: mpsc::Sender<Box<dyn messages_config::MessagesConfig + Send>>,
 
+    /// A traves de este receiver, el Drone recibe los mensajes provenientes de su Client.
     recieve_from_client: Arc<Mutex<mpsc::Receiver<ClientMessage>>>,
 }
 
@@ -84,7 +95,7 @@ impl Drone {
         };
 
         let _ = tx.send(Box::new(subscribe_config));
-        let target_location = location.clone();
+        let target_location = location;
         Ok(Drone {
             id,
             location,
@@ -99,11 +110,21 @@ impl Drone {
         })
     }
 
-    /// Esta funcion ejecuta el dron, creando dos hilos:
-    /// Uno para la descarga de bateria y otro para el movimiento del dron.
-    /// Cuando la bateria se descarga por completo dentro del thread de descarga de bateria,
-    /// se cambia el estado del dron a LowBatteryLevel. Y, en el thread de movimiento, se
-    /// redirije al dron hacia su estacion de carga.
+    /// Esta funcion ejecuta el Drone, creando tres threads:
+    /// - Uno para manejar la bateria del Drone: Mientras tenga un estado de Waiting, se considera
+    ///   que tiene un nivel de bateria optimo para operar: cuando este en este estado, su bateria se ira
+    ///   descargando a medida que pasa el tiempo(la tasa de descarga de bateria viene en el archivo de
+    ///   configuracion del Drone). Cuando se llega a un estado de LowBatteryLevel, se notifica al thread de movimiento
+    ///   la necesidad de ir a cargarse a la central de carga. Una vez en ella, el Drone pasa a cargarse con un estado de
+    ///   ChargingBattery(la tasa de carga de bateria viene en el archivo de configuracion del Drone).
+    ///
+    /// - Un segundo thread para mover al Drone: si esta en estado Waiting, va a patrullar
+    ///   sobre su radio de operacion; si esta en estado de LowBatteryLevel, se mueve
+    ///   hacia su central de carga; y si esta en estado de AttendingIncident, se mueve hacia la
+    ///   localizacion del incidente a resolver.
+    ///
+    /// - Un tercer thread para manejar la recepcion de mensajes de parte de su Client: recibe los Publish packets que vengan
+    ///   de los topics al que este suscrito.
     pub fn run_drone(&mut self) -> Result<(), DroneError> {
         match self.drone_client.client_run() {
             Ok(client) => client,
@@ -143,6 +164,7 @@ impl Drone {
                         Ok(_) => (),
                         Err(e) => {
                             println!("Error charging battery: {:?}", e);
+                            return;
                         }
                     },
                     _ => (),
@@ -166,19 +188,25 @@ impl Drone {
                 DroneState::Waiting => {
                     match lock.patrolling_in_operating_radius() {
                         Ok(_) => (),
-                        Err(_) => todo!(),
+                        Err(e) => {
+                            println!("Error while patrolling: {:?}", e);
+                            return;
+                        }
                     };
                 }
                 DroneState::AttendingIncident(location) => {
                     println!("Esto yendo a solucionar el incidente");
-                    match lock.drone_movement(location.clone()) {
+                    match lock.drone_movement(location) {
                         Ok(_) => {
                             sleep(Duration::from_secs(5));
                             lock.drone_state = DroneState::Waiting;
                             lock.patrolling_in_operating_radius().unwrap();
-                            lock.publish_attending_accident(location.clone());
+                            lock.publish_attending_accident(location);
                         }
-                        Err(_) => todo!(),
+                        Err(e) => {
+                            println!("Error while moving to incident: {:?}", e);
+                            return;
+                        }
                     };
                 }
                 DroneState::LowBatteryLevel => {
@@ -207,7 +235,8 @@ impl Drone {
                         continue;
                     }
                     let location = payload.get_incident().get_location();
-                    self_cloned.drone_state = DroneState::AttendingIncident(location.clone());
+                    println!("yo, droncito {} recibi el pub de incidente", self_cloned.id);
+                    self_cloned.drone_state = DroneState::AttendingIncident(location);
                 }
             }
         });
@@ -223,7 +252,7 @@ impl Drone {
         self.id
     }
 
-    /// Carga un tic la bateria si el elapsed time (diferencial de tiempo inicial y tiempo final)
+    /// Carga un 1% la bateria si el elapsed time (diferencial de tiempo inicial y tiempo final)
     /// es mayor o igual al ratio de carga
     ///
     /// Si la bateria llega a 100%, el estado del dron pasa a Waiting
@@ -239,7 +268,6 @@ impl Drone {
 
         if elapsed_time >= charge_rate {
             self.battery_level += 1;
-            // println!("Battery level: {}", self.battery_level);
             if self.battery_level >= 99 {
                 self.battery_level = 100;
                 self.drone_state = DroneState::Waiting;
@@ -250,7 +278,7 @@ impl Drone {
         }
     }
 
-    /// Descarga un tic la bateria si el elapsed time (diferencial de tiempo inicial y tiempo final)
+    /// Descarga un 1% la bateria si el elapsed time (diferencial de tiempo inicial y tiempo final)
     /// es mayor o igual al ratio de descarga
     /// Si la bateria llega a 0%, el estado del dron pasa a LowBatteryLevel
     fn update_battery_discharge(
@@ -265,8 +293,6 @@ impl Drone {
 
         if elapsed_time >= discharge_rate {
             self.battery_level -= 1;
-            // println!("Battery level: {}", self.battery_level);
-
             if self.battery_level == 20 {
                 self.drone_state = DroneState::LowBatteryLevel;
             }
@@ -276,8 +302,6 @@ impl Drone {
         }
     }
 
-    /// closure del thread de descarga de bateria del Drone.
-    ///
     /// Lo que se hace es ir descargando el nivel de bateria del
     /// Drone segun indique la tasa de descarga de bateria del mismo(definida
     /// en la config del Drone).
@@ -292,6 +316,12 @@ impl Drone {
         updated_last_discharge_time
     }
 
+    /// Lo que se hace es ir cargando el nivel de bateria del
+    /// Drone segun indique la tasa de carga de bateria del mismo(definida
+    /// en la config del Drone).
+    ///
+    /// Cada vez que se cumpla "un ciclo" de la tasa de carga, se aumenta la bateria del
+    /// Drone en un 1%.
     pub fn battery_charge(&mut self, last_charge_time: DateTime<Utc>) -> DateTime<Utc> {
         let current_time = Utc::now();
         let (updated_last_charge_time, _updated) =
@@ -364,7 +394,7 @@ impl Drone {
             self.drone_state = DroneState::ChargingBattery;
         }
 
-        let _ = self.update_drone_position(self.center_location.clone());
+        let _ = self.update_drone_position(self.center_location);
     }
 
     fn update_drone_position(&mut self, target_location: Location) -> Result<(), DroneError> {
@@ -393,7 +423,7 @@ impl Drone {
                 break;
             }
 
-            self.update_drone_position(target_location.clone())?;
+            self.update_drone_position(target_location)?;
         }
         Ok(())
     }
@@ -425,7 +455,7 @@ impl Drone {
     fn update_location(&mut self) {
         let publish_config = match PublishConfig::read_config(
             "src/drones/publish_config.json",
-            PayloadTypes::DroneLocation(self.id, self.location.clone()),
+            PayloadTypes::DroneLocation(self.id, self.location),
         ) {
             Ok(config) => config,
             Err(e) => {
@@ -443,7 +473,7 @@ impl Drone {
     }
 
     fn publish_attending_accident(&mut self, location: Location) {
-        let incident_payload = IncidentPayload::new(Incident::new(location.clone()));
+        let incident_payload = IncidentPayload::new(Incident::new(location));
         let publish_config = match PublishConfig::read_config(
             "src/drones/publish_attending_incident_config.json",
             PayloadTypes::AttendingIncident(incident_payload),

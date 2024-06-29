@@ -29,7 +29,7 @@ impl Camera {
     }
 
     pub fn get_location(&self) -> Location {
-        self.location.clone()
+        self.location
     }
     pub fn get_id(&self) -> u32 {
         self.id

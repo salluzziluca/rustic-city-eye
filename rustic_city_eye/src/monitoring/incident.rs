@@ -17,7 +17,7 @@ impl Incident {
     }
 
     pub fn get_location(&self) -> Location {
-        self.location.clone()
+        self.location
     }
 
     pub fn write_to(&self, stream: &mut dyn std::io::prelude::Write) -> Result<(), ProtocolError> {

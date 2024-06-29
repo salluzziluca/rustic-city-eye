@@ -10,8 +10,6 @@ use std::{env, fs::File, io::BufReader};
 #[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone)]
 pub struct DroneConfig {
-    /// Indica el nivel de bateria del Drone. Se va descargando con el paso del tiempo.
-
     /// Indice la tasa de carga de la bateria en milisegundos.
     /// Por ej: si vale 10, por cada segundo que pase, la
     /// bateria del Drone aumentara en un 100 por ciento.

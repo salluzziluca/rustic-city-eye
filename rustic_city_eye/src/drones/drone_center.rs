@@ -39,7 +39,7 @@ impl DroneCenter {
     }
 
     pub fn get_location(&self) -> Location {
-        self.location.clone()
+        self.location
     }
 
     /// Crea un dron y lo agrega al hashmap con un ID que no esté siendo utilizado
@@ -58,7 +58,7 @@ impl DroneCenter {
         let mut drone = Drone::new(
             id,
             location,
-            self.location.clone(),
+            self.location,
             &self.drone_config_path.to_string(),
             self.address.to_string(),
         )?;
