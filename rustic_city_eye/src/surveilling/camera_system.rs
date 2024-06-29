@@ -78,6 +78,15 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             "incidente".to_string(),
             1,
             SubscribeProperties::new(1, vec![]),
+            client_id.clone(),
+        );
+
+        let _ = tx.send(Box::new(subscribe_config));
+
+        let subscribe_config = SubscribeConfig::new(
+            "incidente_resuelto".to_string(),
+            1,
+            SubscribeProperties::new(1, vec![]),
             client_id,
         );
 
@@ -241,7 +250,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                     match solved_incident_location {
                         Some(location) => {
                             match self_clone3
-                                .activate_cameras(location)
+                                .deactivate_cameras(location)
                                 .map_err(|e| ProtocolError::CameraError(e.to_string()))
                             {
                                 Ok(_) => {}
@@ -258,12 +267,17 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                             payload: PayloadTypes::IncidentLocation(payload),
                             ..
                         }) => {
+                            println!(
+                                "SOT EL CAMERA Y RECIBVI UN PUBLISH DE TOPIC: {:?}",
+                                topic_name
+                            );
                             if topic_name == "incidente" {
                                 incident_location = Some(payload.get_incident().get_location());
                                 drop(lock); // Release the lock here
 
                                 continue;
                             } else if topic_name == "incidente_resuelto" {
+                                println!("ASI ES COÑO LO HE RECIBIDO");
                                 solved_incident_location =
                                     Some(payload.get_incident().get_location());
                                 drop(lock); // Release the lock here

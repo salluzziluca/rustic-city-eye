@@ -326,8 +326,8 @@ pub fn update_entities(
                                             incident.get_location(),
                                         ));
                                         let publish_config = match PublishConfig::read_config(
-                                            "src/drones/publish_attending_incident_config.json",
-                                            PayloadTypes::AttendingIncident(incident_payload),
+                                            "src/monitoring/publish_solved_incident_config.json",
+                                            PayloadTypes::IncidentLocation(incident_payload),
                                         ) {
                                             Ok(config) => config,
                                             Err(e) => {
@@ -342,7 +342,7 @@ pub fn update_entities(
                                         match send_to_client_channel.send(Box::new(publish_config))
                                         {
                                             Ok(_) => {
-                                                println!("AAAAAAA ENVIO LAS COSASSSSSS");
+                                                println!("MONITO AAAAAAA ENVIO LAS COSASSSSSS");
                                             }
                                             Err(e) => {
                                                 println!(

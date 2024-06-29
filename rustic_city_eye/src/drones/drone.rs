@@ -456,9 +456,7 @@ impl Drone {
         };
 
         match self.send_to_client_channel.send(Box::new(publish_config)) {
-            Ok(_) => {
-                println!("AAAAAAA ENVIO LAS COSASSSSSS");
-            }
+            Ok(_) => {}
             Err(e) => {
                 println!("Error sending to client channel: {:?}", e);
             }
