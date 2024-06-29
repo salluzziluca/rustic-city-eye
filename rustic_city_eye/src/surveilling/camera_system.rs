@@ -1125,6 +1125,25 @@ mod tests {
                     panic!("Unexpected message type");
                 }
             }
+            let message = reciever.recv().unwrap();
+            //conver message to a ClientMessage
+            let packet_id = camera_system.camera_system_client.assign_packet_id();
+            let message = message.parse_message(packet_id);
+            // Recibe el sub que hace el camera_system cuando se crea por primera vez
+            match message {
+                ClientMessage::Subscribe {
+                    packet_id: _,
+                    payload,
+                    properties: _,
+                } => {
+                    for topic in payload {
+                        assert_eq!(topic.topic, "incidente_resuelto");
+                    }
+                }
+                _ => {
+                    panic!("Unexpected message type");
+                }
+            }
             let location = Location::new(1.0, 2.0);
             let id = camera_system.add_camera(location.clone()).unwrap();
             assert_eq!(camera_system.get_cameras().len(), 1);
@@ -1157,7 +1176,7 @@ mod tests {
                     assert!(!cameras[0].get_sleep_mode());
                 }
                 _ => {
-                    panic!("Unexpected message type");
+                    panic!("Unexpected message type: {:?}", message);
                 }
             }
 
