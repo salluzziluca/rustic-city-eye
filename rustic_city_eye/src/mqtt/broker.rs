@@ -308,6 +308,9 @@ impl Broker {
         Ok(reason_code)
     }
 
+    /// Convierte un mensaje del cliente a un mensaje del broker.
+    ///
+    /// Retorna el mensaje del broker si la conversion fue exitosa, o un error si no lo fue.
     fn convert_to_broker_message(message: &ClientMessage) -> Result<BrokerMessage, ProtocolError> {
         match message {
             ClientMessage::Publish {
@@ -331,12 +334,14 @@ impl Broker {
         }
     }
 
+    /// Envia un mensaje a un usuario.
+    ///
+    /// Retorna Ok si el mensaje fue enviado, Err si el usuario está offline.
     fn send_message_to_user(
         &self,
         user: &Subscription,
         message: &BrokerMessage,
     ) -> Result<(), bool> {
-        // Retorna Ok si el mensaje fue enviado, Err si el usuario está offline
         let clients = self.clients_ids.read().map_err(|_| false)?;
         if let Some((stream, _)) = clients.get(&user.client_id) {
             if let Some(stream) = stream {
@@ -352,6 +357,9 @@ impl Broker {
         }
     }
 
+    /// Maneja el mensaje de un usuario offline.
+    ///
+    /// Guarda el mensaje en offline_clients.
     fn handle_offline_user(
         &self,
         user_id: &str,
@@ -369,6 +377,9 @@ impl Broker {
         Ok(())
     }
 
+    /// Maneja el envio de un mensaje a un topic.
+    ///
+    /// Retorna el reason code correspondiente a si el envio fue exitoso o no.
     fn handle_publish(
         &self,
         message: ClientMessage,
