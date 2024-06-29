@@ -197,19 +197,17 @@ impl Drone {
                 }; // Lock is automatically released here
 
                 let mut self_cloned = self_clone_three.lock().unwrap();
-                match message {
-                    client_message::ClientMessage::Publish {
-                        topic_name,
-                        payload: PayloadTypes::IncidentLocation(payload),
-                        ..
-                    } => {
-                        if topic_name != "incidente" {
-                            continue;
-                        }
-                        let location = payload.get_incident().get_location();
-                        self_cloned.drone_state = DroneState::AttendingIncident(location.clone());
+                if let client_message::ClientMessage::Publish {
+                    topic_name,
+                    payload: PayloadTypes::IncidentLocation(payload),
+                    ..
+                } = message
+                {
+                    if topic_name != "incidente" {
+                        continue;
                     }
-                    _ => (),
+                    let location = payload.get_incident().get_location();
+                    self_cloned.drone_state = DroneState::AttendingIncident(location.clone());
                 }
             }
         });

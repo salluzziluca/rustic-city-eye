@@ -10,7 +10,6 @@ use crate::drones::drone_system::DroneSystem;
 use crate::monitoring::incident::Incident;
 
 use crate::mqtt::client::ClientTrait;
-use crate::mqtt::publish;
 use crate::mqtt::{
     client_message::{self, ClientMessage},
     messages_config::MessagesConfig,
