@@ -234,9 +234,9 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                     }
                 } else {
                     match incident_location {
-                        Some(indicent_location) => {
+                        Some(location) => {
                             match self_clone2
-                                .activate_cameras(indicent_location)
+                                .activate_cameras(location)
                                 .map_err(|e| ProtocolError::CameraError(e.to_string()))
                             {
                                 Ok(_) => {}
@@ -244,6 +244,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                                     println!("CameraSys: Error activating cameras: {:?}", e);
                                 }
                             }
+                            incident_location = None;
                         }
                         None => {}
                     }
@@ -258,6 +259,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                                     println!("CameraSys: Error activating cameras: {:?}", e);
                                 }
                             }
+                            solved_incident_location = None;
                         }
                         None => {}
                     }
@@ -1211,7 +1213,6 @@ mod tests {
         handle.join().unwrap();
     }
 
-    //QUE BRONCA CON LO QUE ME COSTO HACER ESTE TEST 😡😡😡😡
     #[test]
     fn test_run_client() {
         #[derive(Debug, Clone)]
