@@ -73,7 +73,7 @@ pub struct Drone {
     /// A traves de este receiver, el Drone recibe los mensajes provenientes de su Client.
     recieve_from_client: Arc<Mutex<mpsc::Receiver<ClientMessage>>>,
 
-    incidents: Vec<(Incident, u8)>
+    incidents: Vec<(Incident, u8)>,
 }
 
 impl Drone {
@@ -111,8 +111,7 @@ impl Drone {
             Ok(_) => {}
             Err(e) => {
                 println!("Monitoring: Error sending message: {:?}", e);
-                return Err(DroneError::SubscribeError(e.to_string()))
-    
+                return Err(DroneError::SubscribeError(e.to_string()));
             }
         };
         let subscribe_properties: SubscribeProperties = SubscribeProperties::new(1, Vec::new());
@@ -126,7 +125,7 @@ impl Drone {
             Ok(_) => {}
             Err(e) => {
                 println!("Monitoring: Error sending message: {:?}", e);
-                return Err(DroneError::SubscribeError(e.to_string()))
+                return Err(DroneError::SubscribeError(e.to_string()));
             }
         };
 
@@ -142,7 +141,7 @@ impl Drone {
             battery_level: 100,
             send_to_client_channel: tx,
             recieve_from_client: Arc::new(Mutex::new(rx2)),
-            incidents: Vec::new()
+            incidents: Vec::new(),
         })
     }
 
@@ -270,23 +269,26 @@ impl Drone {
                         let location = payload.get_incident().get_location();
                         self_cloned.drone_state = DroneState::AttendingIncident(location);
 
-                        let (incident, drones_attending_incident) = (payload.get_incident().clone(), 0);
+                        let (incident, drones_attending_incident) =
+                            (payload.get_incident().clone(), 0);
 
-                        self_cloned.incidents.push((incident.clone(), drones_attending_incident));
-                    },
-  
-                    _ => continue
+                        self_cloned
+                            .incidents
+                            .push((incident.clone(), drones_attending_incident));
+                    }
+
+                    _ => continue,
                 }
             } else if let client_message::ClientMessage::Publish {
                 topic_name,
                 payload: PayloadTypes::AttendingIncident(payload),
                 ..
-            } = message {
-
+            } = message
+            {
                 match topic_name.as_str() {
                     "attendingincident" => {
                         println!("me llego la noti del incidente");
-                        
+
                         // Vector to store incidents to remove
                         let mut to_remove = Vec::new();
 
@@ -308,8 +310,8 @@ impl Drone {
                             println!("ya ta bro, cambio mi estado porque al pedo ir");
                             self_cloned.drone_state = DroneState::Waiting;
                         }
-                    },  
-                    _ => continue
+                    }
+                    _ => continue,
                 }
             }
         });
@@ -806,13 +808,8 @@ mod tests {
             let config_file_path = "./src/drones/drone_config.json";
             let address = "127.0.0.1:5007".to_string();
 
-            let drone: Result<Drone, DroneError> = Drone::new(
-                1,
-                location.clone(),
-                center_location.clone(),
-                config_file_path,
-                address,
-            );
+            let drone: Result<Drone, DroneError> =
+                Drone::new(1, location, center_location, config_file_path, address);
 
             assert!(drone.is_ok());
             let drone = drone.unwrap();
@@ -947,9 +944,7 @@ mod tests {
             let drone_arc = Arc::new(Mutex::new(drone));
             for _ in 0..14 {
                 let mut drone = drone_arc.lock().unwrap();
-                drone
-                    .update_drone_position(target_location.clone())
-                    .unwrap();
+                drone.update_drone_position(target_location).unwrap();
             }
             let drone = drone_arc.lock().unwrap();
             let new_location = &drone.location;

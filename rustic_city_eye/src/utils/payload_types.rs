@@ -219,7 +219,7 @@ mod tests {
     #[test]
     fn test_read_from() {
         let location = Location::new(1.0, 2.0);
-        let incident = Incident::new(location.clone());
+        let incident = Incident::new(location);
         let incident_payload = IncidentPayload::new(incident.clone());
         let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
 
@@ -234,7 +234,7 @@ mod tests {
     #[test]
     fn test_write_to() {
         let location = Location::new(1.0, 2.0);
-        let incident = Incident::new(location.clone());
+        let incident = Incident::new(location);
         let incident_payload = IncidentPayload::new(incident.clone());
         let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
 
@@ -250,7 +250,7 @@ mod tests {
     #[test]
     fn test_as_any() {
         let location = Location::new(1.0, 2.0);
-        let incident = Incident::new(location.clone());
+        let incident = Incident::new(location);
         let incident_payload = IncidentPayload::new(incident.clone());
         let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
 
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn test_clone() {
         let location = Location::new(1.0, 2.0);
-        let incident = Incident::new(location.clone());
+        let incident = Incident::new(location);
         let incident_payload = IncidentPayload::new(incident.clone());
         let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
 
@@ -270,7 +270,7 @@ mod tests {
     #[test]
     fn test_eq() {
         let location = Location::new(1.0, 2.0);
-        let incident = Incident::new(location.clone());
+        let incident = Incident::new(location);
         let incident_payload = IncidentPayload::new(incident.clone());
         let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
 

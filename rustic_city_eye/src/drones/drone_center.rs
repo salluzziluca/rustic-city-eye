@@ -120,7 +120,7 @@ mod tests {
         thread::spawn(move || {
             let mut drone_center = DroneCenter::new(
                 1,
-                location.clone(),
+                location,
                 "src/drones/drone_config.json".to_string(),
                 addr.to_string(),
             );
@@ -158,7 +158,7 @@ mod tests {
             let location = location::Location::new(latitude, longitude);
             let mut drone_center = DroneCenter::new(
                 1,
-                location.clone(),
+                location,
                 "./src/drones/drone_config.json".to_string(),
                 addr.to_string(),
             );
@@ -196,7 +196,7 @@ mod tests {
             let location = location::Location::new(latitude, longitude);
             let mut drone_center = DroneCenter::new(
                 1,
-                location.clone(),
+                location,
                 "./src/drones/drone_config.json".to_string(),
                 addr.to_string(),
             );
@@ -229,7 +229,7 @@ mod tests {
             let location = location::Location::new(latitude, longitude);
             let drone_center = DroneCenter::new(
                 1,
-                location.clone(),
+                location,
                 "./src/drones/drone_config.json".to_string(),
                 addr.to_string(),
             );
@@ -260,7 +260,7 @@ mod tests {
             let location = location::Location::new(latitude, longitude);
             let mut drone_center = DroneCenter::new(
                 1,
-                location.clone(),
+                location,
                 "./src/drones/drone_config.json".to_string(),
                 addr.to_string(),
             );
