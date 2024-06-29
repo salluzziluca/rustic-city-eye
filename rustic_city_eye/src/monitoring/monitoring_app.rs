@@ -10,6 +10,7 @@ use crate::drones::drone_system::DroneSystem;
 use crate::monitoring::incident::Incident;
 
 use crate::mqtt::client::ClientTrait;
+use crate::mqtt::publish;
 use crate::mqtt::{
     client_message::{self, ClientMessage},
     messages_config::MessagesConfig,
@@ -31,7 +32,7 @@ use crate::utils::payload_types::PayloadTypes;
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct MonitoringApp {
-    send_to_client_channel: Sender<Box<dyn MessagesConfig + Send>>,
+    send_to_client_channel: Arc<Mutex<Sender<Box<dyn MessagesConfig + Send>>>>,
     monitoring_app_client: Client,
     camera_system: Arc<Mutex<CameraSystem<Client>>>,
     // incidents: Arc<Mutex<Vec<Incident>>>,
@@ -118,8 +119,9 @@ impl MonitoringApp {
         let active_drones = Arc::new(Mutex::new(HashMap::new()));
         let incidents = Arc::new(Mutex::new(Vec::new()));
         let cameras = Arc::new(Mutex::new(HashMap::new()));
+        let tx_arc = Arc::new(Mutex::new(tx));
         let monitoring_app = MonitoringApp {
-            send_to_client_channel: tx,
+            send_to_client_channel: Arc::clone(&tx_arc),
             incidents: Arc::clone(&incidents),
             camera_system: Arc::new(Mutex::new(camera_system)),
             monitoring_app_client,
@@ -133,11 +135,14 @@ impl MonitoringApp {
             let active_drones_clone = Arc::clone(&active_drones);
             let cameras_clone = Arc::clone(&cameras);
             let incidents_clone = Arc::clone(&incidents);
+            let tx_clone = Arc::clone(&tx_arc);
+
             update_entities(
                 receiver_clone,
                 active_drones_clone,
                 cameras_clone,
                 incidents_clone,
+                tx_clone,
             );
         });
         Ok(monitoring_app)
@@ -206,8 +211,10 @@ impl MonitoringApp {
 
         let publish_config =
             PublishConfig::new(1, 1, 0, "incidente".to_string(), payload, properties);
+        let send_to_client_channel: std::sync::MutexGuard<Sender<Box<dyn MessagesConfig + Send>>> =
+            self.send_to_client_channel.lock().unwrap();
 
-        let _ = self.send_to_client_channel.send(Box::new(publish_config));
+        let _ = send_to_client_channel.send(Box::new(publish_config));
     }
 
     pub fn add_drone(
@@ -237,7 +244,7 @@ impl MonitoringApp {
                 }
 
                 incidents_without_drones
-            },
+            }
             Err(_) => Vec::new(),
         }
     }
@@ -262,6 +269,7 @@ pub fn update_entities(
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
     incidents: Arc<Mutex<Vec<(Incident, u8)>>>,
+    send_to_client_channel: Arc<Mutex<Sender<Box<dyn MessagesConfig + Send>>>>,
 ) {
     let receiver = match recieve_from_client.lock() {
         Ok(receiver) => receiver,
@@ -303,22 +311,54 @@ pub fn update_entities(
                     } else if topic_name == "attendingincident" {
                         if let PayloadTypes::AttendingIncident(incident_payload) = payload {
                             let mut incidents = incidents.lock().unwrap();
-                        
+
                             let mut to_remove = Vec::new();
-                        
+
                             for (incident, count) in incidents.iter_mut() {
-                                if incident.get_location() == incident_payload.get_incident().get_location() {
+                                if incident.get_location()
+                                    == incident_payload.get_incident().get_location()
+                                {
                                     *count += 1;
-                        
+
                                     if *count == 2 {
                                         to_remove.push(incident.clone());
+                                        //publish incident resolver message
+                                        let incident_payload = IncidentPayload::new(Incident::new(
+                                            incident.get_location(),
+                                        ));
+                                        let publish_config = match PublishConfig::read_config(
+                                            "src/drones/publish_attending_incident_config.json",
+                                            PayloadTypes::AttendingIncident(incident_payload),
+                                        ) {
+                                            Ok(config) => config,
+                                            Err(e) => {
+                                                println!("Error reading publish config: {:?}", e);
+                                                return;
+                                            }
+                                        };
+                                        let send_to_client_channel: std::sync::MutexGuard<
+                                            Sender<Box<dyn MessagesConfig + Send>>,
+                                        > = send_to_client_channel.lock().unwrap();
+
+                                        match send_to_client_channel.send(Box::new(publish_config))
+                                        {
+                                            Ok(_) => {
+                                                println!("AAAAAAA ENVIO LAS COSASSSSSS");
+                                            }
+                                            Err(e) => {
+                                                println!(
+                                                    "Error sending to client channel: {:?}",
+                                                    e
+                                                );
+                                            }
+                                        };
                                     }
                                 }
                             }
-                        
+
                             // Remove incidents marked for removal
                             incidents.retain(|(inc, _)| !to_remove.contains(inc));
-                        
+
                             println!("Incidents: {:?}", incidents);
                         }
                     }

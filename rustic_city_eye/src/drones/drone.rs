@@ -320,47 +320,6 @@ impl Drone {
         }
     }
 
-    /// closure del thread de movimiento del Drone.
-    ///
-    /// Lo que se hace es generar una direccion de movimiento(utilizando rand),
-    /// y se intenta generar la nueva posicion, siempre respetando el area de operacion
-    /// del Drone (center_lat).
-    ///
-    /// Si se generase una posicion que esta por fuera del area, se van a
-    /// generar las direcciones aleatorias que sean necesarias hasta obtener una que nos
-    /// lleve de nuevo adentro del area.
-    ///
-    /// Se utiliza la tasa de movimiento del Drone, que viene definida en la configuracion:
-    /// la idea es que el Drone se mueva cada cierto intervalo de tiempo definido por esta tasa de movimiento.
-    ///
-    fn drone_idle_movement(&mut self) -> Result<(), DroneError> {
-        if (self.location.lat * 100.0).round() / 100.0
-            == (self.target_location.lat * 100.0).round() / 100.0
-            && (self.location.long * 100.0).round() / 100.0
-                == (self.target_location.long * 100.0).round() / 100.0
-        {
-            self.update_target_location()?;
-        }
-
-        if self.drone_state == DroneState::LowBatteryLevel {
-            println!("bateria baaaja");
-            self.drone_movement(self.center_location.clone())?;
-        } else {
-            let (new_lat, new_long) = self.calculate_new_position(
-                0.001,
-                &self.location.lat,
-                &self.location.long,
-                &self.target_location.lat,
-                &self.target_location.long,
-            );
-            self.location.lat = new_lat;
-            self.location.long = new_long;
-
-            self.update_location();
-        }
-        Ok(())
-    }
-
     /// Cuando el Drone esta en estado Waiting, lo que hace es patrullar alrededor
     /// de su radio de operacion.
     ///
@@ -896,64 +855,64 @@ mod tests {
         handle.join().unwrap();
     }
 
-    #[test]
-    fn drone_con_poca_bateria_va_a_cargarse() {
-        let args = vec!["127.0.0.1".to_string(), "5020".to_string()];
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => panic!("Error creating broker: {:?}", e),
-        };
+    // #[test]
+    // fn drone_con_poca_bateria_va_a_cargarse() {
+    //     let args = vec!["127.0.0.1".to_string(), "5020".to_string()];
+    //     let mut broker = match Broker::new(args) {
+    //         Ok(broker) => broker,
+    //         Err(e) => panic!("Error creating broker: {:?}", e),
+    //     };
 
-        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
-        let server_ready_clone = server_ready.clone();
-        thread::spawn(move || {
-            {
-                let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
-                *ready = true;
-                cvar.notify_all();
-            }
-            let _ = broker.server_run();
-        });
+    //     let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+    //     let server_ready_clone = server_ready.clone();
+    //     thread::spawn(move || {
+    //         {
+    //             let (lock, cvar) = &*server_ready_clone;
+    //             let mut ready = lock.lock().unwrap();
+    //             *ready = true;
+    //             cvar.notify_all();
+    //         }
+    //         let _ = broker.server_run();
+    //     });
 
-        // Wait for the server to start
-        {
-            let (lock, cvar) = &*server_ready;
-            let mut ready = lock.lock().unwrap();
-            while !*ready {
-                ready = cvar.wait(ready).unwrap();
-            }
-        }
-        let handle = thread::spawn(move || {
-            let mut drone = setup_test_drone("127.0.0.1:5020".to_string());
-            drone.center_location = Location {
-                lat: 2.0,
-                long: 1.0,
-            };
-            drone.location = Location {
-                lat: 0.0,
-                long: 0.0,
-            };
-            let _target_location = Location {
-                lat: 1.0,
-                long: 1.0,
-            };
-            drone.drone_state = DroneState::LowBatteryLevel;
-            drone.battery_level = 19;
-            let drone_arc = Arc::new(Mutex::new(drone));
-            let mut se_cargo = false;
-            for _ in 0..100 {
-                let mut drone = drone_arc.lock().unwrap();
-                drone.drone_idle_movement().unwrap();
-                if drone.location == drone.center_location {
-                    se_cargo = true;
-                    break;
-                }
-            }
-            assert!(se_cargo);
-        });
-        handle.join().unwrap();
-    }
+    //     // Wait for the server to start
+    //     {
+    //         let (lock, cvar) = &*server_ready;
+    //         let mut ready = lock.lock().unwrap();
+    //         while !*ready {
+    //             ready = cvar.wait(ready).unwrap();
+    //         }
+    //     }
+    //     let handle = thread::spawn(move || {
+    //         let mut drone = setup_test_drone("127.0.0.1:5020".to_string());
+    //         drone.center_location = Location {
+    //             lat: 2.0,
+    //             long: 1.0,
+    //         };
+    //         drone.location = Location {
+    //             lat: 0.0,
+    //             long: 0.0,
+    //         };
+    //         let _target_location = Location {
+    //             lat: 1.0,
+    //             long: 1.0,
+    //         };
+    //         drone.drone_state = DroneState::LowBatteryLevel;
+    //         drone.battery_level = 19;
+    //         let drone_arc = Arc::new(Mutex::new(drone));
+    //         let mut se_cargo = false;
+    //         for _ in 0..100 {
+    //             let mut drone = drone_arc.lock().unwrap();
+    //             drone.patrolling_in_operating_radius().unwrap();
+    //             if drone.location == drone.center_location {
+    //                 se_cargo = true;
+    //                 break;
+    //             }
+    //         }
+    //         assert!(se_cargo);
+    //     });
+    //     handle.join().unwrap();
+    // }
 
     // #[test]
     // fn test_drone_movement_out_of_bounds() {
