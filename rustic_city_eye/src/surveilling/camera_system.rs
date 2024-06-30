@@ -185,7 +185,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                 }
             };
             loop {
-                let self_clone_one = Arc::clone(&system_clone_two);
                 let self_clone_two = Arc::clone(&system_clone_two);
 
                 let mut lock = match self_clone_two.lock() {
