@@ -406,55 +406,25 @@ impl Broker {
         topic_name: String,
         subscription: Subscription,
     ) -> Result<u8, ProtocolError> {
-        let mut reason_codes = Vec::new();
-        let reason_code;
-
-        // si el topic es +, se suscribe a todos los topics
-        if topic_name == "+" {
-            for topic_key in topics.keys() {
-                let mut topics_clone = topics.clone();
-                if let Some(topic) = topics_clone.get_mut(&topic_key.to_string()) {
-                    match topic.add_user_to_topic(subscription.clone()) {
-                        0 => {
-                            ClientConfig::add_new_subscription(subscription.client_id.clone(), topic_key.to_string());
-                            reason_codes.push(SUCCESS_HEX);
-                        }
-                        0x92 => {
-                            reason_codes.push(SUB_ID_DUP_HEX);
-                        }
-                        _ => {
-                            return Ok(UNSPECIFIED_ERROR_HEX);
-                        }
-                    }
+        
+        let reason_code;       
+        if let Some(topic) = topics.get_mut(&topic_name) {
+            match topic.add_user_to_topic(subscription.clone()) {
+                0 => {
+                    ClientConfig::add_new_subscription(subscription.client_id.clone(), topic_name.clone());
+                    reason_code = SUCCESS_HEX;
+                }
+                0x92 => {
+                    reason_code = SUB_ID_DUP_HEX;
+                }
+                _ => {
+                    reason_code = UNSPECIFIED_ERROR_HEX;
                 }
             }
-            if reason_codes.contains(&SUCCESS_HEX) {
-                reason_code = SUCCESS_HEX;
-            } else if reason_codes.contains(&SUB_ID_DUP_HEX) {
-                reason_code = SUB_ID_DUP_HEX;
-            } else {
-                reason_code = UNSPECIFIED_ERROR_HEX;
-            }
-        }else {
-            if let Some(topic) = topics.get_mut(&topic_name) {
-                match topic.add_user_to_topic(subscription.clone()) {
-                    0 => {
-                        ClientConfig::add_new_subscription(subscription.client_id.clone(), topic_name.clone());
-                        reason_code = SUCCESS_HEX;
-                    }
-                    0x92 => {
-                        reason_code = SUB_ID_DUP_HEX;
-                    }
-                    _ => {
-                        reason_code = UNSPECIFIED_ERROR_HEX;
-                    }
-                }
-            } else {
-                reason_code = UNSPECIFIED_ERROR_HEX;
-            }
-        }     
-
-
+        } else {
+            reason_code = UNSPECIFIED_ERROR_HEX;
+        }
+            
         Ok(reason_code)
     }
 
@@ -464,14 +434,15 @@ impl Broker {
     fn handle_unsubscribe(
         mut topics: HashMap<String, Topic>,
         topic_name: String,
-        usersubscription: Subscription,
+        subscription: Subscription,
     ) -> Result<u8, ProtocolError> {
         let reason_code;
 
         if let Some(topic) = topics.get_mut(&topic_name) {
-            match topic.remove_user_from_topic(usersubscription) {
+            match topic.remove_user_from_topic(subscription.clone()) {
                 0 => {
                     println!("Unsubscribe exitoso");
+                    ClientConfig::remove_subscription(subscription.client_id.clone(), topic_name.clone());
                     reason_code = SUCCESS_HEX;
                 }
                 _ => {

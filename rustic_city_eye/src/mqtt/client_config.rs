@@ -51,6 +51,17 @@ impl ClientConfig {
         let _ = std::fs::write(path, json);
     }
 
+    pub fn remove_subscription(client_id: String, topic: String) {
+        // remueve una suscripción de un cliente en el archivo json
+        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        let file = std::fs::File::open(path.clone()).unwrap();
+        let mut client_config: ClientConfig = serde_json::from_reader(file).unwrap();
+        let index = client_config.subscriptions.iter().position(|x| x == &topic).unwrap();
+        client_config.subscriptions.remove(index);
+        let json = serde_json::to_string(&client_config).unwrap();
+        let _ = std::fs::write(path, json);
+    }
+
     pub fn _client_exists(client_id: String) -> bool {
         // verifica si un cliente existe en el archivo json
         let path = format!("./src/mqtt/clients/{}.json", client_id);
