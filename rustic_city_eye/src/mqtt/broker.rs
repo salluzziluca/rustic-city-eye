@@ -533,77 +533,50 @@ impl Broker {
                 println!("Recibí un Connect");
 
                 // si el cliente ya está conectado, no permite la nueva conexión y la rechaza con CLIENT_DUP
-                match self.clients_config.read() {
-                    Ok(clients_config) => {
-                        for client in clients_config.iter() {
-                            if client.1.client_id == connect.client_id {
-                                let disconnect = BrokerMessage::Disconnect {
-                                    reason_code: 0,
-                                    session_expiry_interval: 0,
-                                    reason_string: "CLIENT_DUP".to_string(),
-                                    user_properties: Vec::new(),
-                                };
-                                match disconnect.write_to(&mut stream) {
+                match self.clients_ids.read() {
+                    Ok(clients) => {
+                        if clients.contains_key(&connect.client_id) {
+                            let disconnect = BrokerMessage::Disconnect {
+                                reason_code: 0,
+                                session_expiry_interval: 0,
+                                reason_string: "CLIENT_DUP".to_string(),
+                                user_properties: Vec::new(),
+                            };
+                            ClientConfig::remove_client(connect.client_id.clone());
+
+                            match disconnect.write_to(&mut stream) {
+                                Ok(_) => {
+                                    println!("Disconnect enviado");
+                                    return Ok(ProtocolReturn::DisconnectSent);
+                                }
+                                Err(err) => println!("Error al enviar Disconnect: {:?}", err),
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        return Err(ProtocolError::UnspecifiedError);
+                    }
+                }
+
+                // reibe los mensajes de cuando estuvo offline
+                if let Ok(offline_clients) = self.offline_clients.read() {
+                    if offline_clients.contains_key(&connect.client_id) {
+                        if let Some(pending_messages) = offline_clients.get(&connect.client_id) {
+                            for message in pending_messages {
+                                match message.write_to(&mut stream) {
                                     Ok(_) => {
-                                        println!("Disconnect enviado");
-                                        ClientConfig::change_client_state(
-                                            client.1.client_id.clone(),
-                                            false,
-                                        );
-                                        return Ok(ProtocolReturn::DisconnectSent);
+                                        println!("Mensaje enviado a {}", connect.client_id);
                                     }
-                                    Err(err) => println!("Error al enviar Disconnect: {:?}", err),
+                                    Err(_) => return Err(ProtocolError::UnspecifiedError),
                                 }
                             }
                         }
                     }
-                    Err(_) => println!("Error al leer clients_config"),
                 }
-
-                //
-                //     match self.clients_ids.read() {
-                //         Ok(clients) => {
-                //             if clients.contains_key(&connect.client_id) {
-                //                 let disconnect = BrokerMessage::Disconnect {
-                //                     reason_code: 0,
-                //                     session_expiry_interval: 0,
-                //                     reason_string: "CLIENT_DUP".to_string(),
-                //                     user_properties: Vec::new(),
-                //                 };
-                //                 match disconnect.write_to(&mut stream) {
-                //                     Ok(_) => {
-                //                         println!("Disconnect enviado");
-                //                         return Ok(ProtocolReturn::DisconnectSent);
-                //                     }
-                //                     Err(err) => println!("Error al enviar Disconnect: {:?}", err),
-                //                 }
-                //             }
-                //         }
-                //         Err(_) => {
-                //             // Manejo de error al leer clients_ids
-                //         }
-                //     }
-
-                // if let Ok(offline_clients) = self.offline_clients.read() {
-                //     if offline_clients.contains_key(&connect.client_id) {
-                //         if let Some(pending_messages) = offline_clients.get(&connect.client_id) {
-                //             for message in pending_messages {
-                //                 match message.write_to(&mut stream) {
-                //                     Ok(_) => {
-                //                         println!("Mensaje enviado a {}", connect.client_id);
-                //                     }
-                //                     Err(_) => return Err(ProtocolError::UnspecifiedError),
-                //                 }
-                //             }
-                //         }
-                //     }
-                // }
-
-                // reibe los mensajes de cuando estuvo offline
-                // verifica si el state del cliente es false, si es asi, le envia los mensajes que tenia pendientes
 
                 //si está en offline_clients lo elimino de ahí
                 if let Ok(mut lock) = self.offline_clients.write() {
+                    ClientConfig::remove_client(connect.client_id.clone());
                     lock.remove(&connect.client_id);
                 } else {
                     return Err(ProtocolError::UnspecifiedError);
@@ -617,7 +590,7 @@ impl Broker {
 
                 let will_message = connect.clone().give_will_message();
                 if let Ok(mut clients) = self.clients_ids.write() {
-                    ClientConfig::save_client_log_in_json(connect.client_id.clone());
+
                     clients.insert(
                         connect.client_id.clone(),
                         (Some(cloned_stream), will_message),
@@ -732,8 +705,6 @@ impl Broker {
                 let reason_code =
                     Broker::handle_subscribe(topics.clone(), payload.topic.clone(), payload.clone())?;
 
-                
-
                 let suback = BrokerMessage::Suback {
                     packet_id_msb: packet_id_bytes[0],
                     packet_id_lsb: packet_id_bytes[1],
@@ -774,6 +745,8 @@ impl Broker {
                     packet_id_lsb: packet_id_bytes[1],
                     reason_code,
                 };
+
+               
                 println!("Enviando un Unsuback");
                 match unsuback.write_to(&mut stream) {
                     Ok(_) => {
@@ -924,7 +897,7 @@ impl Broker {
                 match disconnect.write_to(&mut stream_clone) {
                     Ok(_) => {
                         println!("Disconnect enviado");
-                        ClientConfig::change_client_state(client_id.clone(), false);
+                        ClientConfig::remove_client(client_id.clone());
                     }
                     Err(_) => return Err(ProtocolError::UnspecifiedError),
                 }

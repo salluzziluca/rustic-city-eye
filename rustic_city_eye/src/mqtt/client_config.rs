@@ -62,9 +62,24 @@ impl ClientConfig {
         let _ = std::fs::write(path, json);
     }
 
-    pub fn _client_exists(client_id: String) -> bool {
+    pub fn client_exists(client_id: String) -> bool {
         // verifica si un cliente existe en el archivo json
         let path = format!("./src/mqtt/clients/{}.json", client_id);
         std::fs::metadata(path).is_ok()
     }
+
+    pub fn get_client(client_id: String) -> ClientConfig {
+        // obtiene un cliente del archivo json
+        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        let file = std::fs::File::open(path).unwrap();
+        serde_json::from_reader(file).unwrap()
+    }
+
+
+    pub fn remove_client(client_id: String) {
+        // remueve un cliente del archivo json
+        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        let _ = std::fs::remove_file(path);
+    }
+  
 }
