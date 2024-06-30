@@ -146,7 +146,6 @@ impl MonitoringApp {
 
         let subscribe_config = SubscribeConfig::new(
             topic_name.clone(),
-            1,
             subscribe_properties.clone(),
             connect_config.client_id.clone(),
         );
@@ -166,7 +165,6 @@ impl MonitoringApp {
         let topic_name = "camera_update".to_string();
         let subscribe_config = SubscribeConfig::new(
             topic_name.clone(),
-            1,
             subscribe_properties.clone(),
             connect_config.client_id.clone(),
         );
@@ -187,7 +185,6 @@ impl MonitoringApp {
         let topic_name = "attendingincident".to_string();
         let subscribe_config = SubscribeConfig::new(
             topic_name.clone(),
-            1,
             subscribe_properties,
             connect_config.client_id,
         );
