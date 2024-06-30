@@ -22,7 +22,7 @@ use crate::mqtt::{
 use crate::utils::payload_types::PayloadTypes;
 use crate::utils::threadpool::ThreadPool;
 
-use super::connect::last_will::LastWill;
+use super::{connect::last_will::LastWill, reason_code};
 
 static SERVER_ARGS: usize = 2;
 
@@ -406,27 +406,54 @@ impl Broker {
         topic_name: String,
         subscription: Subscription,
     ) -> Result<u8, ProtocolError> {
+        let mut reason_codes = Vec::new();
         let reason_code;
-        if let Some(topic) = topics.get_mut(&topic_name) {
-            match topic.add_user_to_topic(subscription) {
-                0 => {
-                    reason_code = SUCCESS_HEX;
-                }
-                0x92 => {
-                    reason_code = SUB_ID_DUP_HEX;
-                }
-                _ => {
-                    reason_code = UNSPECIFIED_ERROR_HEX;
+
+        // si el topic es +, se suscribe a todos los topics
+        if topic_name == "+" {
+            for topic_key in topics.keys() {
+                let mut topics_clone = topics.clone();
+                if let Some(topic) = topics_clone.get_mut(&topic_key.to_string()) {
+                    match topic.add_user_to_topic(subscription.clone()) {
+                        0 => {
+                            ClientConfig::add_new_subscription(subscription.client_id.clone(), topic_key.to_string());
+                            reason_codes.push(SUCCESS_HEX);
+                        }
+                        0x92 => {
+                            reason_codes.push(SUB_ID_DUP_HEX);
+                        }
+                        _ => {
+                            return Ok(UNSPECIFIED_ERROR_HEX);
+                        }
+                    }
                 }
             }
-        } else {
-            reason_code = UNSPECIFIED_ERROR_HEX;
-        }
+            if reason_codes.contains(&SUCCESS_HEX) {
+                reason_code = SUCCESS_HEX;
+            } else if reason_codes.contains(&SUB_ID_DUP_HEX) {
+                reason_code = SUB_ID_DUP_HEX;
+            } else {
+                reason_code = UNSPECIFIED_ERROR_HEX;
+            }
+        }else {
+            if let Some(topic) = topics.get_mut(&topic_name) {
+                match topic.add_user_to_topic(subscription.clone()) {
+                    0 => {
+                        ClientConfig::add_new_subscription(subscription.client_id.clone(), topic_name.clone());
+                        reason_code = SUCCESS_HEX;
+                    }
+                    0x92 => {
+                        reason_code = SUB_ID_DUP_HEX;
+                    }
+                    _ => {
+                        reason_code = UNSPECIFIED_ERROR_HEX;
+                    }
+                }
+            } else {
+                reason_code = UNSPECIFIED_ERROR_HEX;
+            }
+        }     
 
-        if reason_code == SUCCESS_HEX {
-            // abro el archivo json con el nombre del cliente y agrego la suscripcion
-            
-        }
 
         Ok(reason_code)
     }
@@ -734,6 +761,7 @@ impl Broker {
                 let reason_code =
                     Broker::handle_subscribe(topics.clone(), payload.topic.clone(), payload.clone())?;
 
+                
 
                 let suback = BrokerMessage::Suback {
                     packet_id_msb: packet_id_bytes[0],
