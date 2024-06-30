@@ -274,7 +274,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
     /// Adicionalmente, cada camara activada despues avisa a las camaras colindantes para que,
     /// si estan a la distancia requerida, tambien se activen.
     pub fn activate_cameras(&mut self, location: Location) -> Result<(), CameraError> {
-        // Collect the locations that need to be activated first
         println!(
             "CameraSys: Camaras antes de ser activadas: {:?}",
             self.cameras
@@ -296,7 +295,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             "CameraSys: Camaras despues de ser activadas: {:?}",
             self.cameras
         );
-        // Activate cameras by the collected locations
         for loc in locations_to_activate {
             self.activate_cameras_by_camera_location(loc)?;
         }
@@ -316,7 +314,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         &mut self,
         location: Location,
     ) -> Result<(), CameraError> {
-        // Collect the locations that need to be activated first
         let mut locations_to_activate = Vec::new();
 
         for camera in self.cameras.values_mut() {
@@ -327,7 +324,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             }
         }
 
-        // Activate cameras by the collected locations
         for loc in locations_to_activate {
             self.activate_cameras_by_camera_location(loc)?;
         }
@@ -356,7 +352,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             })
             .collect();
 
-        // Activate cameras by the collected locations
         for loc in locations_to_activate {
             self.deactivate_cameras_by_camera_location(loc)?;
         }
@@ -376,7 +371,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         &mut self,
         location: Location,
     ) -> Result<(), CameraError> {
-        // Collect the locations that need to be activated first
         let mut locations_to_activate = Vec::new();
 
         for camera in self.cameras.values_mut() {
@@ -387,7 +381,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             }
         }
 
-        // Activate cameras by the collected locations
         for loc in locations_to_activate {
             self.deactivate_cameras_by_camera_location(loc)?;
         }
@@ -424,7 +417,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
     /// Si no hay cambios, no envia nada
     /// Almacena la nueva snapshot para la proxima comparacion
     pub fn publish_cameras_update(&mut self) -> Result<(), CameraError> {
-        //load tuples of id,camera to a vector
         let mut new_snapshot: Vec<Camera> = Vec::new();
         for camera in self.cameras.values() {
             new_snapshot.push(camera.clone());
@@ -436,7 +428,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
 
             if (!self.snapshot.contains(&camera.clone()))
                 || (self.snapshot.contains(&camera.clone())
-                    && camera.get_sleep_mode()
+                    && camera.get_sleep_mode() //BUG: EL PROBLEMAS PUEDE ESTAR ACA, SI NO COMPARA BIEN Y MANDA UN PUBLISH MAL HECHO, VAN A VERSE MAL LAS CAMARAS EN LA UI
                         != match self.snapshot.iter().find(|&x| x == camera) {
                             Some(camera) => camera.get_sleep_mode(),
                             None => false,
@@ -470,52 +462,9 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                 return Err(CameraError::SendError);
             }
         };
-        // match lock.send(Box::new(publish_config)) {
-        //     Ok(_) => {}
-        //     Err(_) => {
-        //         return Err(CameraError::SendError
-        //             );
-        //     }
-        // }
-
-        // let incident = Incident::new(Location::new(1.1, 1.1));
-
-        // let topic_properties = TopicProperties {
-        //     topic_alias: 10,
-        //     response_topic: "".to_string(),
-        // };
-
-        // let properties = PublishProperties::new(
-        //     1,
-        //     10,
-        //     topic_properties,
-        //     [1, 2, 3].to_vec(),
-        //     "a".to_string(),
-        //     1,
-        //     "a".to_string(),
-        // );
-        // let payload = PayloadTypes::IncidentLocation(IncidentPayload::new(incident));
-
-        // let publish_config =
-        //     PublishConfig::new(1, 1, 0, "incidente".to_string(), payload, properties);
 
         let _ = lock.send(Box::new(publish_config));
-        // match lock.send(Box::new(message)) {
-        //     Ok(_) => {}
-        //     Err(e) => {
-        //         println!("CameraSys: Error sending message: {:?}", e);
-        //         return Err(CameraError::SendError);
-        //     }
-        // };
 
-        // match self.send_message(Box::new(publish_config)) {
-        //     Ok(_) => {
-        //         println!("CameraSys: Sending publish cameras update to client");
-        //     }
-        //     Err(_) => {
-        //         return Err(CameraError::SendError);
-        //     }
-        // }
         self.snapshot = new_snapshot;
 
         Ok(())
