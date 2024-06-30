@@ -87,14 +87,12 @@ impl MonitoringApp {
             let active_drones_clone = Arc::clone(&active_drones);
             let cameras_clone = Arc::clone(&cameras);
             let incidents_clone = Arc::clone(&incidents);
-            let tx_clone = Arc::clone(&tx_arc);
 
             update_entities(
                 receiver_clone,
                 active_drones_clone,
                 cameras_clone,
                 incidents_clone,
-                tx_clone,
             );
         });
         Ok(monitoring_app)
@@ -182,7 +180,7 @@ impl MonitoringApp {
             }
         };
 
-        let topic_name = "attendingincident".to_string();
+        let topic_name = "incidente_resuelto".to_string();
         let subscribe_config = SubscribeConfig::new(
             topic_name.clone(),
             subscribe_properties,
@@ -326,7 +324,6 @@ pub fn update_entities(
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
     incidents: Arc<Mutex<Vec<(Incident, u8)>>>,
-    send_to_client_channel: Arc<Mutex<Sender<Box<dyn MessagesConfig + Send>>>>,
 ) {
     let receiver = match recieve_from_client.lock() {
         Ok(receiver) => receiver,
@@ -365,54 +362,19 @@ pub fn update_entities(
                             cameras.insert(camera.get_id(), camera);
                         }
                     }
-                } else if topic_name == "attendingincident" {
-                    if let PayloadTypes::AttendingIncident(incident_payload) = payload {
+                }  else if topic_name == "incidente_resuelto" {
+                    if let PayloadTypes::IncidentLocation(incident_payload) = payload {
                         let mut incidents = incidents.lock().unwrap();
-
                         let mut to_remove = Vec::new();
 
-                        for (incident, count) in incidents.iter_mut() {
+                        for (incident, _count) in incidents.iter_mut() {
                             if incident.get_location()
-                                == incident_payload.get_incident().get_location()
-                            {
-                                *count += 1;
-
-                                if *count == 2 {
+                                == incident_payload.get_incident().get_location() {
                                     to_remove.push(incident.clone());
-                                    //publish incident resolver message
-                                    let incident_payload = IncidentPayload::new(Incident::new(
-                                        incident.get_location(),
-                                    ));
-                                    let publish_config = match PublishConfig::read_config(
-                                        "src/monitoring/publish_solved_incident_config.json",
-                                        PayloadTypes::IncidentLocation(incident_payload),
-                                    ) {
-                                        Ok(config) => config,
-                                        Err(e) => {
-                                            println!("Error reading publish config: {:?}", e);
-                                            return;
-                                        }
-                                    };
-                                    let send_to_client_channel: std::sync::MutexGuard<
-                                        Sender<Box<dyn MessagesConfig + Send>>,
-                                    > = send_to_client_channel.lock().unwrap();
-
-                                    match send_to_client_channel.send(Box::new(publish_config)) {
-                                        Ok(_) => {
-                                            println!("MONITO AAAAAAA ENVIO LAS COSASSSSSS");
-                                        }
-                                        Err(e) => {
-                                            println!("Error sending to client channel: {:?}", e);
-                                        }
-                                    };
-                                }
                             }
                         }
 
-                        // Remove incidents marked for removal
                         incidents.retain(|(inc, _)| !to_remove.contains(inc));
-
-                        println!("Incidents: {:?}", incidents);
                     }
                 }
             }
