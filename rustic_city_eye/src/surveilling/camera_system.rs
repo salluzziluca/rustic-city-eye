@@ -1102,9 +1102,7 @@ mod tests {
                     payload,
                     properties: _,
                 } => {
-                    for topic in payload {
-                        assert_eq!(topic.topic, "incidente");
-                    }
+                    assert_eq!(payload.topic, "camera_update");
                 }
                 _ => {
                     panic!("Unexpected message type");
