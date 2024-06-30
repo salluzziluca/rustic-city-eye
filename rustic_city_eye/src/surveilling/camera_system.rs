@@ -271,7 +271,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
 
                                 continue;
                             } else if topic_name == "incidente_resuelto" {
-
                                 println!("ASI ES COÑO LO HE RECIBIDO");
                                 solved_incident_location =
                                     Some(payload.get_incident().get_location());
