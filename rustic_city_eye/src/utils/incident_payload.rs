@@ -1,8 +1,6 @@
 use serde::Deserialize;
 
-use crate::{
-    monitoring::incident::Incident, mqtt::protocol_error::ProtocolError, utils::writer::write_u8,
-};
+use crate::{monitoring::incident::Incident, mqtt::protocol_error::ProtocolError};
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct IncidentPayload {
@@ -21,8 +19,6 @@ impl IncidentPayload {
 
     ///Se sabe escribir sobre un stream dado.
     pub fn write_to(&self, stream: &mut dyn std::io::prelude::Write) -> Result<(), ProtocolError> {
-        write_u8(stream, &self.id)?;
-
         self.incident.write_to(stream)?;
         Ok(())
     }

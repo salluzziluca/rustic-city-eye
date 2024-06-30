@@ -2,7 +2,7 @@
   "dup_flag": 1,
   "qos": 1,
   "retain_flag": 1,
-  "topic_name": "drone_locations",
+  "topic_name": "incidente_resuelto",
   "payload": {
     "IncidentLocation": {
       "id": 1,

@@ -17,7 +17,7 @@ impl Incident {
     }
 
     pub fn get_location(&self) -> Location {
-        self.location.clone()
+        self.location
     }
 
     pub fn write_to(&self, stream: &mut dyn std::io::prelude::Write) -> Result<(), ProtocolError> {
@@ -40,7 +40,7 @@ mod tests {
     #[test]
     fn test_new_incident() {
         let location = Location::new(1.0, 2.0);
-        let incident = Incident::new(location.clone());
+        let incident = Incident::new(location);
         assert_eq!(incident.get_location(), location);
     }
 }

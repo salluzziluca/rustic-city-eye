@@ -22,7 +22,7 @@ use crate::mqtt::{
 use crate::utils::payload_types::PayloadTypes;
 use crate::utils::threadpool::ThreadPool;
 
-use super::{connect::last_will::LastWill, reason_code};
+use super::connect::last_will::LastWill;
 
 static SERVER_ARGS: usize = 2;
 
@@ -336,15 +336,11 @@ impl Broker {
         message: &BrokerMessage,
     ) -> Result<(), bool> {
         let clients = self.clients_ids.read().map_err(|_| false)?;
-        if let Some((stream, _)) = clients.get(&user.client_id) {
-            if let Some(stream) = stream {
-                let mut stream_clone = stream.try_clone().expect("Error al clonar el stream");
-                message.write_to(&mut stream_clone).map_err(|_| true)?;
-                println!("Mensaje enviado a {}", user.client_id);
-                Ok(())
-            } else {
-                Err(true)
-            }
+        if let Some((Some(stream), _)) = clients.get(&user.client_id) {
+            let mut stream_clone = stream.try_clone().expect("Error al clonar el stream");
+            message.write_to(&mut stream_clone).map_err(|_| true)?;
+            println!("Mensaje enviado a {}", user.client_id);
+            Ok(())
         } else {
             Err(true)
         }

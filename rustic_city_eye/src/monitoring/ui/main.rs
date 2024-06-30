@@ -8,9 +8,11 @@ mod windows;
 use camera_view::CameraView;
 use eframe::{run_native, App, CreationContext, NativeOptions};
 use egui::{CentralPanel, RichText, TextStyle};
+use incident_view::IncidentView;
 use plugins::*;
 use rustic_city_eye::{
-    monitoring::monitoring_app::MonitoringApp, surveilling::camera::Camera,
+    monitoring::{incident::Incident, monitoring_app::MonitoringApp},
+    surveilling::camera::Camera,
     utils::location::Location,
 };
 use std::collections::HashMap;
@@ -60,6 +62,22 @@ impl MyMap {
                 }
             }
         }
+    }
+
+    fn update_incidents(&mut self, incidents: Vec<Incident>) {
+        let mut new_incident_view = vec![];
+        for incident in incidents {
+            let location = incident.get_location();
+
+            let incident_view = IncidentView {
+                image: self.incident_icon.clone(),
+                position: Position::from_lon_lat(location.long, location.lat),
+                clicked: false,
+            };
+            new_incident_view.push(incident_view);
+        }
+
+        self.incidents = new_incident_view;
     }
 }
 
@@ -179,7 +197,11 @@ impl MyApp {
                     self.map.zoom_level,
                     last_clicked,
                 ))
-                .with_plugin(drones(&mut self.map.drones, 0.8, last_clicked))
+                .with_plugin(drones(
+                    &mut self.map.drones,
+                    self.map.zoom_level,
+                    last_clicked,
+                ))
                 .with_plugin(drone_centers(
                     &mut self.map.drone_centers,
                     self.map.zoom_level,
@@ -193,6 +215,9 @@ impl MyApp {
                 self.map.update_drones(new_locations);
                 let new_cameras = monitoring_app.get_cameras();
                 self.map.update_cameras(new_cameras);
+
+                let incidents = monitoring_app.get_incidents();
+                self.map.update_incidents(incidents);
                 add_camera_window(ui, &mut self.map, monitoring_app);
                 add_incident_window(ui, &mut self.map, monitoring_app);
                 add_drone_window(ui, &mut self.map, monitoring_app);
@@ -230,7 +255,7 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
 
     let drone_bytes = include_bytes!("../assets/Drone.png");
     let drone_icon = match Texture::new(drone_bytes, &cc.egui_ctx) {
-        Ok(t) => ImagesPluginData::new(t, 1.0, 0.08), // Initialize with zoom level 1.0
+        Ok(t) => ImagesPluginData::new(t, 1.0, 0.06), // Initialize with zoom level 1.0
         Err(_) => todo!(),
     };
 

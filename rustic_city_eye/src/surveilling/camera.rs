@@ -29,7 +29,7 @@ impl Camera {
     }
 
     pub fn get_location(&self) -> Location {
-        self.location.clone()
+        self.location
     }
     pub fn get_id(&self) -> u32 {
         self.id
@@ -89,7 +89,7 @@ mod tests {
     #[test]
     fn test_new_camera() {
         let location = Location::new(1.0, 2.0);
-        let camera = Camera::new(location.clone(), 1);
+        let camera = Camera::new(location, 1);
         assert_eq!(camera.get_location(), location);
         assert_eq!(camera.get_id(), 1);
     }
