@@ -508,30 +508,6 @@ impl Broker {
         _ = self.handle_publish(will_publish, topics, will_topic.to_string());
     }
 
-    fn save_client_log_in_json(&self, client_id: String) {
-        // guarda en un archivo json el log de los clientes, con la estructura client_config
-
-        let client_config = ClientConfig::new(client_id.clone());
-        let json = serde_json::to_string(&client_config).unwrap();
-        let path = format!("./src/mqtt/clients/{}.json", client_id);
-
-        let _ = std::fs::write(path, json);
-    }
-
-    fn change_client_state(&self, client_id: String, state: bool) {
-        // cambia el estado de un cliente en el archivo json
-        let path = format!("./src/mqtt/clients/{}.json", client_id);
-        let file = std::fs::File::open(path.clone()).unwrap();
-        let client_config: ClientConfig = serde_json::from_reader(file).unwrap();
-        let new_client_config = ClientConfig {
-            client_id: client_config.client_id,
-            state,
-            subscriptions: client_config.subscriptions,
-        };
-        let json = serde_json::to_string(&new_client_config).unwrap();
-        let _ = std::fs::write(path, json);
-    }
-
     /// Lee del stream un mensaje y lo procesa
     /// Devuelve un ProtocolReturn con informacion del mensaje recibido
     /// O ProtocolError en caso de erro    #[allow(clippy::type_complexity)]
@@ -571,7 +547,10 @@ impl Broker {
                                 match disconnect.write_to(&mut stream) {
                                     Ok(_) => {
                                         println!("Disconnect enviado");
-                                        self.change_client_state(client.1.client_id.clone(), false);
+                                        ClientConfig::change_client_state(
+                                            client.1.client_id.clone(),
+                                            false,
+                                        );
                                         return Ok(ProtocolReturn::DisconnectSent);
                                     }
                                     Err(err) => println!("Error al enviar Disconnect: {:?}", err),
@@ -592,7 +571,6 @@ impl Broker {
                 //                     reason_string: "CLIENT_DUP".to_string(),
                 //                     user_properties: Vec::new(),
                 //                 };
-
                 //                 match disconnect.write_to(&mut stream) {
                 //                     Ok(_) => {
                 //                         println!("Disconnect enviado");
@@ -640,7 +618,7 @@ impl Broker {
 
                 let will_message = connect.clone().give_will_message();
                 if let Ok(mut clients) = self.clients_ids.write() {
-                    self.save_client_log_in_json(connect.client_id.clone());
+                    ClientConfig::save_client_log_in_json(connect.client_id.clone());
                     clients.insert(
                         connect.client_id.clone(),
                         (Some(cloned_stream), will_message),
@@ -870,7 +848,7 @@ impl Broker {
                 }
 
                 // cambio el estado del cliente a desconectado
-                self.change_client_state(client_id.clone(), false);
+                ClientConfig::change_client_state(client_id.clone(), false);
 
                 // agrego el client_id a offline_clients
                 if let Ok(mut lock) = self.offline_clients.write() {
@@ -987,7 +965,7 @@ impl Broker {
                 match disconnect.write_to(&mut stream_clone) {
                     Ok(_) => {
                         println!("Disconnect enviado");
-                        self.change_client_state(client_id.clone(), false);
+                        ClientConfig::change_client_state(client_id.clone(), false);
                     }
                     Err(_) => return Err(ProtocolError::UnspecifiedError),
                 }
