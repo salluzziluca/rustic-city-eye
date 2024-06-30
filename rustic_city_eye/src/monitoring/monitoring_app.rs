@@ -177,6 +177,7 @@ impl MonitoringApp {
                     topic_name
                 );
             }
+
             Err(e) => {
                 println!("Monitoring: Error sending message: {:?}", e);
                 return Err(ProtocolError::SubscribeError);

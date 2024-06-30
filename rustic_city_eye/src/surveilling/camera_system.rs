@@ -76,7 +76,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         let client_id = camera_system_client.get_client_id();
         let subscribe_config = SubscribeConfig::new(
             "incidente".to_string(),
-            1,
             SubscribeProperties::new(1, vec![]),
             client_id.clone(),
         );
@@ -273,6 +272,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
 
                                 continue;
                             } else if topic_name == "incidente_resuelto" {
+
                                 println!("ASI ES COÑO LO HE RECIBIDO");
                                 solved_incident_location =
                                     Some(payload.get_incident().get_location());

@@ -21,7 +21,7 @@ use crate::mqtt::{
 use crate::utils::payload_types::PayloadTypes;
 use crate::utils::threadpool::ThreadPool;
 
-use super::connect::last_will::LastWill;
+use super::{connect::last_will::LastWill, topic};
 
 static SERVER_ARGS: usize = 2;
 
@@ -308,14 +308,11 @@ impl Broker {
         Ok(reason_code)
     }
 
-    fn handle_publish(
-        &self,
-        message: ClientMessage,
-        mut topics: HashMap<String, Topic>,
-        topic_name: String,
-    ) -> Result<u8, ProtocolError> {
-        //convert the ClientMessage to ClientMessage:Publish
-        let mensaje = match message.clone() {
+    /// Convierte un mensaje del cliente a un mensaje del broker.
+    ///
+    /// Retorna el mensaje del broker si la conversion fue exitosa, o un error si no lo fue.
+    fn convert_to_broker_message(message: &ClientMessage) -> Result<BrokerMessage, ProtocolError> {
+        match message {
             ClientMessage::Publish {
                 packet_id,
                 topic_name,
@@ -324,84 +321,88 @@ impl Broker {
                 payload,
                 dup_flag,
                 properties,
-            } => BrokerMessage::PublishDelivery {
-                packet_id,
-                topic_name,
-                qos,
-                retain_flag,
-                payload,
-                dup_flag,
-                properties,
-            },
-            _ => return Err(ProtocolError::UnspecifiedError),
-        };
+            } => Ok(BrokerMessage::PublishDelivery {
+                packet_id: *packet_id,
+                topic_name: topic_name.clone(),
+                qos: *qos,
+                retain_flag: *retain_flag,
+                payload: payload.clone(),
+                dup_flag: *dup_flag,
+                properties: properties.clone(),
+            }),
+            _ => Err(ProtocolError::UnspecifiedError),
+        }
+    }
 
-        // verifico si el topic exite
-        if let Some(topic) = topics.get_mut(&topic_name) {
-            //obtengo los users que corresponden a ese topic
-            let users = topic.get_topic_users();
-            println!("users subscriptos al topic {:?}", users);
-            let message_clone = message.clone();
-            for user in users {
-                //verifico si el user esta conectado
-                let mut es_qos_1 = false;
-                let mut esta_offline = false;
+    /// Envia un mensaje a un usuario.
+    ///
+    /// Retorna Ok si el mensaje fue enviado, Err si el usuario está offline.
+    fn send_message_to_user(
+        &self,
+        user: &Subscription,
+        message: &BrokerMessage,
+    ) -> Result<(), bool> {
+        let clients = self.clients_ids.read().map_err(|_| false)?;
+        if let Some((stream, _)) = clients.get(&user.client_id) {
+            if let Some(stream) = stream {
+                let mut stream_clone = stream.try_clone().expect("Error al clonar el stream");
+                message.write_to(&mut stream_clone).map_err(|_| true)?;
+                println!("Mensaje enviado a {}", user.client_id);
+                Ok(())
+            } else {
+                Err(true)
+            }
+        } else {
+            Err(true)
+        }
+    }
 
-                match self.clients_ids.read() {
-                    Ok(clients) => {
-                        if let Some(tuple) = clients.get(&user.client_id) {
-                            let tuple_clone = tuple;
-                            if let Some(stream) = &tuple_clone.0 {
-                                let mut stream_clone =
-                                    stream.try_clone().expect("Failed to clone stream");
-                                //envio el mensaje al user
-                                match mensaje.write_to(&mut stream_clone) {
-                                    Ok(_) => {
-                                        println!("Mensaje enviado a {}", user.client_id);
-                                    }
-                                    Err(_) => {
-                                        // si es qos 1 me guardo el mensaje
-                                        if user.qos == 1 {
-                                            es_qos_1 = true;
-                                        }
-                                    }
-                                }
-                                // si el mensaje es qos 1, envio el ack
-                            }
-                        } else {
-                            match self.offline_clients.read() {
-                                Ok(offline_clients) => {
-                                    if let Some(_stream) = offline_clients.get(&user.client_id) {
-                                        //guardo el mensaje para enviarlo cuando el user se conecte
-                                        esta_offline = true;
-                                    }
-                                }
-                                Err(_) => {
-                                    // Manejo de error al leer offline_clients
-                                }
-                            }
-                        }
-                    }
-                    Err(_) => {
-                        // Manejo de error al leer clients_ids
-                    }
-                }
+    /// Maneja el mensaje de un usuario offline.
+    ///
+    /// Guarda el mensaje en offline_clients.
+    fn handle_offline_user(
+        &self,
+        user_id: &str,
+        message: &ClientMessage,
+    ) -> Result<(), ProtocolError> {
+        let mut offline_clients = self
+            .offline_clients
+            .write()
+            .map_err(|_| ProtocolError::UnspecifiedError)?;
+        if let Some(messages) = offline_clients.get_mut(user_id) {
+            messages.push(message.clone());
+        } else {
+            offline_clients.insert(user_id.to_string(), vec![message.clone()]);
+        }
+        Ok(())
+    }
 
-                if esta_offline && es_qos_1 {
-                    if let Ok(mut lock) = self.offline_clients.write() {
-                        if let Some(messages) = lock.get_mut(&user.client_id) {
-                            messages.push(message_clone.clone());
-                        } else {
-                            lock.insert(user.client_id, vec![message_clone.clone()]);
-                        }
-                    } else {
-                        return Ok(0x80_u8);
+    /// Maneja el envio de un mensaje a un topic.
+    ///
+    /// Retorna el reason code correspondiente a si el envio fue exitoso o no.
+    fn handle_publish(
+        &self,
+        message: ClientMessage,
+        mut topics: HashMap<String, Topic>,
+        topic_name: String,
+    ) -> Result<u8, ProtocolError> {
+        let mensaje = Broker::convert_to_broker_message(&message)?;
+        let topic = topics
+            .get_mut(&topic_name)
+            .ok_or(ProtocolError::UnspecifiedError)?;
+        let users = topic.get_users_from_topic();
+
+        for user in users {
+            match self.send_message_to_user(&user, &mensaje) {
+                Ok(_) => (),
+                Err(esta_offline) => {
+                    if esta_offline {
+                        self.handle_offline_user(&user.client_id, &message)?;
                     }
                 }
             }
         }
-
-        Ok(0x80_u8) //Unspecified Error reason code
+        Ok(0x80_u8) // Unspecified Error reason code
     }
 
     /// Maneja la desubscripcion de un cliente a un topic
