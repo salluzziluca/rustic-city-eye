@@ -27,7 +27,7 @@ pub enum ProtocolError {
     DroneError(String),
     CameraError(String),
     SendError(String),
-    ShutdownError(String)
+    ShutdownError(String),
 }
 
 impl fmt::Display for ProtocolError {

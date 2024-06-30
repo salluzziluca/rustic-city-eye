@@ -185,7 +185,7 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, _monitoring_app: &mut Monitor
                     map.incidents.retain(|incident| !incident.clicked);
 
                     map.drones.retain(|_id, drone| !drone.clicked);
-                 
+
                     map.drone_centers
                         .retain(|drone_center| !drone_center.clicked);
                 }

@@ -255,10 +255,9 @@ impl MonitoringApp {
         self.drone_system.disconnect_system()?;
 
         println!("Cliente de la monitoring app desconectado correctamente");
-        
+
         Ok(())
     }
-
 }
 
 pub fn update_entities(

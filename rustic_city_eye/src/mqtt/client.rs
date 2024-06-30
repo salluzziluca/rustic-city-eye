@@ -342,7 +342,7 @@ impl Client {
             Err(e) => {
                 println!("Client: Error while shutting down stream: {:?}", e);
                 return Err(ProtocolError::ShutdownError(e.to_string()));
-            },
+            }
         }
     }
 
@@ -676,7 +676,7 @@ impl ClientTrait for Client {
             Err(e) => {
                 println!("Client: Error while shutting down stream: {:?}", e);
                 return Err(ProtocolError::ShutdownError(e.to_string()));
-            },
+            }
         }
     }
 }

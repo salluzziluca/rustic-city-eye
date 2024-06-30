@@ -1,5 +1,8 @@
 use std::{
-    sync::{mpsc::{self, Receiver, Sender}, Arc, Mutex},
+    sync::{
+        mpsc::{self, Receiver, Sender},
+        Arc, Mutex,
+    },
     thread::{self, sleep},
     time::Duration,
 };
@@ -8,7 +11,13 @@ use super::{drone_config::DroneConfig, drone_error::DroneError, drone_state::Dro
 use crate::{
     monitoring::incident::Incident,
     mqtt::{
-        client::Client, client_message::{self, ClientMessage}, messages_config, protocol_error::ProtocolError, publish::publish_config::PublishConfig, subscribe_config::SubscribeConfig, subscribe_properties::SubscribeProperties
+        client::Client,
+        client_message::{self, ClientMessage, Connect},
+        messages_config::{self, MessagesConfig},
+        protocol_error::ProtocolError,
+        publish::publish_config::PublishConfig,
+        subscribe_config::SubscribeConfig,
+        subscribe_properties::SubscribeProperties,
     },
     utils::{incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes},
 };
@@ -63,7 +72,8 @@ pub struct Drone {
 
     /// A traves de este sender, se envia la configuracion de los packets que el Drone
     /// quiera enviar a la red.
-    send_to_client_channel: Arc<Mutex<Option<Sender<Box<dyn messages_config::MessagesConfig + Send>>>>>,
+    send_to_client_channel:
+        Arc<Mutex<Option<Sender<Box<dyn messages_config::MessagesConfig + Send>>>>>,
 
     /// A traves de este receiver, el Drone recibe los mensajes provenientes de su Client.
     recieve_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
@@ -81,48 +91,12 @@ impl Drone {
         address: String,
     ) -> Result<Drone, DroneError> {
         let drone_config = DroneConfig::new(config_file_path)?;
+        let connect_config = Drone::read_connect_config("src/drones/connect_config.json", id)?;
 
-        let mut connect_config =
-            match client_message::Connect::read_connect_config("src/drones/connect_config.json") {
-                Ok(config) => config,
-                Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
-            };
-        connect_config.client_id = id.to_string();
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
-        let subscribe_config = SubscribeConfig::new(
-            "incidente".to_string(),
-            1,
-            SubscribeProperties::new(1, vec![]),
-            id.to_string(),
-        );
 
-        let drone_client = match Client::new(rx, address, connect_config, tx2) {
-            Ok(client) => client,
-            Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
-        };
-
-        match tx.send(Box::new(subscribe_config)) {
-            Ok(_) => {}
-            Err(e) => {
-                println!("Monitoring: Error sending message: {:?}", e);
-                return Err(DroneError::SubscribeError(e.to_string()));
-            }
-        };
-        let subscribe_properties: SubscribeProperties = SubscribeProperties::new(1, Vec::new());
-        let subscribe_config = SubscribeConfig::new(
-            "attendingincident".to_string(),
-            1,
-            subscribe_properties,
-            id.clone().to_string(),
-        );
-        match tx.send(Box::new(subscribe_config)) {
-            Ok(_) => {}
-            Err(e) => {
-                println!("Monitoring: Error sending message: {:?}", e);
-                return Err(DroneError::SubscribeError(e.to_string()));
-            }
-        };
+        let drone_client = Drone::create_client(id, rx, address, connect_config, tx2, tx.clone())?;
 
         let target_location = location;
         Ok(Drone {
@@ -138,6 +112,96 @@ impl Drone {
             recieve_from_client: Arc::new(Mutex::new(rx2)),
             incidents: Vec::new(),
         })
+    }
+
+    /// Levanta la configuracion que va a tener el packet Connect que enviara el Client
+    /// del Drone.
+    ///
+    /// Setea su client id al id que ingrese por parametro(va a estar definido por el usuario
+    /// a la hora de instanciar a un nuevo Drone).
+    fn read_connect_config(file_path: &str, id: u32) -> Result<Connect, DroneError> {
+        let mut connect_config = match Connect::read_connect_config(file_path) {
+            Ok(config) => config,
+            Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
+        };
+        connect_config.client_id = id.to_string();
+
+        Ok(connect_config)
+    }
+
+    /// Crea el Client a traves del cual el Drone va a comunicarse con la red.
+    /// 
+    /// Este Client se va a construir a partir de la configuracion brindada en su archivo de configuracion.
+    /// 
+    /// Una vez conectado, se envian packets que van a suscribir al Drone a sus topics de interes(ver metodo subscribe_to_topics).
+    /// 
+    /// Retorna error en caso de fallar la creacion.
+    fn create_client(
+        id: u32,
+        receive_from_drone_channel: Receiver<Box<dyn MessagesConfig + Send>>,
+        address: String,
+        connect_config: Connect,
+        send_to_drone_channel: Sender<ClientMessage>,
+        send_from_drone_channel: Sender<Box<dyn MessagesConfig + Send>>
+    ) -> Result<Client, DroneError> {
+        match Client::new(
+            receive_from_drone_channel,
+            address,
+            connect_config.clone(),
+            send_to_drone_channel,
+        ) {
+            Ok(client) => {
+                println!("Soy el Drone {}, y mi Client se conecto exitosamente!", id);
+                Drone::subscribe_to_topics(connect_config, send_from_drone_channel)?;
+                Ok(client)
+            }
+            Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
+        }
+    }
+
+
+    /// Contiene las subscripciones a los topics de interes para el Drone: necesita la suscripcion al topic
+    /// de incidentes("incident"), y al de drones atendiendo incidentes("attendingincident"): la idea es que reciban los incidentes
+    /// cargados desde la aplicacion de monitoreo, y que ademas sepan que drones estan atendiendo ciertos incidentes, para que los drones
+    /// puedan organizarse para resolver los distintos incidentes.
+    fn subscribe_to_topics(connect_config: Connect, send_from_drone_channel: Sender<Box<dyn MessagesConfig + Send>>) -> Result<(), DroneError> {
+        let subscribe_properties = SubscribeProperties::new(1, connect_config.properties.user_properties);
+        let topic_name = "incidente".to_string();
+        let subscribe_config = SubscribeConfig::new(
+            topic_name.clone(),
+            1,
+            subscribe_properties.clone(),
+            connect_config.client_id.clone(),
+        );
+
+        match send_from_drone_channel.send(Box::new(subscribe_config)) {
+            Ok(_) => {
+                println!("Drone {} suscrito al topic {} correctamente", connect_config.client_id, topic_name);
+            }
+            Err(e) => {
+                println!("Drone {}: Error sending message: {:?}", connect_config.client_id, e);
+                return Err(DroneError::SubscribeError(e.to_string()));
+            }
+        };
+
+        let topic_name = "attendingincident".to_string();
+        let subscribe_config = SubscribeConfig::new(
+            topic_name.clone(),
+            1,
+            subscribe_properties,
+            connect_config.client_id.clone(),
+        );
+        match send_from_drone_channel.send(Box::new(subscribe_config)) {
+            Ok(_) => {
+                println!("Drone {} suscrito al topic {} correctamente", connect_config.client_id, topic_name);
+            }
+            Err(e) => {
+                println!("Drone {}: Error sending message: {:?}", connect_config.client_id, e);
+                return Err(DroneError::SubscribeError(e.to_string()));
+            }
+        };
+
+        Ok(())
     }
 
     pub fn disconnect(&mut self) -> Result<(), ProtocolError> {
@@ -604,7 +668,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_01_drone_arranca_en_waiting_state() {
+    fn test_01_reading_connect_config_ok() -> Result<(), DroneError> {
+        let file_path = "./src/drones/connect_config.json";
+        let id = 1;
+        let connect_config = Drone::read_connect_config(file_path, id);
+
+        match connect_config {
+            Ok(config) => {
+                println!("Connect config: {:?}", config);
+
+                Ok(())
+            }
+            Err(e) => return Err(e),
+        }
+    }
+
+    #[test]
+    fn test_02_drone_arranca_en_waiting_state() {
         let args = vec!["127.0.0.1".to_string(), "5001".to_string()];
         let mut broker = match Broker::new(args) {
             Ok(broker) => broker,
