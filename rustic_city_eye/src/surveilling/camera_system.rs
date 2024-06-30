@@ -28,7 +28,7 @@ const NIVEL_DE_PROXIMIDAD_MAXIMO: f64 = AREA_DE_ALCANCE;
 
 use super::camera_error::CameraError;
 #[derive(Debug)]
-#[allow(dead_code)]
+
 /// Entidad encargada de gestionar todas las camaras. Tiene como parametro a su instancia de cliente, utiliza un hash `<ID, Camera>` como estructura principal y diferentes channels para comunicarse con su cliente.
 /// Los mensajes recibidos le llegan mediante el channel `reciev_from_client` y envia una config con los mensajes que quiere enviar mediante `send_to_client_channel``
 pub struct CameraSystem<T: ClientTrait + Clone> {
@@ -152,7 +152,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         let system_clone_one = Arc::clone(&system);
         let system_clone_two = Arc::clone(&system);
 
-        let _handle_client = thread::spawn(move || {
+        thread::spawn(move || {
             let mut lock = match system_clone_one.lock() {
                 Ok(guard) => guard,
                 Err(_) => {
@@ -167,7 +167,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             }
         });
 
-        let _handle = thread::spawn(move || {
+        thread::spawn(move || {
             let mut incident_location: Option<Location> = None;
             let mut solved_incident_location: Option<Location> = None;
             let reciever: Arc<Mutex<Receiver<ClientMessage>>>;
