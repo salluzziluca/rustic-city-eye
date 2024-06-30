@@ -21,6 +21,7 @@ pub mod mqtt {
 
     pub mod broker_message;
     pub mod client;
+    pub mod client_config;
     pub mod client_message;
     pub mod connack_properties;
     pub mod protocol_error;
