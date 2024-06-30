@@ -84,7 +84,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
 
         let subscribe_config = SubscribeConfig::new(
             "incidente_resuelto".to_string(),
-            1,
             SubscribeProperties::new(1, vec![]),
             client_id,
         );
