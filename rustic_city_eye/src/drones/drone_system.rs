@@ -1,10 +1,12 @@
 use egui::ahash::HashMap;
 
 use crate::drones::drone_center::DroneCenter;
+use crate::mqtt::protocol_error::ProtocolError;
 use crate::utils::location::Location;
 
 use super::drone_error::DroneError;
-
+/// Gestiona centros de drones y drones.
+/// Nos permite añadir, recuperar, mover y eliminar drones y centros de drones.
 #[derive(Debug)]
 pub struct DroneSystem {
     pub drone_centers: HashMap<u32, DroneCenter>,
@@ -12,10 +14,7 @@ pub struct DroneSystem {
     address: String,
 }
 
-/// The `DroneSystem` struct represents a system that manages drone centers and drones.
-/// It provides methods to add, retrieve, move, and remove drones and drone centers.
 impl DroneSystem {
-    /// Creates a new instance of `DroneSystem`.
     pub fn new(drone_config_path: String, address: String) -> DroneSystem {
         Self {
             drone_centers: HashMap::default(),
@@ -24,14 +23,18 @@ impl DroneSystem {
         }
     }
 
+    pub fn disconnect_system(&mut self) -> Result<(), ProtocolError> {
+        for center in self.drone_centers.values_mut() {
+            center.disconnect_drones()?;
+        }
+
+        Ok(())
+    }
+
     /// Agrega un nuevo centro de drones al sistema de drones.
     ///
     /// Devuelve su id o DroneError en caso de error.
     pub fn add_drone_center(&mut self, location: Location) -> Result<u32, DroneError> {
-        // let mut rng = rand::thread_rng();
-
-        // let mut id = rng.gen();
-
         let mut id = 0;
         while self.drone_centers.contains_key(&id) {
             id += 1;
@@ -101,7 +104,7 @@ mod tests {
         thread::spawn(move || {
             {
                 let (lock, cvar) = &*server_ready_clone;
-                let mut ready = match lock.lock(){
+                let mut ready = match lock.lock() {
                     Ok(ready) => ready,
                     Err(e) => panic!("Error locking mutex: {:?}", e),
                 };
@@ -114,12 +117,12 @@ mod tests {
         // Wait for the server to start
         {
             let (lock, cvar) = &*server_ready;
-            let mut ready = match lock.lock(){
+            let mut ready = match lock.lock() {
                 Ok(ready) => ready,
                 Err(e) => panic!("Error locking mutex: {:?}", e),
             };
             while !*ready {
-                ready = match cvar.wait(ready){
+                ready = match cvar.wait(ready) {
                     Ok(ready) => ready,
                     Err(e) => panic!("Error waiting for condition variable: {:?}", e),
                 };

@@ -23,6 +23,7 @@ use super::writer::{write_string, write_u8};
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub enum PayloadTypes {
     IncidentLocation(IncidentPayload),
+    AttendingIncident(IncidentPayload),
     WillPayload(String),
     LocationPayload(Location),
     CamerasUpdatePayload(Vec<Camera>),
@@ -33,6 +34,7 @@ impl Payload for PayloadTypes {
     fn write_to(&self, stream: &mut dyn std::io::prelude::Write) -> Result<(), ProtocolError> {
         match self {
             PayloadTypes::IncidentLocation(payload) => {
+                write_u8(stream, &1)?;
                 payload.write_to(stream)?;
 
                 Ok(())
@@ -69,6 +71,12 @@ impl Payload for PayloadTypes {
                 write_string(stream, &drone_id.to_string())?;
                 write_string(stream, &location.get_latitude().to_string())?;
                 write_string(stream, &location.get_longitude().to_string())?;
+
+                Ok(())
+            }
+            PayloadTypes::AttendingIncident(payload) => {
+                write_u8(stream, &6)?;
+                payload.write_to(stream)?;
 
                 Ok(())
             }
@@ -164,6 +172,34 @@ impl PayloadTypes {
 
                 PayloadTypes::DroneLocation(drone_id, location)
             }
+            6 => {
+                let longitude_string = read_string(stream)?;
+                let long = match longitude_string.parse::<f64>() {
+                    Ok(long) => long,
+                    Err(_) => {
+                        return Err(Error::new(
+                            ErrorKind::InvalidData,
+                            "Error while reading payload".to_string(),
+                        ))
+                    }
+                };
+
+                let latitude_string = read_string(stream)?;
+
+                let lat = match latitude_string.parse::<f64>() {
+                    Ok(lat) => lat,
+                    Err(_) => {
+                        return Err(Error::new(
+                            ErrorKind::InvalidData,
+                            "Error while reading payload".to_string(),
+                        ))
+                    }
+                };
+
+                let location = Location::new(lat, long);
+                let incident = Incident::new(location);
+                PayloadTypes::AttendingIncident(IncidentPayload::new(incident))
+            }
             _ => {
                 return Err(Error::new(
                     ErrorKind::InvalidData,
@@ -183,7 +219,7 @@ mod tests {
     #[test]
     fn test_read_from() {
         let location = Location::new(1.0, 2.0);
-        let incident = Incident::new(location.clone());
+        let incident = Incident::new(location);
         let incident_payload = IncidentPayload::new(incident.clone());
         let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
 
@@ -198,7 +234,7 @@ mod tests {
     #[test]
     fn test_write_to() {
         let location = Location::new(1.0, 2.0);
-        let incident = Incident::new(location.clone());
+        let incident = Incident::new(location);
         let incident_payload = IncidentPayload::new(incident.clone());
         let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
 
@@ -214,7 +250,7 @@ mod tests {
     #[test]
     fn test_as_any() {
         let location = Location::new(1.0, 2.0);
-        let incident = Incident::new(location.clone());
+        let incident = Incident::new(location);
         let incident_payload = IncidentPayload::new(incident.clone());
         let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
 
@@ -224,7 +260,7 @@ mod tests {
     #[test]
     fn test_clone() {
         let location = Location::new(1.0, 2.0);
-        let incident = Incident::new(location.clone());
+        let incident = Incident::new(location);
         let incident_payload = IncidentPayload::new(incident.clone());
         let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
 
@@ -234,7 +270,7 @@ mod tests {
     #[test]
     fn test_eq() {
         let location = Location::new(1.0, 2.0);
-        let incident = Incident::new(location.clone());
+        let incident = Incident::new(location);
         let incident_payload = IncidentPayload::new(incident.clone());
         let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
 

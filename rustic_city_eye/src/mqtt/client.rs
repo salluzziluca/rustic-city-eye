@@ -1,6 +1,6 @@
 use rand::Rng;
 use std::{
-    net::TcpStream,
+    net::{Shutdown, TcpStream},
     sync::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,
@@ -27,6 +27,7 @@ pub trait ClientTrait {
         &self,
     ) -> Arc<std::sync::Mutex<std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>>>;
     fn get_client_id(&self) -> String;
+    fn disconnect_client(&self) -> Result<(), ProtocolError>;
 }
 impl Clone for Box<dyn ClientTrait> {
     fn clone(&self) -> Box<dyn ClientTrait> {
@@ -49,7 +50,7 @@ pub struct Client {
     // user_id: u32,
     pub packets_ids: Arc<Mutex<Vec<u16>>>,
 
-    sender_channel: Sender<ClientMessage>,
+    sender_channel: Option<Sender<ClientMessage>>,
 }
 
 impl Client {
@@ -78,7 +79,6 @@ impl Client {
             Err(_) => return Err(ProtocolError::StreamError),
         };
         let connect_message = ClientMessage::Connect(connect.clone());
-        // println!("Connect: {:?}", connect);
 
         println!("Enviando connect message to broker");
 
@@ -108,7 +108,7 @@ impl Client {
                                 stream: stream_clone,
                                 subscriptions: Arc::new(Mutex::new(Vec::new())),
                                 packets_ids: Arc::new(Mutex::new(Vec::new())),
-                                sender_channel,
+                                sender_channel: Some(sender_channel),
                                 client_id,
                             })
                         }
@@ -134,17 +134,20 @@ impl Client {
         //chequeo si el mensaje es de tipo publish
         if let ClientMessage::Publish {
             packet_id: _,
-            topic_name: _,
+            topic_name,
             qos: _,
             retain_flag: _,
             payload: _,
             dup_flag: _,
             properties: _,
-        } = message
+        } = message.clone()
         {
-            println!("Enviando publish");
+            // println!("Enviando publish");
             match message.write_to(&mut stream) {
-                Ok(()) => Ok(packet_id),
+                Ok(()) => {
+                    println!("envio publish con topic_name: {:?}", topic_name);
+                    Ok(packet_id)
+                }
                 Err(_) => Err(ClientError::new("Error al enviar mensaje")),
             }
         } else {
@@ -279,14 +282,16 @@ impl Client {
         });
 
         let sender_channel_clone = self.sender_channel.clone();
-        let _read_messages = threadpool.execute(move || {
-            Client::receive_messages(
-                stream_clone_two,
-                recieve_receiver,
-                reciever_sender,
-                sender_channel_clone,
-            )
-        });
+        if let Some(sender_channel) = sender_channel_clone {
+            let _read_messages = threadpool.execute(move || {
+                Client::receive_messages(
+                    stream_clone_two,
+                    recieve_receiver,
+                    reciever_sender,
+                    sender_channel,
+                )
+            });
+        }
 
         Ok(())
     }
@@ -324,6 +329,19 @@ impl Client {
                 }
             } else {
                 println!("Error al clonar el stream");
+            }
+        }
+    }
+
+    pub fn disconnect_client(&mut self) -> Result<(), ProtocolError> {
+        self.sender_channel = None;
+        let lock = self.stream.lock().unwrap();
+
+        match lock.shutdown(Shutdown::Both) {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                println!("Client: Error while shutting down stream: {:?}", e);
+                Err(ProtocolError::ShutdownError(e.to_string()))
             }
         }
     }
@@ -649,6 +667,18 @@ impl ClientTrait for Client {
     fn get_client_id(&self) -> String {
         self.client_id.clone()
     }
+
+    fn disconnect_client(&self) -> Result<(), ProtocolError> {
+        let lock = self.stream.lock().unwrap();
+
+        match lock.shutdown(Shutdown::Both) {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                println!("Client: Error while shutting down stream: {:?}", e);
+                Err(ProtocolError::ShutdownError(e.to_string()))
+            }
+        }
+    }
 }
 
 /// Lee del stream un mensaje y lo procesa
@@ -722,10 +752,6 @@ pub fn handle_message(
                 properties,
                 payload,
             } => {
-                println!(
-                    "PublishDelivery con id {} recibido, payload: {:?}",
-                    packet_id, payload
-                );
                 match sender_chanell.send(ClientMessage::Publish {
                     packet_id,
                     topic_name,
