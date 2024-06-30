@@ -2,13 +2,14 @@ use std::{
     collections::HashMap,
     fs::File,
     io::{BufRead, BufReader},
-    net::{TcpListener, TcpStream},
+    net::{Shutdown, TcpListener, TcpStream},
     sync::{mpsc, Arc, RwLock},
     thread,
 };
 
 use crate::mqtt::{
     broker_message::BrokerMessage,
+    client_config::ClientConfig,
     client_message::ClientMessage,
     connack_properties::ConnackProperties,
     protocol_error::ProtocolError,
@@ -51,6 +52,9 @@ pub struct Broker {
     /// las claves son los client_ids, y los valores son
     /// tuplas que contienen el username y password.
     clients_auth_info: HashMap<String, (String, Vec<u8>)>,
+
+    /// Contiene los clientes conectados al broker.
+    clients_config: Arc<RwLock<Vec<(String, ClientConfig)>>>,
 }
 
 impl Broker {
@@ -66,16 +70,19 @@ impl Broker {
 
         let topics = Broker::get_broker_starting_topics("./src/monitoring/topics.txt")?;
         let clients_auth_info = Broker::process_clients_file("./src/monitoring/clients.txt")?;
-
-        let packets = HashMap::new();
+        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
+        let packets = Arc::new(RwLock::new(HashMap::new()));
+        let offline_clients = Arc::new(RwLock::new(HashMap::new()));
+        let clients_config = Arc::new(RwLock::new(Vec::new()));
 
         Ok(Broker {
             address,
             topics,
             clients_auth_info,
-            packets: Arc::new(RwLock::new(packets)),
-            clients_ids: Arc::new(RwLock::new(HashMap::new())),
-            offline_clients: Arc::new(RwLock::new(HashMap::new())),
+            packets,
+            clients_ids,
+            offline_clients,
+            clients_config,
         })
     }
 
@@ -158,6 +165,20 @@ impl Broker {
         let listener = TcpListener::bind(&self.address)?;
         println!("Broker escuchando en {}", self.address);
         let threadpool = ThreadPool::new(THREADPOOL_SIZE);
+
+        let self_clone = self.clone();
+        thread::spawn(move || loop {
+            let mut input = String::new();
+            match std::io::stdin().read_line(&mut input) {
+                Ok(_) => {
+                    if input.trim() == "exit" {
+                        let _ = self_clone.broker_exit();
+                        std::process::exit(0);
+                    }
+                }
+                Err(_) => {}
+            }
+        });
 
         for stream in listener.incoming() {
             match stream {
@@ -280,34 +301,6 @@ impl Broker {
         }
     }
 
-    /// Maneja la subscripcion de un cliente a un topic.
-    /// Devuelve el reason code correspondiente a si la subscripcion fue exitosa o no.
-    /// Si el reason code es 0, el cliente se ha suscrito exitosamente.
-    fn handle_subscribe(
-        mut topics: HashMap<String, Topic>,
-        topic_name: String,
-        subscription: Subscription,
-    ) -> Result<u8, ProtocolError> {
-        let reason_code;
-        if let Some(topic) = topics.get_mut(&topic_name) {
-            match topic.add_user_to_topic(subscription) {
-                0 => {
-                    reason_code = SUCCESS_HEX;
-                }
-                0x92 => {
-                    reason_code = SUB_ID_DUP_HEX;
-                }
-                _ => {
-                    reason_code = UNSPECIFIED_ERROR_HEX;
-                }
-            }
-        } else {
-            reason_code = UNSPECIFIED_ERROR_HEX;
-        }
-
-        Ok(reason_code)
-    }
-
     /// Convierte un mensaje del cliente a un mensaje del broker.
     ///
     /// Retorna el mensaje del broker si la conversion fue exitosa, o un error si no lo fue.
@@ -343,15 +336,11 @@ impl Broker {
         message: &BrokerMessage,
     ) -> Result<(), bool> {
         let clients = self.clients_ids.read().map_err(|_| false)?;
-        if let Some((stream, _)) = clients.get(&user.client_id) {
-            if let Some(stream) = stream {
-                let mut stream_clone = stream.try_clone().expect("Error al clonar el stream");
-                message.write_to(&mut stream_clone).map_err(|_| true)?;
-                println!("Mensaje enviado a {}", user.client_id);
-                Ok(())
-            } else {
-                Err(true)
-            }
+        if let Some((Some(stream), _)) = clients.get(&user.client_id) {
+            let mut stream_clone = stream.try_clone().expect("Error al clonar el stream");
+            message.write_to(&mut stream_clone).map_err(|_| true)?;
+            println!("Mensaje enviado a {}", user.client_id);
+            Ok(())
         } else {
             Err(true)
         }
@@ -405,20 +394,51 @@ impl Broker {
         Ok(0x80_u8) // Unspecified Error reason code
     }
 
+    /// Maneja la subscripcion de un cliente a un topic.
+    /// Devuelve el reason code correspondiente a si la subscripcion fue exitosa o no.
+    /// Si el reason code es 0, el cliente se ha suscrito exitosamente.
+    fn handle_subscribe(
+        mut topics: HashMap<String, Topic>,
+        topic_name: String,
+        subscription: Subscription,
+    ) -> Result<u8, ProtocolError> {
+        
+        let reason_code;       
+        if let Some(topic) = topics.get_mut(&topic_name) {
+            match topic.add_user_to_topic(subscription.clone()) {
+                0 => {
+                    ClientConfig::add_new_subscription(subscription.client_id.clone(), topic_name.clone());
+                    reason_code = SUCCESS_HEX;
+                }
+                0x92 => {
+                    reason_code = SUB_ID_DUP_HEX;
+                }
+                _ => {
+                    reason_code = UNSPECIFIED_ERROR_HEX;
+                }
+            }
+        } else {
+            reason_code = UNSPECIFIED_ERROR_HEX;
+        }
+            
+        Ok(reason_code)
+    }
+
     /// Maneja la desubscripcion de un cliente a un topic
     /// Devuelve el reason code correspondiente a si la desubscripcion fue exitosa o no
     /// Si el reason code es 0, el cliente se ha desuscrito exitosamente.
     fn handle_unsubscribe(
         mut topics: HashMap<String, Topic>,
         topic_name: String,
-        usersubscription: Subscription,
+        subscription: Subscription,
     ) -> Result<u8, ProtocolError> {
         let reason_code;
 
         if let Some(topic) = topics.get_mut(&topic_name) {
-            match topic.remove_user_from_topic(usersubscription) {
+            match topic.remove_user_from_topic(subscription.clone()) {
                 0 => {
                     println!("Unsubscribe exitoso");
+                    ClientConfig::remove_subscription(subscription.client_id.clone(), topic_name.clone());
                     reason_code = SUCCESS_HEX;
                 }
                 _ => {
@@ -518,6 +538,7 @@ impl Broker {
                                 reason_string: "CLIENT_DUP".to_string(),
                                 user_properties: Vec::new(),
                             };
+                            ClientConfig::remove_client(connect.client_id.clone());
 
                             match disconnect.write_to(&mut stream) {
                                 Ok(_) => {
@@ -529,9 +550,10 @@ impl Broker {
                         }
                     }
                     Err(_) => {
-                        // Manejo de error al leer clients_ids
+                        return Err(ProtocolError::UnspecifiedError);
                     }
                 }
+
                 // reibe los mensajes de cuando estuvo offline
                 if let Ok(offline_clients) = self.offline_clients.read() {
                     if offline_clients.contains_key(&connect.client_id) {
@@ -550,6 +572,7 @@ impl Broker {
 
                 //si está en offline_clients lo elimino de ahí
                 if let Ok(mut lock) = self.offline_clients.write() {
+                    ClientConfig::remove_client(connect.client_id.clone());
                     lock.remove(&connect.client_id);
                 } else {
                     return Err(ProtocolError::UnspecifiedError);
@@ -563,6 +586,7 @@ impl Broker {
 
                 let will_message = connect.clone().give_will_message();
                 if let Ok(mut clients) = self.clients_ids.write() {
+
                     clients.insert(
                         connect.client_id.clone(),
                         (Some(cloned_stream), will_message),
@@ -674,35 +698,13 @@ impl Broker {
 
                 let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-                let mut reason_code_vec = Vec::new();
-
-                for p in payload {
-                    let reason_code =
-                        Broker::handle_subscribe(topics.clone(), p.topic.clone(), p.clone())?;
-
-                    reason_code_vec.push(reason_code);
-                }
-
-                if reason_code_vec.iter().any(|&x| x != SUCCESS_HEX) {
-                    let suback = BrokerMessage::Suback {
-                        packet_id_msb: packet_id_bytes[0],
-                        packet_id_lsb: packet_id_bytes[1],
-                        reason_code: UNSPECIFIED_ERROR_HEX,
-                    };
-                    println!("Enviando un Suback");
-                    match suback.write_to(&mut stream) {
-                        Ok(_) => {
-                            println!("Suback enviado");
-                            return Ok(ProtocolReturn::SubackSent);
-                        }
-                        Err(err) => println!("Error al enviar suback: {:?}", err),
-                    }
-                }
+                let reason_code =
+                    Broker::handle_subscribe(topics.clone(), payload.topic.clone(), payload.clone())?;
 
                 let suback = BrokerMessage::Suback {
                     packet_id_msb: packet_id_bytes[0],
                     packet_id_lsb: packet_id_bytes[1],
-                    reason_code: SUCCESS_HEX,
+                    reason_code,
                 };
                 println!("Enviando un Suback");
                 match suback.write_to(&mut stream) {
@@ -730,35 +732,17 @@ impl Broker {
 
                 let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-                let mut reason_code_vec = Vec::new();
-
-                for p in payload {
-                    let reason_code =
-                        Broker::handle_unsubscribe(topics.clone(), p.topic.clone(), p.clone())?;
-                    reason_code_vec.push(reason_code);
-                }
-
-                if reason_code_vec.iter().any(|&x| x != SUCCESS_HEX) {
-                    let suback = BrokerMessage::Suback {
-                        packet_id_msb: packet_id_bytes[0],
-                        packet_id_lsb: packet_id_bytes[1],
-                        reason_code: UNSPECIFIED_ERROR_HEX,
-                    };
-                    println!("Enviando un Suback");
-                    match suback.write_to(&mut stream) {
-                        Ok(_) => {
-                            println!("Suback enviado");
-                            return Ok(ProtocolReturn::SubackSent);
-                        }
-                        Err(err) => println!("Error al enviar suback: {:?}", err),
-                    }
-                }
-
+            
+                let reason_code =
+                        Broker::handle_unsubscribe(topics.clone(), payload.topic.clone(), payload)?;
+                   
                 let unsuback = BrokerMessage::Unsuback {
                     packet_id_msb: packet_id_bytes[0],
                     packet_id_lsb: packet_id_bytes[1],
-                    reason_code: SUCCESS_HEX,
+                    reason_code,
                 };
+
+               
                 println!("Enviando un Unsuback");
                 match unsuback.write_to(&mut stream) {
                     Ok(_) => {
@@ -790,6 +774,9 @@ impl Broker {
                 } else {
                     return Err(ProtocolError::UnspecifiedError);
                 }
+
+                // cambio el estado del cliente a desconectado
+                ClientConfig::change_client_state(client_id.clone(), false);
 
                 // agrego el client_id a offline_clients
                 if let Ok(mut lock) = self.offline_clients.write() {
@@ -887,6 +874,33 @@ impl Broker {
         }
 
         clients_ids
+    }
+
+    pub fn broker_exit(&self) -> Result<(), ProtocolError> {
+        let clients = self
+            .clients_ids
+            .read()
+            .map_err(|_| ProtocolError::UnspecifiedError)?;
+        for (client_id, (stream, _)) in clients.iter() {
+            if let Some(stream) = stream {
+                let mut stream_clone = stream.try_clone().expect("Error al clonar el stream");
+                let disconnect = BrokerMessage::Disconnect {
+                    reason_code: 0,
+                    session_expiry_interval: 0,
+                    reason_string: "SERVER_SHUTDOWN".to_string(),
+                    user_properties: Vec::new(),
+                };
+                match disconnect.write_to(&mut stream_clone) {
+                    Ok(_) => {
+                        println!("Disconnect enviado");
+                        ClientConfig::remove_client(client_id.clone());
+                    }
+                    Err(_) => return Err(ProtocolError::UnspecifiedError),
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

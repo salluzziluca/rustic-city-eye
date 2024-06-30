@@ -91,7 +91,7 @@ pub enum ClientMessage {
         /// properties es un struct que contiene las propiedades del mensaje de subscribe.
         properties: SubscribeProperties,
         /// Vector de subscription es un struct que contiene la informacion de la suscripcion.
-        payload: Vec<Subscription>,
+        payload: Subscription,
     },
     /// El Unsubscribe Message se utiliza para cancelar una o más suscripciones. El cliente envia un mensaje de unsubscribe con un packet id y una lista de topics de los que quiere desuscribirse. El broker responde con un mensaje de unsuback con el mismo packet id y una lista de return codes que indican si la desuscripcion fue exitosa o no.
     Unsubscribe {
@@ -100,7 +100,7 @@ pub enum ClientMessage {
         /// properties es un struct que contiene las propiedades del mensaje de unsubscribe.
         properties: SubscribeProperties,
         /// Vector de subscription es un struct que contiene la informacion de la suscripcion.
-        payload: Vec<Subscription>,
+        payload: Subscription,
     },
     /// Es el ultimo mensaje que el cliente envia antes de desconectarse, este mensaje contiene informacion sobre la razon de la desconexión y propiedades adicionales.
     Disconnect {
@@ -496,15 +496,9 @@ impl ClientMessage {
                 //Properties
                 properties.write_properties(&mut writer)?;
 
-                // escribir largo del payload
-                let payload_length = payload.len() as u32;
-                write_u32(&mut writer, &payload_length)?;
-
                 // payload
-                for subscription in payload {
-                    write_string(&mut writer, &subscription.topic)?;
-                    write_string(&mut writer, &subscription.client_id)?;
-                }
+                write_string(&mut writer, &payload.topic)?;
+                write_string(&mut writer, &payload.client_id)?;
 
                 writer.flush().map_err(|_e| ProtocolError::WriteError)?;
                 Ok(())
@@ -523,15 +517,9 @@ impl ClientMessage {
                 // variable header
                 properties.write_properties(&mut writer)?;
 
-                // escribir largo del payload
-                let payload_length = payload.len() as u32;
-                write_u32(&mut writer, &payload_length)?;
-
-                //payload
-                for subscription in payload {
-                    write_string(&mut writer, &subscription.topic)?;
-                    write_string(&mut writer, &subscription.client_id)?;
-                }
+                // escribir payload 
+                write_string(&mut writer, &payload.topic)?;
+                write_string(&mut writer, &payload.client_id)?;
 
                 writer.flush().map_err(|_e| ProtocolError::WriteError)?;
                 Ok(())
@@ -726,15 +714,10 @@ impl ClientMessage {
                 //Properties
                 properties.write_properties(writer)?;
 
-                // escribir largo del payload
-                let payload_length = payload.len() as u32;
-                write_u32(writer, &payload_length)?;
+                //payload
+                write_string(writer, &payload.topic)?;
+                write_string(writer, &payload.client_id)?;
 
-                // payload
-                for subscription in payload {
-                    write_string(writer, &subscription.topic)?;
-                    write_string(writer, &subscription.client_id)?;
-                }
                 Ok(())
             }
             ClientMessage::Unsubscribe {
@@ -747,15 +730,10 @@ impl ClientMessage {
                 // variable header
                 properties.write_properties(writer)?;
 
-                // escribir largo del payload
-                let payload_length = payload.len() as u32;
-                write_u32(writer, &payload_length)?;
-
                 //payload
-                for subscription in payload {
-                    write_string(writer, &subscription.topic)?;
-                    write_string(writer, &subscription.client_id)?;
-                }
+                write_string(&mut writer, &payload.topic)?;
+                write_string(&mut writer, &payload.client_id)?;
+
                 Ok(())
             }
             ClientMessage::Disconnect {
@@ -892,18 +870,10 @@ impl ClientMessage {
 
                 let properties = SubscribeProperties::read_properties(stream)?;
 
-                let payload_length = read_u32(stream)?;
-                let mut payload = Vec::with_capacity(payload_length as usize);
-
-                for _ in 0..payload_length {
-                    let topic = read_string(stream)?;
-                    if topic.is_empty() {
-                        return Err(Error::new(std::io::ErrorKind::Other, "Invalid topic name"));
-                    }
-                    let client_id = read_string(stream)?;
-
-                    payload.push(Subscription { topic, client_id });
-                }
+                let payload = Subscription {
+                    topic: read_string(stream)?,
+                    client_id: read_string(stream)?,
+                };
 
                 Ok(ClientMessage::Subscribe {
                     packet_id,
@@ -916,15 +886,10 @@ impl ClientMessage {
 
                 let properties = SubscribeProperties::read_properties(stream)?;
 
-                let payload_length = read_u32(stream)?;
-                let mut payload = Vec::with_capacity(payload_length as usize);
-
-                for _ in 0..payload_length {
-                    let topic = read_string(stream)?;
-                    let client_id = read_string(stream)?;
-
-                    payload.push(Subscription { topic, client_id });
-                }
+                let payload = Subscription {
+                    topic: read_string(stream)?,
+                    client_id: read_string(stream)?,
+                };
 
                 Ok(ClientMessage::Unsubscribe {
                     packet_id,
@@ -1177,10 +1142,10 @@ mod tests {
 
     #[test]
     fn test_04_subscribe_ok() {
-        let vector = vec![Subscription {
+        let payload = Subscription {
             topic: "topic".to_string(),
             client_id: "client".to_string(),
-        }];
+        };
 
         let sub = ClientMessage::Subscribe {
             packet_id: 1,
@@ -1188,7 +1153,7 @@ mod tests {
                 1,
                 vec![("propiedad".to_string(), "valor".to_string())],
             ),
-            payload: vector,
+            payload,
         };
 
         let mut cursor = Cursor::new(Vec::<u8>::new());
@@ -1213,10 +1178,10 @@ mod tests {
 
     #[test]
     fn test_05_unsubscribe_ok() {
-        let vector = vec![Subscription {
+        let payload = Subscription {
             topic: "topic".to_string(),
             client_id: "client".to_string(),
-        }];
+        };
 
         let unsub = ClientMessage::Unsubscribe {
             packet_id: 1,
@@ -1224,7 +1189,7 @@ mod tests {
                 1,
                 vec![("propiedad".to_string(), "valor".to_string())],
             ),
-            payload: vector,
+            payload,
         };
 
         let mut cursor = Cursor::new(Vec::<u8>::new());

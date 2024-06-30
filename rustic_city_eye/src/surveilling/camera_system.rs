@@ -271,7 +271,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
 
                                 continue;
                             } else if topic_name == "incidente_resuelto" {
-
                                 println!("ASI ES COÑO LO HE RECIBIDO");
                                 solved_incident_location =
                                     Some(payload.get_incident().get_location());
@@ -1115,9 +1114,7 @@ mod tests {
                     payload,
                     properties: _,
                 } => {
-                    for topic in payload {
-                        assert_eq!(topic.topic, "incidente");
-                    }
+                    assert_eq!(payload.topic, "camera_update");
                 }
                 _ => {
                     panic!("Unexpected message type");
@@ -1134,9 +1131,7 @@ mod tests {
                     payload,
                     properties: _,
                 } => {
-                    for topic in payload {
-                        assert_eq!(topic.topic, "incidente_resuelto");
-                    }
+                    assert_eq!(payload.topic, "camera_update");
                 }
                 _ => {
                     panic!("Unexpected message type");

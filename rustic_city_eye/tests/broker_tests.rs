@@ -245,10 +245,8 @@ mod tests {
         let properties =
             SubscribeProperties::new(1, vec![("propiedad".to_string(), "valor".to_string())]);
 
-        let subscription =
+        let payload =
             Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string());
-
-        let payload = vec![subscription];
 
         let sub = ClientMessage::Subscribe {
             packet_id: 1,
@@ -419,10 +417,9 @@ mod tests {
         let properties =
             SubscribeProperties::new(1, vec![("propiedad".to_string(), "valor".to_string())]);
 
-        let subscription =
+        let payload =
             Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string());
 
-        let payload = vec![subscription];
 
         let sub = ClientMessage::Unsubscribe {
             packet_id: 1,
