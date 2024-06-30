@@ -343,15 +343,11 @@ impl Broker {
         message: &BrokerMessage,
     ) -> Result<(), bool> {
         let clients = self.clients_ids.read().map_err(|_| false)?;
-        if let Some((stream, _)) = clients.get(&user.client_id) {
-            if let Some(stream) = stream {
-                let mut stream_clone = stream.try_clone().expect("Error al clonar el stream");
-                message.write_to(&mut stream_clone).map_err(|_| true)?;
-                println!("Mensaje enviado a {}", user.client_id);
-                Ok(())
-            } else {
-                Err(true)
-            }
+        if let Some((Some(stream), _)) = clients.get(&user.client_id) {
+            let mut stream_clone = stream.try_clone().expect("Error al clonar el stream");
+            message.write_to(&mut stream_clone).map_err(|_| true)?;
+            println!("Mensaje enviado a {}", user.client_id);
+            Ok(())
         } else {
             Err(true)
         }
