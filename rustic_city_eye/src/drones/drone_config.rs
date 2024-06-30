@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 use super::drone_error::DroneError;
-use std::{env, fs::File, io::BufReader};
+use std::{fs::File, io::BufReader};
 
 /// Sirve para levantar la configuracion del Drone a partir del JSON.
 /// Pone a correr al Drone:
@@ -41,17 +41,9 @@ impl DroneConfig {
 
     /// Toma un path a un archivo de configuracion y levanta el DroneConfig.
     fn read_drone_config(file_path: &str) -> Result<DroneConfig, DroneError> {
-        println!("Reading config file: {}", file_path);
         let config_file = match File::open(file_path) {
             Ok(file) => file,
             Err(e) => {
-                let current_dir = match env::current_dir() {
-                    Ok(dir) => dir,
-                    Err(_) => {
-                        return Err(DroneError::ReadingConfigFileError);
-                    }
-                };
-                println!("Current directory: {}", current_dir.display());
                 println!(
                     "Error al abrir el archivo de configuracion del Drone: {:?}",
                     e,
@@ -68,15 +60,6 @@ impl DroneConfig {
 
         Ok(config)
     }
-
-    /// Simula la descarga de bateria del Drone, dependiendo de su
-    /// tasa de descarga en milisegundos.
-    ///
-    /// Tambien, el Drone se movera dependiendo del tiempo
-    /// transcurrido, su velocidad asignada y su radio de operacion.
-    ///
-    /// Para poder hacer ambas cosas a la vez, trabajo con dos threads: uno encargado de descargar la bateria,
-    /// y otro que se encarga de mover al Drone(siempre y cuando tenga bateria).
 
     pub fn get_battery_discharge_rate(&self) -> i64 {
         self.battery_discharge_rate_milisecs

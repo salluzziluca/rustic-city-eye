@@ -8,6 +8,10 @@ pub enum DroneError {
     ProtocolError(String),
     BatteryEmpty,
     SubscribeError(String),
+    LockError(String),
+    ChargingBatteryError(String),
+    PatrollingError(String),
+    MovingToIncidentError(String),
 }
 
 impl fmt::Display for DroneError {
@@ -28,6 +32,14 @@ impl fmt::Display for DroneError {
                 "Error: la bateria del dron está completamente descargada."
             ),
             DroneError::SubscribeError(ref err) => write!(f, "Error de protocolo: {}", err),
+            DroneError::LockError(ref err) => write!(f, "Error al adquirir un lock: {}", err),
+            DroneError::ChargingBatteryError(ref err) => {
+                write!(f, "Error al cargar la bateria del Drone: {}", err)
+            }
+            DroneError::PatrollingError(ref err) => write!(f, "Error al patrullar: {}", err),
+            DroneError::MovingToIncidentError(ref err) => {
+                write!(f, "Error al moverse al incidente: {}", err)
+            }
         }
     }
 }

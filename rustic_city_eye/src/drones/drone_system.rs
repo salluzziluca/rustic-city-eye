@@ -5,7 +5,8 @@ use crate::mqtt::protocol_error::ProtocolError;
 use crate::utils::location::Location;
 
 use super::drone_error::DroneError;
-
+/// Gestiona centros de drones y drones.
+/// Nos permite añadir, recuperar, mover y eliminar drones y centros de drones.
 #[derive(Debug)]
 pub struct DroneSystem {
     pub drone_centers: HashMap<u32, DroneCenter>,
@@ -13,10 +14,7 @@ pub struct DroneSystem {
     address: String,
 }
 
-/// The `DroneSystem` struct represents a system that manages drone centers and drones.
-/// It provides methods to add, retrieve, move, and remove drones and drone centers.
 impl DroneSystem {
-    /// Creates a new instance of `DroneSystem`.
     pub fn new(drone_config_path: String, address: String) -> DroneSystem {
         Self {
             drone_centers: HashMap::default(),

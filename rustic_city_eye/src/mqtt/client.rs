@@ -341,7 +341,7 @@ impl Client {
             Ok(_) => Ok(()),
             Err(e) => {
                 println!("Client: Error while shutting down stream: {:?}", e);
-                return Err(ProtocolError::ShutdownError(e.to_string()));
+                Err(ProtocolError::ShutdownError(e.to_string()))
             }
         }
     }
@@ -675,7 +675,7 @@ impl ClientTrait for Client {
             Ok(_) => Ok(()),
             Err(e) => {
                 println!("Client: Error while shutting down stream: {:?}", e);
-                return Err(ProtocolError::ShutdownError(e.to_string()));
+                Err(ProtocolError::ShutdownError(e.to_string()))
             }
         }
     }
