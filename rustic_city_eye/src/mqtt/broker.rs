@@ -425,6 +425,7 @@ impl Broker {
 
         if reason_code == SUCCESS_HEX {
             // abro el archivo json con el nombre del cliente y agrego la suscripcion
+            
         }
 
         Ok(reason_code)
@@ -730,35 +731,14 @@ impl Broker {
 
                 let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-                let mut reason_code_vec = Vec::new();
+                let reason_code =
+                    Broker::handle_subscribe(topics.clone(), payload.topic.clone(), payload.clone())?;
 
-                for p in payload {
-                    let reason_code =
-                        Broker::handle_subscribe(topics.clone(), p.topic.clone(), p.clone())?;
-
-                    reason_code_vec.push(reason_code);
-                }
-
-                if reason_code_vec.iter().any(|&x| x != SUCCESS_HEX) {
-                    let suback = BrokerMessage::Suback {
-                        packet_id_msb: packet_id_bytes[0],
-                        packet_id_lsb: packet_id_bytes[1],
-                        reason_code: UNSPECIFIED_ERROR_HEX,
-                    };
-                    println!("Enviando un Suback");
-                    match suback.write_to(&mut stream) {
-                        Ok(_) => {
-                            println!("Suback enviado");
-                            return Ok(ProtocolReturn::SubackSent);
-                        }
-                        Err(err) => println!("Error al enviar suback: {:?}", err),
-                    }
-                }
 
                 let suback = BrokerMessage::Suback {
                     packet_id_msb: packet_id_bytes[0],
                     packet_id_lsb: packet_id_bytes[1],
-                    reason_code: SUCCESS_HEX,
+                    reason_code,
                 };
                 println!("Enviando un Suback");
                 match suback.write_to(&mut stream) {
@@ -786,34 +766,14 @@ impl Broker {
 
                 let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-                let mut reason_code_vec = Vec::new();
-
-                for p in payload {
-                    let reason_code =
-                        Broker::handle_unsubscribe(topics.clone(), p.topic.clone(), p.clone())?;
-                    reason_code_vec.push(reason_code);
-                }
-
-                if reason_code_vec.iter().any(|&x| x != SUCCESS_HEX) {
-                    let suback = BrokerMessage::Suback {
-                        packet_id_msb: packet_id_bytes[0],
-                        packet_id_lsb: packet_id_bytes[1],
-                        reason_code: UNSPECIFIED_ERROR_HEX,
-                    };
-                    println!("Enviando un Suback");
-                    match suback.write_to(&mut stream) {
-                        Ok(_) => {
-                            println!("Suback enviado");
-                            return Ok(ProtocolReturn::SubackSent);
-                        }
-                        Err(err) => println!("Error al enviar suback: {:?}", err),
-                    }
-                }
-
+            
+                let reason_code =
+                        Broker::handle_unsubscribe(topics.clone(), payload.topic.clone(), payload)?;
+                   
                 let unsuback = BrokerMessage::Unsuback {
                     packet_id_msb: packet_id_bytes[0],
                     packet_id_lsb: packet_id_bytes[1],
-                    reason_code: SUCCESS_HEX,
+                    reason_code,
                 };
                 println!("Enviando un Unsuback");
                 match unsuback.write_to(&mut stream) {

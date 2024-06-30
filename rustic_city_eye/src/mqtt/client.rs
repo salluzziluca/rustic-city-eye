@@ -436,38 +436,35 @@ impl Client {
                                     properties,
                                     payload: payload.clone(),
                                 };
-                                for p in payload {
-                                    if let Ok(stream) = stream_clone.try_clone() {
-                                        if let Ok(packet_id) =
-                                            Client::subscribe(subscribe.clone(), packet_id, stream)
-                                        {
-                                            match sender.send(packet_id) {
-                                                Ok(_) => {
-                                                    let topic_new = p.topic.to_string();
-                                                    match subscriptions_clone.lock() {
-                                                        Ok(mut guard) => {
-                                                            guard.push(topic_new);
-                                                        }
-                                                        Err(_) => {
-                                                            return Err::<(), ProtocolError>(
-                                                                ProtocolError::StreamError,
-                                                            );
-                                                        }
+
+                                if let Ok(stream) = stream_clone.try_clone() {
+                                    if let Ok(packet_id) =
+                                        Client::subscribe(subscribe, packet_id, stream)
+                                    {
+                                        match sender.send(packet_id) {
+                                            Ok(_) => {
+                                                let topic_new = payload.topic.to_string();
+                                                match subscriptions_clone.lock() {
+                                                    Ok(mut guard) => {
+                                                        guard.push(topic_new);
+                                                    }
+                                                    Err(_) => {
+                                                        return Err::<(), ProtocolError>(
+                                                            ProtocolError::StreamError,
+                                                        );
                                                     }
                                                 }
-                                                Err(_) => {
-                                                    return Err::<(), ProtocolError>(
-                                                        ProtocolError::StreamError,
-                                                    );
-                                                }
+                                            }
+                                            Err(_) => {
+                                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
                                             }
                                         }
-                                    } else {
-                                        return Err::<(), ProtocolError>(
-                                            ProtocolError::StreamError,
-                                        );
                                     }
+                                } else {
+                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
                                 }
+
+
                             }
                             Err(_) => {
                                 return Err::<(), ProtocolError>(ProtocolError::StreamError);
@@ -485,40 +482,33 @@ impl Client {
                                     payload: payload.clone(),
                                 };
 
-                                for p in payload {
-                                    if let Ok(stream) = stream_clone.try_clone() {
-                                        if let Ok(packet_id) = Client::unsubscribe(
-                                            unsubscribe.clone(),
-                                            stream,
-                                            packet_id,
-                                        ) {
-                                            match sender.send(packet_id) {
-                                                Ok(_) => {
-                                                    let topic_new = p.topic.to_string();
-                                                    match subscriptions_clone.lock() {
-                                                        Ok(mut guard) => {
-                                                            guard.retain(|x| x != &topic_new);
-                                                        }
-                                                        Err(_) => {
-                                                            return Err::<(), ProtocolError>(
-                                                                ProtocolError::StreamError,
-                                                            );
-                                                        }
+                                if let Ok(stream) = stream_clone.try_clone() {
+                                    if let Ok(packet_id) =
+                                        Client::unsubscribe(unsubscribe, stream, packet_id)
+                                    {
+                                        match sender.send(packet_id) {
+                                            Ok(_) => {
+                                                let topic_new = payload.topic.to_string();
+                                                match subscriptions_clone.lock() {
+                                                    Ok(mut guard) => {
+                                                        guard.retain(|x| x != &topic_new);
+                                                    }
+                                                    Err(_) => {
+                                                        return Err::<(), ProtocolError>(
+                                                            ProtocolError::StreamError,
+                                                        );
                                                     }
                                                 }
-                                                Err(_) => {
-                                                    return Err::<(), ProtocolError>(
-                                                        ProtocolError::StreamError,
-                                                    );
-                                                }
+                                            }
+                                            Err(_) => {
+                                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
                                             }
                                         }
-                                    } else {
-                                        return Err::<(), ProtocolError>(
-                                            ProtocolError::StreamError,
-                                        );
                                     }
+                                } else {
+                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
                                 }
+                                
                             }
                             Err(_) => {
                                 return Err::<(), ProtocolError>(ProtocolError::StreamError);
