@@ -56,7 +56,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
     ///
     /// Envia un connect segun la configuracion del archivo connect_config.json
     ///
-    /// Se subscribe a los mensajes de tipo "incidente"
+    /// Se subscribe a los mensajes de tipo "incidente" e "incidente_resuelto"
     ///
     pub fn new<F>(address: String, client_factory: F) -> Result<CameraSystem<T>, ProtocolError>
     where
@@ -100,13 +100,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             snapshot: Vec::new(),
         })
     }
-    #[allow(dead_code)]
-    fn get_client_publish_end_channel(
-        &self,
-    ) -> Arc<std::sync::Mutex<std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>>>
-    {
-        self.camera_system_client.get_publish_end_channel()
-    }
+
     pub fn add_camera(&mut self, location: Location) -> Result<u32, CameraError> {
         let mut rng = rand::thread_rng();
 
@@ -152,7 +146,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
     ///
     /// Recibe un reciever opcional para poder testear la funcion, si este es None, utiliza el propio del broker
     pub fn run_client(
-        reciever: Option<Receiver<ClientMessage>>,
+        parameter_reciever: Option<Arc<Mutex<Receiver<ClientMessage>>>>,
         system: Arc<Mutex<CameraSystem<Client>>>,
     ) -> Result<(), ProtocolError> {
         let system_clone_one = Arc::clone(&system);
@@ -176,122 +170,97 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         let _handle = thread::spawn(move || {
             let mut incident_location: Option<Location> = None;
             let mut solved_incident_location: Option<Location> = None;
+            let reciever: Arc<Mutex<Receiver<ClientMessage>>>;
+            match parameter_reciever {
+                Some(paramter_reciever) => {
+                    reciever = paramter_reciever;
+                }
+                None => {
+                    reciever = match system_clone_two.lock() {
+                        Ok(guard) => guard.reciev_from_client.clone(),
+                        Err(_) => {
+                            return;
+                        }
+                    }
+                }
+            };
             loop {
                 let self_clone_one = Arc::clone(&system_clone_two);
                 let self_clone_two = Arc::clone(&system_clone_two);
 
-                if let Some(ref reciever) = reciever {
-                    let mut self_clone = match self_clone_one.lock() {
-                        Ok(guard) => guard.clone(),
-                        Err(_) => {
-                            return;
+                let mut lock = match self_clone_two.lock() {
+                    Ok(guard) => guard.clone(),
+                    Err(_) => {
+                        return;
+                    }
+                };
+
+                match incident_location {
+                    Some(location) => {
+                        match lock
+                            .activate_cameras(location)
+                            .map_err(|e| ProtocolError::CameraError(e.to_string()))
+                        {
+                            Ok(_) => {}
+                            Err(e) => {
+                                println!("CameraSys: Error activating cameras: {:?}", e);
+                            }
                         }
-                    };
-                    match reciever.recv() {
-                        Ok(client_message::ClientMessage::Publish {
-                            topic_name,
-                            payload: PayloadTypes::IncidentLocation(payload),
-                            ..
-                        }) => {
-                            if topic_name != "incidente" {
-                                continue;
+                        incident_location = None;
+                    }
+                    None => {}
+                }
+                match solved_incident_location {
+                    Some(location) => {
+                        match lock
+                            .deactivate_cameras(location)
+                            .map_err(|e| ProtocolError::CameraError(e.to_string()))
+                        {
+                            Ok(_) => {}
+                            Err(e) => {
+                                println!("CameraSys: Error activating cameras: {:?}", e);
                             }
-                            let location = payload.get_incident().get_location();
-                            match self_clone
-                                .activate_cameras(location)
-                                .map_err(|e| ProtocolError::CameraError(e.to_string()))
-                            {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    println!("CameraSys: Error activating cameras: {:?}", e);
-                                }
-                            }
+                        }
+                        solved_incident_location = None;
+                    }
+                    None => {}
+                }
+
+                let reciever = match reciever.lock() {
+                    Ok(guard) => guard,
+                    Err(_) => {
+                        return;
+                    }
+                };
+
+                match reciever.recv() {
+                    Ok(client_message::ClientMessage::Publish {
+                        topic_name,
+                        payload: PayloadTypes::IncidentLocation(payload),
+                        ..
+                    }) => {
+                        println!(
+                            "SOT EL CAMERA Y RECIBVI UN PUBLISH DE TOPIC: {:?}",
+                            topic_name
+                        );
+                        if topic_name == "incidente" {
+                            incident_location = Some(payload.get_incident().get_location());
+                            drop(reciever); // Release the lock here
 
                             continue;
-                        }
-                        Ok(_) => continue, // Handle other message types if necessary
-                        Err(e) => {
-                            println!("CameraSys: Error receiving message: {:?}", e);
+                        } else if topic_name == "incidente_resuelto" {
+                            println!("ASI ES COÑO LO HE RECIBIDO");
+                            solved_incident_location = Some(payload.get_incident().get_location());
+                            drop(reciever); // Release the lock here
+
                             continue;
                         }
                     }
-                } else {
-                    let mut lock = match self_clone_two.lock() {
-                        Ok(guard) => guard.clone(),
-                        Err(_) => {
-                            return;
-                        }
-                    };
-
-                    match incident_location {
-                        Some(location) => {
-                            match lock
-                                .activate_cameras(location)
-                                .map_err(|e| ProtocolError::CameraError(e.to_string()))
-                            {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    println!("CameraSys: Error activating cameras: {:?}", e);
-                                }
-                            }
-                            incident_location = None;
-                        }
-                        None => {}
+                    Ok(_) => {
+                        continue;
                     }
-                    match solved_incident_location {
-                        Some(location) => {
-                            match lock
-                                .deactivate_cameras(location)
-                                .map_err(|e| ProtocolError::CameraError(e.to_string()))
-                            {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    println!("CameraSys: Error activating cameras: {:?}", e);
-                                }
-                            }
-                            solved_incident_location = None;
-                        }
-                        None => {}
-                    }
-
-                    let receiver_channel = lock.reciev_from_client;
-                    let receiver_channel_lock = match receiver_channel.lock() {
-                        Ok(guard) => guard,
-                        Err(_) => {
-                            return;
-                        }
-                    };
-
-                    match receiver_channel_lock.recv() {
-                        Ok(client_message::ClientMessage::Publish {
-                            topic_name,
-                            payload: PayloadTypes::IncidentLocation(payload),
-                            ..
-                        }) => {
-                            println!(
-                                "SOT EL CAMERA Y RECIBVI UN PUBLISH DE TOPIC: {:?}",
-                                topic_name
-                            );
-                            if topic_name == "incidente" {
-                                incident_location = Some(payload.get_incident().get_location());
-                                drop(receiver_channel_lock); // Release the lock here
-
-                                continue;
-                            } else if topic_name == "incidente_resuelto" {
-                                println!("ASI ES COÑO LO HE RECIBIDO");
-                                solved_incident_location =
-                                    Some(payload.get_incident().get_location());
-                                drop(receiver_channel_lock); // Release the lock here
-
-                                continue;
-                            }
-                        }
-                        Ok(_) => {
-                            continue;
-                        }
-                        Err(_) => {
-                            continue;
-                        }
+                    Err(_) => {
+                        continue;
                     }
                 }
             }
@@ -374,7 +343,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
     /// Adicionalmente, cada camara desactivada despues avisa a las camaras colindantes para que,
     /// si estan a la distancia requerida, tambien se desactiven.
     pub fn deactivate_cameras(&mut self, location: Location) -> Result<(), CameraError> {
-        // Collect the locations that need to be activated first
         let locations_to_activate: Vec<Location> = self
             .cameras
             .values_mut()
@@ -1387,7 +1355,8 @@ mod tests {
                 CameraSystem::<Client>::with_real_client(address.to_string()).unwrap(),
             ));
             let arc_sys_clone = Arc::clone(&arc_system);
-            match CameraSystem::<Client>::run_client(Some(rx2), arc_sys_clone) {
+            let arc_rx2 = Arc::new(Mutex::new(rx2));
+            match CameraSystem::<Client>::run_client(Some(arc_rx2), arc_sys_clone) {
                 Ok(_) => {}
                 Err(e) => {
                     println!("CameraSys: Error running client: {:?}", e);
