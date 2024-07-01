@@ -173,7 +173,6 @@ impl Broker {
                 Ok(_) => {
                     if input.trim() == "exit" {
                         let _ = self_clone.broker_exit();
-                        std::process::exit(0);
                     }
                 }
                 Err(_) => {}
@@ -218,7 +217,7 @@ impl Broker {
                             ) {
                                 Ok(_) => Ok(()),
                                 Err(err) => {
-                                    println!("Error en el hilo del cliente, {:?}", err);
+                                    println!("Error en el hilo del cliente {}, {:?}", client_id, err);
                                     //busco a ver si hay un will message asociado al cliente
                                     if err == ProtocolError::StreamError
                                         || err == ProtocolError::AbnormalDisconnection
@@ -257,6 +256,7 @@ impl Broker {
         }
         Ok(())
     }
+
 
     /// Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
     #[allow(clippy::type_complexity)]

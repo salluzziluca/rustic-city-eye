@@ -1,12 +1,9 @@
 use rand::Rng;
 use std::{
-    net::{Shutdown, TcpStream},
-    sync::{
+    io::Write, net::{Shutdown, TcpStream}, sync::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,
-    },
-    thread,
-    time::Duration,
+    }, thread, time::Duration
 };
 
 use crate::{
@@ -652,7 +649,11 @@ impl ClientTrait for Client {
     }
 
     fn disconnect_client(&self) -> Result<(), ProtocolError> {
-        let lock = self.stream.lock().unwrap();
+        let mut lock = self.stream.lock().unwrap();
+
+        let writer = &mut lock;
+
+        let _ = writer.flush().map_err(|_| ProtocolError::WriteError);
 
         match lock.shutdown(Shutdown::Both) {
             Ok(_) => Ok(()),

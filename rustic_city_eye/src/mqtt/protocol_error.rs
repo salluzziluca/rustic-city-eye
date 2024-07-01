@@ -28,6 +28,7 @@ pub enum ProtocolError {
     CameraError(String),
     SendError(String),
     ShutdownError(String),
+    BindingError(String)
 }
 
 impl fmt::Display for ProtocolError {
@@ -89,6 +90,9 @@ impl fmt::Display for ProtocolError {
                 write!(f, "Error de protocolo: {}", err)
             }
             ProtocolError::ShutdownError(ref err) => {
+                write!(f, "Error de protocolo: {}", err)
+            }
+            ProtocolError::BindingError(ref err) => {
                 write!(f, "Error de protocolo: {}", err)
             }
             ProtocolError::CameraError(ref err) => {
