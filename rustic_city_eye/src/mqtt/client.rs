@@ -1,9 +1,13 @@
 use rand::Rng;
 use std::{
-    io::Write, net::{Shutdown, TcpStream}, sync::{
+    io::Write,
+    net::{Shutdown, TcpStream},
+    sync::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,
-    }, thread, time::Duration
+    },
+    thread,
+    time::Duration,
 };
 
 use crate::{
@@ -182,10 +186,10 @@ impl Client {
         client_id: String,
         reason: &str,
         mut stream: TcpStream,
-    ) -> Result<u16, ClientError> {
-        let packet_id = 1;
+    ) -> Result<(), ClientError> {
         let reason_code: u8;
         let reason_string: String;
+        println!("Entró a handle_disconnect");
         match reason {
             "normal" => {
                 reason_code = 0x00;
@@ -211,7 +215,7 @@ impl Client {
         };
 
         match disconnect.write_to(&mut stream) {
-            Ok(()) => Ok(packet_id),
+            Ok(()) => Ok(()),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
@@ -540,24 +544,9 @@ impl Client {
                                 Ok(stream_clone) => {
                                     let reason = "normal";
 
-                                    let _disconnect = ClientMessage::Disconnect {
-                                        reason_code: 0x00,
-                                        session_expiry_interval: 0,
-                                        reason_string: "Disconnecting".to_string(),
-                                        client_id: client_id.clone(),
-                                    };
-
-                                    if let Ok(packet_id) =
+                                    if let Ok(()) =
                                         Client::handle_disconnect(client_id, reason, stream_clone)
                                     {
-                                        match sender.send(packet_id) {
-                                            Ok(_) => continue,
-                                            Err(_) => {
-                                                println!(
-                                                    "Error al enviar packet_id de puback al receiver"
-                                                )
-                                            }
-                                        }
                                         desconectar = true;
                                         break;
                                     }

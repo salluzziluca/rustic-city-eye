@@ -13,6 +13,7 @@ use crate::{
     mqtt::{
         client::Client,
         client_message::{self, ClientMessage, Connect},
+        disconnect_config::DisconnectConfig,
         messages_config::{self, MessagesConfig},
         protocol_error::ProtocolError,
         publish::publish_config::PublishConfig,
@@ -219,12 +220,28 @@ impl Drone {
     /// Desconecta al Client del Drone. Se cierra el canal por el cual el Drone envia packets
     /// a su Client, y ademas se desconecta a su Client.
     pub fn disconnect(&mut self) -> Result<(), ProtocolError> {
-        let mut lock = match self.send_to_client_channel.lock() {
-            Ok(l) => l,
-            Err(_) => return Err(ProtocolError::LockError),
-        };
-        *lock = None;
-        self.drone_client.disconnect_client()?;
+        let disconnect_config =
+            DisconnectConfig::new(0x00_u8, 1, "normal".to_string(), self.id.to_string());
+        let send_to_client_channel = self.send_to_client_channel.lock().unwrap();
+
+        if let Some(ref sender) = *send_to_client_channel {
+            match sender.send(Box::new(disconnect_config)) {
+                Ok(_) => {
+                    println!("Drone {} desconectado correctamente", self.id);
+                }
+                Err(e) => {
+                    println!("Error sending to client channel: {:?}", e);
+                    return Err(ProtocolError::SendError(e.to_string()));
+                }
+            };
+        }
+
+        // let mut lock = match self.send_to_client_channel.lock() {
+        //     Ok(l) => l,
+        //     Err(_) => return Err(ProtocolError::LockError),
+        // };
+        // *lock = None;
+        // self.drone_client.disconnect_client()?;
         println!("Cliente del drone {} desconectado correctamente", self.id);
         Ok(())
     }

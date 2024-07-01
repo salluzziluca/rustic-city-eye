@@ -92,6 +92,7 @@ pub enum ClientMessage {
         /// Vector de subscription es un struct que contiene la informacion de la suscripcion.
         payload: Subscription,
     },
+
     /// El Unsubscribe Message se utiliza para cancelar una o más suscripciones. El cliente envia un mensaje de unsubscribe con un packet id y una lista de topics de los que quiere desuscribirse. El broker responde con un mensaje de unsuback con el mismo packet id y una lista de return codes que indican si la desuscripcion fue exitosa o no.
     Unsubscribe {
         /// packet_id es un identificador unico que el cliente asigna a cada mensaje que envia.
@@ -101,6 +102,7 @@ pub enum ClientMessage {
         /// Vector de subscription es un struct que contiene la informacion de la suscripcion.
         payload: Subscription,
     },
+
     /// Es el ultimo mensaje que el cliente envia antes de desconectarse, este mensaje contiene informacion sobre la razon de la desconexión y propiedades adicionales.
     Disconnect {
         /// reason_code es el codigo de la razon de la desconexión.
@@ -112,6 +114,7 @@ pub enum ClientMessage {
         /// client_id es el identificador unico del cliente.
         client_id: String,
     },
+
     /// El Pingreq Message es un mensaje que el cliente envia al broker para mantener la conexion activa.
     Pingreq,
 

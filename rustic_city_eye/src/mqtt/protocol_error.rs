@@ -28,7 +28,7 @@ pub enum ProtocolError {
     CameraError(String),
     SendError(String),
     ShutdownError(String),
-    BindingError(String)
+    BindingError(String),
 }
 
 impl fmt::Display for ProtocolError {

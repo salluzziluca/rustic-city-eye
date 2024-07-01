@@ -208,7 +208,7 @@ impl Broker {
 
                         move || {
                             let result = match self_clone.handle_client(
-                                stream,
+                                stream.try_clone().unwrap(),
                                 topics_clone.clone(),
                                 packets_clone,
                                 clients_ids_clone,
@@ -216,8 +216,12 @@ impl Broker {
                                 id_sender,
                             ) {
                                 Ok(_) => Ok(()),
+
                                 Err(err) => {
-                                    println!("Error en el hilo del cliente {}, {:?}", client_id, err);
+                                    println!(
+                                        "Error en el hilo del cliente {}, {:?}",
+                                        client_id, err
+                                    );
                                     //busco a ver si hay un will message asociado al cliente
                                     if err == ProtocolError::StreamError
                                         || err == ProtocolError::AbnormalDisconnection
@@ -256,7 +260,6 @@ impl Broker {
         }
         Ok(())
     }
-
 
     /// Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
     #[allow(clippy::type_complexity)]
@@ -768,9 +771,8 @@ impl Broker {
                     reason_string
                 );
 
-                if reason_string == "CLIENT_DUP" {
-                    return Ok(ProtocolReturn::DisconnectRecieved);
-                }
+                // cambio el estado del cliente a desconectado
+                let _ = ClientConfig::change_client_state(client_id.clone(), false);
 
                 // elimino el client_id de clients_ids
                 if let Ok(mut lock) = self.clients_ids.write() {
@@ -778,9 +780,6 @@ impl Broker {
                 } else {
                     return Err(ProtocolError::UnspecifiedError);
                 }
-
-                // cambio el estado del cliente a desconectado
-                let _ = ClientConfig::change_client_state(client_id.clone(), false);
 
                 // agrego el client_id a offline_clients
                 if let Ok(mut lock) = self.offline_clients.write() {
@@ -887,26 +886,23 @@ impl Broker {
             .map_err(|_| ProtocolError::UnspecifiedError)?;
         for (client_id, (stream, _)) in clients.iter() {
             if let Some(stream) = stream {
-                let mut stream_clone = stream.try_clone().expect("Error al clonar el stream");
                 let disconnect = BrokerMessage::Disconnect {
                     reason_code: 0,
                     session_expiry_interval: 0,
                     reason_string: "SERVER_SHUTDOWN".to_string(),
                     user_properties: Vec::new(),
                 };
-
-                let _ = ClientConfig::change_client_state(client_id.clone(), false);
-                match disconnect.write_to(&mut stream_clone) {
+                let _ = ClientConfig::remove_client(client_id.clone());
+                match disconnect.write_to(&mut stream.try_clone().unwrap()) {
                     Ok(_) => {
                         println!("Disconnect enviado a {}", client_id);
-                        stream_clone
-                            .shutdown(Shutdown::Both)
-                            .expect("Error al cerrar el stream");
                     }
-                    Err(_) => return Err(ProtocolError::UnspecifiedError),
+                    Err(_) => {
+                        return Err(ProtocolError::UnspecifiedError);
+                    }
                 }
 
-                let _ = ClientConfig::change_client_state(client_id.clone(), false);
+                let _ = stream.shutdown(Shutdown::Both);
             }
         }
 

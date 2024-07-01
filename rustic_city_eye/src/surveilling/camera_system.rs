@@ -13,6 +13,7 @@ use crate::{
     mqtt::{
         client::{Client, ClientTrait},
         client_message::{self, ClientMessage},
+        disconnect_config::DisconnectConfig,
         messages_config::MessagesConfig,
         protocol_error::ProtocolError,
         publish::publish_config::PublishConfig,
@@ -293,7 +294,16 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
     }
 
     pub fn disconnect(&self) -> Result<(), ProtocolError> {
-        self.camera_system_client.disconnect_client()?;
+        let disconnect_config = DisconnectConfig::new(
+            0x00_u8,
+            1,
+            "normal".to_string(),
+            self.camera_system_client.get_client_id(),
+        );
+        let send_to_client_channel = self.send_to_client_channel.lock().unwrap();
+
+        let _ = send_to_client_channel.send(Box::new(disconnect_config));
+        // self.camera_system_client.disconnect_client()?;
         println!("Cliente del system desconectado correctamente");
 
         Ok(())
