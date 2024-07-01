@@ -93,4 +93,14 @@ mod tests {
         assert_eq!(camera.get_location(), location);
         assert_eq!(camera.get_id(), 1);
     }
+    #[test]
+    fn write_to_read_from() {
+        let location = Location::new(1.0, 2.0);
+        let mut camera = Camera::new(location.clone(), 1);
+        let mut buffer = Vec::new();
+        camera.write_to(&mut buffer).unwrap();
+        let mut buffer = &buffer[..];
+        let camera_read = Camera::read_from(&mut buffer).unwrap();
+        assert_eq!(camera, camera_read);
+    }
 }
