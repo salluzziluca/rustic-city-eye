@@ -890,6 +890,9 @@ impl Broker {
                     reason_string: "SERVER_SHUTDOWN".to_string(),
                     user_properties: Vec::new(),
                 };
+                
+                ClientConfig::remove_client(client_id.clone());
+
                 match disconnect.write_to(&mut stream_clone) {
                     Ok(_) => {
                         println!("Disconnect enviado");
