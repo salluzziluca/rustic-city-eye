@@ -152,7 +152,7 @@ impl MonitoringApp {
         match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
             Ok(_) => {
                 println!(
-                    "Monitoring App suscrita al topic {} correctamente",
+                    "Monitoring App subscrita al topic {} correctamente",
                     topic_name
                 );
             }
@@ -171,7 +171,7 @@ impl MonitoringApp {
         match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
             Ok(_) => {
                 println!(
-                    "Monitoring App suscrita al topic {} correctamente",
+                    "Monitoring App subscrita al topic {} correctamente",
                     topic_name
                 );
             }
@@ -191,7 +191,7 @@ impl MonitoringApp {
         match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
             Ok(_) => {
                 println!(
-                    "Monitoring App suscrita al topic {} correctamente",
+                    "Monitoring App subscrita al topic {} correctamente",
                     topic_name
                 );
             }

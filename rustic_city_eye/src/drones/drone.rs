@@ -508,7 +508,7 @@ impl Drone {
                 *count += 1;
 
                 if *count == 2 {
-                    sleep(Duration::from_secs(10));
+                    sleep(Duration::from_secs(1));
                     to_remove.push(incident.clone());
 
                     let incident_payload =

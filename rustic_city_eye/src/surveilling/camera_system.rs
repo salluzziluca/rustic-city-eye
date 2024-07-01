@@ -118,8 +118,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         let camera = Camera::new(location, id);
         println!("CameraSys: creo la camara con id: {:?}", id);
         cameras.insert(id, camera);
-        print!("cameras: {:?}", self.cameras);
-        println!("CameraSys: añadiendo camara: {:?}", self.cameras);
 
         Ok(id)
     }
@@ -253,10 +251,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                         payload: PayloadTypes::IncidentLocation(payload),
                         ..
                     }) => {
-                        println!(
-                            "SOT EL CAMERA Y RECIBVI UN PUBLISH DE TOPIC: {:?}",
-                            topic_name
-                        );
                         if topic_name == "incidente" {
                             incident_location = Some(payload.get_incident().get_location());
                             drop(reciever); // Release the lock here
@@ -309,10 +303,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
     /// Adicionalmente, cada camara activada despues avisa a las camaras colindantes para que,
     /// si estan a la distancia requerida, tambien se activen.
     pub fn activate_cameras(&mut self, location: Location) -> Result<(), CameraError> {
-        println!(
-            "CameraSys: Camaras antes de ser activadas: {:?}",
-            self.cameras
-        );
         let locations_to_activate: Vec<Location> = {
             let mut cameras = match self.cameras.lock() {
                 Ok(guard) => guard,
@@ -336,14 +326,10 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                 })
                 .collect()
         };
-        println!(
-            "CameraSys: Camaras despues de ser activadas: {:?}",
-            self.cameras
-        );
         for loc in locations_to_activate {
             self.activate_cameras_by_camera_location(loc)?;
         }
-
+        println!("CameraSys: Camaras activadas");
         self.publish_cameras_update()?;
 
         Ok(())
@@ -500,8 +486,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         for camera in cameras.values() {
             new_snapshot.push(camera.clone());
         }
-        print!("SNAPSHOT ANTERIOR: {:?}", self.snapshot);
-        println!("SNAPSHOT ACTUAL: {:?}", new_snapshot);
 
         let mut updated_cameras = Vec::new();
         for camera in new_snapshot.iter() {
@@ -515,10 +499,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                             None => false,
                         })
             {
-                println!("CameraSys: camera: {:?}", camera.clone());
-                if camera_vieja.is_some() {
-                    println!("CameraSys: camera vieja: {:?}", camera_vieja.unwrap());
-                }
                 updated_cameras.push(camera.clone());
             }
         }

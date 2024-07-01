@@ -626,7 +626,6 @@ impl ClientMessage {
                 payload: _,
             } => {
                 let byte_1: u8 = 0x82_u8;
-                println!("estoy mandnado el header {:?}", byte_1);
                 writer
                     .write_all(&[byte_1])
                     .map_err(|_e| ProtocolError::WriteError)?;

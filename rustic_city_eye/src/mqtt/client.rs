@@ -719,7 +719,6 @@ pub fn handle_message(
                     }
                 }
 
-                println!("Recibi un mensaje {:?}", message);
                 Ok(ClientReturn::SubackRecieved)
             }
             BrokerMessage::PublishDelivery {
