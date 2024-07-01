@@ -122,7 +122,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         println!("CameraSys: creo la camara con id: {:?}", id);
         cameras.insert(id, camera);
         print!("cameras: {:?}", self.cameras);
-        println!("CameraSys: 🎗️🎗️🎗️añadiendo camara: {:?}", self.cameras);
+        println!("CameraSys: añadiendo camara: {:?}", self.cameras);
 
         Ok(id)
     }
@@ -293,7 +293,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
     /// si estan a la distancia requerida, tambien se activen.
     pub fn activate_cameras(&mut self, location: Location) -> Result<(), CameraError> {
         println!(
-            "CameraSys: 🐸🤢🤢Camaras antes de ser activadas: {:?}",
+            "CameraSys: Camaras antes de ser activadas: {:?}",
             self.cameras
         );
         let locations_to_activate: Vec<Location> = {
@@ -320,7 +320,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                 .collect()
         };
         println!(
-            "CameraSys: 😡🫦🫦🫦🫦🫦Camaras despues de ser activadas: {:?}",
+            "CameraSys: Camaras despues de ser activadas: {:?}",
             self.cameras
         );
         for loc in locations_to_activate {
@@ -533,12 +533,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
 
         Ok(())
     }
-    fn get_client_publish_end_channel(
-        &self,
-    ) -> Arc<std::sync::Mutex<std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>>>
-    {
-        self.camera_system_client.get_publish_end_channel()
-    }
 }
 
 impl CameraSystem<Client> {
@@ -561,7 +555,15 @@ mod tests {
     use crate::utils::incident_payload::IncidentPayload;
 
     use super::*;
-
+    impl CameraSystem<Client> {
+        fn get_client_publish_end_channel(
+            &self,
+        ) -> Arc<
+            std::sync::Mutex<std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>>,
+        > {
+            self.camera_system_client.get_publish_end_channel()
+        }
+    }
     #[test]
     fn test01_new_camera_system_vacio() {
         let args = vec!["127.0.0.1".to_string(), "5000".to_string()];
