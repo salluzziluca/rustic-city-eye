@@ -6,6 +6,7 @@ use std::fmt;
 pub enum CameraError {
     SendError,
     WriteError,
+    ArcMutexError(String),
 }
 
 impl fmt::Display for CameraError {
@@ -16,6 +17,9 @@ impl fmt::Display for CameraError {
             }
             CameraError::WriteError => {
                 write!(f, "Error writing to stream")
+            }
+            CameraError::ArcMutexError(e) => {
+                write!(f, "Error with Arc Mutex: {}", e)
             }
         }
     }

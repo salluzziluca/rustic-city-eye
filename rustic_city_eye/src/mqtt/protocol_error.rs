@@ -13,7 +13,7 @@ pub enum ProtocolError {
     PublishError,
     SubscribeError,
     UnsubscribeError,
-    UnspecifiedError,
+    UnspecifiedError(String),
     PubackWithoutPendingID,
     WriteError,
     ReadingConfigFileError,
@@ -72,8 +72,8 @@ impl fmt::Display for ProtocolError {
                     "Error: Se recibió un Puback sin un ID en la lista de pending message"
                 )
             }
-            ProtocolError::UnspecifiedError => {
-                write!(f, "Error no especificado")
+            ProtocolError::UnspecifiedError(ref err) => {
+                write!(f, "Error no especificado: {}", err)
             }
             ProtocolError::ChanellError(ref err) => {
                 write!(
@@ -142,7 +142,7 @@ fn test_display_protocol_error() {
         "Error: Se recibió un Puback sin un ID en la lista de pending message"
     );
     assert_eq!(
-        ProtocolError::UnspecifiedError.to_string(),
-        "Error no especificado"
+        ProtocolError::UnspecifiedError("Error".to_string()).to_string(),
+        "Error no especificado: Error"
     );
 }

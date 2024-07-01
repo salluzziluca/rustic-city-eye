@@ -30,7 +30,7 @@ const MILISECONDS_PER_SECOND: f64 = 1000.0;
 const TWO_PI: f64 = 2.0 * PI;
 const COORDINATE_SCALE_FACTOR: f64 = 100.0;
 const FULL_BATTERY: i64 = 100;
-const ANGLE_SCALING_FACTOR: f64 = 0.6; // Adjust this value to make steps smaller or larger
+const ANGLE_SCALING_FACTOR: f64 = 0.6; // este valor hace que en cada tick los drones avancen mas o menos
 
 #[derive(Debug, Clone)]
 #[allow(clippy::type_complexity)]
@@ -278,7 +278,7 @@ impl Drone {
             let _ = Drone::handle_message_reception_from_client(
                 self_clone_three,
                 recieve_from_client_clone,
-                send_to_client_channel_clone
+                send_to_client_channel_clone,
             );
         });
 
@@ -365,7 +365,7 @@ impl Drone {
                                 lock.publish_attending_accident(location);
                             }
                             //sleep(Duration::from_secs(10));
-                         //   lock.drone_state = DroneState::Waiting;
+                            //   lock.drone_state = DroneState::Waiting;
                         }
                         Err(e) => {
                             println!("Error while moving to incident: {:?}", e);
@@ -393,8 +393,9 @@ impl Drone {
     fn handle_message_reception_from_client(
         drone_ref: Arc<Mutex<Drone>>,
         receive_from_client_ref: Arc<Mutex<Receiver<ClientMessage>>>,
-        send_to_client_channel:
-        Arc<Mutex<Option<Sender<Box<dyn messages_config::MessagesConfig + Send>>>>>
+        send_to_client_channel: Arc<
+            Mutex<Option<Sender<Box<dyn messages_config::MessagesConfig + Send>>>>,
+        >,
     ) -> Result<(), DroneError> {
         loop {
             let message = {
@@ -414,10 +415,10 @@ impl Drone {
                         if self_cloned.drone_state == DroneState::Waiting {
                             let location = payload.get_incident().get_location();
                             self_cloned.drone_state = DroneState::AttendingIncident(location);
-    
+
                             let (incident, drones_attending_incident) =
                                 (payload.get_incident().clone(), 0);
-    
+
                             self_cloned
                                 .incidents
                                 .push((incident.clone(), drones_attending_incident));
@@ -457,7 +458,8 @@ impl Drone {
                                             return Err(DroneError::ProtocolError(e.to_string()));
                                         }
                                     };
-                                    let send_to_client_channel = send_to_client_channel.lock().unwrap();
+                                    let send_to_client_channel =
+                                        send_to_client_channel.lock().unwrap();
 
                                     if let Some(ref sender) = *send_to_client_channel {
                                         match sender.send(Box::new(publish_config)) {
@@ -465,7 +467,10 @@ impl Drone {
                                                 println!("Drone notifica la resolucion del incidente en la location {:?}", incident.get_location());
                                             }
                                             Err(e) => {
-                                                println!("Error sending to client channel: {:?}", e);
+                                                println!(
+                                                    "Error sending to client channel: {:?}",
+                                                    e
+                                                );
                                             }
                                         };
                                     }
@@ -605,11 +610,9 @@ impl Drone {
     /// posicion para ir, y que comience a moverse.
     fn patrolling_in_operating_radius(&mut self) -> Result<(), DroneError> {
         if (self.location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
-            == (self.target_location.lat * COORDINATE_SCALE_FACTOR)
-                / COORDINATE_SCALE_FACTOR
+            == (self.target_location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
             && (self.location.long * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
-                == (self.target_location.long * COORDINATE_SCALE_FACTOR)
-                    / COORDINATE_SCALE_FACTOR
+                == (self.target_location.long * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
         {
             self.update_target_location()?;
         }
@@ -637,18 +640,15 @@ impl Drone {
     fn redirect_to_operation_center(&mut self) {
         println!("Drone {} redirigiendose a su central de carga", self.id);
         if (self.location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
-            == (self.center_location.lat * COORDINATE_SCALE_FACTOR)
-                / COORDINATE_SCALE_FACTOR
+            == (self.center_location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
             && (self.location.long * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
-                == (self.center_location.long * COORDINATE_SCALE_FACTOR)
-                    / COORDINATE_SCALE_FACTOR
+                == (self.center_location.long * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
         {
             self.drone_state = DroneState::ChargingBattery;
         }
 
         let _ = self.update_drone_position(self.center_location);
     }
-
 
     fn update_drone_position(&mut self, target_location: Location) -> Result<(), DroneError> {
         let (new_lat, new_long) = self.calculate_new_position(
@@ -669,14 +669,13 @@ impl Drone {
         if (self.location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
             == (target_location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
             && (self.location.long * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
-                == (target_location.long * COORDINATE_SCALE_FACTOR)
-                    / COORDINATE_SCALE_FACTOR
+                == (target_location.long * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
         {
             return Ok(true);
         }
 
         self.update_drone_position(target_location)?;
-        
+
         Ok(false)
     }
     fn calculate_new_position(

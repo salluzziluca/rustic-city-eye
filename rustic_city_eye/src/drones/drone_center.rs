@@ -246,7 +246,7 @@ mod tests {
     }
 
     #[test]
-    fn test_05_get_drpnes_ok() {
+    fn test_05_get_drones_ok() {
         let args = vec!["127.0.0.1".to_string(), "5000".to_string()];
         let addr = "127.0.0.1:5000";
         let mut broker = match Broker::new(args) {

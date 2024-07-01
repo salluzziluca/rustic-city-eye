@@ -323,7 +323,9 @@ impl Broker {
                 dup_flag: *dup_flag,
                 properties: properties.clone(),
             }),
-            _ => Err(ProtocolError::UnspecifiedError),
+            _ => Err(ProtocolError::UnspecifiedError(
+                "Error al convertir a BrokerMessage".to_string(),
+            )),
         }
     }
 
@@ -354,10 +356,9 @@ impl Broker {
         user_id: &str,
         message: &ClientMessage,
     ) -> Result<(), ProtocolError> {
-        let mut offline_clients = self
-            .offline_clients
-            .write()
-            .map_err(|_| ProtocolError::UnspecifiedError)?;
+        let mut offline_clients = self.offline_clients.write().map_err(|_| {
+            ProtocolError::UnspecifiedError("Error al leer offline_clients".to_string())
+        })?;
         if let Some(messages) = offline_clients.get_mut(user_id) {
             messages.push(message.clone());
         } else {
@@ -378,7 +379,9 @@ impl Broker {
         let mensaje = Broker::convert_to_broker_message(&message)?;
         let topic = topics
             .get_mut(&topic_name)
-            .ok_or(ProtocolError::UnspecifiedError)?;
+            .ok_or(ProtocolError::UnspecifiedError(
+                "Topic no encontrado".to_string(),
+            ))?;
         let users = topic.get_users_from_topic();
 
         for user in users {
@@ -402,12 +405,14 @@ impl Broker {
         topic_name: String,
         subscription: Subscription,
     ) -> Result<u8, ProtocolError> {
-        
-        let reason_code;       
+        let reason_code;
         if let Some(topic) = topics.get_mut(&topic_name) {
             match topic.add_user_to_topic(subscription.clone()) {
                 0 => {
-                    ClientConfig::add_new_subscription(subscription.client_id.clone(), topic_name.clone());
+                    ClientConfig::add_new_subscription(
+                        subscription.client_id.clone(),
+                        topic_name.clone(),
+                    );
                     reason_code = SUCCESS_HEX;
                 }
                 0x92 => {
@@ -420,7 +425,7 @@ impl Broker {
         } else {
             reason_code = UNSPECIFIED_ERROR_HEX;
         }
-            
+
         Ok(reason_code)
     }
 
@@ -438,7 +443,10 @@ impl Broker {
             match topic.remove_user_from_topic(subscription.clone()) {
                 0 => {
                     println!("Unsubscribe exitoso");
-                    ClientConfig::remove_subscription(subscription.client_id.clone(), topic_name.clone());
+                    ClientConfig::remove_subscription(
+                        subscription.client_id.clone(),
+                        topic_name.clone(),
+                    );
                     reason_code = SUCCESS_HEX;
                 }
                 _ => {
@@ -549,8 +557,9 @@ impl Broker {
                             }
                         }
                     }
-                    Err(_) => {
-                        return Err(ProtocolError::UnspecifiedError);
+                    Err(e) => {
+                        println!("Error al leer clientes: {:?}", e);
+                        return Err(ProtocolError::UnspecifiedError(e.to_string()));
                     }
                 }
 
@@ -563,7 +572,10 @@ impl Broker {
                                     Ok(_) => {
                                         println!("Mensaje enviado a {}", connect.client_id);
                                     }
-                                    Err(_) => return Err(ProtocolError::UnspecifiedError),
+                                    Err(e) => {
+                                        println!("Error al enviar mensaje: {:?}", e);
+                                        return Err(ProtocolError::UnspecifiedError(e.to_string()));
+                                    }
                                 }
                             }
                         }
@@ -575,7 +587,9 @@ impl Broker {
                     ClientConfig::remove_client(connect.client_id.clone());
                     lock.remove(&connect.client_id);
                 } else {
-                    return Err(ProtocolError::UnspecifiedError);
+                    return Err(ProtocolError::UnspecifiedError(
+                        "Error al leer offline_clients".to_string(),
+                    ));
                 }
 
                 //clona stream con ok err
@@ -586,13 +600,12 @@ impl Broker {
 
                 let will_message = connect.clone().give_will_message();
                 if let Ok(mut clients) = self.clients_ids.write() {
-
                     clients.insert(
                         connect.client_id.clone(),
                         (Some(cloned_stream), will_message),
                     );
                 } else {
-                    return Err(ProtocolError::UnspecifiedError);
+                    return Err(ProtocolError::WriteError);
                 }
 
                 let connect_clone = connect.clone();
@@ -698,8 +711,11 @@ impl Broker {
 
                 let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-                let reason_code =
-                    Broker::handle_subscribe(topics.clone(), payload.topic.clone(), payload.clone())?;
+                let reason_code = Broker::handle_subscribe(
+                    topics.clone(),
+                    payload.topic.clone(),
+                    payload.clone(),
+                )?;
 
                 let suback = BrokerMessage::Suback {
                     packet_id_msb: packet_id_bytes[0],
@@ -732,17 +748,15 @@ impl Broker {
 
                 let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-            
                 let reason_code =
-                        Broker::handle_unsubscribe(topics.clone(), payload.topic.clone(), payload)?;
-                   
+                    Broker::handle_unsubscribe(topics.clone(), payload.topic.clone(), payload)?;
+
                 let unsuback = BrokerMessage::Unsuback {
                     packet_id_msb: packet_id_bytes[0],
                     packet_id_lsb: packet_id_bytes[1],
                     reason_code,
                 };
 
-               
                 println!("Enviando un Unsuback");
                 match unsuback.write_to(&mut stream) {
                     Ok(_) => {
@@ -772,7 +786,7 @@ impl Broker {
                 if let Ok(mut lock) = self.clients_ids.write() {
                     lock.remove(&client_id);
                 } else {
-                    return Err(ProtocolError::UnspecifiedError);
+                    return Err(ProtocolError::WriteError);
                 }
 
                 // cambio el estado del cliente a desconectado
@@ -782,7 +796,7 @@ impl Broker {
                 if let Ok(mut lock) = self.offline_clients.write() {
                     lock.insert(client_id, Vec::new());
                 } else {
-                    return Err(ProtocolError::UnspecifiedError);
+                    return Err(ProtocolError::WriteError);
                 }
 
                 return Ok(ProtocolReturn::DisconnectRecieved);
@@ -848,7 +862,9 @@ impl Broker {
                 }
             }
         }
-        Err(ProtocolError::UnspecifiedError)
+        Err(ProtocolError::UnspecifiedError(
+            "Error al recibir mensaje".to_string(),
+        ))
     }
 
     /// Devuelve los clientes offline y sus mensajes pendientes de manera estática
@@ -880,7 +896,7 @@ impl Broker {
         let clients = self
             .clients_ids
             .read()
-            .map_err(|_| ProtocolError::UnspecifiedError)?;
+            .map_err(|e| ProtocolError::UnspecifiedError(e.to_string()))?;
         for (client_id, (stream, _)) in clients.iter() {
             if let Some(stream) = stream {
                 let mut stream_clone = stream.try_clone().expect("Error al clonar el stream");
@@ -895,7 +911,7 @@ impl Broker {
                         println!("Disconnect enviado");
                         ClientConfig::remove_client(client_id.clone());
                     }
-                    Err(_) => return Err(ProtocolError::UnspecifiedError),
+                    Err(e) => return Err(ProtocolError::UnspecifiedError(e.to_string())),
                 }
             }
         }
@@ -1038,7 +1054,9 @@ mod tests {
         let topics = HashMap::new();
         // Write a ClientMessage to the stream.
         // You'll need to replace this with a real ClientMessage.
-        let mut result: Result<(), ProtocolError> = Err(ProtocolError::UnspecifiedError);
+        let mut result: Result<(), ProtocolError> = Err(ProtocolError::UnspecifiedError(
+            "Error al leer mensaje".to_string(),
+        ));
         let broker = match Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]) {
             Ok(broker) => broker,
             Err(_) => return,
