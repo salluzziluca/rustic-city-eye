@@ -272,7 +272,6 @@ impl Broker {
         clients_auth_info: HashMap<String, (String, Vec<u8>)>,
         id_sender: std::sync::mpsc::Sender<String>,
     ) -> Result<(), ProtocolError> {
-        println!("entre a handle client");
         loop {
             let cloned_stream = match stream.try_clone() {
                 Ok(stream) => stream,
