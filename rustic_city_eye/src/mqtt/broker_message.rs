@@ -98,14 +98,14 @@ impl BrokerMessage {
                 properties,
             } => {
                 let byte_1: u8 = 0x20_u8.to_le(); //00100000
-                let _ = writer
+                writer
                     .write_all(&[byte_1])
-                    .map_err(|_| ProtocolError::WriteError);
+                    .map_err(|_| ProtocolError::WriteError)?;
 
                 write_bool(&mut writer, session_present)?;
                 write_u8(&mut writer, reason_code)?;
                 properties.write_to(&mut writer)?;
-                let _ = writer.flush().map_err(|_| ProtocolError::WriteError);
+                writer.flush().map_err(|_| ProtocolError::WriteError)?;
 
                 Ok(())
             }
@@ -117,9 +117,9 @@ impl BrokerMessage {
                 //fixed header
                 let byte_1: u8 = 0x40_u8.to_le(); //01000000
 
-                let _ = writer
+                writer
                     .write_all(&[byte_1])
-                    .map_err(|_| ProtocolError::WriteError);
+                    .map_err(|_| ProtocolError::WriteError)?;
 
                 //variable header
                 //packet_id
@@ -129,7 +129,7 @@ impl BrokerMessage {
                 //reason code
                 write_u8(&mut writer, reason_code)?;
 
-                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
+                writer.flush().map_err(|_e| ProtocolError::WriteError)?;
 
                 Ok(())
             }
@@ -141,9 +141,9 @@ impl BrokerMessage {
                 //fixed header
                 let byte_1: u8 = 0x90_u8.to_le(); //10010000
 
-                let _ = writer
+                writer
                     .write_all(&[byte_1])
-                    .map_err(|_e| ProtocolError::WriteError);
+                    .map_err(|_e| ProtocolError::WriteError)?;
 
                 write_u8(&mut writer, packet_id_msb)?;
                 write_u8(&mut writer, packet_id_lsb)?;
@@ -152,7 +152,7 @@ impl BrokerMessage {
                 write_u8(&mut writer, reason_code)?;
 
                 //sub_id
-                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
+                writer.flush().map_err(|_e| ProtocolError::WriteError)?;
 
                 Ok(())
             }
@@ -167,9 +167,9 @@ impl BrokerMessage {
             } => {
                 //fixed header -> es uno de juguete, hay que pensarlo mejor
                 let byte_1: u8 = 0x00_u8.to_le();
-                let _ = writer
+                writer
                     .write_all(&[byte_1])
-                    .map_err(|_e| ProtocolError::WriteError);
+                    .map_err(|_e| ProtocolError::WriteError)?;
 
                 //variable header
                 //packet_id
@@ -195,7 +195,7 @@ impl BrokerMessage {
                 //properties
                 properties.write_properties(&mut writer)?;
 
-                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
+                writer.flush().map_err(|_e| ProtocolError::WriteError)?;
 
                 Ok(())
             }
@@ -207,9 +207,9 @@ impl BrokerMessage {
                 //fixed header
                 let byte_1: u8 = 0xB0_u8.to_le(); //10110000
 
-                let _ = writer
+                writer
                     .write_all(&[byte_1])
-                    .map_err(|_e| ProtocolError::WriteError);
+                    .map_err(|_e| ProtocolError::WriteError)?;
 
                 //variable header
                 //packet_id
@@ -217,7 +217,7 @@ impl BrokerMessage {
                 write_u8(&mut writer, packet_id_lsb)?;
                 write_u8(&mut writer, reason_code)?;
 
-                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
+                writer.flush().map_err(|_e| ProtocolError::WriteError)?;
 
                 Ok(())
             }
@@ -241,15 +241,15 @@ impl BrokerMessage {
 
                 write_u8(&mut writer, &USER_PROPERTY_ID)?;
                 write_string_pairs(&mut writer, user_properties)?;
-                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
+                writer.flush().map_err(|_e| ProtocolError::WriteError)?;
                 Ok(())
             }
             BrokerMessage::Pingresp => {
                 let byte_1: u8 = 0xD0_u8.to_le();
-                let _ = writer
+                writer
                     .write_all(&[byte_1])
-                    .map_err(|_e| ProtocolError::WriteError);
-                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
+                    .map_err(|_e| ProtocolError::WriteError)?;
+                writer.flush().map_err(|_e| ProtocolError::WriteError)?;
 
                 Ok(())
             }
@@ -261,37 +261,37 @@ impl BrokerMessage {
                 user_properties,
             } => {
                 let byte_1 = 0xF0_u8;
-                let _ = writer
+                writer
                     .write_all(&[byte_1])
-                    .map_err(|_e| ProtocolError::WriteError);
+                    .map_err(|_e| ProtocolError::WriteError)?;
 
                 write_u8(&mut writer, reason_code)?;
 
                 let authentication_method_id: u8 = 0x15_u8;
-                let _ = writer
+                writer
                     .write_all(&[authentication_method_id])
-                    .map_err(|_e| ProtocolError::WriteError);
+                    .map_err(|_e| ProtocolError::WriteError)?;
                 write_string(&mut writer, authentication_method)?;
 
                 let authentication_data_id: u8 = 0x16_u8;
-                let _ = writer
+                writer
                     .write_all(&[authentication_data_id])
-                    .map_err(|_e| ProtocolError::WriteError);
+                    .map_err(|_e| ProtocolError::WriteError)?;
                 write_bin_vec(&mut writer, authentication_data)?;
 
                 let reason_string_id: u8 = 0x1F_u8;
-                let _ = writer
+                writer
                     .write_all(&[reason_string_id])
-                    .map_err(|_e| ProtocolError::WriteError);
+                    .map_err(|_e| ProtocolError::WriteError)?;
                 write_string(&mut writer, reason_string)?;
 
                 let user_properties_id: u8 = 0x26_u8; // 38
-                let _ = writer
+                writer
                     .write_all(&[user_properties_id])
-                    .map_err(|_e| ProtocolError::WriteError);
+                    .map_err(|_e| ProtocolError::WriteError)?;
                 write_tuple_vec(&mut writer, user_properties)?;
 
-                let _ = writer.flush().map_err(|_e| ProtocolError::WriteError);
+                writer.flush().map_err(|_e| ProtocolError::WriteError)?;
 
                 Ok(())
             }

@@ -95,7 +95,7 @@ impl PublishProperties {
 
         Ok(())
     }
-    #[allow(dead_code)]
+
     pub fn read_from(stream: &mut dyn Read) -> Result<PublishProperties, Error> {
         //payload format indicator
         let _payload_format_indicator_id = read_u8(stream)?;

@@ -29,7 +29,6 @@ static SERVER_ARGS: usize = 2;
 const THREADPOOL_SIZE: usize = 20;
 
 #[derive(Clone)]
-#[allow(dead_code)]
 pub struct Broker {
     address: String,
 
@@ -52,9 +51,6 @@ pub struct Broker {
     /// las claves son los client_ids, y los valores son
     /// tuplas que contienen el username y password.
     clients_auth_info: HashMap<String, (String, Vec<u8>)>,
-
-    /// Contiene los clientes conectados al broker.
-    clients_config: Arc<RwLock<Vec<(String, ClientConfig)>>>,
 }
 
 impl Broker {
@@ -73,7 +69,6 @@ impl Broker {
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let packets = Arc::new(RwLock::new(HashMap::new()));
         let offline_clients = Arc::new(RwLock::new(HashMap::new()));
-        let clients_config = Arc::new(RwLock::new(Vec::new()));
 
         Ok(Broker {
             address,
@@ -82,10 +77,9 @@ impl Broker {
             packets,
             clients_ids,
             offline_clients,
-            clients_config,
         })
     }
-
+    /// Recibe un path a un archivo de configuracion de topics y devuelve un HashMap con los topics.
     pub fn get_broker_starting_topics(
         file_path: &str,
     ) -> Result<HashMap<String, Topic>, ProtocolError> {
@@ -169,13 +163,13 @@ impl Broker {
         let self_clone = self.clone();
         thread::spawn(move || loop {
             let mut input = String::new();
-            match std::io::stdin().read_line(&mut input) {
-                Ok(_) => {
-                    if input.trim() == "exit" {
-                        let _ = self_clone.broker_exit();
-                    }
+            if std::io::stdin().read_line(&mut input).is_ok() && input.trim() == "exit" {
+                match self_clone.broker_exit() {
+                    Ok(_) => (),
+                    Err(err) => println!("{:?}", err),
                 }
-                Err(_) => {}
+                println!("Cerrando broker");
+                std::process::exit(0);
             }
         });
 
@@ -207,8 +201,12 @@ impl Broker {
                         let self_ref = Arc::new(self.clone()); // wrap `self` in an Arc
 
                         move || {
+                            let stream_clone = match stream.try_clone() {
+                                Ok(stream) => stream,
+                                Err(_) => return Err(ProtocolError::StreamError),
+                            };
                             let result = match self_clone.handle_client(
-                                stream.try_clone().unwrap(),
+                                stream_clone,
                                 topics_clone.clone(),
                                 packets_clone,
                                 clients_ids_clone,
@@ -218,10 +216,6 @@ impl Broker {
                                 Ok(_) => Ok(()),
 
                                 Err(err) => {
-                                    println!(
-                                        "Error en el hilo del cliente {}, {:?}",
-                                        client_id, err
-                                    );
                                     //busco a ver si hay un will message asociado al cliente
                                     if err == ProtocolError::StreamError
                                         || err == ProtocolError::AbnormalDisconnection
@@ -326,7 +320,7 @@ impl Broker {
                 properties: properties.clone(),
             }),
             _ => Err(ProtocolError::UnspecifiedError(
-                "Error al convertir a BrokerMessage".to_string(),
+                "Error al convertir el mensaje".to_string(),
             )),
         }
     }
@@ -411,12 +405,19 @@ impl Broker {
         if let Some(topic) = topics.get_mut(&topic_name) {
             match topic.add_user_to_topic(subscription.clone()) {
                 0 => {
-                    let _ = ClientConfig::add_new_subscription(
-
+                    match ClientConfig::add_new_subscription(
                         subscription.client_id.clone(),
                         topic_name.clone(),
-                    );
-                    reason_code = SUCCESS_HEX;
+                    ) {
+                        Ok(_) => {
+                            println!("Subscribe exitoso");
+                            reason_code = SUCCESS_HEX;
+                        }
+                        Err(_) => {
+                            println!("Error no especificado");
+                            reason_code = UNSPECIFIED_ERROR_HEX;
+                        }
+                    }
                 }
                 0x92 => {
                     reason_code = SUB_ID_DUP_HEX;
@@ -446,11 +447,17 @@ impl Broker {
             match topic.remove_user_from_topic(subscription.clone()) {
                 0 => {
                     println!("Unsubscribe exitoso");
-                    let _ = ClientConfig::remove_subscription(
+                    match ClientConfig::remove_subscription(
                         subscription.client_id.clone(),
                         topic_name.clone(),
-                    );
-                    reason_code = SUCCESS_HEX;
+                    ) {
+                        Ok(_) => {
+                            reason_code = SUCCESS_HEX;
+                        }
+                        Err(_) => {
+                            reason_code = UNSPECIFIED_ERROR_HEX;
+                        }
+                    }
                 }
                 _ => {
                     println!("Error no especificado");
@@ -498,10 +505,9 @@ impl Broker {
 
         let will_payload = PayloadTypes::WillPayload(message.to_string());
 
-        //publish
         let will_publish = ClientMessage::Publish {
             packet_id: 0,
-            topic_name: will_topic.to_string(), //TODO: aca habria que ver bien cual topic le cargamos
+            topic_name: will_topic.to_string(),
             qos: will_qos as usize,
             retain_flag: will_retain as usize,
             payload: will_payload,
@@ -511,12 +517,15 @@ impl Broker {
                 .clone()
                 .to_publish_properties(),
         };
-        _ = self.handle_publish(will_publish, topics, will_topic.to_string());
+        match self.handle_publish(will_publish, topics, will_topic.to_string()) {
+            Ok(_) => (),
+            Err(_) => println!("Error al enviar el Last Will"),
+        }
     }
 
     /// Lee del stream un mensaje y lo procesa
     /// Devuelve un ProtocolReturn con informacion del mensaje recibido
-    /// O ProtocolError en caso de erro    #[allow(clippy::type_complexity)]
+    /// O ProtocolError en caso de error
     #[allow(clippy::type_complexity)]
     pub fn handle_messages(
         &self,
@@ -529,8 +538,7 @@ impl Broker {
     ) -> Result<ProtocolReturn, ProtocolError> {
         let mensaje = match ClientMessage::read_from(&mut stream) {
             Ok(mensaje) => mensaje,
-            Err(e) => {
-                println!("Error al leer mensaje: {:?}", e);
+            Err(_) => {
                 return Err(ProtocolError::StreamError);
             }
         };
@@ -549,7 +557,7 @@ impl Broker {
                                 reason_string: "CLIENT_DUP".to_string(),
                                 user_properties: Vec::new(),
                             };
-                            ClientConfig::remove_client(connect.client_id.clone());
+                            _ = ClientConfig::remove_client(connect.client_id.clone());
 
                             match disconnect.write_to(&mut stream) {
                                 Ok(_) => {
@@ -587,7 +595,7 @@ impl Broker {
 
                 //si está en offline_clients lo elimino de ahí
                 if let Ok(mut lock) = self.offline_clients.write() {
-                    ClientConfig::remove_client(connect.client_id.clone());
+                    _ = ClientConfig::remove_client(connect.client_id.clone());
                     lock.remove(&connect.client_id);
                 } else {
                     return Err(ProtocolError::UnspecifiedError(
@@ -781,7 +789,7 @@ impl Broker {
                 );
 
                 // cambio el estado del cliente a desconectado
-                let _ = ClientConfig::change_client_state(client_id.clone(), false);
+                _ = ClientConfig::change_client_state(client_id.clone(), false);
 
                 // elimino el client_id de clients_ids
                 if let Ok(mut lock) = self.clients_ids.write() {
@@ -873,7 +881,6 @@ impl Broker {
             Err(_) => HashMap::new(),
         }
     }
-
     /// Devuelve los clientes conectados de manera estática
     /// para poder testear
     pub fn get_clients_ids(&self) -> Vec<String> {
@@ -883,13 +890,11 @@ impl Broker {
             Err(_) => return clients_ids,
         };
         for client_id in lock.keys() {
-            // agrego el client_id al vector
             clients_ids.push(client_id.clone());
         }
 
         clients_ids
     }
-
     pub fn broker_exit(&self) -> Result<(), ProtocolError> {
         let clients = self
             .clients_ids
@@ -903,15 +908,25 @@ impl Broker {
                     reason_string: "SERVER_SHUTDOWN".to_string(),
                     user_properties: Vec::new(),
                 };
-                let _ = ClientConfig::remove_client(client_id.clone());
-                match disconnect.write_to(&mut stream.try_clone().unwrap()) {
-                    Ok(_) => {
-                        println!("Disconnect enviado a {}", client_id);
+                ClientConfig::remove_client(client_id.clone())?;
+                match stream.try_clone() {
+                    Ok(mut cloned_stream) => {
+                        match disconnect.write_to(&mut cloned_stream) {
+                            Ok(_) => {
+                                println!("Disconnect sent to {}", client_id);
+                            }
+                            Err(e) => return Err(ProtocolError::UnspecifiedError(e.to_string())),
+                        }
+
+                        match cloned_stream.shutdown(Shutdown::Both) {
+                            Ok(_) => {
+                                println!("Stream closed");
+                            }
+                            Err(e) => return Err(ProtocolError::UnspecifiedError(e.to_string())),
+                        }
                     }
                     Err(e) => return Err(ProtocolError::UnspecifiedError(e.to_string())),
                 }
-
-                let _ = stream.shutdown(Shutdown::Both);
             }
         }
 

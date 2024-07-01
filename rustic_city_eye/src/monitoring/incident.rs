@@ -6,7 +6,6 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
-#[allow(dead_code)]
 pub struct Incident {
     location: Location,
 }

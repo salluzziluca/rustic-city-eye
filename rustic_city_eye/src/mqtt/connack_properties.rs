@@ -30,105 +30,105 @@ impl ConnackProperties {
         let mut writer = BufWriter::new(stream);
 
         let session_expiry_interval_id: u8 = 0x11_u8; //17
-        let _ = writer
+        writer
             .write_all(&[session_expiry_interval_id])
-            .map_err(|_| ProtocolError::WriteError);
+            .map_err(|_| ProtocolError::WriteError)?;
         write_u32(&mut writer, &self.session_expiry_interval)?;
 
         let assigned_client_identifier_id: u8 = 0x12_u8; //18
-        let _ = writer
+        writer
             .write_all(&[assigned_client_identifier_id])
-            .map_err(|_| ProtocolError::WriteError);
+            .map_err(|_| ProtocolError::WriteError)?;
         write_string(&mut writer, &self.assigned_client_identifier)?;
 
         let authentication_method_id: u8 = 0x15_u8; //21
-        let _ = writer
+        writer
             .write_all(&[authentication_method_id])
-            .map_err(|_| ProtocolError::WriteError);
+            .map_err(|_| ProtocolError::WriteError)?;
         write_string(&mut writer, &self.authentication_method)?;
 
         let authentication_data_id: u8 = 0x16_u8; //22
-        let _ = writer
+        writer
             .write_all(&[authentication_data_id])
-            .map_err(|_| ProtocolError::WriteError);
+            .map_err(|_| ProtocolError::WriteError)?;
         write_bin_vec(&mut writer, &self.authentication_data)?;
 
         let response_information_id: u8 = 0x1A_u8; //26
-        let _ = writer
+        writer
             .write_all(&[response_information_id])
-            .map_err(|_| ProtocolError::WriteError);
+            .map_err(|_| ProtocolError::WriteError)?;
         write_string(&mut writer, &self.response_information)?;
 
         let server_reference_id: u8 = 0x1C_u8; //28
-        let _ = writer
+        writer
             .write_all(&[server_reference_id])
-            .map_err(|_: Error| ProtocolError::WriteError);
+            .map_err(|_: Error| ProtocolError::WriteError)?;
         write_string(&mut writer, &self.server_reference)?;
 
         let reason_string_id: u8 = 0x1F_u8; //31
-        let _ = writer
+        writer
             .write_all(&[reason_string_id])
-            .map_err(|_| ProtocolError::WriteError);
+            .map_err(|_| ProtocolError::WriteError)?;
         write_string(&mut writer, &self.reason_string)?;
 
         let receive_maximum_id: u8 = 0x21_u8; //33
-        let _ = writer
+        writer
             .write_all(&[receive_maximum_id])
-            .map_err(|_| ProtocolError::WriteError);
+            .map_err(|_| ProtocolError::WriteError)?;
         write_u16(&mut writer, &self.receive_maximum)?;
 
         let topic_alias_maximum_id: u8 = 0x22_u8; //34
-        let _ = writer
+        writer
             .write_all(&[topic_alias_maximum_id])
-            .map_err(|_| ProtocolError::WriteError);
+            .map_err(|_| ProtocolError::WriteError)?;
         write_u16(&mut writer, &self.topic_alias_maximum)?;
 
         let maximum_qos_id: u8 = 0x24_u8; //36
-        let _ = writer
+        writer
             .write_all(&[maximum_qos_id])
-            .map_err(|_| ProtocolError::WriteError);
+            .map_err(|_| ProtocolError::WriteError)?;
         write_bool(&mut writer, &self.maximum_qos)?;
 
         let retain_available_id: u8 = 0x25_u8; //37
-        let _ = writer
+        writer
             .write_all(&[retain_available_id])
-            .map_err(|_| ProtocolError::WriteError);
+            .map_err(|_| ProtocolError::WriteError)?;
         write_bool(&mut writer, &self.retain_available)?;
 
         let user_properties_id: u8 = 0x26_u8; //38
-        let _ = writer
+        writer
             .write_all(&[user_properties_id])
-            .map_err(|_| ProtocolError::WriteError);
+            .map_err(|_| ProtocolError::WriteError)?;
         write_tuple_vec(&mut writer, &self.user_properties)?;
 
         let maximum_packet_size_id: u8 = 0x27_u8; //39
-        let _ = writer
+        writer
             .write_all(&[maximum_packet_size_id])
-            .map_err(|_| ProtocolError::WriteError);
+            .map_err(|_| ProtocolError::WriteError)?;
         write_u32(&mut writer, &self.maximum_packet_size)?;
 
         let wildcard_subscription_available_id: u8 = 0x28_u8; //40
-        let _ = writer
+        writer
             .write_all(&[wildcard_subscription_available_id])
-            .map_err(|_| ProtocolError::WriteError);
+            .map_err(|_| ProtocolError::WriteError)?;
         write_bool(&mut writer, &self.wildcard_subscription_available)?;
 
         let subscription_identifier_available_id: u8 = 0x29_u8; //41
-        let _ = writer
+        writer
             .write_all(&[subscription_identifier_available_id])
-            .map_err(|_| ProtocolError::WriteError);
+            .map_err(|_| ProtocolError::WriteError)?;
         write_bool(&mut writer, &self.subscription_identifier_available)?;
 
         let shared_subscription_available_id: u8 = 0x2A_u8; //42
-        let _ = writer
+        writer
             .write_all(&[shared_subscription_available_id])
-            .map_err(|_| ProtocolError::WriteError);
+            .map_err(|_| ProtocolError::WriteError)?;
         write_bool(&mut writer, &self.shared_subscription_available)?;
 
         let server_keep_alive_id: u8 = 0x2D_u8; //45
-        let _ = writer
+        writer
             .write_all(&[server_keep_alive_id])
-            .map_err(|_| ProtocolError::WriteError);
+            .map_err(|_| ProtocolError::WriteError)?;
         write_u16(&mut writer, &self.server_keep_alive)?;
 
         Ok(())

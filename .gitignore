@@ -15,3 +15,9 @@ Cargo.lock
 
 **/.vscode/
 **/.devcontainer/
+
+0.json
+1.json
+2.json
+camera_system.json
+monitoring_app.json

@@ -77,8 +77,8 @@ impl ThreadPool {
 
         let job = Box::new(move || {
             let result = f();
-            if let Err(err) = tx.send(result) {
-                println!("Failed to send result: {:?}", err);
+            if tx.send(result).is_err() {
+                // println!("Failed to send result: {:?}", err);
             }
         });
 

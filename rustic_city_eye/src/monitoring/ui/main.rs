@@ -19,7 +19,10 @@ use std::collections::HashMap;
 use walkers::{sources::OpenStreetMap, Map, MapMemory, Position, Texture, Tiles};
 use windows::*;
 
-// Define structures `MyMap` and `MyApp` with various fields and options
+/// Este struct se utiliza para almacenar la informacion de las imagenes que se van a mostrar en el mapa
+/// junto con su escala
+/// Se utiliza para los iconos de camaras, incidentes, drones y centros de drones
+/// La escala se actualiza teniendo en cuenta el zoom level
 struct MyMap {
     tiles: Tiles,
     map_memory: MapMemory,
@@ -37,6 +40,7 @@ struct MyMap {
     zoom_level: f32,
 }
 impl MyMap {
+    /// Actualiza la posicion de los drones en el mapa
     fn update_drones(&mut self, new_drone_locations: HashMap<u32, Location>) {
         for (id, location) in new_drone_locations {
             if let Some(drone) = self.drones.get_mut(&id) {
@@ -44,8 +48,11 @@ impl MyMap {
             }
         }
     }
+    /// Actualiza la posicion de las camaras en el mapa
+    /// Si la camara esta en modo sleep, se muestra con un radio azul
+    /// Si la camara esta activa, se muestra con un radio rojo
+    ///
     fn update_cameras(&mut self, new_cameras: HashMap<u32, Camera>) {
-        //update all cameras
         for (id, camera) in new_cameras {
             if let Some(camera_view) = self.cameras.get_mut(&id) {
                 if !camera.get_sleep_mode() {
@@ -64,7 +71,7 @@ impl MyMap {
             }
         }
     }
-
+    /// Actualiza la posicion de los incidentes en el mapa
     fn update_incidents(&mut self, incidents: Vec<Incident>) {
         let mut new_incident_view = vec![];
         for incident in incidents {
@@ -94,9 +101,7 @@ struct MyApp {
     correct_password: bool,
     correct_ip: bool,
     correct_port: bool,
-
 }
-// Implements methods for handling image data used in the application
 impl ImagesPluginData {
     /// recibe el zoom level inicial y la escala para cada una de las imagenes
     fn new(texture: Texture, initial_zoom_level: f32, original_scale: f32) -> Self {
@@ -108,8 +113,11 @@ impl ImagesPluginData {
         }
     }
 }
-// Implements methods to handle form inputs and map interactions
 impl MyApp {
+    /// Muestra el formulario de inicio de sesion
+    /// Si se presiona el boton de submit, se intenta conectar al servidor
+    /// Si la conexion es exitosa, se muestra el mapa
+    /// Al final de esta ventana se muestran los creditos
     fn handle_form(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         CentralPanel::default().show(ctx, |ui| {
             ui.vertical_centered(|ui| {
@@ -119,10 +127,9 @@ impl MyApp {
                         .color(egui::Color32::WHITE),
                 );
 
-
                 if self.correct_username {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::BLACK;
-                } else{
+                } else {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::RED;
                 }
                 ui.add(
@@ -140,7 +147,7 @@ impl MyApp {
 
                 if self.correct_password {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::BLACK;
-                } else{
+                } else {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::RED;
                 }
                 ui.add(
@@ -154,7 +161,7 @@ impl MyApp {
 
                 if self.correct_ip {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::BLACK;
-                } else{
+                } else {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::RED;
                 }
                 ui.add(
@@ -168,7 +175,7 @@ impl MyApp {
 
                 if self.correct_port {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::BLACK;
-                } else{
+                } else {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::RED;
                 }
                 ui.add(
@@ -186,26 +193,10 @@ impl MyApp {
                         self.port.clone(),
                     ];
 
-                    if self.username.is_empty() {
-                        self.correct_username = false;
-                    } else {
-                        self.correct_username = true;
-                    }
-                    if self.password.is_empty() {
-                        self.correct_password = false;
-                    } else {
-                        self.correct_password = true;
-                    }
-                    if self.ip.is_empty() {
-                        self.correct_ip = false;
-                    } else {
-                        self.correct_ip = true;
-                    }
-                    if self.port.is_empty() {
-                        self.correct_port = false;
-                    } else {
-                        self.correct_port = true;
-                    }
+                    self.correct_username = !self.username.is_empty();
+                    self.correct_password = !self.password.is_empty();
+                    self.correct_ip = !self.ip.is_empty();
+                    self.correct_port = !self.port.is_empty();
                     match MonitoringApp::new(args) {
                         Ok(mut monitoring_app) => {
                             let _ = monitoring_app.run_client();
@@ -215,20 +206,18 @@ impl MyApp {
                         Err(e) => {
                             println!(
                                 "La conexion ha fallado. Intenta conectarte nuevamente {}.",
-                                e.to_string()
+                                e
                             );
                             self.username.clear();
                             self.password.clear();
                             self.ip.clear();
                             self.port.clear();
-
                         }
                     };
                 }
             })
         });
 
-        // Add the bottom panel for credits
         TopBottomPanel::bottom("credits_panel").show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.label(
@@ -239,7 +228,9 @@ impl MyApp {
             });
         });
     }
-
+    /// Muestra el mapa
+    /// Si se presiona el boton de zoom, se actualiza el zoom level
+    /// Carga las diferentes ventanas de camaras, incidentes, drones y centros de drones
     fn handle_map(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         CentralPanel::default().show(ctx, |ui| {
             let last_clicked = self.map.click_watcher.clicked_at;
@@ -302,7 +293,8 @@ impl App for MyApp {
         }
     }
 }
-// Creates and initializes the application, including loading textures and setting up initial state
+/// Funcion que se encarga de inicializar la aplicacion con sus texturas
+/// inicializandola en su estado original
 fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
     egui_extras::install_image_loaders(&cc.egui_ctx);
     let camera_bytes = include_bytes!("../assets/Camera.png");
@@ -369,7 +361,6 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
         correct_password: true,
         correct_ip: true,
         correct_port: true,
-
     })
 }
 // Entry point of the application, sets up window options and runs the main event loop

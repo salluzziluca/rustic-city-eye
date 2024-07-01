@@ -328,7 +328,10 @@ impl Client {
 
     pub fn disconnect_client(&mut self) -> Result<(), ProtocolError> {
         self.sender_channel = None;
-        let lock = self.stream.lock().unwrap();
+        let lock = match self.stream.lock() {
+            Ok(lock) => lock,
+            Err(_) => return Err(ProtocolError::StreamError),
+        };
 
         match lock.shutdown(Shutdown::Both) {
             Ok(_) => Ok(()),
@@ -638,11 +641,14 @@ impl ClientTrait for Client {
     }
 
     fn disconnect_client(&self) -> Result<(), ProtocolError> {
-        let mut lock = self.stream.lock().unwrap();
+        let mut lock = match self.stream.lock() {
+            Ok(lock) => lock,
+            Err(_) => return Err(ProtocolError::StreamError),
+        };
 
         let writer = &mut lock;
 
-        let _ = writer.flush().map_err(|_| ProtocolError::WriteError);
+        writer.flush().map_err(|_| ProtocolError::WriteError)?;
 
         match lock.shutdown(Shutdown::Both) {
             Ok(_) => Ok(()),
@@ -713,7 +719,6 @@ pub fn handle_message(
                     }
                 }
 
-                println!("Recibi un mensaje {:?}", message);
                 Ok(ClientReturn::SubackRecieved)
             }
             BrokerMessage::PublishDelivery {
@@ -804,7 +809,7 @@ mod tests {
                 *ready = true;
                 cvar.notify_all();
             }
-            let _ = broker.server_run();
+            broker.server_run().unwrap();
         });
 
         // Wait for the server to start
