@@ -30,6 +30,7 @@ pub enum ProtocolError {
     ShutdownError(String),
     BindingError(String),
     DisconnectError,
+    RemoveClientError(String),
 }
 
 impl fmt::Display for ProtocolError {
@@ -104,6 +105,9 @@ impl fmt::Display for ProtocolError {
             }
             ProtocolError::DisconnectError => {
                 write!(f, "Error al desconectar.")
+            }
+            ProtocolError::RemoveClientError(ref err) => {
+                write!(f, "Error al remover cliente: {}", err)
             }
         }
     }

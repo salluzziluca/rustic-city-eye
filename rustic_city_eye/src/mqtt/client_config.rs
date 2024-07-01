@@ -2,6 +2,8 @@ use std::fs::File;
 
 use serde::{Deserialize, Serialize};
 
+use super::protocol_error::ProtocolError;
+
 /// Estructura que representa la configuración de un cliente
 #[derive(Serialize, Deserialize)]
 pub(crate) struct ClientConfig {
@@ -97,12 +99,12 @@ impl ClientConfig {
     }
 
     /// Remueve un cliente del archivo json
-    pub fn remove_client(client_id: String) {
+    pub fn remove_client(client_id: String) -> Result<(), ProtocolError> {
         // remueve un cliente del archivo json
         let path = format!("./src/mqtt/clients/{}.json", client_id);
         match std::fs::remove_file(path) {
-            Ok(_) => (),
-            Err(e) => println!("Error removing client: {}", e),
+            Ok(_) => Ok(()),
+            Err(e) => return Err(ProtocolError::RemoveClientError(e.to_string())),
         }
     }
 }

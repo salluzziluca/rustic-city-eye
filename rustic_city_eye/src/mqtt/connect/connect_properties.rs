@@ -310,17 +310,16 @@ impl ConnectPropertiesBuilder {
     }
 }
 
-fn read_json_to_connect_properties(json_data: &str) -> Result<ConnectProperties, Error> {
-    let connect_properties: ConnectProperties = serde_json::from_str(json_data)?;
-    Ok(connect_properties)
-}
 #[cfg(test)]
 mod tests {
     use core::panic;
     use std::io::Cursor;
 
     use super::*;
-
+    fn read_json_to_connect_properties(json_data: &str) -> Result<ConnectProperties, Error> {
+        let connect_properties: ConnectProperties = serde_json::from_str(json_data)?;
+        Ok(connect_properties)
+    }
     #[test]
     fn test_read_json_to_connect_properties() {
         let json_data = r#"{
