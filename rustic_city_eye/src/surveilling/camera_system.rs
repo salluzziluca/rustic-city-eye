@@ -183,19 +183,14 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         thread::spawn(move || {
             let mut incident_location: Option<Location> = None;
             let mut solved_incident_location: Option<Location> = None;
-            let reciever: Arc<Mutex<Receiver<ClientMessage>>>;
-            match parameter_reciever {
-                Some(paramter_reciever) => {
-                    reciever = paramter_reciever;
-                }
-                None => {
-                    reciever = match system_clone_two.lock() {
-                        Ok(guard) => guard.reciev_from_client.clone(),
-                        Err(_) => {
-                            return;
-                        }
+            let reciever: Arc<Mutex<Receiver<ClientMessage>>> = match parameter_reciever {
+                Some(parameter_reciever) => parameter_reciever,
+                None => match system_clone_two.lock() {
+                    Ok(guard) => guard.reciev_from_client.clone(),
+                    Err(_) => {
+                        return;
                     }
-                }
+                },
             };
             loop {
                 let self_clone_two = Arc::clone(&system_clone_two);
@@ -207,35 +202,23 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                     }
                 };
 
-                match incident_location {
-                    Some(location) => {
-                        match lock
-                            .activate_cameras(location)
-                            .map_err(|e| ProtocolError::CameraError(e.to_string()))
-                        {
-                            Ok(_) => {}
-                            Err(e) => {
-                                println!("CameraSys: Error activating cameras: {:?}", e);
-                            }
-                        }
-                        incident_location = None;
+                if let Some(location) = incident_location {
+                    if let Err(e) = lock
+                        .activate_cameras(location)
+                        .map_err(|e| ProtocolError::CameraError(e.to_string()))
+                    {
+                        println!("CameraSys: Error activating cameras: {:?}", e);
                     }
-                    None => {}
+                    incident_location = None;
                 }
-                match solved_incident_location {
-                    Some(location) => {
-                        match lock
-                            .deactivate_cameras(location)
-                            .map_err(|e| ProtocolError::CameraError(e.to_string()))
-                        {
-                            Ok(_) => {}
-                            Err(e) => {
-                                println!("CameraSys: Error activating cameras: {:?}", e);
-                            }
-                        }
-                        solved_incident_location = None;
+                if let Some(location) = solved_incident_location {
+                    if let Err(e) = lock
+                        .deactivate_cameras(location)
+                        .map_err(|e| ProtocolError::CameraError(e.to_string()))
+                    {
+                        println!("CameraSys: Error deactivating cameras: {:?}", e);
                     }
-                    None => {}
+                    solved_incident_location = None;
                 }
 
                 let reciever = match reciever.lock() {
@@ -894,9 +877,7 @@ mod tests {
                 location
             );
             let incident_location = Location::new(1.0, 2.0);
-            camera_system
-                .activate_cameras(incident_location)
-                .unwrap();
+            camera_system.activate_cameras(incident_location).unwrap();
             for camera in camera_system.get_cameras().lock().unwrap().values() {
                 assert!(!camera.get_sleep_mode());
             }
@@ -956,9 +937,7 @@ mod tests {
                 location
             );
             let incident_location = Location::new(0.0, 0.0);
-            camera_system
-                .activate_cameras(incident_location)
-                .unwrap();
+            camera_system.activate_cameras(incident_location).unwrap();
             assert!(camera_system.get_camera_by_id(id).unwrap().get_sleep_mode());
             assert!(!camera_system
                 .get_camera_by_id(id2)
@@ -1267,9 +1246,7 @@ mod tests {
                 location
             );
             let incident_location = Location::new(1.0, 2.0);
-            camera_system
-                .activate_cameras(incident_location)
-                .unwrap();
+            camera_system.activate_cameras(incident_location).unwrap();
             for camera in camera_system.get_cameras().lock().unwrap().values() {
                 assert!(!camera.get_sleep_mode());
             }

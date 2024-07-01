@@ -163,20 +163,13 @@ impl Broker {
         let self_clone = self.clone();
         thread::spawn(move || loop {
             let mut input = String::new();
-            match std::io::stdin().read_line(&mut input) {
-                Ok(_) => {
-                    if input.trim() == "exit" {
-                        match self_clone.broker_exit() {
-                            Ok(_) => {
-                                break;
-                            }
-                            Err(_) => {
-                                println!("Error al cerrar el broker");
-                            }
-                        }
-                    }
+            if std::io::stdin().read_line(&mut input).is_ok() && input.trim() == "exit" {
+                match self_clone.broker_exit() {
+                    Ok(_) => (),
+                    Err(err) => println!("{:?}", err),
                 }
-                Err(_) => {}
+                println!("Cerrando broker");
+                std::process::exit(0);
             }
         });
 
@@ -526,7 +519,7 @@ impl Broker {
         };
         match self.handle_publish(will_publish, topics, will_topic.to_string()) {
             Ok(_) => (),
-            Err(_) => (),
+            Err(_) => println!("Error al enviar el Last Will"),
         }
     }
 

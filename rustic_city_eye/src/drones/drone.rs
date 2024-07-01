@@ -417,6 +417,8 @@ impl Drone {
     /// attendingincident.
     /// A su vez, recibe aquellas notificaciones de todos los Drones que esten yendo a resolver el incidente, y van a jugar una carrera:
     /// los primeros 2 Drones que lleguen, se podran a resolver el incidente, y los demas pasaran a ignorar este incidente y volveran a patrullar.
+
+    #[allow(clippy::type_complexity)]
     fn handle_message_reception_from_client(
         drone_ref: Arc<Mutex<Drone>>,
         receive_from_client_ref: Arc<Mutex<Receiver<ClientMessage>>>,

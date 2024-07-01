@@ -390,55 +390,52 @@ pub fn update_entities(
     };
 
     loop {
-        if let Ok(message) = receiver.try_recv() {
-            if let ClientMessage::Publish {
-                packet_id: _,
-                topic_name,
-                qos: _,
-                retain_flag: _,
-                payload,
-                dup_flag: _,
-                properties: _,
-            } = message
-            {
-                if topic_name == "drone_locations" {
-                    let mut active_drones: std::sync::MutexGuard<HashMap<u32, Location>> =
-                        match active_drones.try_lock() {
-                            Ok(active_drones) => active_drones,
-                            Err(_) => return,
-                        };
-                    if let PayloadTypes::DroneLocation(id, drone_locationn) = payload {
-                        active_drones.insert(id, drone_locationn);
-                    }
-                } else if topic_name == "camera_update" {
-                    println!("Monitoring: Camera update received");
-                    let mut cameras = match cameras.try_lock() {
-                        Ok(cameras) => cameras,
+        if let Ok(ClientMessage::Publish {
+            packet_id: _,
+            topic_name,
+            qos: _,
+            retain_flag: _,
+            payload,
+            dup_flag: _,
+            properties: _,
+        }) = receiver.try_recv()
+        {
+            if topic_name == "drone_locations" {
+                let mut active_drones: std::sync::MutexGuard<HashMap<u32, Location>> =
+                    match active_drones.try_lock() {
+                        Ok(active_drones) => active_drones,
                         Err(_) => return,
                     };
-                    if let PayloadTypes::CamerasUpdatePayload(updated_cameras) = payload {
-                        for camera in updated_cameras {
-                            cameras.insert(camera.get_id(), camera);
+                if let PayloadTypes::DroneLocation(id, drone_locationn) = payload {
+                    active_drones.insert(id, drone_locationn);
+                }
+            } else if topic_name == "camera_update" {
+                println!("Monitoring: Camera update received");
+                let mut cameras = match cameras.try_lock() {
+                    Ok(cameras) => cameras,
+                    Err(_) => return,
+                };
+                if let PayloadTypes::CamerasUpdatePayload(updated_cameras) = payload {
+                    for camera in updated_cameras {
+                        cameras.insert(camera.get_id(), camera);
+                    }
+                }
+            } else if topic_name == "incidente_resuelto" {
+                if let PayloadTypes::IncidentLocation(incident_payload) = payload {
+                    let mut incidents = match incidents.lock() {
+                        Ok(incidents) => incidents,
+                        Err(_) => return,
+                    };
+                    let mut to_remove = Vec::new();
+
+                    for (incident, _count) in incidents.iter_mut() {
+                        if incident.get_location() == incident_payload.get_incident().get_location()
+                        {
+                            to_remove.push(incident.clone());
                         }
                     }
-                } else if topic_name == "incidente_resuelto" {
-                    if let PayloadTypes::IncidentLocation(incident_payload) = payload {
-                        let mut incidents = match incidents.lock() {
-                            Ok(incidents) => incidents,
-                            Err(_) => return,
-                        };
-                        let mut to_remove = Vec::new();
 
-                        for (incident, _count) in incidents.iter_mut() {
-                            if incident.get_location()
-                                == incident_payload.get_incident().get_location()
-                            {
-                                to_remove.push(incident.clone());
-                            }
-                        }
-
-                        incidents.retain(|(inc, _)| !to_remove.contains(inc));
-                    }
+                    incidents.retain(|(inc, _)| !to_remove.contains(inc));
                 }
             }
         }
