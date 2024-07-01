@@ -119,7 +119,7 @@ pub fn add_drone_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitorin
         .anchor(Align2::RIGHT_TOP, [-10., 170.])
         .show(ui.ctx(), |ui| {
             ui.horizontal(|ui| {
-                if ui.button(RichText::new("🛸").heading()).clicked() {
+                if ui.button(RichText::new("🚓").heading()).clicked() {
                     if let Some(position) = map.click_watcher.clicked_at {
                         let location = Location::new(position.lat(), position.lon());
                         let id = match monitoring_app.add_drone(location, 0) {

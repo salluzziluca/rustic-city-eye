@@ -45,7 +45,6 @@ impl MyMap {
         }
     }
     fn update_cameras(&mut self, new_cameras: HashMap<u32, Camera>) {
-        //update all cameras
         for (id, camera) in new_cameras {
             if let Some(camera_view) = self.cameras.get_mut(&id) {
                 if !camera.get_sleep_mode() {
@@ -94,7 +93,6 @@ struct MyApp {
     correct_password: bool,
     correct_ip: bool,
     correct_port: bool,
-
 }
 // Implements methods for handling image data used in the application
 impl ImagesPluginData {
@@ -119,10 +117,9 @@ impl MyApp {
                         .color(egui::Color32::WHITE),
                 );
 
-
                 if self.correct_username {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::BLACK;
-                } else{
+                } else {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::RED;
                 }
                 ui.add(
@@ -140,7 +137,7 @@ impl MyApp {
 
                 if self.correct_password {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::BLACK;
-                } else{
+                } else {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::RED;
                 }
                 ui.add(
@@ -154,7 +151,7 @@ impl MyApp {
 
                 if self.correct_ip {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::BLACK;
-                } else{
+                } else {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::RED;
                 }
                 ui.add(
@@ -168,7 +165,7 @@ impl MyApp {
 
                 if self.correct_port {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::BLACK;
-                } else{
+                } else {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::RED;
                 }
                 ui.add(
@@ -221,7 +218,6 @@ impl MyApp {
                             self.password.clear();
                             self.ip.clear();
                             self.port.clear();
-
                         }
                     };
                 }
@@ -369,7 +365,6 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
         correct_password: true,
         correct_ip: true,
         correct_port: true,
-
     })
 }
 // Entry point of the application, sets up window options and runs the main event loop
