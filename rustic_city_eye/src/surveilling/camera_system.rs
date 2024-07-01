@@ -489,8 +489,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
 
         let mut updated_cameras = Vec::new();
         for camera in new_snapshot.iter() {
-            let camera_vieja = self.snapshot.iter().find(|&x| x == camera).cloned();
-
             if (!self.snapshot.contains(&camera.clone()))
                 || (self.snapshot.contains(&camera.clone())
                     && camera.get_sleep_mode()
