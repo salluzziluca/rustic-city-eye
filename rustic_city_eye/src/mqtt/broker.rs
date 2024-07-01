@@ -407,7 +407,7 @@ impl Broker {
         if let Some(topic) = topics.get_mut(&topic_name) {
             match topic.add_user_to_topic(subscription.clone()) {
                 0 => {
-                    ClientConfig::add_new_subscription(subscription.client_id.clone(), topic_name.clone());
+                    let _ = ClientConfig::add_new_subscription(subscription.client_id.clone(), topic_name.clone());
                     reason_code = SUCCESS_HEX;
                 }
                 0x92 => {
@@ -438,7 +438,7 @@ impl Broker {
             match topic.remove_user_from_topic(subscription.clone()) {
                 0 => {
                     println!("Unsubscribe exitoso");
-                    ClientConfig::remove_subscription(subscription.client_id.clone(), topic_name.clone());
+                    let _ = ClientConfig::remove_subscription(subscription.client_id.clone(), topic_name.clone());
                     reason_code = SUCCESS_HEX;
                 }
                 _ => {
@@ -752,7 +752,6 @@ impl Broker {
                     Err(err) => println!("Error al enviar Unsuback: {:?}", err),
                 }
             }
-
             ClientMessage::Disconnect {
                 reason_code: _,
                 session_expiry_interval: _,
@@ -776,7 +775,7 @@ impl Broker {
                 }
 
                 // cambio el estado del cliente a desconectado
-                ClientConfig::change_client_state(client_id.clone(), false);
+                let _ = ClientConfig::change_client_state(client_id.clone(), false);
 
                 // agrego el client_id a offline_clients
                 if let Ok(mut lock) = self.offline_clients.write() {
@@ -890,16 +889,17 @@ impl Broker {
                     reason_string: "SERVER_SHUTDOWN".to_string(),
                     user_properties: Vec::new(),
                 };
-                
-                ClientConfig::remove_client(client_id.clone());
 
+                let _ = ClientConfig::change_client_state(client_id.clone(), false);
                 match disconnect.write_to(&mut stream_clone) {
                     Ok(_) => {
-                        println!("Disconnect enviado");
-                        ClientConfig::remove_client(client_id.clone());
+                        println!("Disconnect enviado a {}", client_id);
+                        stream_clone.shutdown(Shutdown::Both).expect("Error al cerrar el stream");
                     }
                     Err(_) => return Err(ProtocolError::UnspecifiedError),
                 }
+
+                let _ = ClientConfig::change_client_state(client_id.clone(), false);
             }
         }
 
