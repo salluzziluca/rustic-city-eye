@@ -325,7 +325,9 @@ impl Broker {
                 dup_flag: *dup_flag,
                 properties: properties.clone(),
             }),
-            _ => Err(ProtocolError::UnspecifiedError),
+            _ => Err(ProtocolError::UnspecifiedError(
+                "Error al convertir a BrokerMessage".to_string(),
+            )),
         }
     }
 
@@ -356,10 +358,9 @@ impl Broker {
         user_id: &str,
         message: &ClientMessage,
     ) -> Result<(), ProtocolError> {
-        let mut offline_clients = self
-            .offline_clients
-            .write()
-            .map_err(|_| ProtocolError::UnspecifiedError)?;
+        let mut offline_clients = self.offline_clients.write().map_err(|_| {
+            ProtocolError::UnspecifiedError("Error al leer offline_clients".to_string())
+        })?;
         if let Some(messages) = offline_clients.get_mut(user_id) {
             messages.push(message.clone());
         } else {
@@ -380,7 +381,9 @@ impl Broker {
         let mensaje = Broker::convert_to_broker_message(&message)?;
         let topic = topics
             .get_mut(&topic_name)
-            .ok_or(ProtocolError::UnspecifiedError)?;
+            .ok_or(ProtocolError::UnspecifiedError(
+                "Topic no encontrado".to_string(),
+            ))?;
         let users = topic.get_users_from_topic();
 
         for user in users {
@@ -409,6 +412,7 @@ impl Broker {
             match topic.add_user_to_topic(subscription.clone()) {
                 0 => {
                     let _ = ClientConfig::add_new_subscription(
+
                         subscription.client_id.clone(),
                         topic_name.clone(),
                     );
@@ -556,8 +560,9 @@ impl Broker {
                             }
                         }
                     }
-                    Err(_) => {
-                        return Err(ProtocolError::UnspecifiedError);
+                    Err(e) => {
+                        println!("Error al leer clientes: {:?}", e);
+                        return Err(ProtocolError::UnspecifiedError(e.to_string()));
                     }
                 }
 
@@ -570,7 +575,10 @@ impl Broker {
                                     Ok(_) => {
                                         println!("Mensaje enviado a {}", connect.client_id);
                                     }
-                                    Err(_) => return Err(ProtocolError::UnspecifiedError),
+                                    Err(e) => {
+                                        println!("Error al enviar mensaje: {:?}", e);
+                                        return Err(ProtocolError::UnspecifiedError(e.to_string()));
+                                    }
                                 }
                             }
                         }
@@ -582,7 +590,9 @@ impl Broker {
                     ClientConfig::remove_client(connect.client_id.clone());
                     lock.remove(&connect.client_id);
                 } else {
-                    return Err(ProtocolError::UnspecifiedError);
+                    return Err(ProtocolError::UnspecifiedError(
+                        "Error al leer offline_clients".to_string(),
+                    ));
                 }
 
                 //clona stream con ok err
@@ -598,7 +608,7 @@ impl Broker {
                         (Some(cloned_stream), will_message),
                     );
                 } else {
-                    return Err(ProtocolError::UnspecifiedError);
+                    return Err(ProtocolError::WriteError);
                 }
 
                 let connect_clone = connect.clone();
@@ -777,14 +787,14 @@ impl Broker {
                 if let Ok(mut lock) = self.clients_ids.write() {
                     lock.remove(&client_id);
                 } else {
-                    return Err(ProtocolError::UnspecifiedError);
+                    return Err(ProtocolError::WriteError);
                 }
 
                 // agrego el client_id a offline_clients
                 if let Ok(mut lock) = self.offline_clients.write() {
                     lock.insert(client_id, Vec::new());
                 } else {
-                    return Err(ProtocolError::UnspecifiedError);
+                    return Err(ProtocolError::WriteError);
                 }
 
                 return Ok(ProtocolReturn::DisconnectRecieved);
@@ -850,7 +860,9 @@ impl Broker {
                 }
             }
         }
-        Err(ProtocolError::UnspecifiedError)
+        Err(ProtocolError::UnspecifiedError(
+            "Error al recibir mensaje".to_string(),
+        ))
     }
 
     /// Devuelve los clientes offline y sus mensajes pendientes de manera estática
@@ -882,7 +894,7 @@ impl Broker {
         let clients = self
             .clients_ids
             .read()
-            .map_err(|_| ProtocolError::UnspecifiedError)?;
+            .map_err(|e| ProtocolError::UnspecifiedError(e.to_string()))?;
         for (client_id, (stream, _)) in clients.iter() {
             if let Some(stream) = stream {
                 let disconnect = BrokerMessage::Disconnect {
@@ -896,9 +908,7 @@ impl Broker {
                     Ok(_) => {
                         println!("Disconnect enviado a {}", client_id);
                     }
-                    Err(_) => {
-                        return Err(ProtocolError::UnspecifiedError);
-                    }
+                    Err(e) => return Err(ProtocolError::UnspecifiedError(e.to_string())),
                 }
 
                 let _ = stream.shutdown(Shutdown::Both);
@@ -1043,7 +1053,9 @@ mod tests {
         let topics = HashMap::new();
         // Write a ClientMessage to the stream.
         // You'll need to replace this with a real ClientMessage.
-        let mut result: Result<(), ProtocolError> = Err(ProtocolError::UnspecifiedError);
+        let mut result: Result<(), ProtocolError> = Err(ProtocolError::UnspecifiedError(
+            "Error al leer mensaje".to_string(),
+        ));
         let broker = match Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]) {
             Ok(broker) => broker,
             Err(_) => return,

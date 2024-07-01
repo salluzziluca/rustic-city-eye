@@ -31,7 +31,7 @@ const MILISECONDS_PER_SECOND: f64 = 1000.0;
 const TWO_PI: f64 = 2.0 * PI;
 const COORDINATE_SCALE_FACTOR: f64 = 100.0;
 const FULL_BATTERY: i64 = 100;
-const ANGLE_SCALING_FACTOR: f64 = 0.6; // Adjust this value to make steps smaller or larger
+const ANGLE_SCALING_FACTOR: f64 = 0.6; // este valor hace que en cada tick los drones avancen mas o menos
 
 #[derive(Debug, Clone)]
 #[allow(clippy::type_complexity)]

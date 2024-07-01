@@ -61,7 +61,9 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
+        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError(
+            "Error no especificado".to_string(),
+        ));
 
         let pending_messages: Vec<u16> = Vec::new();
         let (sender, _) = channel();
@@ -91,7 +93,9 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
+        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError(
+            "Error no especificado".to_string(),
+        ));
 
         let pending_messages: Vec<u16> = Vec::new();
         let (sender, recibidor) = channel();
@@ -128,7 +132,9 @@ mod tests {
             disconnect.write_to(&mut buffer).unwrap();
             stream.write_all(&buffer).unwrap();
         });
-        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
+        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError(
+            "Error no especificado".to_string(),
+        ));
 
         let pending_messages: Vec<u16> = Vec::new();
         let (sender, _) = channel();
@@ -157,7 +163,9 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
+        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError(
+            "Error no especificado".to_string(),
+        ));
 
         let pending_messages: Vec<u16> = Vec::new();
         let (sender, _) = channel();
@@ -206,7 +214,9 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
+        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError(
+            "Error no especificado".to_string(),
+        ));
 
         let pending_messages: Vec<u16> = Vec::new();
         //agregar id 1 a pending messages
@@ -239,7 +249,9 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
+        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError(
+            "Error no especificado".to_string(),
+        ));
 
         let pending_messages: Vec<u16> = Vec::new();
         let (sender, _) = channel();
@@ -264,7 +276,9 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
+        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError(
+            "Error no especificado".to_string(),
+        ));
 
         let pending_messages: Vec<u16> = Vec::new();
         let (sender, _) = channel();
@@ -296,7 +310,9 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError);
+        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError(
+            "Error no especificado".to_string(),
+        ));
 
         let pending_messages: Vec<u16> = Vec::new();
         let (sender, _) = channel();

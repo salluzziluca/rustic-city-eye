@@ -7,7 +7,7 @@ mod windows;
 
 use camera_view::CameraView;
 use eframe::{run_native, App, CreationContext, NativeOptions};
-use egui::{CentralPanel, RichText, TextStyle};
+use egui::{CentralPanel, RichText, TextStyle, TopBottomPanel};
 use incident_view::IncidentView;
 use plugins::*;
 use rustic_city_eye::{
@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use walkers::{sources::OpenStreetMap, Map, MapMemory, Position, Texture, Tiles};
 use windows::*;
 
+// Define structures `MyMap` and `MyApp` with various fields and options
 struct MyMap {
     tiles: Tiles,
     map_memory: MapMemory,
@@ -89,8 +90,13 @@ struct MyApp {
     connected: bool,
     map: MyMap,
     monitoring_app: Option<MonitoringApp>,
-}
+    correct_username: bool,
+    correct_password: bool,
+    correct_ip: bool,
+    correct_port: bool,
 
+}
+// Implements methods for handling image data used in the application
 impl ImagesPluginData {
     /// recibe el zoom level inicial y la escala para cada una de las imagenes
     fn new(texture: Texture, initial_zoom_level: f32, original_scale: f32) -> Self {
@@ -102,6 +108,7 @@ impl ImagesPluginData {
         }
     }
 }
+// Implements methods to handle form inputs and map interactions
 impl MyApp {
     fn handle_form(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         CentralPanel::default().show(ctx, |ui| {
@@ -111,6 +118,13 @@ impl MyApp {
                         .size(20.0)
                         .color(egui::Color32::WHITE),
                 );
+
+
+                if self.correct_username {
+                    ui.visuals_mut().extreme_bg_color = egui::Color32::BLACK;
+                } else{
+                    ui.visuals_mut().extreme_bg_color = egui::Color32::RED;
+                }
                 ui.add(
                     egui::TextEdit::singleline(&mut self.username)
                         .min_size(egui::vec2(100.0, 20.0))
@@ -123,6 +137,12 @@ impl MyApp {
                         .size(20.0)
                         .color(egui::Color32::WHITE),
                 );
+
+                if self.correct_password {
+                    ui.visuals_mut().extreme_bg_color = egui::Color32::BLACK;
+                } else{
+                    ui.visuals_mut().extreme_bg_color = egui::Color32::RED;
+                }
                 ui.add(
                     egui::TextEdit::singleline(&mut self.password)
                         .min_size(egui::vec2(100.0, 20.0))
@@ -131,6 +151,12 @@ impl MyApp {
                 );
 
                 ui.label(RichText::new("IP").size(20.0).color(egui::Color32::WHITE));
+
+                if self.correct_ip {
+                    ui.visuals_mut().extreme_bg_color = egui::Color32::BLACK;
+                } else{
+                    ui.visuals_mut().extreme_bg_color = egui::Color32::RED;
+                }
                 ui.add(
                     egui::TextEdit::singleline(&mut self.ip)
                         .min_size(egui::vec2(100.0, 20.0))
@@ -139,6 +165,12 @@ impl MyApp {
                 );
 
                 ui.label(RichText::new("Port").size(20.0).color(egui::Color32::WHITE));
+
+                if self.correct_port {
+                    ui.visuals_mut().extreme_bg_color = egui::Color32::BLACK;
+                } else{
+                    ui.visuals_mut().extreme_bg_color = egui::Color32::RED;
+                }
                 ui.add(
                     egui::TextEdit::singleline(&mut self.port)
                         .min_size(egui::vec2(100.0, 20.0))
@@ -147,15 +179,32 @@ impl MyApp {
                 );
 
                 if ui.button("Submit").clicked() {
-                    let mut args = vec![
+                    let args = vec![
                         self.username.clone(),
                         self.password.clone(),
                         self.ip.clone(),
                         self.port.clone(),
                     ];
-                    if args[2].is_empty() && args[3].is_empty() {
-                        "127.0.0.1".clone_into(&mut args[2]);
-                        "5000".clone_into(&mut args[3]);
+
+                    if self.username.is_empty() {
+                        self.correct_username = false;
+                    } else {
+                        self.correct_username = true;
+                    }
+                    if self.password.is_empty() {
+                        self.correct_password = false;
+                    } else {
+                        self.correct_password = true;
+                    }
+                    if self.ip.is_empty() {
+                        self.correct_ip = false;
+                    } else {
+                        self.correct_ip = true;
+                    }
+                    if self.port.is_empty() {
+                        self.correct_port = false;
+                    } else {
+                        self.correct_port = true;
                     }
                     match MonitoringApp::new(args) {
                         Ok(mut monitoring_app) => {
@@ -172,10 +221,22 @@ impl MyApp {
                             self.password.clear();
                             self.ip.clear();
                             self.port.clear();
+
                         }
                     };
                 }
             })
+        });
+
+        // Add the bottom panel for credits
+        TopBottomPanel::bottom("credits_panel").show(ctx, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.label(
+                    RichText::new("rustic_city_eye 1C 2024 - Carranza Demarchi Giacobbe Salluzzi")
+                        .size(15.0)
+                        .color(egui::Color32::GRAY),
+                );
+            });
         });
     }
 
@@ -241,7 +302,7 @@ impl App for MyApp {
         }
     }
 }
-
+// Creates and initializes the application, including loading textures and setting up initial state
 fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
     egui_extras::install_image_loaders(&cc.egui_ctx);
     let camera_bytes = include_bytes!("../assets/Camera.png");
@@ -304,9 +365,14 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
             zoom_level: 1.0,
         },
         monitoring_app: None,
+        correct_username: true,
+        correct_password: true,
+        correct_ip: true,
+        correct_port: true,
+
     })
 }
-
+// Entry point of the application, sets up window options and runs the main event loop
 fn main() {
     let app_name = "Rustic City Eye";
     let win_options = NativeOptions {
