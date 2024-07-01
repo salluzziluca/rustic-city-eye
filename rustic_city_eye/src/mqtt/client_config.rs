@@ -96,26 +96,29 @@ impl ClientConfig {
         std::fs::metadata(path).is_ok()
     }
 
-    /// Obtiene un cliente del archivo json
-    pub fn _get_client(client_id: String) -> ClientConfig {
-        // obtiene un cliente del archivo json
-        let path = format!("./src/mqtt/clients/{}.json", client_id);
-        let file = std::fs::File::open(path).unwrap();
-        serde_json::from_reader(file).unwrap()
-    }
-
     /// Remueve un cliente del archivo json
     pub fn remove_client(client_id: String) {
         // remueve un cliente del archivo json
         let path = format!("./src/mqtt/clients/{}.json", client_id);
-        let _ = std::fs::remove_file(path);
+        match std::fs::remove_file(path) {
+            Ok(_) => (),
+            Err(e) => println!("Error removing client: {}", e),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    impl ClientConfig {
+        /// Obtiene un cliente del archivo json
+        pub fn get_client(client_id: String) -> ClientConfig {
+            // obtiene un cliente del archivo json
+            let path = format!("./src/mqtt/clients/{}.json", client_id);
+            let file = std::fs::File::open(path).unwrap();
+            serde_json::from_reader(file).unwrap()
+        }
+    }
     #[test]
     fn test_new_client_config() {
         let client_id = "test".to_string();
@@ -130,7 +133,7 @@ mod tests {
         let client_id = "test".to_string();
         let _ = ClientConfig::save_client_log_in_json(client_id.clone());
         let _ = ClientConfig::change_client_state(client_id.clone(), false);
-        let client_config = ClientConfig::_get_client(client_id.clone());
+        let client_config = ClientConfig::get_client(client_id.clone());
         assert_eq!(client_config.state, false);
         ClientConfig::remove_client(client_id.clone());
     }
@@ -150,7 +153,7 @@ mod tests {
         let topic = "test".to_string();
         let _ = ClientConfig::save_client_log_in_json(client_id.clone());
         let _ = ClientConfig::add_new_subscription(client_id.clone(), topic.clone());
-        let client_config = ClientConfig::_get_client(client_id.clone());
+        let client_config = ClientConfig::get_client(client_id.clone());
         assert_eq!(client_config.subscriptions[0], topic);
         ClientConfig::remove_client(client_id.clone());
     }
@@ -162,7 +165,7 @@ mod tests {
         let _ = ClientConfig::save_client_log_in_json(client_id.clone());
         let _ = ClientConfig::add_new_subscription(client_id.clone(), topic.clone());
         let _ = ClientConfig::remove_subscription(client_id.clone(), topic.clone());
-        let client_config = ClientConfig::_get_client(client_id.clone());
+        let client_config = ClientConfig::get_client(client_id.clone());
         assert_eq!(client_config.subscriptions.len(), 0);
         ClientConfig::remove_client(client_id.clone());
     }

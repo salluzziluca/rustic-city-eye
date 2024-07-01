@@ -29,6 +29,7 @@ pub enum ProtocolError {
     SendError(String),
     ShutdownError(String),
     BindingError(String),
+    DisconnectError,
 }
 
 impl fmt::Display for ProtocolError {
@@ -100,6 +101,9 @@ impl fmt::Display for ProtocolError {
             }
             ProtocolError::SendError(ref err) => {
                 write!(f, "Error al enviar mensaje: {}", err)
+            }
+            ProtocolError::DisconnectError => {
+                write!(f, "Error al desconectar.")
             }
         }
     }

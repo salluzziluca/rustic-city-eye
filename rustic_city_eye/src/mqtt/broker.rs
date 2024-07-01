@@ -326,7 +326,7 @@ impl Broker {
                 properties: properties.clone(),
             }),
             _ => Err(ProtocolError::UnspecifiedError(
-                "Error al convertir a BrokerMessage".to_string(),
+                "Error al convertir el mensaje".to_string(),
             )),
         }
     }
@@ -412,7 +412,6 @@ impl Broker {
             match topic.add_user_to_topic(subscription.clone()) {
                 0 => {
                     let _ = ClientConfig::add_new_subscription(
-
                         subscription.client_id.clone(),
                         topic_name.clone(),
                     );
