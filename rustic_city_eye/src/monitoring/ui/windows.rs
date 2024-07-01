@@ -7,7 +7,6 @@ use crate::{
     incident_view::IncidentView, MyMap,
 };
 
-/// Simple GUI to zoom in and out.
 /// Se updatea el zoom level con cada click en los botones de zoom
 pub fn zoom(ui: &Ui, map_memory: &mut MapMemory, zoom_level: &mut f32) {
     Window::new("Map")
@@ -29,7 +28,10 @@ pub fn zoom(ui: &Ui, map_memory: &mut MapMemory, zoom_level: &mut f32) {
             });
         });
 }
-
+/// Se añade una ventana para agregar una cámara
+/// Al tocar el boton, se añade una camara en la posicion anteriormente seleccionada,
+/// y se llama a la funcion `monitoring_app.add_camera` para añadir la camara al sistema de monitoreo.
+/// Se añade la camara al mapa y se imprime un mensaje en consola.
 pub fn add_camera_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut MonitoringApp) {
     Window::new("Add Camera")
         .collapsible(false)
@@ -57,13 +59,16 @@ pub fn add_camera_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitori
                                 clicked: false,
                             },
                         );
-                        println!("Camera added: {:?}", position);
                     }
                 }
             });
         });
 }
 
+/// Se añade una ventana para agregar un incidente
+/// Al tocar el boton, se añade un incidente en la posicion anteriormente seleccionada,
+/// y se llama a la funcion `monitoring_app.add_incident` para añadir el incidente al sistema de monitoreo.
+/// Se añade el incidente al mapa.
 pub fn add_incident_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut MonitoringApp) {
     Window::new("Add Incident")
         .collapsible(false)
@@ -88,6 +93,10 @@ pub fn add_incident_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monito
         });
 }
 
+/// Se añade una ventana para agregar un centro de drones
+/// Al tocar el boton, se añade un centro de drones en la posicion anteriormente seleccionada,
+/// y se llama a la funcion `monitoring_app.add_drone_center` para añadir el centro de drones al sistema de monitoreo.
+/// Se añade el centro de drones al mapa.
 pub fn add_drone_center_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut MonitoringApp) {
     Window::new("Add Drone Center")
         .collapsible(false)
@@ -110,7 +119,10 @@ pub fn add_drone_center_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Mo
             });
         });
 }
-
+/// Se añade una ventana para agregar un drone
+/// Al tocar el boton, se añade un dron en la posicion anteriormente seleccionada,
+/// y se llama a la funcion `monitoring_app.add_drone` para añadir el drone al sistema de monitoreo.
+/// Se añade el drone al mapa.
 pub fn add_drone_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut MonitoringApp) {
     Window::new("Add Drone")
         .collapsible(false)
@@ -145,6 +157,9 @@ pub fn add_drone_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitorin
         });
 }
 
+/// Se añade una ventana para desconectar el sistema de monitoreo
+/// Al tocar el boton, se llama a la funcion `monitoring_app.disconnect` para desconectar el sistema de monitoreo.
+
 pub fn add_disconnect_window(
     ui: &Ui,
     map: &mut MyMap,
@@ -167,7 +182,8 @@ pub fn add_disconnect_window(
             });
         });
 }
-
+/// Se añade una ventana para eliminar entidades del sistema de monitoreo
+/// Al tocar el boton, se eliminan laa entidad que ha sido seleccionada en el mapa.
 pub fn add_remove_window(ui: &Ui, map: &mut MyMap, _monitoring_app: &mut MonitoringApp) {
     Window::new("Remove")
         .collapsible(false)
