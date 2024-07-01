@@ -222,13 +222,8 @@ impl Drone {
     pub fn disconnect(&mut self) -> Result<(), ProtocolError> {
         let disconnect_config =
             DisconnectConfig::new(0x00_u8, 1, "normal".to_string(), self.id.to_string());
-        let send_to_client_channel = match self.send_to_client_channel.lock() {
-            Ok(channel) => channel,
-            Err(e) => {
-                println!("Error locking send_to_client_channel: {:?}", e);
-                return Err(ProtocolError::LockError);
-            }
-        };
+        let send_to_client_channel = self.send_to_client_channel.lock().unwrap();
+
         if let Some(ref sender) = *send_to_client_channel {
             match sender.send(Box::new(disconnect_config)) {
                 Ok(_) => {
@@ -437,13 +432,7 @@ impl Drone {
                 }
             };
 
-            let mut self_cloned = match drone_ref.lock() {
-                Ok(locked) => locked,
-                Err(e) => {
-                    return Err(DroneError::LockError(e.to_string()));
-                }
-            };
-
+            let mut self_cloned = drone_ref.lock().unwrap();
             if let client_message::ClientMessage::Publish {
                 topic_name,
                 payload: PayloadTypes::IncidentLocation(payload),
@@ -475,84 +464,60 @@ impl Drone {
             {
                 match topic_name.as_str() {
                     "attendingincident" => {
-                        Drone::handle_attending_incident(
-                            &drone_ref,
-                            payload,
-                            &send_to_client_channel,
-                        )?;
+                        let mut to_remove = Vec::new();
+
+                        for (incident, count) in self_cloned.incidents.iter_mut() {
+                            if incident.get_location() == payload.get_incident().get_location() {
+                                *count += 1;
+
+                                if *count == 2 {
+                                    sleep(Duration::from_secs(10));
+                                    to_remove.push(incident.clone());
+
+                                    let incident_payload = IncidentPayload::new(Incident::new(
+                                        incident.get_location(),
+                                    ));
+                                    let publish_config = match PublishConfig::read_config(
+                                        "src/monitoring/publish_solved_incident_config.json",
+                                        PayloadTypes::IncidentLocation(incident_payload),
+                                    ) {
+                                        Ok(config) => config,
+                                        Err(e) => {
+                                            println!("Error reading publish config: {:?}", e);
+                                            return Err(DroneError::ProtocolError(e.to_string()));
+                                        }
+                                    };
+                                    let send_to_client_channel =
+                                        send_to_client_channel.lock().unwrap();
+
+                                    if let Some(ref sender) = *send_to_client_channel {
+                                        match sender.send(Box::new(publish_config)) {
+                                            Ok(_) => {
+                                                println!("Drone notifica la resolucion del incidente en la location {:?}", incident.get_location());
+                                            }
+                                            Err(e) => {
+                                                println!(
+                                                    "Error sending to client channel: {:?}",
+                                                    e
+                                                );
+                                            }
+                                        };
+                                    }
+                                }
+                            }
+                        }
+
+                        if !to_remove.is_empty() {
+                            for incident in to_remove {
+                                self_cloned.incidents.retain(|(i, _)| i != &incident);
+                            }
+                            self_cloned.drone_state = DroneState::Waiting;
+                        }
                     }
                     _ => continue,
                 }
             }
         }
-    }
-
-    fn handle_attending_incident(
-        drone_ref: &Arc<Mutex<Drone>>,
-        payload: IncidentPayload,
-        send_to_client_channel: &Arc<
-            Mutex<Option<Sender<Box<dyn messages_config::MessagesConfig + Send>>>>,
-        >,
-    ) -> Result<(), DroneError> {
-        let mut self_cloned = match drone_ref.lock() {
-            Ok(locked) => locked,
-            Err(e) => {
-                return Err(DroneError::LockError(e.to_string()));
-            }
-        };
-
-        let mut to_remove = Vec::new();
-
-        for (incident, count) in self_cloned.incidents.iter_mut() {
-            if incident.get_location() == payload.get_incident().get_location() {
-                *count += 1;
-
-                if *count == 2 {
-                    sleep(Duration::from_secs(1));
-                    to_remove.push(incident.clone());
-
-                    let incident_payload =
-                        IncidentPayload::new(Incident::new(incident.get_location()));
-                    let publish_config = match PublishConfig::read_config(
-                        "src/monitoring/publish_solved_incident_config.json",
-                        PayloadTypes::IncidentLocation(incident_payload),
-                    ) {
-                        Ok(config) => config,
-                        Err(e) => {
-                            println!("Error reading publish config: {:?}", e);
-                            return Err(DroneError::ProtocolError(e.to_string()));
-                        }
-                    };
-                    let send_to_client_channel = match send_to_client_channel.lock() {
-                        Ok(channel) => channel,
-                        Err(e) => {
-                            println!("Error locking send_to_client_channel: {:?}", e);
-                            return Err(DroneError::LockError(e.to_string()));
-                        }
-                    };
-
-                    if let Some(ref sender) = *send_to_client_channel {
-                        match sender.send(Box::new(publish_config)) {
-                            Ok(_) => {
-                                println!("Drone notifica la resolucion del incidente en la location {:?}", incident.get_location());
-                            }
-                            Err(e) => {
-                                println!("Error sending to client channel: {:?}", e);
-                            }
-                        };
-                    }
-                }
-            }
-        }
-
-        if !to_remove.is_empty() {
-            for incident in to_remove {
-                self_cloned.incidents.retain(|(i, _)| i != &incident);
-            }
-            self_cloned.drone_state = DroneState::Waiting;
-        }
-
-        Ok(())
     }
 
     pub fn get_state(self) -> DroneState {
@@ -715,27 +680,7 @@ impl Drone {
 
         Ok(())
     }
-    /// Mueve al Drone hacia la location que se le pase por parametro.
-    /// Si la ubicacion actual del drone coincide con la de la target location
-    /// (teniendo en cuenta un redondeo estipulado por el COORDINATE_SCALE_FACTOR)
-    /// devuelve true
-    fn drone_movement(&mut self, target_location: Location) -> Result<bool, DroneError> {
-        if (self.location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
-            == (target_location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
-            && (self.location.long * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
-                == (target_location.long * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
-        {
-            return Ok(true);
-        }
 
-        self.update_drone_position(target_location)?;
-
-        Ok(false)
-    }
-
-    /// Actualiza la posicion del Drone segun la location que se le pase por parametro.
-    /// Calcula la nueva posicion del Drone segun la velocidad de movimiento del mismo.
-    /// Envia la nueva posicion al broker mediante un publish message
     fn update_drone_position(&mut self, target_location: Location) -> Result<(), DroneError> {
         let (new_lat, new_long) = self.calculate_new_position(
             DRONE_SPEED,
@@ -751,10 +696,19 @@ impl Drone {
         Ok(())
     }
 
-    /// Calcula la nueva posicion del Drone segun la velocidad de movimiento del mismo.
-    /// Si la nueva posicion está a menos de cierto rango de la `target_location`
-    /// (definida por el tolerance factor multiplicado por la velocidad)
-    /// se considera que el dron ha llegado a su destino
+    fn drone_movement(&mut self, target_location: Location) -> Result<bool, DroneError> {
+        if (self.location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
+            == (target_location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
+            && (self.location.long * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
+                == (target_location.long * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
+        {
+            return Ok(true);
+        }
+
+        self.update_drone_position(target_location)?;
+
+        Ok(false)
+    }
     fn calculate_new_position(
         &self,
         speed: f64,
@@ -779,9 +733,6 @@ impl Drone {
         (new_lat, new_long)
     }
 
-    /// Actualiza la location del Drone en el broker.
-    /// Envia un Publish configurado segun el archivo de config
-    /// en el que por payload se tiene la location del Drone junto con su ID
     fn update_location(&mut self) {
         let publish_config = match PublishConfig::read_config(
             "src/drones/publish_config.json",
@@ -794,13 +745,7 @@ impl Drone {
             }
         };
 
-        let lock = match self.send_to_client_channel.lock() {
-            Ok(locked) => locked,
-            Err(e) => {
-                println!("Error locking send to client channel: {:?}", e);
-                return;
-            }
-        };
+        let lock = self.send_to_client_channel.lock().unwrap();
         if let Some(ref sender) = *lock {
             match sender.send(Box::new(publish_config)) {
                 Ok(_) => (),
@@ -811,10 +756,6 @@ impl Drone {
         }
     }
 
-    /// Publica un mensaje de tipo attendingincident en el broker.
-    /// Envia un Publish configurado segun el archivo de config
-    /// en el que por payload se tiene el incidente que el Drone esta atendiendo
-    /// junto con su ID
     fn publish_attending_accident(&mut self, location: Location) {
         let incident = Incident::new(location);
         let incident_payload = IncidentPayload::new(incident.clone());
@@ -829,13 +770,7 @@ impl Drone {
             }
         };
 
-        let lock = match self.send_to_client_channel.lock() {
-            Ok(locked) => locked,
-            Err(e) => {
-                println!("Error locking send to client channel: {:?}", e);
-                return;
-            }
-        };
+        let lock = self.send_to_client_channel.lock().unwrap();
         if let Some(ref sender) = *lock {
             match sender.send(Box::new(publish_config)) {
                 Ok(_) => {}
@@ -845,12 +780,11 @@ impl Drone {
             };
         }
     }
-    /// Actualiza la location del Drone segun la formula de la circunferencia
-    /// Esta funcion se utiliza para calcular el movimiento del dron en estado pasivo
     fn update_target_location(&mut self) -> Result<(), DroneError> {
         let current_time = Utc::now().timestamp_millis() as f64;
         let angle = ((current_time * ANGLE_SCALING_FACTOR) / MILISECONDS_PER_SECOND) % TWO_PI;
         let operation_radius = self.drone_config.get_operation_radius();
+        // Ensure the drone stays within the operation radius from the center location
         let new_target_lat = self.center_location.lat + operation_radius * angle.cos();
         let new_target_long = self.center_location.long + operation_radius * angle.sin();
         self.target_location = Location::new(new_target_lat, new_target_long);
