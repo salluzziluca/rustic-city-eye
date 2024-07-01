@@ -20,7 +20,11 @@ use crate::{
         subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
     },
-    utils::{incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes},
+    utils::{
+        incident_payload::{self, IncidentPayload},
+        location::Location,
+        payload_types::PayloadTypes,
+    },
 };
 use chrono::{DateTime, Utc};
 use std::f64::consts::PI;
@@ -222,8 +226,13 @@ impl Drone {
     pub fn disconnect(&mut self) -> Result<(), ProtocolError> {
         let disconnect_config =
             DisconnectConfig::new(0x00_u8, 1, "normal".to_string(), self.id.to_string());
-        let send_to_client_channel = self.send_to_client_channel.lock().unwrap();
-
+        let send_to_client_channel = match self.send_to_client_channel.lock() {
+            Ok(channel) => channel,
+            Err(e) => {
+                println!("Error locking send_to_client_channel: {:?}", e);
+                return Err(ProtocolError::LockError);
+            }
+        };
         if let Some(ref sender) = *send_to_client_channel {
             match sender.send(Box::new(disconnect_config)) {
                 Ok(_) => {
@@ -432,7 +441,13 @@ impl Drone {
                 }
             };
 
-            let mut self_cloned = drone_ref.lock().unwrap();
+            let mut self_cloned = match drone_ref.lock() {
+                Ok(locked) => locked,
+                Err(e) => {
+                    return Err(DroneError::LockError(e.to_string()));
+                }
+            };
+
             if let client_message::ClientMessage::Publish {
                 topic_name,
                 payload: PayloadTypes::IncidentLocation(payload),
@@ -464,60 +479,84 @@ impl Drone {
             {
                 match topic_name.as_str() {
                     "attendingincident" => {
-                        let mut to_remove = Vec::new();
-
-                        for (incident, count) in self_cloned.incidents.iter_mut() {
-                            if incident.get_location() == payload.get_incident().get_location() {
-                                *count += 1;
-
-                                if *count == 2 {
-                                    sleep(Duration::from_secs(10));
-                                    to_remove.push(incident.clone());
-
-                                    let incident_payload = IncidentPayload::new(Incident::new(
-                                        incident.get_location(),
-                                    ));
-                                    let publish_config = match PublishConfig::read_config(
-                                        "src/monitoring/publish_solved_incident_config.json",
-                                        PayloadTypes::IncidentLocation(incident_payload),
-                                    ) {
-                                        Ok(config) => config,
-                                        Err(e) => {
-                                            println!("Error reading publish config: {:?}", e);
-                                            return Err(DroneError::ProtocolError(e.to_string()));
-                                        }
-                                    };
-                                    let send_to_client_channel =
-                                        send_to_client_channel.lock().unwrap();
-
-                                    if let Some(ref sender) = *send_to_client_channel {
-                                        match sender.send(Box::new(publish_config)) {
-                                            Ok(_) => {
-                                                println!("Drone notifica la resolucion del incidente en la location {:?}", incident.get_location());
-                                            }
-                                            Err(e) => {
-                                                println!(
-                                                    "Error sending to client channel: {:?}",
-                                                    e
-                                                );
-                                            }
-                                        };
-                                    }
-                                }
-                            }
-                        }
-
-                        if !to_remove.is_empty() {
-                            for incident in to_remove {
-                                self_cloned.incidents.retain(|(i, _)| i != &incident);
-                            }
-                            self_cloned.drone_state = DroneState::Waiting;
-                        }
+                        Drone::handle_attending_incident(
+                            &drone_ref,
+                            payload,
+                            &send_to_client_channel,
+                        )?;
                     }
                     _ => continue,
                 }
             }
         }
+    }
+
+    fn handle_attending_incident(
+        drone_ref: &Arc<Mutex<Drone>>,
+        payload: IncidentPayload,
+        send_to_client_channel: &Arc<
+            Mutex<Option<Sender<Box<dyn messages_config::MessagesConfig + Send>>>>,
+        >,
+    ) -> Result<(), DroneError> {
+        let mut self_cloned = match drone_ref.lock() {
+            Ok(locked) => locked,
+            Err(e) => {
+                return Err(DroneError::LockError(e.to_string()));
+            }
+        };
+
+        let mut to_remove = Vec::new();
+
+        for (incident, count) in self_cloned.incidents.iter_mut() {
+            if incident.get_location() == payload.get_incident().get_location() {
+                *count += 1;
+
+                if *count == 2 {
+                    sleep(Duration::from_secs(10));
+                    to_remove.push(incident.clone());
+
+                    let incident_payload =
+                        IncidentPayload::new(Incident::new(incident.get_location()));
+                    let publish_config = match PublishConfig::read_config(
+                        "src/monitoring/publish_solved_incident_config.json",
+                        PayloadTypes::IncidentLocation(incident_payload),
+                    ) {
+                        Ok(config) => config,
+                        Err(e) => {
+                            println!("Error reading publish config: {:?}", e);
+                            return Err(DroneError::ProtocolError(e.to_string()));
+                        }
+                    };
+                    let send_to_client_channel = match send_to_client_channel.lock() {
+                        Ok(channel) => channel,
+                        Err(e) => {
+                            println!("Error locking send_to_client_channel: {:?}", e);
+                            return Err(DroneError::LockError(e.to_string()));
+                        }
+                    };
+
+                    if let Some(ref sender) = *send_to_client_channel {
+                        match sender.send(Box::new(publish_config)) {
+                            Ok(_) => {
+                                println!("Drone notifica la resolucion del incidente en la location {:?}", incident.get_location());
+                            }
+                            Err(e) => {
+                                println!("Error sending to client channel: {:?}", e);
+                            }
+                        };
+                    }
+                }
+            }
+        }
+
+        if !to_remove.is_empty() {
+            for incident in to_remove {
+                self_cloned.incidents.retain(|(i, _)| i != &incident);
+            }
+            self_cloned.drone_state = DroneState::Waiting;
+        }
+
+        Ok(())
     }
 
     pub fn get_state(self) -> DroneState {
@@ -745,7 +784,13 @@ impl Drone {
             }
         };
 
-        let lock = self.send_to_client_channel.lock().unwrap();
+        let lock = match self.send_to_client_channel.lock() {
+            Ok(locked) => locked,
+            Err(e) => {
+                println!("Error locking send to client channel: {:?}", e);
+                return;
+            }
+        };
         if let Some(ref sender) = *lock {
             match sender.send(Box::new(publish_config)) {
                 Ok(_) => (),
@@ -770,7 +815,13 @@ impl Drone {
             }
         };
 
-        let lock = self.send_to_client_channel.lock().unwrap();
+        let lock = match self.send_to_client_channel.lock() {
+            Ok(locked) => locked,
+            Err(e) => {
+                println!("Error locking send to client channel: {:?}", e);
+                return;
+            }
+        };
         if let Some(ref sender) = *lock {
             match sender.send(Box::new(publish_config)) {
                 Ok(_) => {}
