@@ -104,7 +104,7 @@ impl ClientConfig {
         let path = format!("./src/mqtt/clients/{}.json", client_id);
         match std::fs::remove_file(path) {
             Ok(_) => Ok(()),
-            Err(e) => return Err(ProtocolError::RemoveClientError(e.to_string())),
+            Err(e) => Err(ProtocolError::RemoveClientError(e.to_string())),
         }
     }
 }
@@ -126,7 +126,7 @@ mod tests {
         let client_id = "test".to_string();
         let client_config = ClientConfig::new(client_id.clone());
         assert_eq!(client_config.client_id, client_id);
-        assert_eq!(client_config.state, true);
+        assert!(client_config.state);
         assert_eq!(client_config.subscriptions.len(), 0);
     }
 
@@ -136,7 +136,7 @@ mod tests {
         let _ = ClientConfig::save_client_log_in_json(client_id.clone());
         let _ = ClientConfig::change_client_state(client_id.clone(), false);
         let client_config = ClientConfig::get_client(client_id.clone());
-        assert_eq!(client_config.state, false);
+        assert!(!client_config.state);
         ClientConfig::remove_client(client_id.clone()).unwrap();
     }
 

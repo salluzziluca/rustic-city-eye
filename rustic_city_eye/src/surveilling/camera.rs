@@ -96,7 +96,7 @@ mod tests {
     #[test]
     fn write_to_read_from() {
         let location = Location::new(1.0, 2.0);
-        let mut camera = Camera::new(location.clone(), 1);
+        let mut camera = Camera::new(location, 1);
         let mut buffer = Vec::new();
         camera.write_to(&mut buffer).unwrap();
         let mut buffer = &buffer[..];

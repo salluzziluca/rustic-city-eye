@@ -193,26 +193,10 @@ impl MyApp {
                         self.port.clone(),
                     ];
 
-                    if self.username.is_empty() {
-                        self.correct_username = false;
-                    } else {
-                        self.correct_username = true;
-                    }
-                    if self.password.is_empty() {
-                        self.correct_password = false;
-                    } else {
-                        self.correct_password = true;
-                    }
-                    if self.ip.is_empty() {
-                        self.correct_ip = false;
-                    } else {
-                        self.correct_ip = true;
-                    }
-                    if self.port.is_empty() {
-                        self.correct_port = false;
-                    } else {
-                        self.correct_port = true;
-                    }
+                    self.correct_username = !self.username.is_empty();
+                    self.correct_password = !self.password.is_empty();
+                    self.correct_ip = !self.ip.is_empty();
+                    self.correct_port = !self.port.is_empty();
                     match MonitoringApp::new(args) {
                         Ok(mut monitoring_app) => {
                             let _ = monitoring_app.run_client();
@@ -222,7 +206,7 @@ impl MyApp {
                         Err(e) => {
                             println!(
                                 "La conexion ha fallado. Intenta conectarte nuevamente {}.",
-                                e.to_string()
+                                e
                             );
                             self.username.clear();
                             self.password.clear();

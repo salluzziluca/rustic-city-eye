@@ -844,7 +844,7 @@ mod tests {
 
                 Ok(())
             }
-            Err(e) => return Err(e),
+            Err(e) => Err(e),
         }
     }
 
