@@ -48,8 +48,9 @@ impl MonitoringApp {
     /// Una vez creado su Client, se suscribe a sus topics de interes.
     /// Crea un sistema de cámaras y agrega una cámara al sistema
     pub fn new(args: Vec<String>) -> Result<MonitoringApp, ProtocolError> {
-        let connect_config =
-            client_message::Connect::read_connect_config("src/monitoring/connect_config.json")?;
+        let mut connect_config = client_message::Connect::read_connect_config("src/monitoring/connect_config.json")?;
+        connect_config.username = Some(args[0].to_string());
+        connect_config.password = Some(args[1].as_bytes().to_vec());
 
         let address = args[2].to_string() + ":" + &args[3].to_string();
 
