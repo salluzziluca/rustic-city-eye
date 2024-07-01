@@ -82,7 +82,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         );
 
         let _ = tx.send(Box::new(subscribe_config));
-
         let subscribe_config = SubscribeConfig::new(
             "incidente_resuelto".to_string(),
             SubscribeProperties::new(1, vec![]),
@@ -90,7 +89,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         );
 
         let _ = tx.send(Box::new(subscribe_config));
-
         Ok(CameraSystem {
             send_to_client_channel: Arc::new(Mutex::new(tx)),
             camera_system_client,
@@ -293,8 +291,12 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         );
         let send_to_client_channel = self.send_to_client_channel.lock().unwrap();
 
-        let _ = send_to_client_channel.send(Box::new(disconnect_config));
-        // self.camera_system_client.disconnect_client()?;
+        match send_to_client_channel.send(Box::new(disconnect_config)) {
+            Ok(_) => {}
+            Err(e) => {
+                return Err(ProtocolError::SendError(e.to_string()));
+            }
+        }
         println!("Cliente del system desconectado correctamente");
 
         Ok(())
@@ -542,8 +544,10 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             }
         };
 
-        let _ = lock.send(Box::new(publish_config));
-
+        match lock.send(Box::new(publish_config)) {
+            Ok(_) => {}
+            Err(_) => return Err(CameraError::SendError),
+        }
         self.snapshot = new_snapshot;
 
         Ok(())
