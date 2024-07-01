@@ -517,7 +517,7 @@ impl ClientMessage {
                 // variable header
                 properties.write_properties(&mut writer)?;
 
-                // escribir payload 
+                // escribir payload
                 write_string(&mut writer, &payload.topic)?;
                 write_string(&mut writer, &payload.client_id)?;
 

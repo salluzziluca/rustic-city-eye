@@ -17,7 +17,6 @@ impl MessagesConfig for SubscribeConfig {
     fn parse_message(&self, packet_id: u16) -> ClientMessage {
         let payload = Subscription::new(self.topic_name.clone(), self.client_id.clone());
         //creo un vector cno la subscription
-        
 
         ClientMessage::Subscribe {
             packet_id,

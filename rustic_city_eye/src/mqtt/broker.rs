@@ -402,12 +402,14 @@ impl Broker {
         topic_name: String,
         subscription: Subscription,
     ) -> Result<u8, ProtocolError> {
-        
-        let reason_code;       
+        let reason_code;
         if let Some(topic) = topics.get_mut(&topic_name) {
             match topic.add_user_to_topic(subscription.clone()) {
                 0 => {
-                    let _ = ClientConfig::add_new_subscription(subscription.client_id.clone(), topic_name.clone());
+                    let _ = ClientConfig::add_new_subscription(
+                        subscription.client_id.clone(),
+                        topic_name.clone(),
+                    );
                     reason_code = SUCCESS_HEX;
                 }
                 0x92 => {
@@ -420,7 +422,7 @@ impl Broker {
         } else {
             reason_code = UNSPECIFIED_ERROR_HEX;
         }
-            
+
         Ok(reason_code)
     }
 
@@ -438,7 +440,10 @@ impl Broker {
             match topic.remove_user_from_topic(subscription.clone()) {
                 0 => {
                     println!("Unsubscribe exitoso");
-                    let _ = ClientConfig::remove_subscription(subscription.client_id.clone(), topic_name.clone());
+                    let _ = ClientConfig::remove_subscription(
+                        subscription.client_id.clone(),
+                        topic_name.clone(),
+                    );
                     reason_code = SUCCESS_HEX;
                 }
                 _ => {
@@ -586,7 +591,6 @@ impl Broker {
 
                 let will_message = connect.clone().give_will_message();
                 if let Ok(mut clients) = self.clients_ids.write() {
-
                     clients.insert(
                         connect.client_id.clone(),
                         (Some(cloned_stream), will_message),
@@ -698,8 +702,11 @@ impl Broker {
 
                 let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-                let reason_code =
-                    Broker::handle_subscribe(topics.clone(), payload.topic.clone(), payload.clone())?;
+                let reason_code = Broker::handle_subscribe(
+                    topics.clone(),
+                    payload.topic.clone(),
+                    payload.clone(),
+                )?;
 
                 let suback = BrokerMessage::Suback {
                     packet_id_msb: packet_id_bytes[0],
@@ -732,17 +739,15 @@ impl Broker {
 
                 let packet_id_bytes: [u8; 2] = packet_id.to_be_bytes();
 
-            
                 let reason_code =
-                        Broker::handle_unsubscribe(topics.clone(), payload.topic.clone(), payload)?;
-                   
+                    Broker::handle_unsubscribe(topics.clone(), payload.topic.clone(), payload)?;
+
                 let unsuback = BrokerMessage::Unsuback {
                     packet_id_msb: packet_id_bytes[0],
                     packet_id_lsb: packet_id_bytes[1],
                     reason_code,
                 };
 
-               
                 println!("Enviando un Unsuback");
                 match unsuback.write_to(&mut stream) {
                     Ok(_) => {
@@ -894,7 +899,9 @@ impl Broker {
                 match disconnect.write_to(&mut stream_clone) {
                     Ok(_) => {
                         println!("Disconnect enviado a {}", client_id);
-                        stream_clone.shutdown(Shutdown::Both).expect("Error al cerrar el stream");
+                        stream_clone
+                            .shutdown(Shutdown::Both)
+                            .expect("Error al cerrar el stream");
                     }
                     Err(_) => return Err(ProtocolError::UnspecifiedError),
                 }

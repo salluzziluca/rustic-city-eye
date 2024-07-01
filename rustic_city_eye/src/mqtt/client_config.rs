@@ -13,7 +13,6 @@ pub(crate) struct ClientConfig {
     pub subscriptions: Vec<String>,
 }
 
-
 /// Implementación de métodos para la estructura ClientConfig
 /// Métodos para guardar, modificar y obtener la configuración de un cliente
 impl ClientConfig {
@@ -28,7 +27,10 @@ impl ClientConfig {
     }
 
     /// Cambia el estado de un cliente en el archivo json
-    pub fn change_client_state(client_id: String, state: bool) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn change_client_state(
+        client_id: String,
+        state: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let path = format!("./src/mqtt/clients/{}.json", client_id);
         let file = File::open(&path)?;
         let client_config: ClientConfig = serde_json::from_reader(file)?;
@@ -47,13 +49,16 @@ impl ClientConfig {
         let client_config = ClientConfig::new(client_id.clone());
         let json = serde_json::to_string(&client_config)?;
         let path = format!("./src/mqtt/clients/{}.json", client_id);
-    
+
         std::fs::write(path, json)?;
         Ok(())
     }
 
     /// Agrega una nueva suscripción a un cliente en el archivo json
-    pub fn add_new_subscription(client_id: String, topic: String) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn add_new_subscription(
+        client_id: String,
+        topic: String,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let path = format!("./src/mqtt/clients/{}.json", client_id);
         if !ClientConfig::client_exists(client_id.clone()) {
             ClientConfig::save_client_log_in_json(client_id.clone())?;
@@ -67,7 +72,10 @@ impl ClientConfig {
     }
 
     /// Remueve una suscripción de un cliente en el archivo json
-    pub fn remove_subscription(client_id: String, topic: String) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn remove_subscription(
+        client_id: String,
+        topic: String,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let path = format!("./src/mqtt/clients/{}.json", client_id);
         let file = std::fs::File::open(path.clone())?;
         let mut client_config: ClientConfig = serde_json::from_reader(file)?;
@@ -102,7 +110,6 @@ impl ClientConfig {
         let path = format!("./src/mqtt/clients/{}.json", client_id);
         let _ = std::fs::remove_file(path);
     }
-  
 }
 
 #[cfg(test)]
@@ -159,5 +166,4 @@ mod tests {
         assert_eq!(client_config.subscriptions.len(), 0);
         ClientConfig::remove_client(client_id.clone());
     }
-
 }

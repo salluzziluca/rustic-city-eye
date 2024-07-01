@@ -384,15 +384,16 @@ pub fn update_entities(
                             cameras.insert(camera.get_id(), camera);
                         }
                     }
-                }  else if topic_name == "incidente_resuelto" {
+                } else if topic_name == "incidente_resuelto" {
                     if let PayloadTypes::IncidentLocation(incident_payload) = payload {
                         let mut incidents = incidents.lock().unwrap();
                         let mut to_remove = Vec::new();
 
                         for (incident, _count) in incidents.iter_mut() {
                             if incident.get_location()
-                                == incident_payload.get_incident().get_location() {
-                                    to_remove.push(incident.clone());
+                                == incident_payload.get_incident().get_location()
+                            {
+                                to_remove.push(incident.clone());
                             }
                         }
 
