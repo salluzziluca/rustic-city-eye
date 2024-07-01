@@ -1244,7 +1244,7 @@ mod tests {
                     payload,
                     properties: _,
                 } => {
-                    assert_eq!(payload.topic, "camera_update");
+                    assert_eq!(payload.topic, "incidente");
                 }
                 _ => {
                     panic!("Unexpected message type");
@@ -1261,7 +1261,7 @@ mod tests {
                     payload,
                     properties: _,
                 } => {
-                    assert_eq!(payload.topic, "camera_update");
+                    assert_eq!(payload.topic, "incidente_resuelto");
                 }
                 _ => {
                     panic!("Unexpected message type");
