@@ -40,7 +40,7 @@ mod tests {
     #[test]
     fn test_new_incident() {
         let location = Location::new(1.0, 2.0);
-        let incident = Incident::new(location.clone());
+        let incident = Incident::new(location);
         assert_eq!(incident.get_location(), location);
     }
 }

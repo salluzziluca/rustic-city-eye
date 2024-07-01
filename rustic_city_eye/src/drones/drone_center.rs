@@ -2,6 +2,7 @@ use egui::ahash::HashMap;
 use rand::Rng;
 
 use crate::drones::drone::Drone;
+use crate::mqtt::protocol_error::ProtocolError;
 use crate::utils::location::Location;
 
 use super::drone_error::DroneError;
@@ -42,14 +43,18 @@ impl DroneCenter {
         self.location
     }
 
+    pub fn disconnect_drones(&mut self) -> Result<(), ProtocolError> {
+        for drone in self.drones.values_mut() {
+            drone.disconnect()?;
+        }
+
+        Ok(())
+    }
+
     /// Crea un dron y lo agrega al hashmap con un ID que no esté siendo utilizado
     ///
     /// Retorna el ID del dron creado o DroneError en caso de error.
     pub fn add_drone(&mut self, location: Location) -> Result<u32, DroneError> {
-        // let mut rng = rand::thread_rng();
-
-        // let mut id = rng.gen();
-
         let mut id = 0;
         while self.drones.contains_key(&id) {
             id += 1;
@@ -120,7 +125,7 @@ mod tests {
         thread::spawn(move || {
             let mut drone_center = DroneCenter::new(
                 1,
-                location.clone(),
+                location,
                 "src/drones/drone_config.json".to_string(),
                 addr.to_string(),
             );
@@ -158,7 +163,7 @@ mod tests {
             let location = location::Location::new(latitude, longitude);
             let mut drone_center = DroneCenter::new(
                 1,
-                location.clone(),
+                location,
                 "./src/drones/drone_config.json".to_string(),
                 addr.to_string(),
             );
@@ -196,7 +201,7 @@ mod tests {
             let location = location::Location::new(latitude, longitude);
             let mut drone_center = DroneCenter::new(
                 1,
-                location.clone(),
+                location,
                 "./src/drones/drone_config.json".to_string(),
                 addr.to_string(),
             );
@@ -229,7 +234,7 @@ mod tests {
             let location = location::Location::new(latitude, longitude);
             let drone_center = DroneCenter::new(
                 1,
-                location.clone(),
+                location,
                 "./src/drones/drone_config.json".to_string(),
                 addr.to_string(),
             );
@@ -260,7 +265,7 @@ mod tests {
             let location = location::Location::new(latitude, longitude);
             let mut drone_center = DroneCenter::new(
                 1,
-                location.clone(),
+                location,
                 "./src/drones/drone_config.json".to_string(),
                 addr.to_string(),
             );

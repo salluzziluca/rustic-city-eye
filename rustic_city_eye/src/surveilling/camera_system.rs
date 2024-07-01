@@ -76,7 +76,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         let client_id = camera_system_client.get_client_id();
         let subscribe_config = SubscribeConfig::new(
             "incidente".to_string(),
-            1,
             SubscribeProperties::new(1, vec![]),
             client_id.clone(),
         );
@@ -85,7 +84,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
 
         let subscribe_config = SubscribeConfig::new(
             "incidente_resuelto".to_string(),
-            1,
             SubscribeProperties::new(1, vec![]),
             client_id,
         );
@@ -282,6 +280,13 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                 }
             }
         });
+        Ok(())
+    }
+
+    pub fn disconnect(&self) -> Result<(), ProtocolError> {
+        self.camera_system_client.disconnect_client()?;
+        println!("Cliente del system desconectado correctamente");
+
         Ok(())
     }
 
@@ -1239,9 +1244,7 @@ mod tests {
                     payload,
                     properties: _,
                 } => {
-                    for topic in payload {
-                        assert_eq!(topic.topic, "incidente");
-                    }
+                    assert_eq!(payload.topic, "camera_update");
                 }
                 _ => {
                     panic!("Unexpected message type");
@@ -1258,9 +1261,7 @@ mod tests {
                     payload,
                     properties: _,
                 } => {
-                    for topic in payload {
-                        assert_eq!(topic.topic, "incidente_resuelto");
-                    }
+                    assert_eq!(payload.topic, "camera_update");
                 }
                 _ => {
                     panic!("Unexpected message type");
@@ -1364,6 +1365,10 @@ mod tests {
             fn get_client_id(&self) -> String {
                 "mock".to_string()
             }
+
+            fn disconnect_client(&self) -> Result<(), ProtocolError> {
+                Ok(())
+            }
         }
 
         impl MockClient {
@@ -1428,13 +1433,13 @@ mod tests {
 
         //add cameras
         let location = Location::new(1.0, 1.0);
-        let _ = camera_system.add_camera(location.clone());
+        let _ = camera_system.add_camera(location);
         let location2 = Location::new(1.0, 2.0);
-        let _ = camera_system.add_camera(location2.clone());
+        let _ = camera_system.add_camera(location2);
         let location3 = Location::new(1.0, 3.0);
-        let _ = camera_system.add_camera(location3.clone());
+        let _ = camera_system.add_camera(location3);
         let location4 = Location::new(2.0, 5.0);
-        let _ = camera_system.add_camera(location4.clone());
+        let _ = camera_system.add_camera(location4);
 
         let handle = thread::spawn(move || {
             mock_client.send_messages(&tx2);

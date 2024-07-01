@@ -1,5 +1,8 @@
 use std::{
-    sync::{mpsc, Arc, Mutex},
+    sync::{
+        mpsc::{self, Receiver, Sender},
+        Arc, Mutex,
+    },
     thread::{self, sleep},
     time::Duration,
 };
@@ -9,8 +12,9 @@ use crate::{
     monitoring::incident::Incident,
     mqtt::{
         client::Client,
-        client_message::{self, ClientMessage},
-        messages_config,
+        client_message::{self, ClientMessage, Connect},
+        messages_config::{self, MessagesConfig},
+        protocol_error::ProtocolError,
         publish::publish_config::PublishConfig,
         subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
@@ -21,8 +25,6 @@ use chrono::{DateTime, Utc};
 use std::f64::consts::PI;
 const LOW_BATERRY_LEVEL: i64 = 20;
 const DRONE_SPEED: f64 = 0.001;
-const DRONE_MOV_SLEEP_TIME: u64 = 1;
-const DRONE_ATTENDING_INCIDENT_SLEEP_TIME: u64 = 3;
 const TOLERANCE_FACTOR: f64 = 0.6;
 const MILISECONDS_PER_SECOND: f64 = 1000.0;
 const TWO_PI: f64 = 2.0 * PI;
@@ -31,6 +33,7 @@ const FULL_BATTERY: i64 = 100;
 const ANGLE_SCALING_FACTOR: f64 = 0.6; // Adjust this value to make steps smaller or larger
 
 #[derive(Debug, Clone)]
+#[allow(clippy::type_complexity)]
 pub struct Drone {
     // ID unico para cada Drone.
     pub id: u32,
@@ -68,10 +71,13 @@ pub struct Drone {
 
     /// A traves de este sender, se envia la configuracion de los packets que el Drone
     /// quiera enviar a la red.
-    send_to_client_channel: mpsc::Sender<Box<dyn messages_config::MessagesConfig + Send>>,
+    send_to_client_channel:
+        Arc<Mutex<Option<Sender<Box<dyn messages_config::MessagesConfig + Send>>>>>,
 
     /// A traves de este receiver, el Drone recibe los mensajes provenientes de su Client.
-    recieve_from_client: Arc<Mutex<mpsc::Receiver<ClientMessage>>>,
+    recieve_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
+
+    incidents: Vec<(Incident, u8)>,
 }
 
 impl Drone {
@@ -84,28 +90,13 @@ impl Drone {
         address: String,
     ) -> Result<Drone, DroneError> {
         let drone_config = DroneConfig::new(config_file_path)?;
+        let connect_config = Drone::read_connect_config("src/drones/connect_config.json", id)?;
 
-        let mut connect_config =
-            match client_message::Connect::read_connect_config("src/drones/connect_config.json") {
-                Ok(config) => config,
-                Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
-            };
-        connect_config.client_id = id.to_string();
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
-        let subscribe_config = SubscribeConfig::new(
-            "incidente".to_string(),
-            1,
-            SubscribeProperties::new(1, vec![]),
-            id.to_string(),
-        );
 
-        let drone_client = match Client::new(rx, address, connect_config, tx2) {
-            Ok(client) => client,
-            Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
-        };
+        let drone_client = Drone::create_client(id, rx, address, connect_config, tx2, tx.clone())?;
 
-        let _ = tx.send(Box::new(subscribe_config));
         let target_location = location;
         Ok(Drone {
             id,
@@ -116,9 +107,126 @@ impl Drone {
             drone_state: DroneState::Waiting,
             drone_client,
             battery_level: 100,
-            send_to_client_channel: tx,
+            send_to_client_channel: Arc::new(Mutex::new(Some(tx))),
             recieve_from_client: Arc::new(Mutex::new(rx2)),
+            incidents: Vec::new(),
         })
+    }
+
+    /// Levanta la configuracion que va a tener el packet Connect que enviara el Client
+    /// del Drone.
+    ///
+    /// Setea su client id al id que ingrese por parametro(va a estar definido por el usuario
+    /// a la hora de instanciar a un nuevo Drone).
+    fn read_connect_config(file_path: &str, id: u32) -> Result<Connect, DroneError> {
+        let mut connect_config = match Connect::read_connect_config(file_path) {
+            Ok(config) => config,
+            Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
+        };
+        connect_config.client_id = id.to_string();
+
+        Ok(connect_config)
+    }
+
+    /// Crea el Client a traves del cual el Drone va a comunicarse con la red.
+    ///
+    /// Este Client se va a construir a partir de la configuracion brindada en su archivo de configuracion.
+    ///
+    /// Una vez conectado, se envian packets que van a suscribir al Drone a sus topics de interes(ver metodo subscribe_to_topics).
+    ///
+    /// Retorna error en caso de fallar la creacion.
+    fn create_client(
+        id: u32,
+        receive_from_drone_channel: Receiver<Box<dyn MessagesConfig + Send>>,
+        address: String,
+        connect_config: Connect,
+        send_to_drone_channel: Sender<ClientMessage>,
+        send_from_drone_channel: Sender<Box<dyn MessagesConfig + Send>>,
+    ) -> Result<Client, DroneError> {
+        match Client::new(
+            receive_from_drone_channel,
+            address,
+            connect_config.clone(),
+            send_to_drone_channel,
+        ) {
+            Ok(client) => {
+                println!("Soy el Drone {}, y mi Client se conecto exitosamente!", id);
+                Drone::subscribe_to_topics(connect_config, send_from_drone_channel)?;
+                Ok(client)
+            }
+            Err(e) => Err(DroneError::ProtocolError(e.to_string())),
+        }
+    }
+
+    /// Contiene las subscripciones a los topics de interes para el Drone: necesita la suscripcion al topic
+    /// de incidentes("incident"), y al de drones atendiendo incidentes("attendingincident"): la idea es que reciban los incidentes
+    /// cargados desde la aplicacion de monitoreo, y que ademas sepan que drones estan atendiendo ciertos incidentes, para que los drones
+    /// puedan organizarse para resolver los distintos incidentes.
+    fn subscribe_to_topics(
+        connect_config: Connect,
+        send_from_drone_channel: Sender<Box<dyn MessagesConfig + Send>>,
+    ) -> Result<(), DroneError> {
+        let subscribe_properties =
+            SubscribeProperties::new(1, connect_config.properties.user_properties);
+        let topic_name = "incidente".to_string();
+        let subscribe_config = SubscribeConfig::new(
+            topic_name.clone(),
+            subscribe_properties.clone(),
+            connect_config.client_id.clone(),
+        );
+
+        match send_from_drone_channel.send(Box::new(subscribe_config)) {
+            Ok(_) => {
+                println!(
+                    "Drone {} suscrito al topic {} correctamente",
+                    connect_config.client_id, topic_name
+                );
+            }
+            Err(e) => {
+                println!(
+                    "Drone {}: Error sending message: {:?}",
+                    connect_config.client_id, e
+                );
+                return Err(DroneError::SubscribeError(e.to_string()));
+            }
+        };
+
+        let topic_name = "attendingincident".to_string();
+        let subscribe_config = SubscribeConfig::new(
+            topic_name.clone(),
+            subscribe_properties,
+            connect_config.client_id.clone(),
+        );
+        match send_from_drone_channel.send(Box::new(subscribe_config)) {
+            Ok(_) => {
+                println!(
+                    "Drone {} suscrito al topic {} correctamente",
+                    connect_config.client_id, topic_name
+                );
+            }
+            Err(e) => {
+                println!(
+                    "Drone {}: Error sending message: {:?}",
+                    connect_config.client_id, e
+                );
+                return Err(DroneError::SubscribeError(e.to_string()));
+            }
+        };
+
+        Ok(())
+    }
+
+    /// Desconecta al Client del Drone. Se cierra el canal por el cual el Drone envia packets
+    /// a su Client, y ademas se desconecta a su Client.
+    pub fn disconnect(&mut self) -> Result<(), ProtocolError> {
+        let mut lock = match self.send_to_client_channel.lock() {
+            Ok(l) => l,
+            Err(_) => return Err(ProtocolError::LockError),
+        };
+        *lock = None;
+        self.drone_client.disconnect_client()?;
+        println!("Cliente del drone {} desconectado correctamente", self.id);
+        Ok(())
     }
 
     /// Esta funcion ejecuta el Drone, creando tres threads:
@@ -138,60 +246,104 @@ impl Drone {
     ///   recibe los Publish packets que vengan de los topics al que este suscrito.
     pub fn run_drone(&mut self) -> Result<(), DroneError> {
         match self.drone_client.client_run() {
-            Ok(client) => client,
+            Ok(client) => {
+                println!("Drone {} patrullando en su area de operacion", self.id);
+                client
+            }
             Err(e) => {
-                print!("Error running client: {:?}", e);
+                print!(
+                    "Error al correr el Client del Drone con id {}: {:?}",
+                    self.id, e
+                );
                 return Err(DroneError::ProtocolError(e.to_string()));
             }
         };
 
-        println!("Drone {} is running", self.id);
         let drone_ref = Arc::new(Mutex::new(self.clone()));
         let self_clone_one = Arc::clone(&drone_ref);
         let self_clone_two = Arc::clone(&drone_ref);
         let self_clone_three = Arc::clone(&drone_ref);
+        let recieve_from_client_clone = Arc::clone(&self.recieve_from_client);
+        let send_to_client_channel_clone = Arc::clone(&self.send_to_client_channel);
 
         thread::spawn(move || {
-            let mut last_discharge_time = Utc::now();
-
-            loop {
-                let self_clone = Arc::clone(&self_clone_one);
-                let mut lock = match self_clone.lock() {
-                    Ok(locked) => locked,
-                    Err(e) => {
-                        println!("Error locking drone: {:?}", e);
-                        return;
-                    }
-                };
-
-                match lock.drone_state.clone() {
-                    DroneState::Waiting => {
-                        let updated_last_discharge_time =
-                            lock.battery_discharge(last_discharge_time);
-                        last_discharge_time = updated_last_discharge_time;
-                    }
-
-                    DroneState::ChargingBattery => match lock.charge_battery() {
-                        Ok(_) => (),
-                        Err(e) => {
-                            println!("Error charging battery: {:?}", e);
-                            return;
-                        }
-                    },
-                    _ => (),
-                }
-            }
+            let _ = Drone::handle_battery_changes(self_clone_one);
         });
 
-        thread::spawn(move || loop {
-            sleep(Duration::from_millis(500));
+        thread::spawn(move || {
+            let _ = Drone::handle_drone_movement(self_clone_two);
+        });
 
-            let self_clone = Arc::clone(&self_clone_two);
+        thread::spawn(move || {
+            let _ = Drone::handle_message_reception_from_client(
+                self_clone_three,
+                recieve_from_client_clone,
+                send_to_client_channel_clone
+            );
+        });
+
+        Ok(())
+    }
+
+    /// Closure del thread que controla la bateria del Drone.
+    ///
+    /// La idea es que cuando este en estado Waiting, se descargue a medida que pase
+    /// el tiempo la bateria del Drone, y cuando se pase a estado de ChargingBattery,
+    /// la bateria comience a cargarse.
+    fn handle_battery_changes(drone_ref: Arc<Mutex<Drone>>) -> Result<(), DroneError> {
+        let mut last_discharge_time = Utc::now();
+
+        loop {
+            let self_clone = Arc::clone(&drone_ref);
             let mut lock = match self_clone.lock() {
                 Ok(locked) => locked,
                 Err(e) => {
                     println!("Error locking drone: {:?}", e);
-                    return;
+                    return Err(DroneError::LockError(e.to_string()));
+                }
+            };
+
+            match lock.drone_state.clone() {
+                DroneState::Waiting => {
+                    let updated_last_discharge_time = lock.battery_discharge(last_discharge_time);
+                    last_discharge_time = updated_last_discharge_time;
+                }
+
+                DroneState::ChargingBattery => match lock.charge_battery() {
+                    Ok(_) => {
+                        println!(
+                            "El Drone {} cargo su bateria: volviendo a patrullar",
+                            lock.id
+                        );
+                    }
+                    Err(e) => {
+                        println!("Error charging battery: {:?}", e);
+                        return Err(DroneError::ChargingBatteryError(e.to_string()));
+                    }
+                },
+                _ => (),
+            }
+        }
+    }
+
+    /// Closure del thread de movimiento del Drone.
+    ///
+    /// Al estar con estado de Waiting, el Drone patrullara dentro de su radio de operacion hasta ser notificado de un nuevo
+    /// incidente, o si se queda con niveles bajos de bateria.
+    ///
+    /// Al registrar un incidente, el Drone se dirige a resolverlo.
+    ///
+    /// Al quedar con niveles bajos de bateria, el Drone se movera hacia su central de operacion para cargarse.
+    fn handle_drone_movement(drone_ref: Arc<Mutex<Drone>>) -> Result<(), DroneError> {
+        loop {
+            sleep(Duration::from_millis(500));
+
+            let self_clone = Arc::clone(&drone_ref);
+            let mut lock = match self_clone.lock() {
+                Ok(locked) => locked,
+                Err(e) => {
+                    println!("Error locking drone: {:?}", e);
+                    return Err(DroneError::LockError(e.to_string()));
                 }
             };
 
@@ -201,22 +353,23 @@ impl Drone {
                         Ok(_) => (),
                         Err(e) => {
                             println!("Error while patrolling: {:?}", e);
-                            return;
+                            return Err(DroneError::PatrollingError(e.to_string()));
                         }
                     };
                 }
                 DroneState::AttendingIncident(location) => {
-                    println!("Esto yendo a solucionar el incidente");
+                    println!("Drone {} yendo a solucionar el incidente", lock.id);
                     match lock.drone_movement(location) {
-                        Ok(_) => {
-                            sleep(Duration::from_secs(DRONE_ATTENDING_INCIDENT_SLEEP_TIME));
-                            lock.drone_state = DroneState::Waiting;
-                            lock.patrolling_in_operating_radius().unwrap();
-                            lock.publish_attending_accident(location);
+                        Ok(is_at_incident_location) => {
+                            if is_at_incident_location {
+                                lock.publish_attending_accident(location);
+                            }
+                            //sleep(Duration::from_secs(10));
+                         //   lock.drone_state = DroneState::Waiting;
                         }
                         Err(e) => {
                             println!("Error while moving to incident: {:?}", e);
-                            return;
+                            return Err(DroneError::MovingToIncidentError(e.to_string()));
                         }
                     };
                 }
@@ -225,31 +378,112 @@ impl Drone {
                 }
                 _ => (),
             };
-        });
-        let recieve_from_client_clone = Arc::clone(&self.recieve_from_client);
-        thread::spawn(move || loop {
+        }
+    }
+
+    /// closure del thread de recepcion de mensajes de parte del Client del Drone.
+    ///
+    /// Por cada mensaje recibido de los topics de interes del Drone("incident" y "attendingincident"),
+    /// el Drone determinara su accionar.
+    ///
+    /// Si recibe un incidente, se redirige hacia el mismo para resolverlo y publica su nuevo estado en
+    /// attendingincident.
+    /// A su vez, recibe aquellas notificaciones de todos los Drones que esten yendo a resolver el incidente, y van a jugar una carrera:
+    /// los primeros 2 Drones que lleguen, se podran a resolver el incidente, y los demas pasaran a ignorar este incidente y volveran a patrullar.
+    fn handle_message_reception_from_client(
+        drone_ref: Arc<Mutex<Drone>>,
+        receive_from_client_ref: Arc<Mutex<Receiver<ClientMessage>>>,
+        send_to_client_channel:
+        Arc<Mutex<Option<Sender<Box<dyn messages_config::MessagesConfig + Send>>>>>
+    ) -> Result<(), DroneError> {
+        loop {
             let message = {
-                let lock = recieve_from_client_clone.lock().unwrap();
+                let lock = receive_from_client_ref.lock().unwrap();
                 lock.recv().unwrap()
             };
 
-            let mut self_cloned = self_clone_three.lock().unwrap();
+            let mut self_cloned = drone_ref.lock().unwrap();
             if let client_message::ClientMessage::Publish {
                 topic_name,
                 payload: PayloadTypes::IncidentLocation(payload),
                 ..
             } = message
             {
-                if topic_name != "incidente" {
-                    continue;
-                }
-                let location = payload.get_incident().get_location();
-                println!("yo, droncito {} recibi el pub de incidente", self_cloned.id);
-                self_cloned.drone_state = DroneState::AttendingIncident(location);
-            }
-        });
+                match topic_name.as_str() {
+                    "incidente" => {
+                        if self_cloned.drone_state == DroneState::Waiting {
+                            let location = payload.get_incident().get_location();
+                            self_cloned.drone_state = DroneState::AttendingIncident(location);
+    
+                            let (incident, drones_attending_incident) =
+                                (payload.get_incident().clone(), 0);
+    
+                            self_cloned
+                                .incidents
+                                .push((incident.clone(), drones_attending_incident));
+                        }
+                    }
 
-        Ok(())
+                    _ => continue,
+                }
+            } else if let client_message::ClientMessage::Publish {
+                topic_name,
+                payload: PayloadTypes::AttendingIncident(payload),
+                ..
+            } = message
+            {
+                match topic_name.as_str() {
+                    "attendingincident" => {
+                        let mut to_remove = Vec::new();
+
+                        for (incident, count) in self_cloned.incidents.iter_mut() {
+                            if incident.get_location() == payload.get_incident().get_location() {
+                                *count += 1;
+
+                                if *count == 2 {
+                                    sleep(Duration::from_secs(10));
+                                    to_remove.push(incident.clone());
+
+                                    let incident_payload = IncidentPayload::new(Incident::new(
+                                        incident.get_location(),
+                                    ));
+                                    let publish_config = match PublishConfig::read_config(
+                                        "src/monitoring/publish_solved_incident_config.json",
+                                        PayloadTypes::IncidentLocation(incident_payload),
+                                    ) {
+                                        Ok(config) => config,
+                                        Err(e) => {
+                                            println!("Error reading publish config: {:?}", e);
+                                            return Err(DroneError::ProtocolError(e.to_string()));
+                                        }
+                                    };
+                                    let send_to_client_channel = send_to_client_channel.lock().unwrap();
+
+                                    if let Some(ref sender) = *send_to_client_channel {
+                                        match sender.send(Box::new(publish_config)) {
+                                            Ok(_) => {
+                                                println!("Drone notifica la resolucion del incidente en la location {:?}", incident.get_location());
+                                            }
+                                            Err(e) => {
+                                                println!("Error sending to client channel: {:?}", e);
+                                            }
+                                        };
+                                    }
+                                }
+                            }
+                        }
+
+                        if !to_remove.is_empty() {
+                            for incident in to_remove {
+                                self_cloned.incidents.retain(|(i, _)| i != &incident);
+                            }
+                            self_cloned.drone_state = DroneState::Waiting;
+                        }
+                    }
+                    _ => continue,
+                }
+            }
+        }
     }
 
     pub fn get_state(self) -> DroneState {
@@ -302,6 +536,7 @@ impl Drone {
         if elapsed_time >= discharge_rate {
             self.battery_level -= 1;
             if self.battery_level == LOW_BATERRY_LEVEL {
+                println!("El Drone {} se quedo con niveles de bateria bajos", self.id);
                 self.drone_state = DroneState::LowBatteryLevel;
             }
             (current_time, true)
@@ -342,6 +577,10 @@ impl Drone {
     ///
     /// Al llegar al 100%, devuelve un DroneState del tipo Waiting.
     pub fn charge_battery(&mut self) -> Result<DroneState, DroneError> {
+        println!(
+            "El Drone {} esta cargando su bateria en la central",
+            self.id
+        );
         let mut start_time = Utc::now();
 
         loop {
@@ -365,11 +604,11 @@ impl Drone {
     /// La idea es que si se llega al current_target_location, el Drone calcule una nueva
     /// posicion para ir, y que comience a moverse.
     fn patrolling_in_operating_radius(&mut self) -> Result<(), DroneError> {
-        if (self.location.lat * COORDINATE_SCALE_FACTOR).round() / COORDINATE_SCALE_FACTOR
-            == (self.target_location.lat * COORDINATE_SCALE_FACTOR).round()
+        if (self.location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
+            == (self.target_location.lat * COORDINATE_SCALE_FACTOR)
                 / COORDINATE_SCALE_FACTOR
-            && (self.location.long * COORDINATE_SCALE_FACTOR).round() / COORDINATE_SCALE_FACTOR
-                == (self.target_location.long * COORDINATE_SCALE_FACTOR).round()
+            && (self.location.long * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
+                == (self.target_location.long * COORDINATE_SCALE_FACTOR)
                     / COORDINATE_SCALE_FACTOR
         {
             self.update_target_location()?;
@@ -396,11 +635,12 @@ impl Drone {
     /// Una vez que llega a esta location, cambia su estado a
     /// ChargingBattery, por lo que el Drone va a comenzar a cargarse.
     fn redirect_to_operation_center(&mut self) {
-        if (self.location.lat * COORDINATE_SCALE_FACTOR).round() / COORDINATE_SCALE_FACTOR
-            == (self.center_location.lat * COORDINATE_SCALE_FACTOR).round()
+        println!("Drone {} redirigiendose a su central de carga", self.id);
+        if (self.location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
+            == (self.center_location.lat * COORDINATE_SCALE_FACTOR)
                 / COORDINATE_SCALE_FACTOR
-            && (self.location.long * COORDINATE_SCALE_FACTOR).round() / COORDINATE_SCALE_FACTOR
-                == (self.center_location.long * COORDINATE_SCALE_FACTOR).round()
+            && (self.location.long * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
+                == (self.center_location.long * COORDINATE_SCALE_FACTOR)
                     / COORDINATE_SCALE_FACTOR
         {
             self.drone_state = DroneState::ChargingBattery;
@@ -408,6 +648,7 @@ impl Drone {
 
         let _ = self.update_drone_position(self.center_location);
     }
+
 
     fn update_drone_position(&mut self, target_location: Location) -> Result<(), DroneError> {
         let (new_lat, new_long) = self.calculate_new_position(
@@ -424,22 +665,19 @@ impl Drone {
         Ok(())
     }
 
-    fn drone_movement(&mut self, target_location: Location) -> Result<(), DroneError> {
-        loop {
-            sleep(Duration::from_millis(DRONE_MOV_SLEEP_TIME));
-
-            if (self.location.lat * COORDINATE_SCALE_FACTOR).round() / COORDINATE_SCALE_FACTOR
-                == (target_location.lat * COORDINATE_SCALE_FACTOR).round() / COORDINATE_SCALE_FACTOR
-                && (self.location.long * COORDINATE_SCALE_FACTOR).round() / COORDINATE_SCALE_FACTOR
-                    == (target_location.long * COORDINATE_SCALE_FACTOR).round()
-                        / COORDINATE_SCALE_FACTOR
-            {
-                break;
-            }
-
-            self.update_drone_position(target_location)?;
+    fn drone_movement(&mut self, target_location: Location) -> Result<bool, DroneError> {
+        if (self.location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
+            == (target_location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
+            && (self.location.long * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
+                == (target_location.long * COORDINATE_SCALE_FACTOR)
+                    / COORDINATE_SCALE_FACTOR
+        {
+            return Ok(true);
         }
-        Ok(())
+
+        self.update_drone_position(target_location)?;
+        
+        Ok(false)
     }
     fn calculate_new_position(
         &self,
@@ -477,16 +715,20 @@ impl Drone {
             }
         };
 
-        match self.send_to_client_channel.send(Box::new(publish_config)) {
-            Ok(_) => (),
-            Err(e) => {
-                println!("Error sending to client channel: {:?}", e);
-            }
-        };
+        let lock = self.send_to_client_channel.lock().unwrap();
+        if let Some(ref sender) = *lock {
+            match sender.send(Box::new(publish_config)) {
+                Ok(_) => (),
+                Err(e) => {
+                    println!("Error sending to client channel: {:?}", e);
+                }
+            };
+        }
     }
 
     fn publish_attending_accident(&mut self, location: Location) {
-        let incident_payload = IncidentPayload::new(Incident::new(location));
+        let incident = Incident::new(location);
+        let incident_payload = IncidentPayload::new(incident.clone());
         let publish_config = match PublishConfig::read_config(
             "src/drones/publish_attending_incident_config.json",
             PayloadTypes::AttendingIncident(incident_payload),
@@ -498,12 +740,15 @@ impl Drone {
             }
         };
 
-        match self.send_to_client_channel.send(Box::new(publish_config)) {
-            Ok(_) => {}
-            Err(e) => {
-                println!("Error sending to client channel: {:?}", e);
-            }
-        };
+        let lock = self.send_to_client_channel.lock().unwrap();
+        if let Some(ref sender) = *lock {
+            match sender.send(Box::new(publish_config)) {
+                Ok(_) => {}
+                Err(e) => {
+                    println!("Error sending to client channel: {:?}", e);
+                }
+            };
+        }
     }
     fn update_target_location(&mut self) -> Result<(), DroneError> {
         let current_time = Utc::now().timestamp_millis() as f64;
@@ -531,7 +776,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_01_drone_arranca_en_waiting_state() {
+    fn test_01_reading_connect_config_ok() -> Result<(), DroneError> {
+        let file_path = "./src/drones/connect_config.json";
+        let id = 1;
+        let connect_config = Drone::read_connect_config(file_path, id);
+
+        match connect_config {
+            Ok(config) => {
+                println!("Connect config: {:?}", config);
+
+                Ok(())
+            }
+            Err(e) => return Err(e),
+        }
+    }
+
+    #[test]
+    fn test_02_drone_arranca_en_waiting_state() {
         let args = vec!["127.0.0.1".to_string(), "5001".to_string()];
         let mut broker = match Broker::new(args) {
             Ok(broker) => broker,
@@ -740,13 +1001,8 @@ mod tests {
             let config_file_path = "./src/drones/drone_config.json";
             let address = "127.0.0.1:5007".to_string();
 
-            let drone: Result<Drone, DroneError> = Drone::new(
-                1,
-                location.clone(),
-                center_location.clone(),
-                config_file_path,
-                address,
-            );
+            let drone: Result<Drone, DroneError> =
+                Drone::new(1, location, center_location, config_file_path, address);
 
             assert!(drone.is_ok());
             let drone = drone.unwrap();
@@ -881,9 +1137,7 @@ mod tests {
             let drone_arc = Arc::new(Mutex::new(drone));
             for _ in 0..14 {
                 let mut drone = drone_arc.lock().unwrap();
-                drone
-                    .update_drone_position(target_location.clone())
-                    .unwrap();
+                drone.update_drone_position(target_location).unwrap();
             }
             let drone = drone_arc.lock().unwrap();
             let new_location = &drone.location;
