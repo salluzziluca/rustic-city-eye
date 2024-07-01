@@ -72,14 +72,14 @@ impl ThreadPool {
         F: FnOnce() -> R + Send + 'static,
         R: Send + 'static,
     {
-        let (tx, rx) = channel();
+        let (_tx, rx) = channel();
         let senderr = self.sender.clone();
 
         let job = Box::new(move || {
-            let result = f();
-            if let Err(err) = tx.send(result) {
-                println!("Failed to send result: {:?}", err);
-            }
+            let _result = f();
+            // if let Err(err) = tx.send(result) {
+            //     println!("Failed to send result: {:?}", err);
+            // }
         });
 
         if let Err(err) = senderr.send(job) {

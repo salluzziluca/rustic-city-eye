@@ -212,8 +212,11 @@ impl MyApp {
                             self.monitoring_app = Some(monitoring_app);
                             self.connected = true;
                         }
-                        Err(_) => {
-                            println!("La conexion ha fallado. Intenta conectarte nuevamente.");
+                        Err(e) => {
+                            println!(
+                                "La conexion ha fallado. Intenta conectarte nuevamente {}.",
+                                e.to_string()
+                            );
                             self.username.clear();
                             self.password.clear();
                             self.ip.clear();

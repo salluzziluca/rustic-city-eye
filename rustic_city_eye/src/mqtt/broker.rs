@@ -173,7 +173,6 @@ impl Broker {
                 Ok(_) => {
                     if input.trim() == "exit" {
                         let _ = self_clone.broker_exit();
-                        std::process::exit(0);
                     }
                 }
                 Err(_) => {}
@@ -209,7 +208,7 @@ impl Broker {
 
                         move || {
                             let result = match self_clone.handle_client(
-                                stream,
+                                stream.try_clone().unwrap(),
                                 topics_clone.clone(),
                                 packets_clone,
                                 clients_ids_clone,
@@ -217,8 +216,12 @@ impl Broker {
                                 id_sender,
                             ) {
                                 Ok(_) => Ok(()),
+
                                 Err(err) => {
-                                    println!("Error en el hilo del cliente, {:?}", err);
+                                    println!(
+                                        "Error en el hilo del cliente {}, {:?}",
+                                        client_id, err
+                                    );
                                     //busco a ver si hay un will message asociado al cliente
                                     if err == ProtocolError::StreamError
                                         || err == ProtocolError::AbnormalDisconnection
@@ -269,7 +272,6 @@ impl Broker {
         clients_auth_info: HashMap<String, (String, Vec<u8>)>,
         id_sender: std::sync::mpsc::Sender<String>,
     ) -> Result<(), ProtocolError> {
-        println!("entre a handle client");
         loop {
             let cloned_stream = match stream.try_clone() {
                 Ok(stream) => stream,
@@ -409,7 +411,8 @@ impl Broker {
         if let Some(topic) = topics.get_mut(&topic_name) {
             match topic.add_user_to_topic(subscription.clone()) {
                 0 => {
-                    ClientConfig::add_new_subscription(
+                    let _ = ClientConfig::add_new_subscription(
+
                         subscription.client_id.clone(),
                         topic_name.clone(),
                     );
@@ -443,7 +446,7 @@ impl Broker {
             match topic.remove_user_from_topic(subscription.clone()) {
                 0 => {
                     println!("Unsubscribe exitoso");
-                    ClientConfig::remove_subscription(
+                    let _ = ClientConfig::remove_subscription(
                         subscription.client_id.clone(),
                         topic_name.clone(),
                     );
@@ -766,7 +769,6 @@ impl Broker {
                     Err(err) => println!("Error al enviar Unsuback: {:?}", err),
                 }
             }
-
             ClientMessage::Disconnect {
                 reason_code: _,
                 session_expiry_interval: _,
@@ -778,9 +780,8 @@ impl Broker {
                     reason_string
                 );
 
-                if reason_string == "CLIENT_DUP" {
-                    return Ok(ProtocolReturn::DisconnectRecieved);
-                }
+                // cambio el estado del cliente a desconectado
+                let _ = ClientConfig::change_client_state(client_id.clone(), false);
 
                 // elimino el client_id de clients_ids
                 if let Ok(mut lock) = self.clients_ids.write() {
@@ -788,9 +789,6 @@ impl Broker {
                 } else {
                     return Err(ProtocolError::WriteError);
                 }
-
-                // cambio el estado del cliente a desconectado
-                ClientConfig::change_client_state(client_id.clone(), false);
 
                 // agrego el client_id a offline_clients
                 if let Ok(mut lock) = self.offline_clients.write() {
@@ -899,20 +897,21 @@ impl Broker {
             .map_err(|e| ProtocolError::UnspecifiedError(e.to_string()))?;
         for (client_id, (stream, _)) in clients.iter() {
             if let Some(stream) = stream {
-                let mut stream_clone = stream.try_clone().expect("Error al clonar el stream");
                 let disconnect = BrokerMessage::Disconnect {
                     reason_code: 0,
                     session_expiry_interval: 0,
                     reason_string: "SERVER_SHUTDOWN".to_string(),
                     user_properties: Vec::new(),
                 };
-                match disconnect.write_to(&mut stream_clone) {
+                let _ = ClientConfig::remove_client(client_id.clone());
+                match disconnect.write_to(&mut stream.try_clone().unwrap()) {
                     Ok(_) => {
-                        println!("Disconnect enviado");
-                        ClientConfig::remove_client(client_id.clone());
+                        println!("Disconnect enviado a {}", client_id);
                     }
                     Err(e) => return Err(ProtocolError::UnspecifiedError(e.to_string())),
                 }
+
+                let _ = stream.shutdown(Shutdown::Both);
             }
         }
 

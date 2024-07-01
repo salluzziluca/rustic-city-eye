@@ -11,6 +11,7 @@ use crate::monitoring::incident::Incident;
 
 use crate::mqtt::client::ClientTrait;
 use crate::mqtt::client_message::Connect;
+use crate::mqtt::disconnect_config::DisconnectConfig;
 use crate::mqtt::{
     client_message::{self, ClientMessage},
     messages_config::MessagesConfig,
@@ -315,7 +316,17 @@ impl MonitoringApp {
     /// Desconecta a los clientes de la MonitoringApp, del CameraSystem, y de los Drones(esto
     /// ultimo se hace a traves del DroneSystem).
     pub fn disconnect(&mut self) -> Result<(), ProtocolError> {
-        self.monitoring_app_client.disconnect_client()?;
+        let disconnect_config = DisconnectConfig::new(
+            0x00_u8,
+            1,
+            "normal".to_string(),
+            self.monitoring_app_client.get_client_id(),
+        );
+        let send_to_client_channel = self.send_to_client_channel.lock().unwrap();
+
+        let _ = send_to_client_channel.send(Box::new(disconnect_config));
+
+        //self.monitoring_app_client.disconnect_client()?;
         let system = self.camera_system.lock().unwrap();
 
         system.disconnect()?;
@@ -385,15 +396,16 @@ pub fn update_entities(
                             cameras.insert(camera.get_id(), camera);
                         }
                     }
-                }  else if topic_name == "incidente_resuelto" {
+                } else if topic_name == "incidente_resuelto" {
                     if let PayloadTypes::IncidentLocation(incident_payload) = payload {
                         let mut incidents = incidents.lock().unwrap();
                         let mut to_remove = Vec::new();
 
                         for (incident, _count) in incidents.iter_mut() {
                             if incident.get_location()
-                                == incident_payload.get_incident().get_location() {
-                                    to_remove.push(incident.clone());
+                                == incident_payload.get_incident().get_location()
+                            {
+                                to_remove.push(incident.clone());
                             }
                         }
 

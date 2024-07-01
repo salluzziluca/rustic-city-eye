@@ -16,6 +16,7 @@ pub mod mqtt {
         pub mod publish_properties;
     }
 
+    pub mod disconnect_config;
     pub mod messages_config;
     pub mod subscribe_config;
 

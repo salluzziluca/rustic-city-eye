@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::mqtt::subscribe_properties::SubscribeProperties;
 use crate::utils::payload_types::PayloadTypes;
-use std::env;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Error, ErrorKind, Read, Write};
 
@@ -93,6 +92,7 @@ pub enum ClientMessage {
         /// Vector de subscription es un struct que contiene la informacion de la suscripcion.
         payload: Subscription,
     },
+
     /// El Unsubscribe Message se utiliza para cancelar una o más suscripciones. El cliente envia un mensaje de unsubscribe con un packet id y una lista de topics de los que quiere desuscribirse. El broker responde con un mensaje de unsuback con el mismo packet id y una lista de return codes que indican si la desuscripcion fue exitosa o no.
     Unsubscribe {
         /// packet_id es un identificador unico que el cliente asigna a cada mensaje que envia.
@@ -102,6 +102,7 @@ pub enum ClientMessage {
         /// Vector de subscription es un struct que contiene la informacion de la suscripcion.
         payload: Subscription,
     },
+
     /// Es el ultimo mensaje que el cliente envia antes de desconectarse, este mensaje contiene informacion sobre la razon de la desconexión y propiedades adicionales.
     Disconnect {
         /// reason_code es el codigo de la razon de la desconexión.
@@ -113,6 +114,7 @@ pub enum ClientMessage {
         /// client_id es el identificador unico del cliente.
         client_id: String,
     },
+
     /// El Pingreq Message es un mensaje que el cliente envia al broker para mantener la conexion activa.
     Pingreq,
 
@@ -203,11 +205,6 @@ impl Connect {
     }
     /// Abre un archivo de configuracion con propiedades y guarda sus lecturas.
     pub fn read_connect_config(file_path: &str) -> Result<Connect, ProtocolError> {
-        let current_dir = match env::current_dir() {
-            Ok(dir) => dir,
-            Err(_) => return Err(ProtocolError::ReadingConfigFileError),
-        };
-        println!("Current directory: {}", current_dir.display());
         let config_file = match File::open(file_path) {
             Ok(file) => file,
             Err(_) => {
@@ -485,10 +482,7 @@ impl ClientMessage {
                 payload,
             } => {
                 // fixed header
-                let byte_1: u8 = 0x82_u8;
-                writer
-                    .write_all(&[byte_1])
-                    .map_err(|_e| ProtocolError::WriteError)?;
+                self.write_first_packet_byte(&mut writer)?;
 
                 // variable header
                 write_u16(&mut writer, packet_id)?;
@@ -517,7 +511,7 @@ impl ClientMessage {
                 // variable header
                 properties.write_properties(&mut writer)?;
 
-                // escribir payload 
+                // escribir payload
                 write_string(&mut writer, &payload.topic)?;
                 write_string(&mut writer, &payload.client_id)?;
 
@@ -531,8 +525,7 @@ impl ClientMessage {
                 client_id,
             } => {
                 //fixed header
-                let header: u8 = 0xE0_u8.to_le(); //11100000
-                write_u8(&mut writer, &header)?;
+                self.write_first_packet_byte(&mut writer)?;
 
                 //variable_header
                 write_u8(&mut writer, reason_code)?;
