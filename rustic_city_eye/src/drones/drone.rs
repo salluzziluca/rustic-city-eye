@@ -222,7 +222,12 @@ impl Drone {
     pub fn disconnect(&mut self) -> Result<(), ProtocolError> {
         let disconnect_config =
             DisconnectConfig::new(0x00_u8, 1, "normal".to_string(), self.id.to_string());
-        let send_to_client_channel = self.send_to_client_channel.lock().unwrap();
+        let send_to_client_channel = match self.send_to_client_channel.lock() {
+            Ok(channel) => channel,
+            Err(_) => {
+                return Err(ProtocolError::LockError);
+            }
+        };
 
         if let Some(ref sender) = *send_to_client_channel {
             match sender.send(Box::new(disconnect_config)) {
@@ -432,7 +437,8 @@ impl Drone {
                 }
             };
 
-            let mut self_cloned = drone_ref.lock().unwrap();
+            let mut self_cloned = drone_ref.lock().expect("Error locking drone");
+
             if let client_message::ClientMessage::Publish {
                 topic_name,
                 payload: PayloadTypes::IncidentLocation(payload),
@@ -487,8 +493,17 @@ impl Drone {
                                             return Err(DroneError::ProtocolError(e.to_string()));
                                         }
                                     };
-                                    let send_to_client_channel =
-                                        send_to_client_channel.lock().unwrap();
+                                    let send_to_client_channel = match send_to_client_channel.lock()
+                                    {
+                                        Ok(channel) => channel,
+                                        Err(e) => {
+                                            println!(
+                                                "Error locking send_to_client_channel: {:?}",
+                                                e
+                                            );
+                                            return Err(DroneError::LockError(e.to_string()));
+                                        }
+                                    };
 
                                     if let Some(ref sender) = *send_to_client_channel {
                                         match sender.send(Box::new(publish_config)) {
@@ -745,7 +760,13 @@ impl Drone {
             }
         };
 
-        let lock = self.send_to_client_channel.lock().unwrap();
+        let lock = match self.send_to_client_channel.lock() {
+            Ok(lock) => lock,
+            Err(e) => {
+                println!("Error locking send_to_client_channel: {:?}", e);
+                return;
+            }
+        };
         if let Some(ref sender) = *lock {
             match sender.send(Box::new(publish_config)) {
                 Ok(_) => (),
@@ -770,7 +791,13 @@ impl Drone {
             }
         };
 
-        let lock = self.send_to_client_channel.lock().unwrap();
+        let lock = match self.send_to_client_channel.lock() {
+            Ok(lock) => lock,
+            Err(e) => {
+                println!("Error locking send_to_client_channel: {:?}", e);
+                return;
+            }
+        };
         if let Some(ref sender) = *lock {
             match sender.send(Box::new(publish_config)) {
                 Ok(_) => {}
