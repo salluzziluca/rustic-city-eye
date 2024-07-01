@@ -874,7 +874,7 @@ mod tests {
 
     #[test]
     fn test_si_el_id_de_paquete_es_distinto_de_cero() {
-        let args = vec!["127.0.0.1".to_string(), "5028".to_string()];
+        let args = vec!["127.0.0.1".to_string(), "8080".to_string()];
         let mut broker = match Broker::new(args) {
             Ok(broker) => broker,
             Err(e) => panic!("Error creating broker: {:?}", e),
@@ -906,7 +906,7 @@ mod tests {
                     .unwrap();
             let (_, rx) = mpsc::channel();
             let (tx2, _) = mpsc::channel();
-            let address = "127.0.0.1:5028";
+            let address = "127.0.0.1:8080";
             let client = Client::new(rx, address.to_string(), connect_config, tx2).unwrap();
             let packet_id = client.assign_packet_id();
             assert_ne!(packet_id, 0);

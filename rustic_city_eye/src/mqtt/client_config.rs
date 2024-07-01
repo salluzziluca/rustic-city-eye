@@ -25,7 +25,7 @@ impl ClientConfig {
             subscriptions: Vec::new(),
         }
     }
-  
+
     /// Cambia el estado de un cliente en el archivo json
     pub fn change_client_state(
         client_id: String,
@@ -46,7 +46,6 @@ impl ClientConfig {
 
     /// Guarda la configuración de un cliente en un archivo json
     pub fn save_client_log_in_json(client_id: String) -> Result<(), Box<dyn std::error::Error>> {
-
         let client_config = ClientConfig::new(client_id.clone());
         let json = serde_json::to_string(&client_config)?;
         let path = format!("./src/mqtt/clients/{}.json", client_id);
