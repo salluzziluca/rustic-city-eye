@@ -569,7 +569,7 @@ impl Broker {
                                 reason_string: "CLIENT_DUP".to_string(),
                                 user_properties: Vec::new(),
                             };
-                            ClientConfig::remove_client(connect.client_id.clone());
+                            _ = ClientConfig::remove_client(connect.client_id.clone());
 
                             match disconnect.write_to(&mut stream) {
                                 Ok(_) => {
@@ -607,7 +607,7 @@ impl Broker {
 
                 //si está en offline_clients lo elimino de ahí
                 if let Ok(mut lock) = self.offline_clients.write() {
-                    ClientConfig::remove_client(connect.client_id.clone());
+                    _ = ClientConfig::remove_client(connect.client_id.clone());
                     lock.remove(&connect.client_id);
                 } else {
                     return Err(ProtocolError::UnspecifiedError(
