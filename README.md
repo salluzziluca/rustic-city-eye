@@ -37,5 +37,5 @@
 - En una terminal, ejecute el siguiente comando:
 
     ```sh
-    cargo test
+    cargo test -- --test-threads=1
     ```
