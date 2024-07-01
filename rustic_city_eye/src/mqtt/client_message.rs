@@ -479,10 +479,7 @@ impl ClientMessage {
                 payload,
             } => {
                 // fixed header
-                let byte_1: u8 = 0x82_u8;
-                writer
-                    .write_all(&[byte_1])
-                    .map_err(|_e| ProtocolError::WriteError)?;
+                self.write_first_packet_byte(&mut writer)?;
 
                 // variable header
                 write_u16(&mut writer, packet_id)?;
@@ -525,8 +522,7 @@ impl ClientMessage {
                 client_id,
             } => {
                 //fixed header
-                let header: u8 = 0xE0_u8.to_le(); //11100000
-                write_u8(&mut writer, &header)?;
+                self.write_first_packet_byte(&mut writer)?;
 
                 //variable_header
                 write_u8(&mut writer, reason_code)?;
