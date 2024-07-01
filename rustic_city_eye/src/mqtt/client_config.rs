@@ -43,12 +43,18 @@ impl ClientConfig {
 
     pub fn add_new_subscription(client_id: String, topic: String) {
         // agrega una nueva suscripción a un cliente en el archivo json
+        // si el cliente no existe, lo crea
         let path = format!("./src/mqtt/clients/{}.json", client_id);
+        if !ClientConfig::client_exists(client_id.clone()) {
+            ClientConfig::save_client_log_in_json(client_id.clone());
+        }
         let file = std::fs::File::open(path.clone()).unwrap();
         let mut client_config: ClientConfig = serde_json::from_reader(file).unwrap();
         client_config.subscriptions.push(topic);
         let json = serde_json::to_string(&client_config).unwrap();
-        let _ = std::fs::write(path, json);
+        let _ = std::fs::write(path
+        , json);
+        
     }
 
     pub fn remove_subscription(client_id: String, topic: String) {
