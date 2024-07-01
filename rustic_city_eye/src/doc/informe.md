@@ -184,7 +184,7 @@ El protocolo MQTT en su versión 5.0(el que implementamos para el proyecto), sop
 
 ### Reliability
 
-El servidor mantiene un registro de los clientes conectados y desconectados. De esta manera, cuando los clientes pierden o eligen cortar su conexión, pueden volver a levantarla sin eprder las suscripciones anteriores.
+El servidor mantiene un registro de los clientes conectados y desconectados. En primer lugar, implementamos un Hash de clientes con sus streams correspondientes. En segundo lugar, implementamos un Hash de clientes con sus mensajes pendientes, de esta manera al volver a levantarlos, pueden recibirse facilmente los mensajes pendientes. 
 
 ### Configuración
 
