@@ -236,12 +236,6 @@ impl Drone {
             };
         }
 
-        // let mut lock = match self.send_to_client_channel.lock() {
-        //     Ok(l) => l,
-        //     Err(_) => return Err(ProtocolError::LockError),
-        // };
-        // *lock = None;
-        // self.drone_client.disconnect_client()?;
         println!("Cliente del drone {} desconectado correctamente", self.id);
         Ok(())
     }
@@ -283,20 +277,33 @@ impl Drone {
         let recieve_from_client_clone = Arc::clone(&self.recieve_from_client);
         let send_to_client_channel_clone = Arc::clone(&self.send_to_client_channel);
 
-        thread::spawn(move || {
-            let _ = Drone::handle_battery_changes(self_clone_one);
+        thread::spawn(
+            move || match Drone::handle_battery_changes(self_clone_one) {
+                Ok(_) => (),
+                Err(e) => {
+                    println!("Error handling battery changes: {:?}", e);
+                }
+            },
+        );
+
+        thread::spawn(move || match Drone::handle_drone_movement(self_clone_two) {
+            Ok(_) => (),
+            Err(e) => {
+                println!("Error handling drone movement: {:?}", e);
+            }
         });
 
         thread::spawn(move || {
-            let _ = Drone::handle_drone_movement(self_clone_two);
-        });
-
-        thread::spawn(move || {
-            let _ = Drone::handle_message_reception_from_client(
+            match Drone::handle_message_reception_from_client(
                 self_clone_three,
                 recieve_from_client_clone,
                 send_to_client_channel_clone,
-            );
+            ) {
+                Ok(_) => (),
+                Err(e) => {
+                    println!("Error handling message reception from client: {:?}", e);
+                }
+            }
         });
 
         Ok(())
@@ -381,8 +388,6 @@ impl Drone {
                             if is_at_incident_location {
                                 lock.publish_attending_accident(location);
                             }
-                            //sleep(Duration::from_secs(10));
-                            //   lock.drone_state = DroneState::Waiting;
                         }
                         Err(e) => {
                             println!("Error while moving to incident: {:?}", e);
@@ -391,7 +396,7 @@ impl Drone {
                     };
                 }
                 DroneState::LowBatteryLevel => {
-                    lock.redirect_to_operation_center();
+                    lock.redirect_to_operation_center()?;
                 }
                 _ => (),
             };
@@ -415,9 +420,16 @@ impl Drone {
         >,
     ) -> Result<(), DroneError> {
         loop {
-            let message = {
-                let lock = receive_from_client_ref.lock().unwrap();
-                lock.recv().unwrap()
+            let message = match receive_from_client_ref.lock() {
+                Ok(lock) => match lock.recv() {
+                    Ok(msg) => msg, // Successfully received a message
+                    Err(e) => {
+                        return Err(DroneError::ReceiveError(e.to_string()));
+                    }
+                },
+                Err(e) => {
+                    return Err(DroneError::LockError(e.to_string()));
+                }
             };
 
             let mut self_cloned = drone_ref.lock().unwrap();
@@ -654,7 +666,7 @@ impl Drone {
     ///
     /// Una vez que llega a esta location, cambia su estado a
     /// ChargingBattery, por lo que el Drone va a comenzar a cargarse.
-    fn redirect_to_operation_center(&mut self) {
+    fn redirect_to_operation_center(&mut self) -> Result<(), DroneError> {
         println!("Drone {} redirigiendose a su central de carga", self.id);
         if (self.location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
             == (self.center_location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
@@ -664,7 +676,9 @@ impl Drone {
             self.drone_state = DroneState::ChargingBattery;
         }
 
-        let _ = self.update_drone_position(self.center_location);
+        self.update_drone_position(self.center_location)?;
+
+        Ok(())
     }
 
     fn update_drone_position(&mut self, target_location: Location) -> Result<(), DroneError> {
