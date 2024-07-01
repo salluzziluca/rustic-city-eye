@@ -184,7 +184,11 @@ El protocolo MQTT en su versión 5.0(el que implementamos para el proyecto), sop
 
 ### Reliability
 
+El servidor mantiene un registro de los clientes conectados y desconectados. De esta manera, cuando los clientes pierden o eligen cortar su conexión, pueden volver a levantarla sin eprder las suscripciones anteriores.
+
 ### Configuración
+
+Para el caso del broker, su puerto se indica en el comando de ejecución `cargo run --bin broker 5000. En el caso del cliente, se indica a través de la UI en los campos correspondientes.
 
 ### Logging
 
