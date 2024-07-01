@@ -86,14 +86,12 @@ impl MonitoringApp {
             let active_drones_clone = Arc::clone(&active_drones);
             let cameras_clone = Arc::clone(&cameras);
             let incidents_clone = Arc::clone(&incidents);
-            let tx_clone = Arc::clone(&tx_arc);
 
             update_entities(
                 receiver_clone,
                 active_drones_clone,
                 cameras_clone,
                 incidents_clone,
-                tx_clone,
             );
         });
         Ok(monitoring_app)
@@ -181,7 +179,7 @@ impl MonitoringApp {
             }
         };
 
-        let topic_name = "attendingincident".to_string();
+        let topic_name = "incidente_resuelto".to_string();
         let subscribe_config = SubscribeConfig::new(
             topic_name.clone(),
             subscribe_properties,
@@ -348,7 +346,6 @@ pub fn update_entities(
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
     incidents: Arc<Mutex<Vec<(Incident, u8)>>>,
-    send_to_client_channel: Arc<Mutex<Sender<Box<dyn MessagesConfig + Send>>>>,
 ) {
     let receiver = match recieve_from_client.lock() {
         Ok(receiver) => receiver,
@@ -356,27 +353,27 @@ pub fn update_entities(
     };
 
     loop {
-        if let Ok(ClientMessage::Publish {
-            packet_id: _,
-            topic_name,
-            qos: _,
-            retain_flag: _,
-            payload,
-            dup_flag: _,
-            properties: _,
-        }) = receiver.try_recv()
-        {
-            match topic_name.as_str() {
-                "drone_locations" => {
-                    let mut active_drones = match active_drones.try_lock() {
-                        Ok(active_drones) => active_drones,
-                        Err(_) => return,
-                    };
+        if let Ok(message) = receiver.try_recv() {
+            if let ClientMessage::Publish {
+                packet_id: _,
+                topic_name,
+                qos: _,
+                retain_flag: _,
+                payload,
+                dup_flag: _,
+                properties: _,
+            } = message
+            {
+                if topic_name == "drone_locations" {
+                    let mut active_drones: std::sync::MutexGuard<HashMap<u32, Location>> =
+                        match active_drones.try_lock() {
+                            Ok(active_drones) => active_drones,
+                            Err(_) => return,
+                        };
                     if let PayloadTypes::DroneLocation(id, drone_locationn) = payload {
                         active_drones.insert(id, drone_locationn);
                     }
-                }
-                "camera_update" => {
+                } else if topic_name == "camera_update" {
                     println!("Monitoring: Camera update received");
                     let mut cameras = match cameras.try_lock() {
                         Ok(cameras) => cameras,
@@ -387,69 +384,22 @@ pub fn update_entities(
                             cameras.insert(camera.get_id(), camera);
                         }
                     }
-                }
-                "attendingincident" => handle_attending_incident_message(
-                    incidents.clone(),
-                    payload,
-                    send_to_client_channel.clone(),
-                ),
-                _ => {}
-            }
-        }
-    }
-}
+                }  else if topic_name == "incidente_resuelto" {
+                    if let PayloadTypes::IncidentLocation(incident_payload) = payload {
+                        let mut incidents = incidents.lock().unwrap();
+                        let mut to_remove = Vec::new();
 
-/// Maneja la recepcion de mensajes sobre el topic de attendingincident:
-/// - La Monitoring App lleva un registro de todos los incidentes ingresados, junto a la cantidad de Drones que
-///   estan resolviendolo(apenas se publica un incidente nuevo, este valor sera 0).
-/// - A medida que vaya recibiendo mensajes sobre ese topic, se ira incrementando el valor de este contador.
-/// - Si este contador llega a 2, se publica un mensaje con topic incidente_resuelto, el cual recibiran los Drones,
-///   y aquellos que no fueron a resolver el incidente dejaran de ir a resolverlo, y volveran a patrullar en su area.
-pub fn handle_attending_incident_message(
-    incidents: Arc<Mutex<Vec<(Incident, u8)>>>,
-    payload: PayloadTypes,
-    send_to_client_channel: Arc<Mutex<Sender<Box<dyn MessagesConfig + Send>>>>,
-) {
-    if let PayloadTypes::AttendingIncident(incident_payload) = payload {
-        let mut incidents = incidents.lock().unwrap();
-
-        let mut to_remove = Vec::new();
-
-        for (incident, count) in incidents.iter_mut() {
-            if incident.get_location() == incident_payload.get_incident().get_location() {
-                *count += 1;
-
-                if *count == 2 {
-                    to_remove.push(incident.clone());
-
-                    let incident_payload =
-                        IncidentPayload::new(Incident::new(incident.get_location()));
-                    let publish_config = match PublishConfig::read_config(
-                        "src/monitoring/publish_solved_incident_config.json",
-                        PayloadTypes::IncidentLocation(incident_payload),
-                    ) {
-                        Ok(config) => config,
-                        Err(e) => {
-                            println!("Error reading publish config: {:?}", e);
-                            return;
+                        for (incident, _count) in incidents.iter_mut() {
+                            if incident.get_location()
+                                == incident_payload.get_incident().get_location() {
+                                    to_remove.push(incident.clone());
+                            }
                         }
-                    };
-                    let send_to_client_channel = send_to_client_channel.lock().unwrap();
 
-                    match send_to_client_channel.send(Box::new(publish_config)) {
-                        Ok(_) => {
-                            println!("Monitoring App notifica la resolucion del incidente en location {:?}", incident.get_location());
-                        }
-                        Err(e) => {
-                            println!("Error sending to client channel: {:?}", e);
-                        }
-                    };
+                        incidents.retain(|(inc, _)| !to_remove.contains(inc));
+                    }
                 }
             }
         }
-
-        incidents.retain(|(inc, _)| !to_remove.contains(inc));
-
-        println!("Incidents: {:?}", incidents);
     }
 }

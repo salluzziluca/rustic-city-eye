@@ -25,8 +25,6 @@ use chrono::{DateTime, Utc};
 use std::f64::consts::PI;
 const LOW_BATERRY_LEVEL: i64 = 20;
 const DRONE_SPEED: f64 = 0.001;
-const DRONE_MOV_SLEEP_TIME: u64 = 1;
-const DRONE_ATTENDING_INCIDENT_SLEEP_TIME: u64 = 3;
 const TOLERANCE_FACTOR: f64 = 0.6;
 const MILISECONDS_PER_SECOND: f64 = 1000.0;
 const TWO_PI: f64 = 2.0 * PI;
@@ -266,6 +264,7 @@ impl Drone {
         let self_clone_two = Arc::clone(&drone_ref);
         let self_clone_three = Arc::clone(&drone_ref);
         let recieve_from_client_clone = Arc::clone(&self.recieve_from_client);
+        let send_to_client_channel_clone = Arc::clone(&self.send_to_client_channel);
 
         thread::spawn(move || {
             let _ = Drone::handle_battery_changes(self_clone_one);
@@ -279,6 +278,7 @@ impl Drone {
             let _ = Drone::handle_message_reception_from_client(
                 self_clone_three,
                 recieve_from_client_clone,
+                send_to_client_channel_clone
             );
         });
 
@@ -360,11 +360,12 @@ impl Drone {
                 DroneState::AttendingIncident(location) => {
                     println!("Drone {} yendo a solucionar el incidente", lock.id);
                     match lock.drone_movement(location) {
-                        Ok(_) => {
-                            lock.publish_attending_accident(location);
-                            sleep(Duration::from_secs(DRONE_ATTENDING_INCIDENT_SLEEP_TIME));
-                            lock.drone_state = DroneState::Waiting;
-                            lock.patrolling_in_operating_radius().unwrap();
+                        Ok(is_at_incident_location) => {
+                            if is_at_incident_location {
+                                lock.publish_attending_accident(location);
+                            }
+                            //sleep(Duration::from_secs(10));
+                         //   lock.drone_state = DroneState::Waiting;
                         }
                         Err(e) => {
                             println!("Error while moving to incident: {:?}", e);
@@ -392,6 +393,8 @@ impl Drone {
     fn handle_message_reception_from_client(
         drone_ref: Arc<Mutex<Drone>>,
         receive_from_client_ref: Arc<Mutex<Receiver<ClientMessage>>>,
+        send_to_client_channel:
+        Arc<Mutex<Option<Sender<Box<dyn messages_config::MessagesConfig + Send>>>>>
     ) -> Result<(), DroneError> {
         loop {
             let message = {
@@ -408,15 +411,17 @@ impl Drone {
             {
                 match topic_name.as_str() {
                     "incidente" => {
-                        let location = payload.get_incident().get_location();
-                        self_cloned.drone_state = DroneState::AttendingIncident(location);
-
-                        let (incident, drones_attending_incident) =
-                            (payload.get_incident().clone(), 0);
-
-                        self_cloned
-                            .incidents
-                            .push((incident.clone(), drones_attending_incident));
+                        if self_cloned.drone_state == DroneState::Waiting {
+                            let location = payload.get_incident().get_location();
+                            self_cloned.drone_state = DroneState::AttendingIncident(location);
+    
+                            let (incident, drones_attending_incident) =
+                                (payload.get_incident().clone(), 0);
+    
+                            self_cloned
+                                .incidents
+                                .push((incident.clone(), drones_attending_incident));
+                        }
                     }
 
                     _ => continue,
@@ -435,13 +440,39 @@ impl Drone {
                             if incident.get_location() == payload.get_incident().get_location() {
                                 *count += 1;
 
-                                if *count == 3 {
+                                if *count == 2 {
+                                    sleep(Duration::from_secs(10));
                                     to_remove.push(incident.clone());
+
+                                    let incident_payload = IncidentPayload::new(Incident::new(
+                                        incident.get_location(),
+                                    ));
+                                    let publish_config = match PublishConfig::read_config(
+                                        "src/monitoring/publish_solved_incident_config.json",
+                                        PayloadTypes::IncidentLocation(incident_payload),
+                                    ) {
+                                        Ok(config) => config,
+                                        Err(e) => {
+                                            println!("Error reading publish config: {:?}", e);
+                                            return Err(DroneError::ProtocolError(e.to_string()));
+                                        }
+                                    };
+                                    let send_to_client_channel = send_to_client_channel.lock().unwrap();
+
+                                    if let Some(ref sender) = *send_to_client_channel {
+                                        match sender.send(Box::new(publish_config)) {
+                                            Ok(_) => {
+                                                println!("Drone notifica la resolucion del incidente en la location {:?}", incident.get_location());
+                                            }
+                                            Err(e) => {
+                                                println!("Error sending to client channel: {:?}", e);
+                                            }
+                                        };
+                                    }
                                 }
                             }
                         }
 
-                        // Now, after releasing the immutable borrow, you can mutate self_cloned
                         if !to_remove.is_empty() {
                             for incident in to_remove {
                                 self_cloned.incidents.retain(|(i, _)| i != &incident);
@@ -573,11 +604,11 @@ impl Drone {
     /// La idea es que si se llega al current_target_location, el Drone calcule una nueva
     /// posicion para ir, y que comience a moverse.
     fn patrolling_in_operating_radius(&mut self) -> Result<(), DroneError> {
-        if (self.location.lat * COORDINATE_SCALE_FACTOR).round() / COORDINATE_SCALE_FACTOR
-            == (self.target_location.lat * COORDINATE_SCALE_FACTOR).round()
+        if (self.location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
+            == (self.target_location.lat * COORDINATE_SCALE_FACTOR)
                 / COORDINATE_SCALE_FACTOR
-            && (self.location.long * COORDINATE_SCALE_FACTOR).round() / COORDINATE_SCALE_FACTOR
-                == (self.target_location.long * COORDINATE_SCALE_FACTOR).round()
+            && (self.location.long * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
+                == (self.target_location.long * COORDINATE_SCALE_FACTOR)
                     / COORDINATE_SCALE_FACTOR
         {
             self.update_target_location()?;
@@ -605,11 +636,11 @@ impl Drone {
     /// ChargingBattery, por lo que el Drone va a comenzar a cargarse.
     fn redirect_to_operation_center(&mut self) {
         println!("Drone {} redirigiendose a su central de carga", self.id);
-        if (self.location.lat * COORDINATE_SCALE_FACTOR).round() / COORDINATE_SCALE_FACTOR
-            == (self.center_location.lat * COORDINATE_SCALE_FACTOR).round()
+        if (self.location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
+            == (self.center_location.lat * COORDINATE_SCALE_FACTOR)
                 / COORDINATE_SCALE_FACTOR
-            && (self.location.long * COORDINATE_SCALE_FACTOR).round() / COORDINATE_SCALE_FACTOR
-                == (self.center_location.long * COORDINATE_SCALE_FACTOR).round()
+            && (self.location.long * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
+                == (self.center_location.long * COORDINATE_SCALE_FACTOR)
                     / COORDINATE_SCALE_FACTOR
         {
             self.drone_state = DroneState::ChargingBattery;
@@ -617,6 +648,7 @@ impl Drone {
 
         let _ = self.update_drone_position(self.center_location);
     }
+
 
     fn update_drone_position(&mut self, target_location: Location) -> Result<(), DroneError> {
         let (new_lat, new_long) = self.calculate_new_position(
@@ -633,22 +665,19 @@ impl Drone {
         Ok(())
     }
 
-    fn drone_movement(&mut self, target_location: Location) -> Result<(), DroneError> {
-        loop {
-            sleep(Duration::from_millis(DRONE_MOV_SLEEP_TIME));
-
-            if (self.location.lat * COORDINATE_SCALE_FACTOR).round() / COORDINATE_SCALE_FACTOR
-                == (target_location.lat * COORDINATE_SCALE_FACTOR).round() / COORDINATE_SCALE_FACTOR
-                && (self.location.long * COORDINATE_SCALE_FACTOR).round() / COORDINATE_SCALE_FACTOR
-                    == (target_location.long * COORDINATE_SCALE_FACTOR).round()
-                        / COORDINATE_SCALE_FACTOR
-            {
-                break;
-            }
-
-            self.update_drone_position(target_location)?;
+    fn drone_movement(&mut self, target_location: Location) -> Result<bool, DroneError> {
+        if (self.location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
+            == (target_location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
+            && (self.location.long * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
+                == (target_location.long * COORDINATE_SCALE_FACTOR)
+                    / COORDINATE_SCALE_FACTOR
+        {
+            return Ok(true);
         }
-        Ok(())
+
+        self.update_drone_position(target_location)?;
+        
+        Ok(false)
     }
     fn calculate_new_position(
         &self,
