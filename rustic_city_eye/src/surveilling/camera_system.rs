@@ -274,6 +274,11 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                 return Err(ProtocolError::SendError(e.to_string()));
             }
         }
+        for camera in self.cameras.lock().unwrap().values() {
+            camera
+                .delete_directory()
+                .map_err(|e| ProtocolError::CameraError(e.to_string()))?;
+        }
         println!("Cliente del system desconectado correctamente");
 
         Ok(())
@@ -526,6 +531,7 @@ impl CameraSystem<Client> {
 #[cfg(test)]
 
 mod tests {
+    use std::path::Path;
     use std::sync::{Arc, Condvar, Mutex};
     use std::thread;
 
@@ -1438,5 +1444,52 @@ mod tests {
         });
 
         handle.join().unwrap();
+    }
+
+    #[test]
+
+    fn test_13_creo_dirs_y_al_hacer_disconnect_se_borran() {
+        let args = vec!["127.0.0.1".to_string(), "6000".to_string()];
+        let addr = "127.0.0.1:6000";
+        let mut broker = match Broker::new(args) {
+            Ok(broker) => broker,
+            Err(e) => {
+                panic!("Error creating broker: {:?}", e)
+            }
+        };
+        thread::spawn(move || {
+            _ = broker.server_run();
+        });
+
+        thread::spawn(move || {
+            let mut camera_system =
+                CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
+            let location = Location::new(1.0, 2.0);
+            let id: u32 = camera_system.add_camera(location).unwrap();
+            let location = Location::new(1.0, 5.0);
+            let id2 = camera_system.add_camera(location).unwrap();
+            assert_eq!(camera_system.get_cameras().lock().unwrap().len(), 2);
+            assert_eq!(
+                camera_system.get_camera_by_id(id).unwrap().get_location(),
+                location
+            );
+            assert_eq!(
+                camera_system.get_camera_by_id(id2).unwrap().get_location(),
+                location
+            );
+            assert_eq!(camera_system.get_camera().unwrap().get_location(), location);
+            let dir_name = format!("./{}", id);
+            let path1 = "src/surveilling/cameras".to_string() + &dir_name;
+            assert!(Path::new(path1.as_str()).exists());
+
+            let dir_name = format!("./{}", id2);
+            let path2 = "src/surveilling/cameras".to_string() + &dir_name;
+            assert!(Path::new(path2.as_str()).exists());
+
+            camera_system.disconnect().unwrap();
+
+            assert!(!Path::new(path1.as_str()).exists());
+            assert!(!Path::new(path2.as_str()).exists());
+        });
     }
 }

@@ -15,6 +15,7 @@ use super::camera_error::CameraError;
 
 use crate::utils::writer::{write_bool, write_string, write_u32};
 
+const PATH: &str = "src/surveilling/cameras";
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct Camera {
     location: Location,
@@ -31,7 +32,7 @@ impl Camera {
         };
 
         let dir_name = format!("./{}", camera.id);
-        let path = "src/surveilling/cameras".to_string() + &dir_name;
+        let path = PATH.to_string() + &dir_name;
         if let Err(e) = fs::create_dir_all(Path::new(path.as_str())) {
             eprintln!(
                 "Error al crear el directorio para la cámara {}: {}",
@@ -95,6 +96,11 @@ impl Camera {
             sleep_mode,
         })
     }
+    pub fn delete_directory(&self) -> Result<(), CameraError> {
+        let dir_name = format!("./{}", self.id);
+        let path = PATH.to_string() + &dir_name;
+        fs::remove_dir_all(Path::new(&path)).map_err(|e| CameraError::DeleteDirError(e.to_string()))
+    }
 }
 
 #[cfg(test)]
@@ -125,5 +131,15 @@ mod tests {
         let dir_name = format!("./{}", camera.get_id());
         let path = "src/surveilling/cameras".to_string() + &dir_name;
         assert!(Path::new(path.as_str()).exists());
+    }
+    #[test]
+    fn test_dir_creation_and_deletion() {
+        let location = Location::new(1.0, 2.0);
+        let camera = Camera::new(location, 1);
+        let dir_name = format!("./{}", camera.get_id());
+        let path = "src/surveilling/cameras".to_string() + &dir_name;
+        assert!(Path::new(path.as_str()).exists());
+        camera.delete_directory().unwrap();
+        assert!(!Path::new(path.as_str()).exists());
     }
 }

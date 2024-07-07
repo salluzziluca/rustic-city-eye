@@ -7,6 +7,7 @@ pub enum CameraError {
     SendError,
     WriteError,
     ArcMutexError(String),
+    DeleteDirError(String),
 }
 
 impl fmt::Display for CameraError {
@@ -20,6 +21,9 @@ impl fmt::Display for CameraError {
             }
             CameraError::ArcMutexError(e) => {
                 write!(f, "Error with Arc Mutex: {}", e)
+            }
+            CameraError::DeleteDirError(e) => {
+                write!(f, "Error deleting directory: {}", e)
             }
         }
     }
