@@ -274,10 +274,15 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                 return Err(ProtocolError::SendError(e.to_string()));
             }
         }
-        for camera in self.cameras.lock().unwrap().values() {
-            camera
-                .delete_directory()
-                .map_err(|e| ProtocolError::CameraError(e.to_string()))?;
+        match self.cameras.lock() {
+            Ok(cameras) => {
+                for camera in cameras.values() {
+                    camera
+                        .delete_directory()
+                        .map_err(|e| ProtocolError::CameraError(e.to_string()))?;
+                }
+            }
+            Err(e) => return Err(ProtocolError::CameraError(e.to_string())),
         }
         println!("Cliente del system desconectado correctamente");
 
