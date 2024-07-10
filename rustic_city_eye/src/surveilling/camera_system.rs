@@ -244,7 +244,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
 
                             continue;
                         } else if topic_name == "incidente_resuelto" {
-                            println!("ASI ES COÑO LO HE RECIBIDO");
                             solved_incident_location = Some(payload.get_incident().get_location());
                             drop(reciever); // Release the lock here
 
@@ -260,9 +259,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                 }
             }
         });
-        //watch the current directory for changes
 
-        // Spawn a thread to handle file events
         thread::spawn(move || {
             let (tx, rx) = channel();
             let mut watcher = match recommended_watcher(tx) {
@@ -276,11 +273,18 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             watcher
                 .watch(Path::new(PATH), RecursiveMode::Recursive)
                 .expect("No se pudo ver el directorio");
-            println!("AAAAAAAAAAEntrando al thread de watcher");
             Ok(loop {
                 match rx.recv() {
                     Ok(event) => {
-                        println!("Event: {:?}", event);
+                        let event = event.unwrap();
+                        if matches!(event.kind, notify::EventKind::Create(_)) {
+                            let path = event.paths[0].clone();
+                            let path = path.to_str().unwrap();
+                            let path = path.split("/").collect::<Vec<&str>>();
+                            let camera_id = path[9].parse::<u32>().unwrap();
+
+                            println!("La camara de id {:?} esta analizando una imagen", camera_id);
+                        }
                     }
                     Err(e) => {
                         println!("watch error: {:?}", e);
@@ -1574,7 +1578,7 @@ mod tests {
                 CameraSystem::<Client>::run_client(None, camera_arc_clone_for_thread1).unwrap();
                 let mut camera_system = camera_arc_clone_for_thread2.lock().unwrap();
                 let location = Location::new(1.0, 2.0);
-                let _: u32 = camera_system.add_camera(location).unwrap();
+                let id: u32 = camera_system.add_camera(location).unwrap();
                 camera_system.disconnect().unwrap();
             });
 
