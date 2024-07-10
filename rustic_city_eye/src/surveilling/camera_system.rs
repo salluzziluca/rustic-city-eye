@@ -263,7 +263,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         //watch the current directory for changes
 
         // Spawn a thread to handle file events
-        let _handle = thread::spawn(move || {
+        thread::spawn(move || {
             let (tx, rx) = channel();
             let mut watcher = match recommended_watcher(tx) {
                 Ok(watcher) => {
@@ -274,7 +274,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             };
 
             watcher
-                .watch(Path::new("."), RecursiveMode::Recursive)
+                .watch(Path::new(PATH), RecursiveMode::Recursive)
                 .expect("No se pudo ver el directorio");
             println!("AAAAAAAAAAEntrando al thread de watcher");
             Ok(loop {
