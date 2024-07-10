@@ -1536,47 +1536,65 @@ mod tests {
 
     #[test]
     fn test_creo_file_en_dir_e_imprime_ok() {
-        let args = vec!["127.0.0.1".to_string(), "6000".to_string()];
-        let addr = "127.0.0.1:6000";
+        let args = vec!["127.0.0.1".to_string(), "5055".to_string()];
+        let addr = "127.0.0.1:5055";
         let mut broker = match Broker::new(args) {
             Ok(broker) => broker,
-            Err(e) => {
-                panic!("Error creating broker: {:?}", e)
-            }
+            Err(e) => panic!("Error creating broker: {:?}", e),
         };
+
+        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+        let server_ready_clone = server_ready.clone();
         thread::spawn(move || {
-            _ = broker.server_run();
+            {
+                let (lock, cvar) = &*server_ready_clone;
+                let mut ready = lock.lock().unwrap();
+                *ready = true;
+                cvar.notify_all();
+            }
+            let _ = broker.server_run();
         });
 
-        let camera_system = CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
-        let camera_arc = Arc::new(Mutex::new(camera_system));
+        // Wait for the server to start
+        {
+            let (lock, cvar) = &*server_ready;
+            let mut ready = lock.lock().unwrap();
+            while !*ready {
+                ready = cvar.wait(ready).unwrap();
+            }
+        }
+        let locurote = thread::spawn(move || {
+            let camera_system = CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
+            let camera_arc = Arc::new(Mutex::new(camera_system));
 
-        // Thread 1: Camera system run
-        let camera_arc_clone_for_thread1 = Arc::clone(&camera_arc);
-        let camera_arc_clone_for_thread2 = Arc::clone(&camera_arc);
-        let handler_camera_system = thread::spawn(move || {
-            CameraSystem::<Client>::run_client(None, camera_arc_clone_for_thread1).unwrap();
-            let mut camera_system = camera_arc_clone_for_thread2.lock().unwrap();
-            let location = Location::new(1.0, 2.0);
-            let _: u32 = camera_system.add_camera(location).unwrap();
-            camera_system.disconnect().unwrap();
+            // Thread 1: Camera system run
+            let camera_arc_clone_for_thread1 = Arc::clone(&camera_arc);
+            let camera_arc_clone_for_thread2 = Arc::clone(&camera_arc);
+            let handler_camera_system = thread::spawn(move || {
+                CameraSystem::<Client>::run_client(None, camera_arc_clone_for_thread1).unwrap();
+                let mut camera_system = camera_arc_clone_for_thread2.lock().unwrap();
+                let location = Location::new(1.0, 2.0);
+                let _: u32 = camera_system.add_camera(location).unwrap();
+                camera_system.disconnect().unwrap();
+            });
+
+            // Thread 2: File creation and deletion
+            let handler_file_operations = thread::spawn(move || {
+                let path1 = "src/surveilling/cameras.".to_string();
+                let dir_path = Path::new(path1.as_str());
+                let temp_file_path = dir_path.join("temp_file.txt");
+                File::create(&temp_file_path).expect("Failed to create temporary file");
+
+                // Wait 2 seconds
+                thread::sleep(Duration::from_secs(2));
+
+                std::fs::remove_file(temp_file_path).expect("Failed to remove temporary file");
+            });
+
+            // Wait for both threads to complete
+            handler_camera_system.join().unwrap();
+            handler_file_operations.join().unwrap();
         });
-
-        // Thread 2: File creation and deletion
-        let handler_file_operations = thread::spawn(move || {
-            let path1 = "src/surveilling/cameras.".to_string();
-            let dir_path = Path::new(path1.as_str());
-            let temp_file_path = dir_path.join("temp_file.txt");
-            File::create(&temp_file_path).expect("Failed to create temporary file");
-
-            // Wait 2 seconds
-            thread::sleep(Duration::from_secs(2));
-
-            std::fs::remove_file(temp_file_path).expect("Failed to remove temporary file");
-        });
-
-        // Wait for both threads to complete
-        handler_camera_system.join().unwrap();
-        handler_file_operations.join().unwrap();
+        locurote.join().unwrap();
     }
 }
