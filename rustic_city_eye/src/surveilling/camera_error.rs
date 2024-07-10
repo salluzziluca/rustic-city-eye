@@ -8,6 +8,7 @@ pub enum CameraError {
     WriteError,
     ArcMutexError(String),
     DeleteDirError(String),
+    WatcherError(String),
 }
 
 impl fmt::Display for CameraError {
@@ -24,6 +25,9 @@ impl fmt::Display for CameraError {
             }
             CameraError::DeleteDirError(e) => {
                 write!(f, "Error deleting directory: {}", e)
+            }
+            CameraError::WatcherError(e) => {
+                write!(f, "Error with watcher: {}", e)
             }
         }
     }

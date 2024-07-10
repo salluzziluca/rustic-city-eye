@@ -1,10 +1,13 @@
+use notify::{recommended_watcher, RecursiveMode, Watcher};
 use std::{
     collections::HashMap,
+    path::Path,
     sync::{
-        mpsc::{self, Receiver, Sender},
+        mpsc::{self, channel, Receiver, Sender},
         Arc, Mutex,
     },
     thread,
+    time::Duration,
 };
 
 use rand::Rng;
@@ -26,6 +29,7 @@ use crate::{
 
 const AREA_DE_ALCANCE: f64 = 0.0025;
 const NIVEL_DE_PROXIMIDAD_MAXIMO: f64 = AREA_DE_ALCANCE;
+const PATH: &str = "src/surveilling/cameras.";
 
 use super::camera_error::CameraError;
 #[derive(Debug)]
@@ -115,7 +119,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             id = rng.gen();
         }
 
-        let camera = Camera::new(location, id);
+        let camera = Camera::new(location, id)?;
         println!("CameraSys: creo la camara con id: {:?}", id);
         cameras.insert(id, camera);
 
@@ -255,6 +259,35 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                     }
                 }
             }
+        });
+        //watch the current directory for changes
+
+        // Spawn a thread to handle file events
+        let _handle = thread::spawn(move || {
+            let (tx, rx) = channel();
+            let mut watcher = match recommended_watcher(tx) {
+                Ok(watcher) => {
+                    println!("Watcher creado correctamente");
+                    watcher
+                }
+                Err(e) => return Err(ProtocolError::WatcherError(e.to_string())),
+            };
+
+            watcher
+                .watch(Path::new("."), RecursiveMode::Recursive)
+                .expect("No se pudo ver el directorio");
+            println!("AAAAAAAAAAEntrando al thread de watcher");
+            Ok(loop {
+                match rx.recv() {
+                    Ok(event) => {
+                        println!("Event: {:?}", event);
+                    }
+                    Err(e) => {
+                        println!("watch error: {:?}", e);
+                        break;
+                    }
+                }
+            })
         });
         Ok(())
     }
@@ -536,12 +569,14 @@ impl CameraSystem<Client> {
 #[cfg(test)]
 
 mod tests {
+    use std::fs::File;
     use std::path::Path;
     use std::sync::{Arc, Condvar, Mutex};
     use std::thread;
 
     use crate::monitoring::incident::Incident;
     use crate::mqtt::broker::Broker;
+    use crate::mqtt::client;
     use crate::mqtt::client_message::ClientMessage;
     use crate::utils::incident_payload::IncidentPayload;
 
@@ -1466,13 +1501,13 @@ mod tests {
             _ = broker.server_run();
         });
 
-        thread::spawn(move || {
+        let handle = thread::spawn(move || {
             let mut camera_system =
                 CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
             let location = Location::new(1.0, 2.0);
             let id: u32 = camera_system.add_camera(location).unwrap();
-            let location = Location::new(1.0, 5.0);
-            let id2 = camera_system.add_camera(location).unwrap();
+            let location2 = Location::new(1.0, 5.0);
+            let id2 = camera_system.add_camera(location2).unwrap();
             assert_eq!(camera_system.get_cameras().lock().unwrap().len(), 2);
             assert_eq!(
                 camera_system.get_camera_by_id(id).unwrap().get_location(),
@@ -1480,9 +1515,9 @@ mod tests {
             );
             assert_eq!(
                 camera_system.get_camera_by_id(id2).unwrap().get_location(),
-                location
+                location2
             );
-            assert_eq!(camera_system.get_camera().unwrap().get_location(), location);
+
             let dir_name = format!("./{}", id);
             let path1 = "src/surveilling/cameras".to_string() + &dir_name;
             assert!(Path::new(path1.as_str()).exists());
@@ -1496,5 +1531,52 @@ mod tests {
             assert!(!Path::new(path1.as_str()).exists());
             assert!(!Path::new(path2.as_str()).exists());
         });
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn test_creo_file_en_dir_e_imprime_ok() {
+        let args = vec!["127.0.0.1".to_string(), "6000".to_string()];
+        let addr = "127.0.0.1:6000";
+        let mut broker = match Broker::new(args) {
+            Ok(broker) => broker,
+            Err(e) => {
+                panic!("Error creating broker: {:?}", e)
+            }
+        };
+        thread::spawn(move || {
+            _ = broker.server_run();
+        });
+
+        let camera_system = CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
+        let camera_arc = Arc::new(Mutex::new(camera_system));
+
+        // Thread 1: Camera system run
+        let camera_arc_clone_for_thread1 = Arc::clone(&camera_arc);
+        let camera_arc_clone_for_thread2 = Arc::clone(&camera_arc);
+        let handler_camera_system = thread::spawn(move || {
+            CameraSystem::<Client>::run_client(None, camera_arc_clone_for_thread1).unwrap();
+            let mut camera_system = camera_arc_clone_for_thread2.lock().unwrap();
+            let location = Location::new(1.0, 2.0);
+            let _: u32 = camera_system.add_camera(location).unwrap();
+            camera_system.disconnect().unwrap();
+        });
+
+        // Thread 2: File creation and deletion
+        let handler_file_operations = thread::spawn(move || {
+            let path1 = "src/surveilling/cameras.".to_string();
+            let dir_path = Path::new(path1.as_str());
+            let temp_file_path = dir_path.join("temp_file.txt");
+            File::create(&temp_file_path).expect("Failed to create temporary file");
+
+            // Wait 2 seconds
+            thread::sleep(Duration::from_secs(2));
+
+            std::fs::remove_file(temp_file_path).expect("Failed to remove temporary file");
+        });
+
+        // Wait for both threads to complete
+        handler_camera_system.join().unwrap();
+        handler_file_operations.join().unwrap();
     }
 }

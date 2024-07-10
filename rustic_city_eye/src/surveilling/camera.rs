@@ -24,7 +24,7 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn new(location: Location, id: u32) -> Camera {
+    pub fn new(location: Location, id: u32) -> Result<Camera, CameraError> {
         let camera = Self {
             location,
             id,
@@ -34,13 +34,10 @@ impl Camera {
         let dir_name = format!("./{}", camera.id);
         let path = PATH.to_string() + &dir_name;
         if let Err(e) = fs::create_dir_all(Path::new(path.as_str())) {
-            eprintln!(
-                "Error al crear el directorio para la cámara {}: {}",
-                camera.id, e
-            );
+            return Err(CameraError::ArcMutexError(e.to_string()));
         }
 
-        camera
+        Ok(camera)
     }
 
     pub fn get_location(&self) -> Location {
@@ -109,14 +106,14 @@ mod tests {
     #[test]
     fn test_new_camera() {
         let location = Location::new(1.0, 2.0);
-        let camera = Camera::new(location, 1);
+        let camera = Camera::new(location, 1).unwrap();
         assert_eq!(camera.get_location(), location);
         assert_eq!(camera.get_id(), 1);
     }
     #[test]
     fn write_to_read_from() {
         let location = Location::new(1.0, 2.0);
-        let mut camera = Camera::new(location, 1);
+        let mut camera = Camera::new(location, 1).unwrap();
         let mut buffer = Vec::new();
         camera.write_to(&mut buffer).unwrap();
         let mut buffer = &buffer[..];
@@ -127,7 +124,7 @@ mod tests {
     #[test]
     fn test_check_dir_creation() {
         let location = Location::new(1.0, 2.0);
-        let camera = Camera::new(location, 1);
+        let camera = Camera::new(location, 1).unwrap();
         let dir_name = format!("./{}", camera.get_id());
         let path = "src/surveilling/cameras".to_string() + &dir_name;
         assert!(Path::new(path.as_str()).exists());
@@ -135,7 +132,7 @@ mod tests {
     #[test]
     fn test_dir_creation_and_deletion() {
         let location = Location::new(1.0, 2.0);
-        let camera = Camera::new(location, 1);
+        let camera = Camera::new(location, 1).unwrap();
         let dir_name = format!("./{}", camera.get_id());
         let path = "src/surveilling/cameras".to_string() + &dir_name;
         assert!(Path::new(path.as_str()).exists());
