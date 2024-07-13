@@ -1570,6 +1570,21 @@ mod tests {
         let locurote = thread::spawn(move || {
             let camera_system = CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
             let camera_arc = Arc::new(Mutex::new(camera_system));
+            let can_start_second_thread = Arc::new((Mutex::new(false), Condvar::new()));
+            let second_thread_completed = Arc::new((Mutex::new(false), Condvar::new()));
+            let camera_id_shared = Arc::new(Mutex::new(None)); // Shared camera ID
+
+            let (camera_arc_clone_for_thread1, camera_arc_clone_for_thread2) =
+                (Arc::clone(&camera_arc), Arc::clone(&camera_arc));
+            let (
+                can_start_second_thread_clone,
+                second_thread_completed_clone,
+                camera_id_shared_clone,
+            ) = (
+                Arc::clone(&can_start_second_thread),
+                Arc::clone(&second_thread_completed),
+                Arc::clone(&camera_id_shared),
+            );
 
             // Thread 1: Camera system run
             let camera_arc_clone_for_thread1 = Arc::clone(&camera_arc);
@@ -1579,12 +1594,38 @@ mod tests {
                 let mut camera_system = camera_arc_clone_for_thread2.lock().unwrap();
                 let location = Location::new(1.0, 2.0);
                 let id: u32 = camera_system.add_camera(location).unwrap();
+                *camera_id_shared.lock().unwrap() = Some(id);
+                // Signal to start the second thread
+                {
+                    let (lock, cvar) = &*can_start_second_thread_clone;
+                    let mut start = lock.lock().unwrap();
+                    *start = true;
+                    cvar.notify_one();
+                }
+                // Wait for the second thread to complete
+                {
+                    let (lock, cvar) = &*second_thread_completed_clone;
+                    let mut completed = lock.lock().unwrap();
+                    while !*completed {
+                        completed = cvar.wait(completed).unwrap();
+                    }
+                }
                 camera_system.disconnect().unwrap();
             });
 
             // Thread 2: File creation and deletion
             let handler_file_operations = thread::spawn(move || {
-                let path1 = "src/surveilling/cameras.".to_string();
+                // Wait for the signal from the first thread to start
+                {
+                    let (lock, cvar) = &*can_start_second_thread;
+                    let mut start = lock.lock().unwrap();
+                    while !*start {
+                        start = cvar.wait(start).unwrap();
+                    }
+                } // Retrieve the shared camera ID
+                let camera_id = camera_id_shared_clone.lock().unwrap();
+                let path1 =
+                    "src/surveilling/cameras./".to_string() + &camera_id.unwrap().to_string();
                 let dir_path = Path::new(path1.as_str());
                 let temp_file_path = dir_path.join("temp_file.txt");
                 File::create(&temp_file_path).expect("Failed to create temporary file");
@@ -1593,6 +1634,12 @@ mod tests {
                 thread::sleep(Duration::from_secs(2));
 
                 std::fs::remove_file(temp_file_path).expect("Failed to remove temporary file");
+                {
+                    let (lock, cvar) = &*second_thread_completed;
+                    let mut completed = lock.lock().unwrap();
+                    *completed = true;
+                    cvar.notify_one();
+                }
             });
 
             // Wait for both threads to complete
