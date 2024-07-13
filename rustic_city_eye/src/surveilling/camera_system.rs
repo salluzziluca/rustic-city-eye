@@ -7,7 +7,6 @@ use std::{
         Arc, Mutex,
     },
     thread,
-    time::Duration,
 };
 
 use rand::Rng;
@@ -273,14 +272,14 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             watcher
                 .watch(Path::new(PATH), RecursiveMode::Recursive)
                 .expect("No se pudo ver el directorio");
-            Ok(loop {
+            loop {
                 match rx.recv() {
                     Ok(event) => {
                         let event = event.unwrap();
                         if matches!(event.kind, notify::EventKind::Create(_)) {
                             let path = event.paths[0].clone();
                             let path = path.to_str().unwrap();
-                            let path = path.split("/").collect::<Vec<&str>>();
+                            let path = path.split('/').collect::<Vec<&str>>();
                             let camera_id = path[9].parse::<u32>().unwrap();
 
                             println!("La camara de id {:?} esta analizando una imagen", camera_id);
@@ -291,7 +290,8 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                         break;
                     }
                 }
-            })
+            }
+            Ok(())
         });
         Ok(())
     }
@@ -578,13 +578,12 @@ mod tests {
     use std::sync::{Arc, Condvar, Mutex};
     use std::thread;
 
+    use super::*;
     use crate::monitoring::incident::Incident;
     use crate::mqtt::broker::Broker;
-    use crate::mqtt::client;
     use crate::mqtt::client_message::ClientMessage;
     use crate::utils::incident_payload::IncidentPayload;
-
-    use super::*;
+    use std::time::Duration;
     impl CameraSystem<Client> {
         fn get_client_publish_end_channel(
             &self,
@@ -1574,8 +1573,6 @@ mod tests {
             let second_thread_completed = Arc::new((Mutex::new(false), Condvar::new()));
             let camera_id_shared = Arc::new(Mutex::new(None)); // Shared camera ID
 
-            let (camera_arc_clone_for_thread1, camera_arc_clone_for_thread2) =
-                (Arc::clone(&camera_arc), Arc::clone(&camera_arc));
             let (
                 can_start_second_thread_clone,
                 second_thread_completed_clone,
