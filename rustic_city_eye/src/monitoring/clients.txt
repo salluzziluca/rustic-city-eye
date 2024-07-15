@@ -1,3 +1,0 @@
-monitoring_app, monitoreo, monitoreando_la_vida2004
-camera_system, sistema_camaras, CamareandoCamaritasForever
-drone, drone, monitoreando_la_vida2004

@@ -1,7 +1,0 @@
-{
-    "battery_level": 0,
-    "battery_discharge_rate_milisecs": 50,
-    "battery_charge_rate_milisecs": 30,
-    "operation_radius": 3,
-    "movement_rate": 10
-}

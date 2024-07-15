@@ -1,5 +1,0 @@
-incidente
-drone_locations
-incidente_resuelto
-camera_update
-attendingincident
