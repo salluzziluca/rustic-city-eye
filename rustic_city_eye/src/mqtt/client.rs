@@ -143,7 +143,6 @@ impl Client {
             properties: _,
         } = message.clone()
         {
-            // println!("Enviando publish");
             match message.write_to(&mut stream) {
                 Ok(()) => {
                     println!("envio publish con topic_name: {:?}", topic_name);
@@ -261,6 +260,7 @@ impl Client {
         let threadpool = ThreadPool::new(5);
 
         let subscriptions_clone = self.subscriptions.clone();
+        let (disconnect_sender, disconnect_receiver) = mpsc::channel();
 
         let cloned_self = self.clone();
         let _write_messages = threadpool.execute(move || {
@@ -271,21 +271,27 @@ impl Client {
                 write_sender,
                 subscriptions_clone,
                 write_receiver,
+                disconnect_receiver
             )
         });
 
         let sender_channel_clone = self.sender_channel.clone();
         if let Some(sender_channel) = sender_channel_clone {
             let _read_messages = threadpool.execute(move || {
-                Client::receive_messages(
+                match Client::receive_messages(
                     stream_clone_two,
                     recieve_receiver,
                     reciever_sender,
                     sender_channel,
-                )
+                    disconnect_sender
+                ) {
+                    Ok(_) => {
+                        return Ok(())
+                    },
+                    Err(e) => return Err(e),
+                }
             });
         }
-
         Ok(())
     }
 
@@ -294,6 +300,7 @@ impl Client {
         receiver: Receiver<u16>,
         sender: Sender<bool>,
         sender_channel: Sender<ClientMessage>,
+        disconnect_sender: Sender<bool>
     ) -> Result<(), ProtocolError> {
         let mut pending_messages = Vec::new();
 
@@ -313,6 +320,7 @@ impl Client {
                 ) {
                     Ok(return_val) => {
                         if return_val == ClientReturn::DisconnectRecieved {
+                            disconnect_sender.send(true).expect("no envie bien el bool");
                             return Ok(());
                         }
                     }
@@ -354,9 +362,16 @@ impl Client {
         sender: Sender<u16>,
         subscriptions_clone: Arc<Mutex<Vec<String>>>,
         receiver: Receiver<bool>,
+        disconnect_receiver: Receiver<bool>
     ) -> Result<(), ProtocolError> {
         while !desconectar {
             loop {
+                if let Ok(disconnect_status) = disconnect_receiver.try_recv() {
+                    if disconnect_status {
+                        return Ok(());
+                    }
+                }
+
                 let lock = match receiver_channel.lock() {
                     Ok(lock) => lock,
                     Err(_) => return Err(ProtocolError::StreamError),

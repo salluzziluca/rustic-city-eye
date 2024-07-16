@@ -1,9 +1,12 @@
 use std::{
     collections::HashMap,
     fs::File,
-    io::{BufRead, BufReader},
+    io::{stdin, BufRead, BufReader},
     net::{Shutdown, TcpListener, TcpStream},
-    sync::{mpsc, Arc, RwLock},
+    sync::{
+        mpsc::{self, Sender},
+        Arc, Mutex, RwLock,
+    },
     thread,
 };
 
@@ -155,33 +158,34 @@ impl Broker {
     /// Ejecuta el servidor.
     /// Crea un enlace en la dirección del broker y, para
     /// cada conexión entrante, crea un hilo para manejar el nuevo cliente.
-    pub fn server_run(&mut self) -> std::io::Result<()> {
-        let listener = TcpListener::bind(&self.address)?;
-        println!("Broker escuchando en {}", self.address);
+    pub fn server_run(&mut self) -> Result<(), ProtocolError> {
+        let listener = Broker::bind_to_address(&self.address)?;
+
         let threadpool = ThreadPool::new(THREADPOOL_SIZE);
 
-        let self_clone = self.clone();
-        thread::spawn(move || loop {
-            let mut input = String::new();
-            if std::io::stdin().read_line(&mut input).is_ok() && input.trim() == "exit" {
-                match self_clone.broker_exit() {
-                    Ok(_) => (),
-                    Err(err) => println!("{:?}", err),
-                }
-                println!("Cerrando broker");
-                std::process::exit(0);
+        let broker_ref = Arc::new(Mutex::new(self.clone()));
+        let (shutdown_sender, shutdown_receiver) = mpsc::channel();
+
+        thread::spawn(move || {
+            if let Err(err) = Broker::handle_user_commands(broker_ref, shutdown_sender) {
+                eprintln!("Error al ejecutar el comando: {:?}", err);
             }
         });
 
-        for stream in listener.incoming() {
-            match stream {
-                Ok(stream) => {
+        loop {
+            if let Ok(shutdown) = shutdown_receiver.try_recv() {
+                if shutdown {
+                    break;
+                }
+            };
+
+            match listener.accept() {
+                Ok((stream, _)) => {
                     let topics_clone = self.topics.clone();
-                    let packets_clone = self.packets.clone();
-                    let clients_auth_info_clone = self.clients_auth_info.clone();
+                    let self_clone = self.clone();
 
                     let client_id = Arc::new(String::new());
-                    let (id_sender, id_receiver) = mpsc::channel();
+                    let (_id_sender, id_receiver) = mpsc::channel();
                     threadpool.execute({
                         let mut client_id: Arc<String> = Arc::clone(&client_id);
 
@@ -193,41 +197,32 @@ impl Broker {
                             }
                         }
                     });
-                    let self_clone = self.clone();
                     threadpool.execute({
                         let client_id = Arc::clone(&client_id);
                         let clients_ids_clone = Arc::clone(&self.clients_ids);
                         let clients_ids_clone2 = Arc::clone(&clients_ids_clone);
-                        let self_ref = Arc::new(self.clone()); // wrap `self` in an Arc
+                        let self_ref = Arc::new(self.clone());
 
                         move || {
                             let stream_clone = match stream.try_clone() {
                                 Ok(stream) => stream,
                                 Err(_) => return Err(ProtocolError::StreamError),
                             };
-                            let result = match self_clone.handle_client(
-                                stream_clone,
-                                topics_clone.clone(),
-                                packets_clone,
-                                clients_ids_clone,
-                                clients_auth_info_clone,
-                                id_sender,
-                            ) {
+                            let result = match self_clone.handle_client(stream_clone) {
                                 Ok(_) => Ok(()),
 
                                 Err(err) => {
-                                    //busco a ver si hay un will message asociado al cliente
                                     if err == ProtocolError::StreamError
                                         || err == ProtocolError::AbnormalDisconnection
                                     {
                                         let client_id_guard = client_id;
                                         #[allow(clippy::type_complexity)]
-                                        let clients_ids_guard: std::sync::RwLockReadGuard<
-                                            HashMap<String, (Option<TcpStream>, Option<LastWill>)>,
-                                        > = match clients_ids_clone2.read() {
-                                            Ok(clients_ids_guard) => clients_ids_guard,
-                                            Err(_) => return Err(err),
-                                        };
+                                    let clients_ids_guard: std::sync::RwLockReadGuard<
+                                        HashMap<String, (Option<TcpStream>, Option<LastWill>)>,
+                                    > = match clients_ids_clone2.read() {
+                                        Ok(clients_ids_guard) => clients_ids_guard,
+                                        Err(_) => return Err(err),
+                                    };
                                         if let Some((_, will_message)) =
                                             clients_ids_guard.get(&*client_id_guard)
                                         {
@@ -249,42 +244,62 @@ impl Broker {
                         }
                     });
                 }
-                Err(err) => return Err(err),
+                Err(_) => return Err(ProtocolError::StreamError),
             }
+        }
+
+        Ok(())
+    }
+
+    fn handle_user_commands(
+        broker_ref: Arc<Mutex<Broker>>,
+        shutdown_sender: Sender<bool>,
+    ) -> Result<(), ProtocolError> {
+        let mut input = String::new();
+        while stdin().read_line(&mut input).is_ok() {
+            if input.trim().to_lowercase() == "shutdown" {
+                shutdown_sender.send(true).expect("no llego la senial");
+
+                let broker_lock = broker_ref.lock().unwrap();
+                match broker_lock.broker_exit() {
+                    Ok(_) => {
+                        println!("El Broker se ha cerrado exitosamente.");
+                        return Ok(());
+                    }
+                    Err(err) => return Err(err),
+                }
+            }
+            input.clear();
         }
         Ok(())
     }
 
-    /// Se encarga del manejo de los mensajes del cliente. Envia los ACKs correspondientes.
-    #[allow(clippy::type_complexity)]
-    pub fn handle_client(
-        self,
-        stream: TcpStream,
-        topics: HashMap<String, Topic>,
-        packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
-        clients_ids: Arc<RwLock<HashMap<String, (Option<TcpStream>, Option<LastWill>)>>>,
-        clients_auth_info: HashMap<String, (String, Vec<u8>)>,
-        id_sender: std::sync::mpsc::Sender<String>,
-    ) -> Result<(), ProtocolError> {
+    /// Intenta crear el binding en el address indicado. Retorna un ProtocolError en caso de fallar.
+    fn bind_to_address(address: &str) -> Result<TcpListener, ProtocolError> {
+        match TcpListener::bind(address) {
+            Ok(listener) => {
+                println!("Broker escuchando en {}", address);
+                Ok(listener)
+            }
+            Err(e) => Err(ProtocolError::BindingError(e.to_string())),
+        }
+    }
+
+    pub fn handle_client(&self, tcp_stream: TcpStream) -> Result<(), ProtocolError> {
         loop {
-            let cloned_stream = match stream.try_clone() {
+            let cloned_stream = match tcp_stream.try_clone() {
                 Ok(stream) => stream,
                 Err(_) => {
                     return Err(ProtocolError::StreamError);
                 }
             };
-            match stream.peek(&mut [0]) {
+
+            match cloned_stream.peek(&mut [0]) {
                 Ok(_) => {}
                 Err(_) => return Err(ProtocolError::AbnormalDisconnection),
             }
-            match self.handle_messages(
-                cloned_stream,
-                topics.clone(),
-                packets.clone(),
-                clients_ids.clone(),
-                clients_auth_info.clone(),
-                id_sender.clone(),
-            ) {
+
+            match self.handle_messages(cloned_stream) {
                 Ok(return_val) => {
                     if return_val == ProtocolReturn::DisconnectRecieved {
                         return Ok(());
@@ -527,15 +542,11 @@ impl Broker {
     /// Devuelve un ProtocolReturn con informacion del mensaje recibido
     /// O ProtocolError en caso de error
     #[allow(clippy::type_complexity)]
-    pub fn handle_messages(
-        &self,
-        mut stream: TcpStream,
-        topics: HashMap<String, Topic>,
-        packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
-        _clients_ids: Arc<RwLock<HashMap<String, (Option<TcpStream>, Option<LastWill>)>>>,
-        clients_auth_info: HashMap<String, (String, Vec<u8>)>,
-        _id_sender: std::sync::mpsc::Sender<String>,
-    ) -> Result<ProtocolReturn, ProtocolError> {
+    pub fn handle_messages(&self, mut stream: TcpStream) -> Result<ProtocolReturn, ProtocolError> {
+        let topics = self.topics.clone();
+        let packets = self.packets.clone();
+        let clients_auth_info = self.clients_auth_info.clone();
+
         let mensaje = match ClientMessage::read_from(&mut stream) {
             Ok(mensaje) => mensaje,
             Err(_) => {

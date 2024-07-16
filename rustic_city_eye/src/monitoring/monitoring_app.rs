@@ -211,6 +211,7 @@ impl MonitoringApp {
 
         println!("Client del camera system comienza a correr");
         CameraSystem::<Client>::run_client(None, self.camera_system.clone())?;
+
         Ok(())
     }
 
