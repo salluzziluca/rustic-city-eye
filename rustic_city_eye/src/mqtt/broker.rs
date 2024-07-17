@@ -59,13 +59,7 @@ pub struct Broker {
 impl Broker {
     ///Chequea que el numero de argumentos sea valido.
     pub fn new(args: Vec<String>) -> Result<Broker, ProtocolError> {
-        if args.len() != SERVER_ARGS {
-            let app_name = &args[0];
-            println!("Usage:\n{:?} <puerto>", app_name);
-            return Err(ProtocolError::InvalidNumberOfArguments);
-        }
-
-        let address = "0.0.0.0:".to_owned() + &args[1];
+        let address = Broker::process_starting_args(args)?;
 
         let topics = Broker::get_broker_starting_topics("./src/monitoring/topics.txt")?;
         let clients_auth_info = Broker::process_clients_file("./src/monitoring/clients.txt")?;
@@ -82,6 +76,18 @@ impl Broker {
             offline_clients,
         })
     }
+
+    fn process_starting_args(args: Vec<String>) -> Result<String, ProtocolError> {
+        if args.len() != SERVER_ARGS {
+            let app_name = &args[0];
+            println!("Usage:\n{:?} <puerto>", app_name);
+            return Err(ProtocolError::InvalidNumberOfArguments);
+        }
+
+        let address = "0.0.0.0:".to_owned() + &args[1];
+        Ok(address)
+    }
+
     /// Recibe un path a un archivo de configuracion de topics y devuelve un HashMap con los topics.
     pub fn get_broker_starting_topics(
         file_path: &str,
@@ -987,8 +993,74 @@ pub fn authenticate_client(
 mod tests {
     use super::*;
     use std::io::Write;
-    use std::sync::{Arc, RwLock};
     use std::thread;
+
+    #[test]
+    fn test_01_getting_starting_topics_ok() -> Result<(), ProtocolError> {
+        let file_path = "./src/monitoring/topics.txt";
+        let topics = Broker::get_broker_starting_topics(&file_path)?;
+
+        let mut expected_topics = HashMap::new();
+        let topic_readings = Broker::process_topic_config_file(&file_path)?;
+
+        for topic in topic_readings {
+            expected_topics.insert(topic, Topic::new());
+        }
+
+        for (topic_name, _topic) in topics {
+            assert!(expected_topics.contains_key(&topic_name));
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_02_reading_config_files_err() {
+        let topics: Result<HashMap<String, Topic>, ProtocolError> =
+            Broker::get_broker_starting_topics("./aca/estan/los/topics");
+        let clients_auth_info = Broker::process_clients_file("./ahperoacavanlosclientesno");
+
+        assert!(topics.is_err());
+        assert!(clients_auth_info.is_err());
+    }
+
+    #[test]
+    fn test_03_processing_set_of_args() -> Result<(), ProtocolError> {
+        let args_ok = vec!["0.0.0.0".to_string(), "5000".to_string()];
+        let args_err = vec!["este_port_abrira_tu_corazon".to_string()];
+
+        let processing_good_args_result = Broker::process_starting_args(args_ok);
+        let processing_bad_args_result = Broker::process_starting_args(args_err);
+
+        assert!(processing_bad_args_result.is_err());
+        assert!(processing_good_args_result.is_ok());
+
+        let resulting_address = processing_good_args_result.unwrap();
+
+        assert_eq!(resulting_address, "0.0.0.0:5000".to_string());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_04_processing_clients_auth_info_ok() -> Result<(), ProtocolError> {
+        let file_path = "./src/monitoring/clients.txt";
+        let clients_auth_info = Broker::process_clients_file(file_path)?;
+
+        let file = match File::open(file_path) {
+            Ok(file) => file,
+            Err(_) => return Err(ProtocolError::ReadingClientsFileError),
+        };
+
+        let expected_clients = Broker::read_clients_file(&file)?;
+
+        for (client_id, _auth_info) in clients_auth_info {
+            assert!(expected_clients.contains_key(&client_id));
+        }
+
+        Ok(())
+    }
+
 
     // #[test]
     // fn test_01_creating_broker_config_ok() -> std::io::Result<()> {
@@ -1043,16 +1115,7 @@ mod tests {
     //     Ok(())
     // }
 
-    #[test]
-    fn test_02_reading_config_files_err() {
-        let topics: Result<HashMap<String, Topic>, ProtocolError> =
-            Broker::get_broker_starting_topics("./aca/estan/los/topics");
-        let clients_auth_info = Broker::process_clients_file("./ahperoacavanlosclientesno");
-
-        assert!(topics.is_err());
-        assert!(clients_auth_info.is_err());
-    }
-
+    
     #[test]
     fn test_handle_client() {
         // Set up a listener on a local port.
@@ -1073,10 +1136,7 @@ mod tests {
             };
             if stream.write_all(b"Hello, world!").is_ok() {}
         });
-        let packets = Arc::new(RwLock::new(HashMap::new()));
-        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
-        let clients_auth_info = HashMap::new();
-        let topics = HashMap::new();
+
         // Write a ClientMessage to the stream.
         // You'll need to replace this with a real ClientMessage.
         let mut result: Result<(), ProtocolError> = Err(ProtocolError::UnspecifiedError(
@@ -1089,15 +1149,9 @@ mod tests {
 
         // Accept the connection and pass the stream to the function.
         if let Ok((stream, _)) = listener.accept() {
-            let (id_sender, _) = mpsc::channel();
             // Perform your assertions here
             result = broker.handle_client(
                 stream,
-                topics,
-                packets,
-                clients_ids,
-                clients_auth_info,
-                id_sender,
             );
         }
 
