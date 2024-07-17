@@ -193,11 +193,14 @@ impl MyApp {
                         self.port.clone(),
                     ];
 
+                    let (disconnect_notifications_sender, _disconnect_notifications_receiver) =
+                        mpsc::channel();
+
                     self.correct_username = !self.username.is_empty();
                     self.correct_password = !self.password.is_empty();
                     self.correct_ip = !self.ip.is_empty();
                     self.correct_port = !self.port.is_empty();
-                    match MonitoringApp::new(args) {
+                    match MonitoringApp::new(args, disconnect_notifications_sender) {
                         Ok(mut monitoring_app) => {
                             let _ = monitoring_app.run_client();
                             self.monitoring_app = Some(monitoring_app);

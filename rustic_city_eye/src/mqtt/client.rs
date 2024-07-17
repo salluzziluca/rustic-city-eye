@@ -47,8 +47,7 @@ pub struct Client {
 
     // client_id es el identificador del cliente
     pub client_id: String,
-    // las subscriptions son un hashmap de topic y sub_id
-    // user_id: u32,
+
     pub packets_ids: Arc<Mutex<Vec<u16>>>,
 
     sender_channel: Option<Sender<ClientMessage>>,
@@ -87,7 +86,6 @@ impl Client {
             Ok(()) => println!("Connect message enviado"),
             Err(_) => println!("Error al enviar connect message"),
         }
-        //flush
 
         if let Ok(message) = BrokerMessage::read_from(&mut *stream_lock) {
             match message {
@@ -261,6 +259,7 @@ impl Client {
 
         let subscriptions_clone = self.subscriptions.clone();
         let (disconnect_sender, disconnect_receiver) = mpsc::channel();
+        let client_id_clone = self.client_id.clone();
 
         let cloned_self = self.clone();
         let _write_messages = threadpool.execute(move || {
@@ -284,6 +283,7 @@ impl Client {
                     reciever_sender,
                     sender_channel,
                     disconnect_sender,
+                    client_id_clone,
                 ) {
                     Ok(_) => Ok(()),
                     Err(e) => Err(e),
@@ -299,6 +299,7 @@ impl Client {
         sender: Sender<bool>,
         sender_channel: Sender<ClientMessage>,
         disconnect_sender: Sender<bool>,
+        client_id: String,
     ) -> Result<(), ProtocolError> {
         let mut pending_messages = Vec::new();
 
@@ -315,6 +316,7 @@ impl Client {
                     pending_messages.clone(),
                     sender.clone(),
                     sender_channel.clone(),
+                    client_id.clone(),
                 ) {
                     Ok(return_val) => {
                         if return_val == ClientReturn::DisconnectRecieved {
@@ -682,6 +684,7 @@ pub fn handle_message(
     pending_messages: Vec<u16>,
     sender: Sender<bool>,
     sender_chanell: Sender<ClientMessage>,
+    client_id: String,
 ) -> Result<ClientReturn, ProtocolError> {
     if let Ok(message) = BrokerMessage::read_from(&mut stream) {
         match message {
@@ -708,8 +711,8 @@ pub fn handle_message(
                 }
             }
             BrokerMessage::Disconnect {
-                reason_code: _,
-                session_expiry_interval: _,
+                reason_code,
+                session_expiry_interval,
                 reason_string,
                 user_properties: _,
             } => {
@@ -717,6 +720,16 @@ pub fn handle_message(
                     "Recibí un Disconnect, razon de desconexión: {:?}",
                     reason_string
                 );
+
+                match sender_chanell.send(ClientMessage::Disconnect {
+                    reason_code,
+                    session_expiry_interval,
+                    reason_string,
+                    client_id,
+                }) {
+                    Ok(_) => {}
+                    Err(e) => println!("Error al enviar Disconnect al sistema: {:?}", e),
+                }
 
                 Ok(ClientReturn::DisconnectRecieved)
             }

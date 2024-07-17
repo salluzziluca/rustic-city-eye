@@ -48,7 +48,10 @@ impl MonitoringApp {
     /// Crea el cliente de la app de monitoreo y lo conecta al broker.
     /// Una vez creado su Client, se suscribe a sus topics de interes.
     /// Crea un sistema de cámaras y agrega una cámara al sistema
-    pub fn new(args: Vec<String>) -> Result<MonitoringApp, ProtocolError> {
+    pub fn new(
+        args: Vec<String>,
+        disconnect_notification_sender: Sender<()>,
+    ) -> Result<MonitoringApp, ProtocolError> {
         let mut connect_config =
             client_message::Connect::read_connect_config("src/monitoring/connect_config.json")?;
         connect_config.username = Some(args[0].to_string());
@@ -74,6 +77,8 @@ impl MonitoringApp {
         let incidents = Arc::new(Mutex::new(Vec::new()));
         let cameras = Arc::new(Mutex::new(HashMap::new()));
         let tx_arc = Arc::new(Mutex::new(tx));
+        let disconnect_sender_arc = Arc::new(Mutex::new(disconnect_notification_sender));
+
         let monitoring_app = MonitoringApp {
             send_to_client_channel: Arc::clone(&tx_arc),
             incidents: Arc::clone(&incidents),
@@ -89,12 +94,14 @@ impl MonitoringApp {
             let active_drones_clone = Arc::clone(&active_drones);
             let cameras_clone = Arc::clone(&cameras);
             let incidents_clone = Arc::clone(&incidents);
+            let disconnect_sender_clone = Arc::clone(&disconnect_sender_arc);
 
             update_entities(
                 receiver_clone,
                 active_drones_clone,
                 cameras_clone,
                 incidents_clone,
+                disconnect_sender_clone
             );
         });
         Ok(monitoring_app)
@@ -384,6 +391,7 @@ pub fn update_entities(
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
     incidents: Arc<Mutex<Vec<(Incident, u8)>>>,
+    disconnect_sender: Arc<Mutex<Sender<()>>>
 ) {
     let receiver = match recieve_from_client.lock() {
         Ok(receiver) => receiver,
@@ -439,6 +447,18 @@ pub fn update_entities(
                     incidents.retain(|(inc, _)| !to_remove.contains(inc));
                 }
             }
+        }
+
+        if let Ok(ClientMessage::Disconnect {
+            reason_code: _,
+            session_expiry_interval: _,
+            reason_string: _,
+            client_id: _,
+        }) = receiver.try_recv()
+        {
+            println!("la moni se va a caer mi loco");
+            let lock = disconnect_sender.lock().unwrap();
+            lock.send(()).unwrap();
         }
     }
 }
