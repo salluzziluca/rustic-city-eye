@@ -4,12 +4,10 @@ mod tests {
     use rustic_city_eye::mqtt::broker::Broker;
     use rustic_city_eye::mqtt::client_message::{self, Connect};
     use rustic_city_eye::mqtt::connect::connect_properties::ConnectProperties;
-    use rustic_city_eye::mqtt::connect::last_will::LastWill;
     use rustic_city_eye::mqtt::connect::will_properties::WillProperties;
     use rustic_city_eye::mqtt::publish::publish_properties::{PublishProperties, TopicProperties};
     use rustic_city_eye::mqtt::subscribe_properties::SubscribeProperties;
     use rustic_city_eye::mqtt::subscription::Subscription;
-    use rustic_city_eye::mqtt::topic::Topic;
     use rustic_city_eye::mqtt::{
         client_message::ClientMessage, protocol_error::ProtocolError,
         protocol_return::ProtocolReturn,
@@ -17,10 +15,8 @@ mod tests {
     use rustic_city_eye::utils::incident_payload;
     use rustic_city_eye::utils::{location::Location, payload_types::PayloadTypes};
 
-    use std::collections::HashMap;
     use std::io::Write;
     use std::net::{TcpListener, TcpStream};
-    use std::sync::{mpsc, Arc, RwLock};
     use std::thread;
 
     #[test]
@@ -35,26 +31,13 @@ mod tests {
             stream.write_all("Hola".as_bytes()).unwrap();
         });
 
-        let topics = HashMap::new();
-        let packets = Arc::new(RwLock::new(HashMap::new()));
-        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
-        let clients_auth_info = HashMap::new();
-
         let mut result: Result<ProtocolReturn, ProtocolError> = Err(
             ProtocolError::UnspecifiedError("Error no especificado".to_string()),
         );
-        let (id_sender, _) = mpsc::channel();
 
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(
-                stream,
-                topics,
-                packets,
-                clients_ids,
-                clients_auth_info,
-                id_sender,
-            );
+            result = broker.handle_messages(stream);
         }
 
         assert!(result.is_err());
@@ -79,30 +62,13 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let topics = HashMap::new();
-        let packets = Arc::new(RwLock::new(HashMap::new()));
-        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
-        let clients_auth_info = HashMap::new();
         let mut result: Result<ProtocolReturn, ProtocolError> = Err(
             ProtocolError::UnspecifiedError("Error no especificado".to_string()),
         );
-        let (id_sender, reciever) = mpsc::channel();
 
-        thread::spawn(move || loop {
-            if reciever.try_recv().is_ok() {
-                break;
-            }
-        });
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = match broker.handle_messages(
-                stream,
-                topics,
-                packets,
-                clients_ids,
-                clients_auth_info,
-                id_sender,
-            ) {
+            result = match broker.handle_messages(stream) {
                 Ok(r) => Ok(r),
                 Err(e) => return Err(e),
             };
@@ -131,32 +97,13 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let topics = HashMap::new();
-        let packets = Arc::new(RwLock::new(HashMap::new()));
-        #[allow(clippy::type_complexity)]
-        let clients_ids: Arc<RwLock<HashMap<_, (Option<TcpStream>, Option<LastWill>)>>> =
-            Arc::new(RwLock::new(HashMap::new()));
-        //add an id to the clients_ids
-        clients_ids
-            .write()
-            .unwrap()
-            .insert("monitoring_app".to_string(), (None, None));
-        let clients_auth_info = HashMap::new();
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
 
         let mut result: Result<ProtocolReturn, ProtocolError> = Err(
             ProtocolError::UnspecifiedError("Error no especificado".to_string()),
         );
-        let (id_sender, _) = mpsc::channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(
-                stream,
-                topics,
-                packets,
-                clients_ids,
-                clients_auth_info,
-                id_sender.clone(),
-            );
+            result = broker.handle_messages(stream);
         }
 
         assert!(result.is_ok());
@@ -215,29 +162,15 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let topics = HashMap::new();
-        let packets = Arc::new(RwLock::new(HashMap::new()));
-        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
-        let clients_auth_info = HashMap::new();
-
         let mut result: Result<ProtocolReturn, ProtocolError> = Err(
             ProtocolError::UnspecifiedError("Error no especificado".to_string()),
         );
         if let Ok((stream_clone, _)) = listener.accept() {
-            result = broker.handle_messages(
-                stream_clone,
-                topics,
-                packets,
-                clients_ids,
-                clients_auth_info,
-                id_sender,
-            );
+            result = broker.handle_messages(stream_clone);
         }
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ProtocolReturn::DisconnectSent);
-
-        //assert_eq!(result.unwrap(), ProtocolReturn::DisconnectSent);
     }
 
     #[test]
@@ -264,26 +197,13 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let topics = HashMap::new();
-        let packets = Arc::new(RwLock::new(HashMap::new()));
-        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
-        let clients_auth_info = HashMap::new();
-
         let mut result: Result<ProtocolReturn, ProtocolError> = Err(
             ProtocolError::UnspecifiedError("Error no especificado".to_string()),
         );
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
 
-        let (id_sender, _) = mpsc::channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(
-                stream,
-                topics,
-                packets,
-                clients_ids,
-                clients_auth_info,
-                id_sender,
-            );
+            result = broker.handle_messages(stream);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::SubackSent);
@@ -326,26 +246,13 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let mut topics = HashMap::new();
-        let packets = Arc::new(RwLock::new(HashMap::new()));
-        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
-        let clients_auth_info = HashMap::new();
-        topics.insert("incidente".to_string(), Topic::new());
         let mut result: Result<ProtocolReturn, ProtocolError> = Err(
             ProtocolError::UnspecifiedError("Error no especificado".to_string()),
         );
 
-        let (id_sender, _) = mpsc::channel();
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(
-                stream,
-                topics,
-                packets,
-                clients_ids,
-                clients_auth_info,
-                id_sender,
-            );
+            result = broker.handle_messages(stream);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::PubackSent);
@@ -389,28 +296,14 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let mut topics = HashMap::new();
-        let packets = Arc::new(RwLock::new(HashMap::new()));
-        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
-        let clients_auth_info = HashMap::new();
-        topics.insert("incidente".to_string(), Topic::new());
-
         let mut result: Result<ProtocolReturn, ProtocolError> = Err(
             ProtocolError::UnspecifiedError("Error no especificado".to_string()),
         );
 
-        let (id_sender, _) = mpsc::channel();
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
 
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(
-                stream,
-                topics,
-                packets,
-                clients_ids,
-                clients_auth_info,
-                id_sender,
-            );
+            result = broker.handle_messages(stream);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::NoAckSent);
@@ -439,31 +332,14 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let mut topics = HashMap::new();
-        let packets = Arc::new(RwLock::new(HashMap::new()));
-
-        let t = Topic::new();
-        topics.insert("mensajes para juan".to_string(), t);
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
-
-        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
-        let clients_auth_info = HashMap::new();
 
         let mut result: Result<ProtocolReturn, ProtocolError> = Err(
             ProtocolError::UnspecifiedError("Error no especificado".to_string()),
         );
 
-        let (id_sender, _) = mpsc::channel();
-
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(
-                stream,
-                topics,
-                packets,
-                clients_ids,
-                clients_auth_info,
-                id_sender,
-            );
+            result = broker.handle_messages(stream);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::UnsubackSent);
@@ -486,26 +362,13 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let topics = HashMap::new();
-        let packets = Arc::new(RwLock::new(HashMap::new()));
-        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
-        let clients_auth_info = HashMap::new();
-
         let mut result: Result<ProtocolReturn, ProtocolError> = Err(
             ProtocolError::UnspecifiedError("Error no especificado".to_string()),
         );
 
-        let (id_sender, _) = mpsc::channel();
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(
-                stream,
-                topics,
-                packets,
-                clients_ids,
-                clients_auth_info,
-                id_sender,
-            );
+            result = broker.handle_messages(stream);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::DisconnectRecieved);
@@ -525,26 +388,13 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let topics = HashMap::new();
-        let packets = Arc::new(RwLock::new(HashMap::new()));
-        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
-        let clients_auth_info = HashMap::new();
-
         let mut result: Result<ProtocolReturn, ProtocolError> = Err(
             ProtocolError::UnspecifiedError("Error no especificado".to_string()),
         );
 
-        let (id_sender, _) = mpsc::channel();
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(
-                stream,
-                topics,
-                packets,
-                clients_ids,
-                clients_auth_info,
-                id_sender,
-            );
+            result = broker.handle_messages(stream);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::PingrespSent);
@@ -570,26 +420,13 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let topics = HashMap::new();
-        let packets = Arc::new(RwLock::new(HashMap::new()));
-        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
-        let clients_auth_info = HashMap::new();
-
         let mut result: Result<ProtocolReturn, ProtocolError> = Err(
             ProtocolError::UnspecifiedError("Error no especificado".to_string()),
         );
 
-        let (id_sender, _) = mpsc::channel();
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(
-                stream,
-                topics,
-                packets,
-                clients_ids,
-                clients_auth_info,
-                id_sender,
-            );
+            result = broker.handle_messages(stream);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
@@ -656,21 +493,8 @@ mod tests {
         );
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
 
-        let topics = HashMap::new();
-        let packets = Arc::new(RwLock::new(HashMap::new()));
-        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
-        let clients_auth_info = HashMap::new();
-
-        let (id_sender, _) = mpsc::channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(
-                stream,
-                topics.clone(),
-                packets.clone(),
-                clients_ids,
-                clients_auth_info,
-                id_sender,
-            );
+            result = broker.handle_messages(stream);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
@@ -691,24 +515,11 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let (id_sender, _) = mpsc::channel();
-        let topics = HashMap::new();
-        let packets = Arc::new(RwLock::new(HashMap::new()));
-        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
-        let clients_auth_info = HashMap::new();
-
         let mut result: Result<ProtocolReturn, ProtocolError> = Err(
             ProtocolError::UnspecifiedError("Error no especificado".to_string()),
         );
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(
-                stream,
-                topics.clone(),
-                packets.clone(),
-                clients_ids,
-                clients_auth_info,
-                id_sender,
-            );
+            result = broker.handle_messages(stream);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::DisconnectRecieved);
@@ -771,25 +582,12 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let topics = HashMap::new();
-        let packets = Arc::new(RwLock::new(HashMap::new()));
-        let clients_ids = Arc::new(RwLock::new(HashMap::new()));
-        let clients_auth_info = HashMap::new();
-        let (id_sender, _) = mpsc::channel();
-
         let mut result: Result<ProtocolReturn, ProtocolError> = Err(
             ProtocolError::UnspecifiedError("Error no especificado".to_string()),
         );
 
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(
-                stream,
-                topics.clone(),
-                packets.clone(),
-                clients_ids,
-                clients_auth_info,
-                id_sender,
-            );
+            result = broker.handle_messages(stream);
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);

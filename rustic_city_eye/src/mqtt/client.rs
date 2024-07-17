@@ -271,7 +271,7 @@ impl Client {
                 write_sender,
                 subscriptions_clone,
                 write_receiver,
-                disconnect_receiver
+                disconnect_receiver,
             )
         });
 
@@ -283,12 +283,10 @@ impl Client {
                     recieve_receiver,
                     reciever_sender,
                     sender_channel,
-                    disconnect_sender
+                    disconnect_sender,
                 ) {
-                    Ok(_) => {
-                        return Ok(())
-                    },
-                    Err(e) => return Err(e),
+                    Ok(_) => Ok(()),
+                    Err(e) => Err(e),
                 }
             });
         }
@@ -300,7 +298,7 @@ impl Client {
         receiver: Receiver<u16>,
         sender: Sender<bool>,
         sender_channel: Sender<ClientMessage>,
-        disconnect_sender: Sender<bool>
+        disconnect_sender: Sender<bool>,
     ) -> Result<(), ProtocolError> {
         let mut pending_messages = Vec::new();
 
@@ -354,6 +352,7 @@ impl Client {
     ///
     ///
     /// Si el mensaje es un publish con qos 1, se envia el mensaje y se espera un puback. Si no se recibe, espera 0.5 segundos y reenvia el mensaje. aumentando en 1 el dup_flag, indicando que es al vez numero n que se envia el publish.
+    #[allow(clippy::too_many_arguments)]
     fn write_messages(
         &self,
         stream: TcpStream,
@@ -362,7 +361,7 @@ impl Client {
         sender: Sender<u16>,
         subscriptions_clone: Arc<Mutex<Vec<String>>>,
         receiver: Receiver<bool>,
-        disconnect_receiver: Receiver<bool>
+        disconnect_receiver: Receiver<bool>,
     ) -> Result<(), ProtocolError> {
         while !desconectar {
             loop {
