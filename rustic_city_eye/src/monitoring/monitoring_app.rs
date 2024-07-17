@@ -101,7 +101,7 @@ impl MonitoringApp {
                 active_drones_clone,
                 cameras_clone,
                 incidents_clone,
-                disconnect_sender_clone
+                disconnect_sender_clone,
             );
         });
         Ok(monitoring_app)
@@ -391,7 +391,7 @@ pub fn update_entities(
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
     incidents: Arc<Mutex<Vec<(Incident, u8)>>>,
-    disconnect_sender: Arc<Mutex<Sender<()>>>
+    disconnect_sender: Arc<Mutex<Sender<()>>>,
 ) {
     let receiver = match recieve_from_client.lock() {
         Ok(receiver) => receiver,

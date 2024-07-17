@@ -15,7 +15,7 @@ use rustic_city_eye::{
     surveilling::camera::Camera,
     utils::location::Location,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::mpsc};
 use walkers::{sources::OpenStreetMap, Map, MapMemory, Position, Texture, Tiles};
 use windows::*;
 
