@@ -3,6 +3,7 @@ use std::{
     fs::File,
     io::{stdin, BufRead, BufReader},
     net::{Shutdown, TcpListener, TcpStream},
+    process::exit,
     sync::{
         mpsc::{self},
         Arc, Mutex, RwLock,
@@ -54,7 +55,6 @@ pub struct Broker {
     /// las claves son los client_ids, y los valores son
     /// tuplas que contienen el username y password.
     clients_auth_info: HashMap<String, (String, Vec<u8>)>,
-
 }
 
 impl Broker {
@@ -173,23 +173,21 @@ impl Broker {
         let broker_ref = Arc::new(Mutex::new(self.clone()));
         let (_shutdown_sender, shutdown_receiver) = mpsc::channel();
 
-        thread::spawn(move || {
-            loop {
-                let mut lock = match broker_ref.lock() {
-                    Ok(l) => l,
-                    Err(e) => {
-                        eprintln!("Error obteniendo el lock: {}", e);
-                        return;
-                    },
-                };
-                let stdin = stdin().lock();
+        thread::spawn(move || loop {
+            let mut lock = match broker_ref.lock() {
+                Ok(l) => l,
+                Err(e) => {
+                    eprintln!("Error obteniendo el lock: {}", e);
+                    return;
+                }
+            };
+            let stdin = stdin().lock();
 
-                match lock.process_input_command(stdin) {
-                    Ok(_) => {},
-                    Err(e) => {
-                        eprintln!("{}", e);
-                        continue
-                    },
+            match lock.process_input_command(stdin) {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("{}", e);
+                    continue;
                 }
             }
         });
@@ -273,27 +271,27 @@ impl Broker {
         Ok(())
     }
 
-    fn process_input_command<R: BufRead> (&mut self, reader: R) -> Result<(), ProtocolError> {
+    fn process_input_command<R: BufRead>(&mut self, reader: R) -> Result<(), ProtocolError> {
         let mut iterator = reader.lines();
 
         if let Some(command) = iterator.next() {
             match command {
-                Ok(c) => {
-                    match c.trim().to_lowercase().as_str() {
-                        "shutdown" => {
-                            println!("Cerrando Broker");
+                Ok(c) => match c.trim().to_lowercase().as_str() {
+                    "shutdown" => {
+                        println!("Cerrando Broker");
 
-                            match self.broker_exit() {
-                                Ok(_) => {
-                                    println!("El Broker se ha cerrado exitosamente.");
-                                    return Ok(());
-                                }
-                                Err(err) => return Err(err),
+                        match self.broker_exit() {
+                            Ok(_) => {
+                                println!("El Broker se ha cerrado exitosamente.");
+                                exit(0);
                             }
+                            Err(err) => return Err(err),
                         }
-                        _ => {
-                            return Err(ProtocolError::InvalidCommand("Comando no reconocido".to_string()))
-                        }
+                    }
+                    _ => {
+                        return Err(ProtocolError::InvalidCommand(
+                            "Comando no reconocido".to_string(),
+                        ))
                     }
                 },
                 Err(e) => return Err(ProtocolError::InvalidCommand(e.to_string())),
@@ -1099,7 +1097,6 @@ mod tests {
         Ok(())
     }
 
-
     // #[test]
     // fn test_01_creating_broker_config_ok() -> std::io::Result<()> {
     //     let topics = match Broker::get_broker_starting_topics("./src/monitoring/topics.txt") {
@@ -1153,7 +1150,6 @@ mod tests {
     //     Ok(())
     // }
 
-    
     #[test]
     fn test_handle_client() {
         // Set up a listener on a local port.
@@ -1188,9 +1184,7 @@ mod tests {
         // Accept the connection and pass the stream to the function.
         if let Ok((stream, _)) = listener.accept() {
             // Perform your assertions here
-            result = broker.handle_client(
-                stream,
-            );
+            result = broker.handle_client(stream);
         }
 
         // Check that the function returned Ok.

@@ -31,7 +31,7 @@ pub enum ProtocolError {
     BindingError(String),
     DisconnectError,
     RemoveClientError(String),
-    InvalidCommand(String)
+    InvalidCommand(String),
 }
 
 impl fmt::Display for ProtocolError {
