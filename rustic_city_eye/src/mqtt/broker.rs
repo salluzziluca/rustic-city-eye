@@ -4,7 +4,7 @@ use std::{
     io::{stdin, BufRead, BufReader},
     net::{Shutdown, TcpListener, TcpStream},
     sync::{
-        mpsc::{self, Sender},
+        mpsc::{self},
         Arc, Mutex, RwLock,
     },
     thread,
@@ -54,6 +54,7 @@ pub struct Broker {
     /// las claves son los client_ids, y los valores son
     /// tuplas que contienen el username y password.
     clients_auth_info: HashMap<String, (String, Vec<u8>)>,
+
 }
 
 impl Broker {
@@ -89,7 +90,7 @@ impl Broker {
     }
 
     /// Recibe un path a un archivo de configuracion de topics y devuelve un HashMap con los topics.
-    pub fn get_broker_starting_topics(
+    fn get_broker_starting_topics(
         file_path: &str,
     ) -> Result<HashMap<String, Topic>, ProtocolError> {
         let mut topics = HashMap::new();
@@ -130,7 +131,7 @@ impl Broker {
     }
 
     ///Abro y devuelvo las lecturas del archivo de clients.
-    pub fn process_clients_file(
+    fn process_clients_file(
         file_path: &str,
     ) -> Result<HashMap<String, (String, Vec<u8>)>, ProtocolError> {
         let file = match File::open(file_path) {
@@ -170,7 +171,7 @@ impl Broker {
         let threadpool = ThreadPool::new(THREADPOOL_SIZE);
 
         let broker_ref = Arc::new(Mutex::new(self.clone()));
-        let (shutdown_sender, shutdown_receiver) = mpsc::channel();
+        let (_shutdown_sender, shutdown_receiver) = mpsc::channel();
 
         thread::spawn(move || {
             loop {
