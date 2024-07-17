@@ -173,8 +173,23 @@ impl Broker {
         let (shutdown_sender, shutdown_receiver) = mpsc::channel();
 
         thread::spawn(move || {
-            if let Err(err) = Broker::handle_user_commands(broker_ref, shutdown_sender) {
-                eprintln!("Error al ejecutar el comando: {:?}", err);
+            loop {
+                let mut lock = match broker_ref.lock() {
+                    Ok(l) => l,
+                    Err(e) => {
+                        eprintln!("Error obteniendo el lock: {}", e);
+                        return;
+                    },
+                };
+                let stdin = stdin().lock();
+
+                match lock.process_input_command(stdin) {
+                    Ok(_) => {},
+                    Err(e) => {
+                        eprintln!("{}", e);
+                        continue
+                    },
+                }
             }
         });
 
@@ -257,25 +272,31 @@ impl Broker {
         Ok(())
     }
 
-    fn handle_user_commands(
-        broker_ref: Arc<Mutex<Broker>>,
-        shutdown_sender: Sender<bool>,
-    ) -> Result<(), ProtocolError> {
-        let mut input = String::new();
-        while stdin().read_line(&mut input).is_ok() {
-            if input.trim().to_lowercase() == "shutdown" {
-                shutdown_sender.send(true).expect("no llego la senial");
+    fn process_input_command<R: BufRead> (&mut self, reader: R) -> Result<(), ProtocolError> {
+        let mut iterator = reader.lines();
 
-                let broker_lock = broker_ref.lock().unwrap();
-                match broker_lock.broker_exit() {
-                    Ok(_) => {
-                        println!("El Broker se ha cerrado exitosamente.");
-                        return Ok(());
+        if let Some(command) = iterator.next() {
+            match command {
+                Ok(c) => {
+                    match c.trim().to_lowercase().as_str() {
+                        "shutdown" => {
+                            println!("Cerrando Broker");
+
+                            match self.broker_exit() {
+                                Ok(_) => {
+                                    println!("El Broker se ha cerrado exitosamente.");
+                                    return Ok(());
+                                }
+                                Err(err) => return Err(err),
+                            }
+                        }
+                        _ => {
+                            return Err(ProtocolError::InvalidCommand("Comando no reconocido".to_string()))
+                        }
                     }
-                    Err(err) => return Err(err),
-                }
+                },
+                Err(e) => return Err(ProtocolError::InvalidCommand(e.to_string())),
             }
-            input.clear();
         }
         Ok(())
     }
@@ -991,8 +1012,9 @@ pub fn authenticate_client(
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
-    use std::io::Write;
+    use std::io::{Cursor, Write};
     use std::thread;
 
     #[test]
@@ -1057,6 +1079,21 @@ mod tests {
         for (client_id, _auth_info) in clients_auth_info {
             assert!(expected_clients.contains_key(&client_id));
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_05_processing_input_commands() -> Result<(), ProtocolError> {
+        let mut broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()])?;
+        let good_command = b"shutdown\n";
+        let cursor_one = Cursor::new(good_command);
+
+        let bad_command = b"apagate\n";
+        let cursor_two = Cursor::new(bad_command);
+
+        assert!(broker.process_input_command(cursor_one).is_ok());
+        assert!(broker.process_input_command(cursor_two).is_err());
 
         Ok(())
     }

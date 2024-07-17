@@ -21,7 +21,6 @@ mod tests {
 
     #[test]
     fn test_mensaje_invalido_da_error() {
-        // Set up a listener on a local port.
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
 
