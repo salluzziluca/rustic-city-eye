@@ -31,6 +31,7 @@ pub enum ProtocolError {
     BindingError(String),
     DisconnectError,
     RemoveClientError(String),
+    InvalidCommand(String),
 }
 
 impl fmt::Display for ProtocolError {
@@ -77,6 +78,9 @@ impl fmt::Display for ProtocolError {
             }
             ProtocolError::UnspecifiedError(ref err) => {
                 write!(f, "Error no especificado: {}", err)
+            }
+            ProtocolError::InvalidCommand(ref err) => {
+                write!(f, "Comando invalido: {}", err)
             }
             ProtocolError::ChanellError(ref err) => {
                 write!(

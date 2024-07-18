@@ -69,7 +69,7 @@ mod tests {
         let (sender, _) = channel();
         let (tx, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages, sender, tx)
+            result = handle_message(stream, pending_messages, sender, tx, "juancito".to_string())
         }
 
         assert_eq!(result.unwrap(), ClientReturn::ConnackReceived);
@@ -109,7 +109,7 @@ mod tests {
             }
         });
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages, sender, tx)
+            result = handle_message(stream, pending_messages, sender, tx, "juancito".to_string())
         }
 
         assert_eq!(result.unwrap(), ClientReturn::PubackRecieved);
@@ -140,7 +140,7 @@ mod tests {
         let (sender, _) = channel();
         let (tx, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages, sender, tx);
+            result = handle_message(stream, pending_messages, sender, tx, "juancito".to_string());
         }
 
         assert_eq!(result.unwrap(), ClientReturn::DisconnectRecieved);
@@ -171,7 +171,7 @@ mod tests {
         let (sender, _) = channel();
         let (tx, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages, sender, tx)
+            result = handle_message(stream, pending_messages, sender, tx, "juancito".to_string())
         }
         assert_eq!(result.unwrap(), ClientReturn::SubackRecieved);
     }
@@ -225,7 +225,7 @@ mod tests {
 
         let (tx, _rx) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages.clone(), sender, tx)
+            result = handle_message(stream, pending_messages.clone(), sender, tx, "juancito".to_string())
         }
 
         assert_eq!(result.unwrap(), ClientReturn::PublishDeliveryRecieved);
@@ -257,7 +257,7 @@ mod tests {
         let (sender, _) = channel();
         let (tx, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages, sender, tx)
+            result = handle_message(stream, pending_messages, sender, tx, "juancito".to_string())
         }
 
         assert_eq!(result.unwrap(), ClientReturn::UnsubackRecieved);
@@ -284,7 +284,7 @@ mod tests {
         let (sender, _) = channel();
         let (tx, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages, sender, tx)
+            result = handle_message(stream, pending_messages, sender, tx, "juancito".to_string())
         }
 
         assert_eq!(result.unwrap(), ClientReturn::PingrespRecieved);
@@ -318,7 +318,7 @@ mod tests {
         let (sender, _) = channel();
         let (tx, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages, sender, tx)
+            result = handle_message(stream, pending_messages, sender, tx, "juancito".to_string())
         }
 
         assert_eq!(result.unwrap(), ClientReturn::AuthRecieved);

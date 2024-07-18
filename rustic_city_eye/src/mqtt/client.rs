@@ -47,8 +47,7 @@ pub struct Client {
 
     // client_id es el identificador del cliente
     pub client_id: String,
-    // las subscriptions son un hashmap de topic y sub_id
-    // user_id: u32,
+
     pub packets_ids: Arc<Mutex<Vec<u16>>>,
 
     sender_channel: Option<Sender<ClientMessage>>,
@@ -87,7 +86,6 @@ impl Client {
             Ok(()) => println!("Connect message enviado"),
             Err(_) => println!("Error al enviar connect message"),
         }
-        //flush
 
         if let Ok(message) = BrokerMessage::read_from(&mut *stream_lock) {
             match message {
@@ -143,7 +141,6 @@ impl Client {
             properties: _,
         } = message.clone()
         {
-            // println!("Enviando publish");
             match message.write_to(&mut stream) {
                 Ok(()) => {
                     println!("envio publish con topic_name: {:?}", topic_name);
@@ -261,6 +258,8 @@ impl Client {
         let threadpool = ThreadPool::new(5);
 
         let subscriptions_clone = self.subscriptions.clone();
+        let (disconnect_sender, disconnect_receiver) = mpsc::channel();
+        let client_id_clone = self.client_id.clone();
 
         let cloned_self = self.clone();
         let _write_messages = threadpool.execute(move || {
@@ -271,21 +270,26 @@ impl Client {
                 write_sender,
                 subscriptions_clone,
                 write_receiver,
+                disconnect_receiver,
             )
         });
 
         let sender_channel_clone = self.sender_channel.clone();
         if let Some(sender_channel) = sender_channel_clone {
             let _read_messages = threadpool.execute(move || {
-                Client::receive_messages(
+                match Client::receive_messages(
                     stream_clone_two,
                     recieve_receiver,
                     reciever_sender,
                     sender_channel,
-                )
+                    disconnect_sender,
+                    client_id_clone,
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(e) => Err(e),
+                }
             });
         }
-
         Ok(())
     }
 
@@ -294,6 +298,8 @@ impl Client {
         receiver: Receiver<u16>,
         sender: Sender<bool>,
         sender_channel: Sender<ClientMessage>,
+        disconnect_sender: Sender<bool>,
+        client_id: String,
     ) -> Result<(), ProtocolError> {
         let mut pending_messages = Vec::new();
 
@@ -310,9 +316,11 @@ impl Client {
                     pending_messages.clone(),
                     sender.clone(),
                     sender_channel.clone(),
+                    client_id.clone(),
                 ) {
                     Ok(return_val) => {
                         if return_val == ClientReturn::DisconnectRecieved {
+                            disconnect_sender.send(true).expect("no envie bien el bool");
                             return Ok(());
                         }
                     }
@@ -346,6 +354,7 @@ impl Client {
     ///
     ///
     /// Si el mensaje es un publish con qos 1, se envia el mensaje y se espera un puback. Si no se recibe, espera 0.5 segundos y reenvia el mensaje. aumentando en 1 el dup_flag, indicando que es al vez numero n que se envia el publish.
+    #[allow(clippy::too_many_arguments)]
     fn write_messages(
         &self,
         stream: TcpStream,
@@ -354,9 +363,16 @@ impl Client {
         sender: Sender<u16>,
         subscriptions_clone: Arc<Mutex<Vec<String>>>,
         receiver: Receiver<bool>,
+        disconnect_receiver: Receiver<bool>,
     ) -> Result<(), ProtocolError> {
         while !desconectar {
             loop {
+                if let Ok(disconnect_status) = disconnect_receiver.try_recv() {
+                    if disconnect_status {
+                        return Ok(());
+                    }
+                }
+
                 let lock = match receiver_channel.lock() {
                     Ok(lock) => lock,
                     Err(_) => return Err(ProtocolError::StreamError),
@@ -668,6 +684,7 @@ pub fn handle_message(
     pending_messages: Vec<u16>,
     sender: Sender<bool>,
     sender_chanell: Sender<ClientMessage>,
+    client_id: String,
 ) -> Result<ClientReturn, ProtocolError> {
     if let Ok(message) = BrokerMessage::read_from(&mut stream) {
         match message {
@@ -694,8 +711,8 @@ pub fn handle_message(
                 }
             }
             BrokerMessage::Disconnect {
-                reason_code: _,
-                session_expiry_interval: _,
+                reason_code,
+                session_expiry_interval,
                 reason_string,
                 user_properties: _,
             } => {
@@ -703,6 +720,16 @@ pub fn handle_message(
                     "Recibí un Disconnect, razon de desconexión: {:?}",
                     reason_string
                 );
+
+                match sender_chanell.send(ClientMessage::Disconnect {
+                    reason_code,
+                    session_expiry_interval,
+                    reason_string,
+                    client_id,
+                }) {
+                    Ok(_) => {}
+                    Err(e) => println!("Error al enviar Disconnect al sistema: {:?}", e),
+                }
 
                 Ok(ClientReturn::DisconnectRecieved)
             }
