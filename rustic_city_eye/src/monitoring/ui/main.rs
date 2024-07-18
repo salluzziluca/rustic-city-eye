@@ -14,9 +14,9 @@ use rustic_city_eye::{
     monitoring::{incident::Incident, monitoring_app::MonitoringApp},
     surveilling::camera::Camera,
     utils::location::Location,
-
+};
 use std::{collections::HashMap, sync::mpsc};
-use walkers::{sources::OpenStreetMap, HttpTiles, Map, MapMemory, Position, Texture, Tiles}
+use walkers::{sources::OpenStreetMap, HttpTiles, Map, MapMemory, Position, Texture, Tiles};
 
 use windows::*;
 
