@@ -14,9 +14,10 @@ use rustic_city_eye::{
     monitoring::{incident::Incident, monitoring_app::MonitoringApp},
     surveilling::camera::Camera,
     utils::location::Location,
-};
-use std::collections::HashMap;
-use walkers::{sources::OpenStreetMap, HttpTiles, Map, MapMemory, Position, Texture, Tiles};
+
+use std::{collections::HashMap, sync::mpsc};
+use walkers::{sources::OpenStreetMap, HttpTiles, Map, MapMemory, Position, Texture, Tiles}
+
 use windows::*;
 
 /// Este struct se utiliza para almacenar la informacion de las imagenes que se van a mostrar en el mapa
@@ -193,11 +194,14 @@ impl MyApp {
                         self.port.clone(),
                     ];
 
+                    let (disconnect_notifications_sender, _disconnect_notifications_receiver) =
+                        mpsc::channel();
+
                     self.correct_username = !self.username.is_empty();
                     self.correct_password = !self.password.is_empty();
                     self.correct_ip = !self.ip.is_empty();
                     self.correct_port = !self.port.is_empty();
-                    match MonitoringApp::new(args) {
+                    match MonitoringApp::new(args, disconnect_notifications_sender) {
                         Ok(mut monitoring_app) => {
                             let _ = monitoring_app.run_client();
                             self.monitoring_app = Some(monitoring_app);
