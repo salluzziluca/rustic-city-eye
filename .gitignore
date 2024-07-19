@@ -21,3 +21,5 @@ Cargo.lock
 2.json
 camera_system.json
 monitoring_app.json
+
+tarpaulin-report.html
