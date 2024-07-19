@@ -35,7 +35,6 @@ pub enum ProtocolError {
     WatcherError(String),
 
     InvalidCommand(String),
-
 }
 
 impl fmt::Display for ProtocolError {

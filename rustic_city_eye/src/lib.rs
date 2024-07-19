@@ -46,6 +46,8 @@ pub mod monitoring {
 }
 
 pub mod surveilling {
+    pub mod annotation;
+    pub mod annotation_error;
     pub mod camera;
     pub mod camera_error;
     pub mod camera_system;
