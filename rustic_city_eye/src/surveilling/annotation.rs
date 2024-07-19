@@ -6,10 +6,12 @@ use serde::{Deserialize, Serialize};
 
 use super::annotation_error::AnnotationError;
 
+#[allow(non_snake_case)]
 #[derive(Serialize)]
 struct Feature {
     #[serde(rename = "type")]
     type_: String,
+    maxResults: Option<i32>,
 }
 
 #[derive(Serialize)]
@@ -102,6 +104,8 @@ impl ImageClassifier {
                     );
                     result.push((label.description.clone(), label.score));
                 }
+                let incident_labels = self.process_annotations(labels);
+                result.extend(incident_labels);
             } else {
                 println!("No se encontraron etiquetas para la imagen");
             }
@@ -124,9 +128,12 @@ impl ImageClassifier {
                 image: Image {
                     content: image_base64.to_string(),
                 },
-                features: vec![Feature {
-                    type_: "LABEL_DETECTION".to_string(),
-                }],
+                features: vec![
+                    Feature {
+                        type_: "LABEL_DETECTION".to_string(),
+                        maxResults: Some(30),
+                    },
+                ],
             }],
         };
 
@@ -158,6 +165,27 @@ impl ImageClassifier {
             Err(e) => return Err(AnnotationError::ImageError(e.to_string())),
         };
         Ok(general_purpose::STANDARD.encode(&buffer))
+    }
+
+    fn process_annotations(&self, annotations: &Vec<EntityAnnotation>) -> Vec<(String, f64)> {
+        let mut results = Vec::new();
+        let incident_keywords = vec![
+            "fire", "smoke", "fight", "accident", "theft", "crash", "gun",
+        ];
+
+        for annotation in annotations {
+            let description_lower = annotation.description.to_lowercase();
+
+            for keyword in &incident_keywords {
+                if description_lower.contains(&keyword.to_lowercase()) {
+                    results.push((annotation.description.clone(), annotation.score));
+                    break;
+                }
+            }
+        }
+
+        println!("{:?} results", results);
+        results
     }
 }
 
