@@ -1,94 +1,105 @@
-use google_vision1::{oauth2, hyper, hyper_rustls};
-use google_vision1::api::AnnotateImageRequest;
-use vision1::oauth2::ServiceAccountKey;
-use std::default::Default;
-use std::env;
-use std::fs::File;
-use std::io::Read;
-use std::io::BufReader;
-extern crate google_vision1 as vision1;
-use vision1::Vision;
-use base64::{Engine as _, engine::general_purpose};
+use std::{env, fs::File, io::Read};
+use reqwest::blocking::Client;
+use serde_json::json;
+use std::error::Error;
+use base64::{engine::general_purpose, Engine};
 
-#[tokio::main]
-async fn main() {
+use serde::{Deserialize, Serialize};
 
-    let sa_key_path = env::var("GOOGLE_APPLICATION_CREDENTIALS").expect("GOOGLE_APPLICATION_CREDENTIALS not set");
-    let sa_key_file = File::open(sa_key_path).expect("Service account key file not found");
-    let sa_key: ServiceAccountKey = serde_json::from_reader(BufReader::new(sa_key_file)).expect("Invalid service account key file");
+#[derive(Serialize)]
+struct Feature {
+    #[serde(rename = "type")]
+    type_: String,
+}
 
-    let auth = oauth2::ServiceAccountAuthenticator::builder(sa_key)
-        .build()
-        .await
-        .unwrap();
+#[derive(Serialize)]
+struct Image {
+    content: String,
+}
 
-    // Create a new Vision API client
-    let hub = Vision::new(hyper::Client::builder().build(hyper_rustls::HttpsConnectorBuilder::new().with_native_roots().unwrap().https_or_http().enable_http1().build()), auth);
+#[derive(Serialize)]
+struct Request {
+    image: Image,
+    features: Vec<Feature>,
+}
 
-    let image_source = google_vision1::api::ImageSource {
-        gcs_image_uri: Some("gs://cloud-samples-data/vision/label/wakeupcat.jpg".to_string()),
-        image_uri: None
+#[derive(Serialize)]
+struct VisionRequest {
+    requests: Vec<Request>,
+}
+
+#[derive(Deserialize, Debug)]
+struct EntityAnnotation {
+    description: String,
+    score: f64,
+}
+
+#[derive(Deserialize, Debug)]
+struct AnnotateImageResponse {
+    labelAnnotations: Option<Vec<EntityAnnotation>>,
+}
+
+#[derive(Deserialize, Debug)]
+struct VisionResponse {
+    responses: Vec<AnnotateImageResponse>,
+}
+
+fn make_vision_request(api_key: &str, image_base64: &str) -> Result<VisionResponse, Box<dyn Error>> {
+    let url = format!("https://vision.googleapis.com/v1/images:annotate?key={}", api_key);
+    let client = Client::new();
+
+    let request_body = VisionRequest {
+        requests: vec![
+            Request {
+                image: Image {
+                    content: image_base64.to_string(),
+                },
+                features: vec![
+                    Feature {
+                        type_: "LABEL_DETECTION".to_string(),
+                    },
+                ],
+            },
+        ],
     };
 
-    // Prepare the request
-    let req = AnnotateImageRequest {
-        image: Some(google_vision1::api::Image {
-            source: Some(image_source),
-            content: None
-        }),
-        features: Some(vec![google_vision1::api::Feature {
-            type_: Some("LABEL_DETECTION".to_string()),
-            max_results: Some(10),
-            ..Default::default()
-        }]),
-        ..Default::default()
-    };
 
+    let response = client
+        .post(&url)
+        .json(&request_body)
+        .send()?
+        .json::<VisionResponse>()?;
 
-    let mut file = File::open("./dog.jpg").expect("Failed to open image file");
-    let mut image_data = Vec::new();
-    file.read_to_end(&mut image_data).expect("Failed to read image file");
-    
-    // Encode image data to base64
-    let b64 = general_purpose::STANDARD.encode(image_data);
-    println!("image data: {:?}", b64[0..10].to_string());
+        Ok(response)
+}
 
-    let req2 = AnnotateImageRequest {
-        image: Some(google_vision1::api::Image {
-            content: Some(b64.into_bytes()),
-            source: None
-        }),
-        features: Some(vec![google_vision1::api::Feature {
-            type_: Some("LABEL_DETECTION".to_string()),
-            max_results: Some(10),
-            ..Default::default()
-        }]),
-        image_context: None
-    };
+fn image_to_base64(path: &str) -> Result<String, Box<dyn Error>> {
+    let mut file = File::open(path)?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)?;
+    Ok(general_purpose::STANDARD.encode(&buffer))
+}
 
-    let batch_req = google_vision1::api::BatchAnnotateImagesRequest {
-        requests: Some(vec![
-            req, 
-            req2
-            ]),
-        ..Default::default()
-    };
+fn main() -> Result<(), Box<dyn Error>> {
+    let api_key = env::var("GOOGLE_API_KEY").expect("GOOGLE_API_KEY not set");
+    let image_base64 = image_to_base64("./dog.jpg")?;
 
-    // Make the API call
-    match hub.images().annotate(batch_req).doit().await {
-        Err(e) => println!("Error: {}", e),
-        Ok(res) => {
-            // println!("Response: {:?}", res);
-            for response in res.1.responses.unwrap() {
-                match response.label_annotations {
-                    Some(label) => {
-                        for l in label {
-                            println!("Label: {:?}", l.description.unwrap());
-                        }},
-                    None => println!("No label annotations found"),
+    match make_vision_request(&api_key, &image_base64) {
+        Ok(response) => {
+            for annotation in &response.responses {
+                if let Some(labels) = &annotation.labelAnnotations {
+                    for label in labels {
+                        println!("Etiqueta: {} (Confianza: {:.2})", label.description, label.score);
+                    }
+                } else {
+                    println!("No se encontraron etiquetas");
                 }
             }
-
-        },
+        }
+        Err(err) => {
+            eprintln!("Error al hacer la petición: {}", err);
+        }
     }
+
+    Ok(())
 }
