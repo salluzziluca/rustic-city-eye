@@ -31,7 +31,11 @@ pub enum ProtocolError {
     BindingError(String),
     DisconnectError,
     RemoveClientError(String),
+
+    WatcherError(String),
+
     InvalidCommand(String),
+
 }
 
 impl fmt::Display for ProtocolError {
@@ -112,6 +116,9 @@ impl fmt::Display for ProtocolError {
             }
             ProtocolError::RemoveClientError(ref err) => {
                 write!(f, "Error al remover cliente: {}", err)
+            }
+            ProtocolError::WatcherError(ref err) => {
+                write!(f, "Error al crear watcher: {}", err)
             }
         }
     }

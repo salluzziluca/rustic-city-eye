@@ -1019,10 +1019,10 @@ mod tests {
     #[test]
     fn test_01_getting_starting_topics_ok() -> Result<(), ProtocolError> {
         let file_path = "./src/monitoring/topics.txt";
-        let topics = Broker::get_broker_starting_topics(&file_path)?;
+        let topics = Broker::get_broker_starting_topics(file_path)?;
 
         let mut expected_topics = HashMap::new();
-        let topic_readings = Broker::process_topic_config_file(&file_path)?;
+        let topic_readings = Broker::process_topic_config_file(file_path)?;
 
         for topic in topic_readings {
             expected_topics.insert(topic, Topic::new());

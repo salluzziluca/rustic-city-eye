@@ -1,4 +1,8 @@
-use std::io::{Error, Read, Write};
+use std::{
+    fs,
+    io::{Error, Read, Write},
+    path::Path,
+};
 
 use serde::Deserialize;
 
@@ -11,8 +15,8 @@ use super::camera_error::CameraError;
 
 use crate::utils::writer::{write_bool, write_string, write_u32};
 
+const PATH: &str = "src/surveilling/cameras";
 #[derive(Debug, Clone, PartialEq, Deserialize)]
-#[allow(dead_code)]
 pub struct Camera {
     location: Location,
     id: u32,
@@ -20,12 +24,20 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn new(location: Location, id: u32) -> Camera {
-        Self {
+    pub fn new(location: Location, id: u32) -> Result<Camera, CameraError> {
+        let camera = Self {
             location,
             id,
             sleep_mode: true,
+        };
+
+        let dir_name = format!("./{}", camera.id);
+        let path = PATH.to_string() + &dir_name;
+        if let Err(e) = fs::create_dir_all(Path::new(path.as_str())) {
+            return Err(CameraError::ArcMutexError(e.to_string()));
         }
+
+        Ok(camera)
     }
 
     pub fn get_location(&self) -> Location {
@@ -81,6 +93,11 @@ impl Camera {
             sleep_mode,
         })
     }
+    pub fn delete_directory(&self) -> Result<(), CameraError> {
+        let dir_name = format!("./{}", self.id);
+        let path = PATH.to_string() + &dir_name;
+        fs::remove_dir_all(Path::new(&path)).map_err(|e| CameraError::DeleteDirError(e.to_string()))
+    }
 }
 
 #[cfg(test)]
@@ -89,18 +106,37 @@ mod tests {
     #[test]
     fn test_new_camera() {
         let location = Location::new(1.0, 2.0);
-        let camera = Camera::new(location, 1);
+        let camera = Camera::new(location, 1).unwrap();
         assert_eq!(camera.get_location(), location);
         assert_eq!(camera.get_id(), 1);
     }
     #[test]
     fn write_to_read_from() {
         let location = Location::new(1.0, 2.0);
-        let mut camera = Camera::new(location, 1);
+        let mut camera = Camera::new(location, 1).unwrap();
         let mut buffer = Vec::new();
         camera.write_to(&mut buffer).unwrap();
         let mut buffer = &buffer[..];
         let camera_read = Camera::read_from(&mut buffer).unwrap();
         assert_eq!(camera, camera_read);
+    }
+
+    #[test]
+    fn test_check_dir_creation() {
+        let location = Location::new(1.0, 2.0);
+        let camera = Camera::new(location, 1).unwrap();
+        let dir_name = format!("./{}", camera.get_id());
+        let path = "src/surveilling/cameras".to_string() + &dir_name;
+        assert!(Path::new(path.as_str()).exists());
+    }
+    #[test]
+    fn test_dir_creation_and_deletion() {
+        let location = Location::new(1.0, 2.0);
+        let camera = Camera::new(location, 1).unwrap();
+        let dir_name = format!("./{}", camera.get_id());
+        let path = "src/surveilling/cameras".to_string() + &dir_name;
+        assert!(Path::new(path.as_str()).exists());
+        camera.delete_directory().unwrap();
+        assert!(!Path::new(path.as_str()).exists());
     }
 }

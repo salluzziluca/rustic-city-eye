@@ -16,7 +16,8 @@ use rustic_city_eye::{
     utils::location::Location,
 };
 use std::{collections::HashMap, sync::mpsc};
-use walkers::{sources::OpenStreetMap, Map, MapMemory, Position, Texture, Tiles};
+use walkers::{sources::OpenStreetMap, HttpTiles, Map, MapMemory, Position, Texture, Tiles};
+
 use windows::*;
 
 /// Este struct se utiliza para almacenar la informacion de las imagenes que se van a mostrar en el mapa
@@ -24,7 +25,7 @@ use windows::*;
 /// Se utiliza para los iconos de camaras, incidentes, drones y centros de drones
 /// La escala se actualiza teniendo en cuenta el zoom level
 struct MyMap {
-    tiles: Tiles,
+    tiles: Box<dyn Tiles>,
     map_memory: MapMemory,
     click_watcher: ClickWatcher,
     camera_icon: ImagesPluginData,
@@ -238,9 +239,11 @@ impl MyApp {
         CentralPanel::default().show(ctx, |ui| {
             let last_clicked = self.map.click_watcher.clicked_at;
 
+            // Dereference the Box<dyn Tiles> to access the underlying type
+            let tiles_ref: &mut dyn Tiles = &mut *self.map.tiles;
             ui.add(
                 Map::new(
-                    Some(&mut self.map.tiles),
+                    Some(tiles_ref),
                     &mut self.map.map_memory,
                     Position::from_lon_lat(-58.368925, -34.61716),
                 )
@@ -299,7 +302,7 @@ impl App for MyApp {
 /// Funcion que se encarga de inicializar la aplicacion con sus texturas
 /// inicializandola en su estado original
 fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
-    egui_extras::install_image_loaders(&cc.egui_ctx);
+    egui_extras::install_image_loaders(&cc.egui_ctx.clone());
     let camera_bytes = include_bytes!("../assets/Camera.png");
     let camera_icon = match Texture::new(camera_bytes, &cc.egui_ctx) {
         Ok(t) => ImagesPluginData::new(t, 1.0, 0.1), // Initialize with zoom level 1.0
@@ -337,6 +340,10 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
         Err(_) => todo!(),
     };
 
+    egui_extras::install_image_loaders(&cc.egui_ctx.clone());
+
+    let tiles = Box::new(HttpTiles::new(OpenStreetMap, cc.egui_ctx.clone()));
+
     Box::new(MyApp {
         username: String::new(),
         password: String::new(),
@@ -344,7 +351,7 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
         port: String::new(),
         connected: false,
         map: MyMap {
-            tiles: Tiles::new(OpenStreetMap, cc.egui_ctx.clone()),
+            tiles,
             map_memory: MapMemory::default(),
             click_watcher: ClickWatcher::default(),
             cameras: HashMap::new(),
@@ -366,13 +373,14 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
         correct_port: true,
     })
 }
+
 // Entry point of the application, sets up window options and runs the main event loop
 fn main() {
     let app_name = "Rustic City Eye";
     let win_options = NativeOptions {
         ..Default::default()
     };
-    if let Err(e) = run_native(app_name, win_options, Box::new(|cc| create_my_app(cc))) {
+    if let Err(e) = run_native(app_name, win_options, Box::new(|cc| Ok(create_my_app(cc)))) {
         eprintln!("Error: {}", e);
     }
 }

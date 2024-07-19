@@ -1,7 +1,9 @@
+use notify::{recommended_watcher, RecursiveMode, Watcher};
 use std::{
     collections::HashMap,
+    path::Path,
     sync::{
-        mpsc::{self, Receiver, Sender},
+        mpsc::{self, channel, Receiver, Sender},
         Arc, Mutex,
     },
     thread,
@@ -26,6 +28,7 @@ use crate::{
 
 const AREA_DE_ALCANCE: f64 = 0.0025;
 const NIVEL_DE_PROXIMIDAD_MAXIMO: f64 = AREA_DE_ALCANCE;
+const PATH: &str = "src/surveilling/cameras.";
 
 use super::camera_error::CameraError;
 #[derive(Debug)]
@@ -115,7 +118,7 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             id = rng.gen();
         }
 
-        let camera = Camera::new(location, id);
+        let camera = Camera::new(location, id)?;
         println!("CameraSys: creo la camara con id: {:?}", id);
         cameras.insert(id, camera);
 
@@ -240,7 +243,6 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
 
                             continue;
                         } else if topic_name == "incidente_resuelto" {
-                            println!("ASI ES COÑO LO HE RECIBIDO");
                             solved_incident_location = Some(payload.get_incident().get_location());
                             drop(reciever); // Release the lock here
 
@@ -255,6 +257,41 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                     }
                 }
             }
+        });
+
+        thread::spawn(move || {
+            let (tx, rx) = channel();
+            let mut watcher = match recommended_watcher(tx) {
+                Ok(watcher) => {
+                    println!("Watcher creado correctamente");
+                    watcher
+                }
+                Err(e) => return Err(ProtocolError::WatcherError(e.to_string())),
+            };
+
+            watcher
+                .watch(Path::new(PATH), RecursiveMode::Recursive)
+                .expect("No se pudo ver el directorio");
+            loop {
+                match rx.recv() {
+                    Ok(event) => {
+                        let event = event.unwrap();
+                        if matches!(event.kind, notify::EventKind::Create(_)) {
+                            let path = event.paths[0].clone();
+                            let path = path.to_str().unwrap();
+                            let path = path.split('/').collect::<Vec<&str>>();
+                            let camera_id = path[9].parse::<u32>().unwrap();
+
+                            println!("La camara de id {:?} esta analizando una imagen", camera_id);
+                        }
+                    }
+                    Err(e) => {
+                        println!("watch error: {:?}", e);
+                        break;
+                    }
+                }
+            }
+            Ok(())
         });
         Ok(())
     }
@@ -273,6 +310,16 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
             Err(e) => {
                 return Err(ProtocolError::SendError(e.to_string()));
             }
+        }
+        match self.cameras.lock() {
+            Ok(cameras) => {
+                for camera in cameras.values() {
+                    camera
+                        .delete_directory()
+                        .map_err(|e| ProtocolError::CameraError(e.to_string()))?;
+                }
+            }
+            Err(e) => return Err(ProtocolError::CameraError(e.to_string())),
         }
         println!("Cliente del system desconectado correctamente");
 
@@ -526,15 +573,17 @@ impl CameraSystem<Client> {
 #[cfg(test)]
 
 mod tests {
+    use std::fs::File;
+    use std::path::Path;
     use std::sync::{Arc, Condvar, Mutex};
     use std::thread;
 
+    use super::*;
     use crate::monitoring::incident::Incident;
     use crate::mqtt::broker::Broker;
     use crate::mqtt::client_message::ClientMessage;
     use crate::utils::incident_payload::IncidentPayload;
-
-    use super::*;
+    use std::time::Duration;
     impl CameraSystem<Client> {
         fn get_client_publish_end_channel(
             &self,
@@ -1438,5 +1487,162 @@ mod tests {
         });
 
         handle.join().unwrap();
+    }
+
+    #[test]
+
+    fn test_13_creo_dirs_y_al_hacer_disconnect_se_borran() {
+        let args = vec!["127.0.0.1".to_string(), "6000".to_string()];
+        let addr = "127.0.0.1:6000";
+        let mut broker = match Broker::new(args) {
+            Ok(broker) => broker,
+            Err(e) => {
+                panic!("Error creating broker: {:?}", e)
+            }
+        };
+        thread::spawn(move || {
+            _ = broker.server_run();
+        });
+
+        let handle = thread::spawn(move || {
+            let mut camera_system =
+                CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
+            let location = Location::new(1.0, 2.0);
+            let id: u32 = camera_system.add_camera(location).unwrap();
+            let location2 = Location::new(1.0, 5.0);
+            let id2 = camera_system.add_camera(location2).unwrap();
+            assert_eq!(camera_system.get_cameras().lock().unwrap().len(), 2);
+            assert_eq!(
+                camera_system.get_camera_by_id(id).unwrap().get_location(),
+                location
+            );
+            assert_eq!(
+                camera_system.get_camera_by_id(id2).unwrap().get_location(),
+                location2
+            );
+
+            let dir_name = format!("./{}", id);
+            let path1 = "src/surveilling/cameras".to_string() + &dir_name;
+            assert!(Path::new(path1.as_str()).exists());
+
+            let dir_name = format!("./{}", id2);
+            let path2 = "src/surveilling/cameras".to_string() + &dir_name;
+            assert!(Path::new(path2.as_str()).exists());
+
+            camera_system.disconnect().unwrap();
+
+            assert!(!Path::new(path1.as_str()).exists());
+            assert!(!Path::new(path2.as_str()).exists());
+        });
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn test_creo_file_en_dir_e_imprime_ok() {
+        let args = vec!["127.0.0.1".to_string(), "5055".to_string()];
+        let addr = "127.0.0.1:5055";
+        let mut broker = match Broker::new(args) {
+            Ok(broker) => broker,
+            Err(e) => panic!("Error creating broker: {:?}", e),
+        };
+
+        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+        let server_ready_clone = server_ready.clone();
+        thread::spawn(move || {
+            {
+                let (lock, cvar) = &*server_ready_clone;
+                let mut ready = lock.lock().unwrap();
+                *ready = true;
+                cvar.notify_all();
+            }
+            let _ = broker.server_run();
+        });
+
+        // Wait for the server to start
+        {
+            let (lock, cvar) = &*server_ready;
+            let mut ready = lock.lock().unwrap();
+            while !*ready {
+                ready = cvar.wait(ready).unwrap();
+            }
+        }
+        let locurote = thread::spawn(move || {
+            let camera_system = CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
+            let camera_arc = Arc::new(Mutex::new(camera_system));
+            let can_start_second_thread = Arc::new((Mutex::new(false), Condvar::new()));
+            let second_thread_completed = Arc::new((Mutex::new(false), Condvar::new()));
+            let camera_id_shared = Arc::new(Mutex::new(None)); // Shared camera ID
+
+            let (
+                can_start_second_thread_clone,
+                second_thread_completed_clone,
+                camera_id_shared_clone,
+            ) = (
+                Arc::clone(&can_start_second_thread),
+                Arc::clone(&second_thread_completed),
+                Arc::clone(&camera_id_shared),
+            );
+
+            // Thread 1: Camera system run
+            let camera_arc_clone_for_thread1 = Arc::clone(&camera_arc);
+            let camera_arc_clone_for_thread2 = Arc::clone(&camera_arc);
+            let handler_camera_system = thread::spawn(move || {
+                CameraSystem::<Client>::run_client(None, camera_arc_clone_for_thread1).unwrap();
+                let mut camera_system = camera_arc_clone_for_thread2.lock().unwrap();
+                let location = Location::new(1.0, 2.0);
+                let id: u32 = camera_system.add_camera(location).unwrap();
+                *camera_id_shared.lock().unwrap() = Some(id);
+                // Signal to start the second thread
+                {
+                    let (lock, cvar) = &*can_start_second_thread_clone;
+                    let mut start = lock.lock().unwrap();
+                    *start = true;
+                    cvar.notify_one();
+                }
+                // Wait for the second thread to complete
+                {
+                    let (lock, cvar) = &*second_thread_completed_clone;
+                    let mut completed = lock.lock().unwrap();
+                    while !*completed {
+                        completed = cvar.wait(completed).unwrap();
+                    }
+                }
+                camera_system.disconnect().unwrap();
+            });
+
+            // Thread 2: File creation and deletion
+            let handler_file_operations = thread::spawn(move || {
+                // Wait for the signal from the first thread to start
+                {
+                    let (lock, cvar) = &*can_start_second_thread;
+                    let mut start = lock.lock().unwrap();
+                    while !*start {
+                        start = cvar.wait(start).unwrap();
+                    }
+                } // Retrieve the shared camera ID
+                let camera_id = camera_id_shared_clone.lock().unwrap();
+                let path1 =
+                    "src/surveilling/cameras./".to_string() + &camera_id.unwrap().to_string();
+                let dir_path = Path::new(path1.as_str());
+                let temp_file_path = dir_path.join("temp_file.txt");
+                File::create(&temp_file_path).expect("Failed to create temporary file");
+
+                // Wait 2 seconds
+                thread::sleep(Duration::from_secs(2));
+
+                std::fs::remove_file(temp_file_path).expect("Failed to remove temporary file");
+                {
+                    let (lock, cvar) = &*second_thread_completed;
+                    let mut completed = lock.lock().unwrap();
+                    *completed = true;
+                    cvar.notify_one();
+                }
+            });
+
+            // Wait for both threads to complete
+            handler_camera_system.join().unwrap();
+            handler_file_operations.join().unwrap();
+        });
+        locurote.join().unwrap();
     }
 }
