@@ -225,7 +225,13 @@ mod tests {
 
         let (tx, _rx) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages.clone(), sender, tx, "juancito".to_string())
+            result = handle_message(
+                stream,
+                pending_messages.clone(),
+                sender,
+                tx,
+                "juancito".to_string(),
+            )
         }
 
         assert_eq!(result.unwrap(), ClientReturn::PublishDeliveryRecieved);
