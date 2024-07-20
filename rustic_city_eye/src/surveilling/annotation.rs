@@ -131,7 +131,11 @@ impl ImageClassifier {
                 features: vec![
                     Feature {
                         type_: "LABEL_DETECTION".to_string(),
-                        maxResults: Some(30),
+                        maxResults: Some(50),
+                    },
+                    Feature {
+                        type_: "SAFE_SEARCH_DETECTION".to_string(),
+                        maxResults: Some(20),
                     },
                 ],
             }],
@@ -170,7 +174,7 @@ impl ImageClassifier {
     fn process_annotations(&self, annotations: &Vec<EntityAnnotation>) -> Vec<(String, f64)> {
         let mut results = Vec::new();
         let incident_keywords = vec![
-            "fire", "smoke", "fight", "accident", "theft", "crash", "gun",
+            "flood", "fire", "smoke", "fight", "accident", "theft", "crash", "gun", "collision", "rebellion", "explosion", "gas", "atmospheric phenomenon", "flame", "wildfire"
         ];
 
         for annotation in annotations {
@@ -196,7 +200,7 @@ mod tests {
     #[test]
     fn test_01_classifier_annotation_ok() -> Result<(), AnnotationError> {
         let url = "https://vision.googleapis.com/v1/images:annotate".to_string();
-        let image_path = "./src/surveilling/accident.png";
+        let image_path = "./tests/ia_annotation_img/image.png";
 
         let classifier = ImageClassifier::new(url)?;
 
