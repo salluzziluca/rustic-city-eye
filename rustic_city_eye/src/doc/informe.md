@@ -184,7 +184,11 @@ El protocolo MQTT en su versión 5.0(el que implementamos para el proyecto), sop
 
 ### Reliability
 
+El servidor mantiene un registro de los clientes conectados y desconectados. En primer lugar, implementamos un Hash de clientes con sus streams correspondientes. En segundo lugar, implementamos un Hash de clientes con sus mensajes pendientes, de esta manera al volver a levantarlos, pueden recibirse facilmente los mensajes pendientes. 
+
 ### Configuración
+
+Para el caso del broker, su puerto se indica en el comando de ejecución `cargo run --bin broker 5000. En el caso del cliente, se indica a través de la UI en los campos correspondientes.
 
 ### Logging
 
