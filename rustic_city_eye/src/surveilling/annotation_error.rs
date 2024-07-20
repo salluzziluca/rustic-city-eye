@@ -5,6 +5,7 @@ pub enum AnnotationError {
     ApiKeyNotSet(String),
     ImageError(String),
     RequestError(String),
+    KeywordsFileError(String),
 }
 
 impl fmt::Display for AnnotationError {
@@ -18,6 +19,13 @@ impl fmt::Display for AnnotationError {
             }
             AnnotationError::RequestError(ref err) => {
                 write!(f, "Error al clasificar la imagen: {}", err)
+            }
+            AnnotationError::KeywordsFileError(ref err) => {
+                write!(
+                    f,
+                    "Error al leer las palabras claves de incidentes: {}",
+                    err
+                )
             }
         }
     }

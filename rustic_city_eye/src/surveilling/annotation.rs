@@ -1,6 +1,10 @@
 use base64::{engine::general_purpose, Engine};
 use reqwest::blocking::Client;
-use std::{env, fs::File, io::Read};
+use std::{
+    env,
+    fs::File,
+    io::{BufRead, BufReader, Read},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -57,12 +61,16 @@ struct VisionResponse {
 /// de forma tal de medir la confiabilidad de la clasificacion.
 #[derive(Debug)]
 pub struct ImageClassifier {
-    ///Este sera el url sobre el cual el clasificador hara peticiones a
+    /// Este sera el url sobre el cual el clasificador hara peticiones a
     /// Google Cloud Vision.
     url: String,
 
     /// Sobre este cliente de reqwest, se hacen peticiones sincronicas a la IA de clasificacion.
     reqwest_client: Client,
+
+    /// Contiene las keywords con las cuales se detectaran incidentes(al etiquetar una imagen, se evaluara por coincidencias
+    /// con los elementos de este vector para decidir si la imagen contiene un incidente o no).
+    incident_keywords: Vec<String>,
 }
 
 impl ImageClassifier {
@@ -71,7 +79,10 @@ impl ImageClassifier {
     ///
     /// En caso de no tener configurada la variable de entorno GOOGLE_API_KEY
     /// (la cual debe ser una clave de la API del proyecto en gcloud), se producira un error.
-    pub fn new(url: String) -> Result<ImageClassifier, AnnotationError> {
+    pub fn new(
+        url: String,
+        incident_keywords_file_path: &str,
+    ) -> Result<ImageClassifier, AnnotationError> {
         let api_key = match env::var("GOOGLE_API_KEY") {
             Ok(key) => key,
             Err(e) => return Err(AnnotationError::ApiKeyNotSet(e.to_string())),
@@ -79,11 +90,17 @@ impl ImageClassifier {
 
         let url = url + "?key=" + &api_key;
         let client = Client::new();
+        let incident_keywords = Vec::new();
 
-        Ok(ImageClassifier {
+        let mut classifier = ImageClassifier {
             url,
             reqwest_client: client,
-        })
+            incident_keywords,
+        };
+
+        classifier.set_incident_keywords(incident_keywords_file_path)?;
+
+        Ok(classifier)
     }
 
     /// Dado un path a una imagen, se abre y se codifica en Base64. Una vez convertida, se hace
@@ -97,13 +114,6 @@ impl ImageClassifier {
 
         for annotation in &res.responses {
             if let Some(labels) = &annotation.labelAnnotations {
-                for label in labels {
-                    println!(
-                        "Etiqueta: {} (Confianza: {:.2})",
-                        label.description, label.score
-                    );
-                    result.push((label.description.clone(), label.score));
-                }
                 let incident_labels = self.process_annotations(labels);
                 result.extend(incident_labels);
             } else {
@@ -135,7 +145,7 @@ impl ImageClassifier {
                     },
                     Feature {
                         type_: "SAFE_SEARCH_DETECTION".to_string(),
-                        maxResults: Some(20),
+                        maxResults: Some(10),
                     },
                 ],
             }],
@@ -156,6 +166,25 @@ impl ImageClassifier {
         Ok(response)
     }
 
+    /// Lee el archivo de keywords de incidentes, y setea las lecturas sobre
+    /// el campo de keywords que guarda el classifier.
+    fn set_incident_keywords(&mut self, path: &str) -> Result<(), AnnotationError> {
+        let reader = match File::open(path) {
+            Ok(f) => BufReader::new(f),
+            Err(e) => return Err(AnnotationError::KeywordsFileError(e.to_string())),
+        };
+
+        let mut lines = Vec::new();
+        for line in reader.lines() {
+            match line {
+                Ok(l) => lines.push(l),
+                Err(e) => return Err(AnnotationError::KeywordsFileError(e.to_string())),
+            };
+        }
+        self.incident_keywords = lines;
+        Ok(())
+    }
+
     /// Dado un path a una imagen, se abre y se codifica en Base64.
     fn image_to_base64(&self, path: &str) -> Result<String, AnnotationError> {
         let mut file = match File::open(path) {
@@ -171,24 +200,22 @@ impl ImageClassifier {
         Ok(general_purpose::STANDARD.encode(&buffer))
     }
 
+    /// Dado un vector de etiquetas que se hicieron sobre una imagen, se busca si estas etiquetas contiene
+    /// alguna de las palabras clave para definir incidentes(se hace una comparacion contra los elementos
+    /// de incident_keywords que contiene el classifier).
     fn process_annotations(&self, annotations: &Vec<EntityAnnotation>) -> Vec<(String, f64)> {
         let mut results = Vec::new();
-        let incident_keywords = vec![
-            "flood", "fire", "smoke", "fight", "accident", "theft", "crash", "gun", "collision", "rebellion", "explosion", "gas", "atmospheric phenomenon", "flame", "wildfire"
-        ];
 
         for annotation in annotations {
             let description_lower = annotation.description.to_lowercase();
 
-            for keyword in &incident_keywords {
+            for keyword in &self.incident_keywords {
                 if description_lower.contains(&keyword.to_lowercase()) {
                     results.push((annotation.description.clone(), annotation.score));
                     break;
                 }
             }
         }
-
-        println!("{:?} results", results);
         results
     }
 }
@@ -200,11 +227,139 @@ mod tests {
     #[test]
     fn test_01_classifier_annotation_ok() -> Result<(), AnnotationError> {
         let url = "https://vision.googleapis.com/v1/images:annotate".to_string();
-        let image_path = "./tests/ia_annotation_img/image.png";
-
-        let classifier = ImageClassifier::new(url)?;
+        let incident_keywords_file_path = "./tests/incident_keywords";
+        let classifier = ImageClassifier::new(url, incident_keywords_file_path)?;
+        let image_path = "./tests/ia_annotation_img/assault.png";
 
         classifier.classify_image(image_path)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_02_assault_detection_ok() -> Result<(), AnnotationError> {
+        let url = "https://vision.googleapis.com/v1/images:annotate".to_string();
+        let incident_keywords_file_path = "./tests/incident_keywords";
+        let classifier = ImageClassifier::new(url, incident_keywords_file_path)?;
+
+        let image_path = "./tests/ia_annotation_img/assault.png";
+        let classification_result = classifier.classify_image(image_path)?;
+
+        assert!(!classification_result.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_03_fire_detection_ok() -> Result<(), AnnotationError> {
+        let image_path_one = "./tests/ia_annotation_img/fire.png";
+        let image_path_two = "./tests/ia_annotation_img/fire2.png";
+        let image_path_three = "./tests/ia_annotation_img/fire3.png";
+
+        let url = "https://vision.googleapis.com/v1/images:annotate".to_string();
+        let incident_keywords_file_path = "./tests/incident_keywords";
+        let classifier = ImageClassifier::new(url, incident_keywords_file_path)?;
+
+        let classification_result_one = classifier.classify_image(image_path_one)?;
+        let classification_result_two = classifier.classify_image(image_path_two)?;
+        let classification_result_three = classifier.classify_image(image_path_three)?;
+
+        assert!(!classification_result_one.is_empty());
+        assert!(!classification_result_two.is_empty());
+        assert!(!classification_result_three.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_04_crash_detection_ok() -> Result<(), AnnotationError> {
+        let image_path_one = "./tests/ia_annotation_img/crash1.png";
+        let image_path_two = "./tests/ia_annotation_img/crash2.png";
+        let image_path_three = "./tests/ia_annotation_img/crash3.png";
+        let image_path_four = "./tests/ia_annotation_img/crash4.png";
+
+        let url = "https://vision.googleapis.com/v1/images:annotate".to_string();
+        let incident_keywords_file_path = "./tests/incident_keywords";
+        let classifier = ImageClassifier::new(url, incident_keywords_file_path)?;
+
+        let classification_result_one = classifier.classify_image(image_path_one)?;
+        let classification_result_two = classifier.classify_image(image_path_two)?;
+        let classification_result_three = classifier.classify_image(image_path_three)?;
+        let classification_result_four = classifier.classify_image(image_path_four)?;
+
+        assert!(!classification_result_one.is_empty());
+        assert!(!classification_result_two.is_empty());
+        assert!(!classification_result_three.is_empty());
+        assert!(!classification_result_four.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_05_rebellion_detection_ok() -> Result<(), AnnotationError> {
+        let image_path_one = "./tests/ia_annotation_img/rebellion.png";
+        let image_path_two = "./tests/ia_annotation_img/rebellion2.png";
+
+        let url = "https://vision.googleapis.com/v1/images:annotate".to_string();
+        let incident_keywords_file_path = "./tests/incident_keywords";
+        let classifier = ImageClassifier::new(url, incident_keywords_file_path)?;
+
+        let classification_result_one = classifier.classify_image(image_path_one)?;
+        let classification_result_two = classifier.classify_image(image_path_two)?;
+
+        assert!(!classification_result_one.is_empty());
+        assert!(!classification_result_two.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_06_no_incident_found_ok() -> Result<(), AnnotationError> {
+        let image_path_one = "./tests/ia_annotation_img/no_incident.png";
+        let image_path_two = "./tests/ia_annotation_img/no_incident2.png";
+        let image_path_three = "./tests/ia_annotation_img/no_incident3.png";
+
+        let url = "https://vision.googleapis.com/v1/images:annotate".to_string();
+        let incident_keywords_file_path = "./tests/incident_keywords";
+        let classifier = ImageClassifier::new(url, incident_keywords_file_path)?;
+
+        let classification_result_one = classifier.classify_image(image_path_one)?;
+        let classification_result_two = classifier.classify_image(image_path_two)?;
+        let classification_result_three = classifier.classify_image(image_path_three)?;
+
+        assert!(classification_result_one.is_empty());
+        assert!(classification_result_two.is_empty());
+        assert!(classification_result_three.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_07_reading_incident_keywords_ok() -> Result<(), AnnotationError> {
+        let url = "https://vision.googleapis.com/v1/images:annotate".to_string();
+        let incident_keywords_file_path = "./tests/incident_keywords";
+        let mut classifier = ImageClassifier::new(url, incident_keywords_file_path)?;
+
+        let _ = classifier.set_incident_keywords(incident_keywords_file_path)?;
+        let expected_keywords = vec![
+            "flood".to_string(),
+            "fire".to_string(),
+            "smoke".to_string(),
+            "fight".to_string(),
+            "accident".to_string(),
+            "theft".to_string(),
+            "crash".to_string(),
+            "gun".to_string(),
+            "collision".to_string(),
+            "rebellion".to_string(),
+            "explosion".to_string(),
+            "gas".to_string(),
+            "atmospheric phenomenon".to_string(),
+            "flame".to_string(),
+            "wildfire".to_string(),
+        ];
+
+        assert_eq!(classifier.incident_keywords, expected_keywords);
 
         Ok(())
     }
