@@ -77,7 +77,6 @@ impl MonitoringApp {
         let incidents = Arc::new(Mutex::new(Vec::new()));
         let cameras = Arc::new(Mutex::new(HashMap::new()));
         let tx_arc = Arc::new(Mutex::new(tx));
-        let disconnect_sender_arc = Arc::new(Mutex::new(disconnect_notification_sender));
 
         let monitoring_app = MonitoringApp {
             send_to_client_channel: Arc::clone(&tx_arc),
@@ -89,21 +88,7 @@ impl MonitoringApp {
             active_drones: Arc::clone(&active_drones),
             cameras: Arc::clone(&cameras),
         };
-        thread::spawn(move || loop {
-            let receiver_clone = Arc::clone(&receive_from_client);
-            let active_drones_clone = Arc::clone(&active_drones);
-            let cameras_clone = Arc::clone(&cameras);
-            let incidents_clone = Arc::clone(&incidents);
-            let disconnect_sender_clone = Arc::clone(&disconnect_sender_arc);
 
-            update_entities(
-                receiver_clone,
-                active_drones_clone,
-                cameras_clone,
-                incidents_clone,
-                disconnect_sender_clone,
-            );
-        });
         Ok(monitoring_app)
     }
 
@@ -213,6 +198,27 @@ impl MonitoringApp {
 
     /// Se encarga de correr al Client de la MonitoringApp, y al Client del CameraSystem.
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
+        let receive_from_client_ref = Arc::clone(&self.receive_from_client);
+        let active_drones_clone = Arc::clone(&self.active_drones);
+        let cameras_clone = Arc::clone(&self.cameras);
+        let incidents_clone = Arc::clone(&self.incidents);
+
+        thread::spawn(move || loop {
+            let receiver_clone: Arc<Mutex<Receiver<ClientMessage>>> =
+                Arc::clone(&receive_from_client_ref);
+            let active_drones_clone: Arc<Mutex<HashMap<u32, Location>>> =
+                Arc::clone(&active_drones_clone);
+            let cameras_clone = Arc::clone(&cameras_clone);
+            let incidents_clone = Arc::clone(&incidents_clone);
+
+            update_entities(
+                receiver_clone,
+                active_drones_clone,
+                cameras_clone,
+                incidents_clone,
+            );
+        });
+
         println!("Client de la monitoring app comienza a correr");
         self.monitoring_app_client.client_run()?;
 
@@ -366,6 +372,7 @@ impl MonitoringApp {
         self.drone_system.disconnect_system()?;
 
         println!("Cliente de la monitoring app desconectado correctamente");
+        // exit(0);
 
         Ok(())
     }
@@ -391,7 +398,7 @@ pub fn update_entities(
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
     incidents: Arc<Mutex<Vec<(Incident, u8)>>>,
-    disconnect_sender: Arc<Mutex<Sender<()>>>,
+    // disconnect_sender: Arc<Mutex<Sender<()>>>,
 ) {
     let receiver = match recieve_from_client.lock() {
         Ok(receiver) => receiver,
@@ -456,9 +463,7 @@ pub fn update_entities(
             client_id: _,
         }) = receiver.try_recv()
         {
-            println!("la moni se va a caer mi loco");
-            let lock = disconnect_sender.lock().unwrap();
-            lock.send(()).unwrap();
+            println!("aqui la aplicacion sabe que se debe desconectar");
         }
     }
 }
