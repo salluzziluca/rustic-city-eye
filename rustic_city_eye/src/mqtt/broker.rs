@@ -97,7 +97,45 @@ impl Broker {
         let topic_readings = Broker::process_topic_config_file(file_path)?;
 
         for topic in topic_readings {
-            topics.insert(topic, Topic::new());
+            let mut topics_to_add = Vec::new();
+
+            let mut topic_parts = topic.split('/').collect::<Vec<&str>>();
+            let topic_dir = topic_parts.remove(0).to_string();
+
+            let mut topic_father = Topic::new();
+            // verifico si el topic ya existe
+            if topics.contains_key(&topic_dir) {
+                // obtengo el Topic
+                let topic_father: &mut Topic = topics.get_mut(&topic_dir).unwrap();
+            }
+
+            if topic_parts.len() > 0 {
+                for part in topic_parts {
+                    let new_subtopic = Topic::new();
+
+                    if topics.contains_key(part) {
+                        let new_subtopic: &mut Topic = topics.get_mut(part).unwrap();
+                    }
+                    topics_to_add.push((part.to_string(), new_subtopic));
+                }
+            }
+
+            // agrego los subtopics al topic padre
+            for (subtopic_name, subtopic) in topics_to_add {
+                topic_father.add_subtopic(subtopic_name.clone());
+                topics.insert(subtopic_name.clone(), subtopic);
+            }
+
+            // agrego el topic padre al hashmap de topics
+            topics.insert(topic_dir.clone(), topic_father);
+        }
+
+        // imprimir los topics y sus subtopics
+        for (topic_name, topic) in &topics {
+            println!("Topic: {}", topic_name);
+            for subtopic_name in topic.get_subtopics() {
+                println!("Subtopic: {}", subtopic_name);
+            }
         }
 
         Ok(topics)
@@ -443,6 +481,7 @@ impl Broker {
         subscription: Subscription,
     ) -> Result<u8, ProtocolError> {
         let reason_code;
+
         if let Some(topic) = topics.get_mut(&topic_name) {
             match topic.add_user_to_topic(subscription.clone()) {
                 0 => {
@@ -1097,58 +1136,59 @@ mod tests {
         Ok(())
     }
 
-    // #[test]
-    // fn test_01_creating_broker_config_ok() -> std::io::Result<()> {
-    //     let topics = match Broker::get_broker_starting_topics("./src/monitoring/topics.txt") {
-    //         Ok(topics) => topics,
-    //         Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::Other, "Error")),
-    //     };
-    //     let clients_auth_info = match Broker::process_clients_file("./src/monitoring/clients.txt") {
-    //         Ok(clients_auth_info) => clients_auth_info,
-    //         Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::Other, "Error")),
-    //     };
+    #[test]
+    fn test_01_creating_broker_topics_ok() -> std::io::Result<()> {
+        let topics = Broker::get_broker_starting_topics("./src/monitoring/topics.txt").unwrap();
 
-    //     let mut expected_topics = HashMap::new();
-    //     let mut expected_clients = HashMap::new();
+        let mut camera_system = Topic::new();
 
-    //     expected_topics.insert("accidente".to_string(), Topic::new());
-    //     expected_topics.insert("mensajes para juan".to_string(), Topic::new());
-    //     expected_topics.insert("messi".to_string(), Topic::new());
-    //     expected_topics.insert("fulbito".to_string(), Topic::new());
-    //     expected_topics.insert("incidente".to_string(), Topic::new());
+        let mut monitoring_app = Topic::new();
+        let mut drone = Topic::new();
 
-    //     expected_clients.insert(
-    //         "monitoring_app".to_string(),
-    //         (
-    //             "monitoreo".to_string(),
-    //             "monitoreando_la_vida2004".to_string().into_bytes(),
-    //         ),
-    //     );
+        // inserto inciente como subtopic de camera system
+        camera_system.add_subtopic("incident".to_string());
+        camera_system.add_subtopic("incident_resolved".to_string());
 
-    //     expected_clients.insert(
-    //         "camera_system".to_string(),
-    //         (
-    //             "sistema_camaras".to_string(),
-    //             "CamareandoCamaritasForever".to_string().into_bytes(),
-    //         ),
-    //     );
+        monitoring_app.add_subtopic("drone_locations".to_string());
+        monitoring_app.add_subtopic("camera_update".to_string());
+        monitoring_app.add_subtopic("incident_resolved".to_string());
 
-    //     let topics_to_check = vec![
-    //         "accidente",
-    //         "mensajes para juan",
-    //         "messi",
-    //         "fulbito",
-    //         "incidente",
-    //     ];
+        drone.add_subtopic("attending_incident".to_string());
+        drone.add_subtopic("incident".to_string());
 
-    //     for topic in topics_to_check {
-    //         assert!(topics.contains_key(topic));
-    //     }
+        let topics_to_check = vec![
+            "camera_system",
+            "monitoring_app",
+            "drone",
+            "incident",
+            "incident_resolved",
+            "drone_locations",
+            "camera_update",
+            "attending_incident",
+        ];
 
-    //     assert_eq!(expected_clients, clients_auth_info);
+        for topic in topics_to_check {
+            assert!(topics.contains_key(topic));
+        }
 
-    //     Ok(())
-    // }
+        // verifico subtopics de camera_system
+        let camera_system_subtopics = topics.get("camera_system").unwrap().get_subtopics();
+        assert!(camera_system_subtopics.contains(&"incident".to_string()));
+        assert!(camera_system_subtopics.contains(&"incident_resolved".to_string()));
+
+        // verifico subtopics de monitoring_app
+        let monitoring_app_subtopics = topics.get("monitoring_app").unwrap().get_subtopics();
+        assert!(monitoring_app_subtopics.contains(&"drone_locations".to_string()));
+        assert!(monitoring_app_subtopics.contains(&"camera_update".to_string()));
+        assert!(monitoring_app_subtopics.contains(&"incident_resolved".to_string()));
+
+        // verifico subtopics de drone
+        let drone_subtopics = topics.get("drone").unwrap().get_subtopics();
+        assert!(drone_subtopics.contains(&"attending_incident".to_string()));
+        assert!(drone_subtopics.contains(&"incident".to_string()));
+
+        Ok(())
+    }
 
     #[test]
     fn test_handle_client() {

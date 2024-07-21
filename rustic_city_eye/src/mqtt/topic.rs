@@ -1,6 +1,8 @@
 use std::fmt::Debug;
 use std::sync::{Arc, RwLock};
 
+use std::collections::HashMap;
+
 use super::subscription::Subscription;
 
 use super::reason_code;
@@ -11,7 +13,7 @@ pub struct Topic {
     /// Hashmap de subscriptores.
     users: Arc<RwLock<Vec<Subscription>>>,
     // vector de subtopics
-    // subtopic: Vec<Topic>,
+    subtopics: Vec<String>,
 }
 
 impl Default for Topic {
@@ -25,6 +27,7 @@ impl Topic {
     pub fn new() -> Self {
         Self {
             users: Arc::new(RwLock::new(Vec::new())),
+            subtopics: Vec::new(),
         }
     }
 
@@ -71,6 +74,18 @@ impl Topic {
         }
 
         reason_code::SUCCESS_HEX
+    }
+
+    pub fn add_subtopic(&mut self, topic: String) {
+        self.subtopics.push(topic);
+    }
+
+    pub fn remove_subtopic(&mut self, topic: String) {
+        self.subtopics.retain(|x| x != &topic);
+    }
+
+    pub fn get_subtopics(&self) -> Vec<String> {
+        self.subtopics.clone()
     }
 
     pub fn get_users_from_topic(&self) -> Vec<Subscription> {
@@ -139,5 +154,17 @@ mod tests {
         assert_eq!(result, 0x00);
         let result = topic.remove_user_from_topic(subscription);
         assert_eq!(result, 0x00);
+    }
+
+    #[test]
+    fn test_add_subtopic() {
+        let mut topic = Topic::new();
+        let subtopic = "subtopic".to_string();
+        topic.add_subtopic(subtopic.clone());
+        let subtopic2 = "subtopic2".to_string();
+        topic.add_subtopic(subtopic2.clone());
+        assert_eq!(topic.get_subtopics().len(), 2);
+        assert_eq!(topic.get_subtopics()[0], subtopic);
+        assert_eq!(topic.get_subtopics()[1], subtopic2);
     }
 }
