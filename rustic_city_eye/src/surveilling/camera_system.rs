@@ -79,17 +79,17 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
         let camera_system_client = client_factory(rx, address, connect_config, tx2)?;
         let client_id = camera_system_client.get_client_id();
         let subscribe_config = SubscribeConfig::new(
-            "incidente".to_string(),
+            "camera_system/*".to_string(),
             SubscribeProperties::new(1, vec![]),
             client_id.clone(),
         );
 
-        let _ = tx.send(Box::new(subscribe_config));
-        let subscribe_config = SubscribeConfig::new(
-            "incidente_resuelto".to_string(),
-            SubscribeProperties::new(1, vec![]),
-            client_id,
-        );
+        // let _ = tx.send(Box::new(subscribe_config));
+        // let subscribe_config = SubscribeConfig::new(
+        //     "incidente_resuelto".to_string(),
+        //     SubscribeProperties::new(1, vec![]),
+        //     client_id,
+        // );
 
         let _ = tx.send(Box::new(subscribe_config));
         Ok(CameraSystem {
