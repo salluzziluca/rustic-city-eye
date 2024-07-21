@@ -97,46 +97,25 @@ impl Broker {
         let topic_readings = Broker::process_topic_config_file(file_path)?;
 
         for topic in topic_readings {
-            let mut topics_to_add = Vec::new();
-
             let mut topic_parts = topic.split('/').collect::<Vec<&str>>();
-            let topic_dir = topic_parts.remove(0).to_string();
+            let mut topic_name = topic_parts.remove(0).to_string();
+            let mut topic = topics.entry(topic_name.clone()).or_insert(Topic::new());
 
-            let mut topic_father = Topic::new();
-            // verifico si el topic ya existe
-            if topics.contains_key(&topic_dir) {
-                // obtengo el Topic
-                let topic_father: &mut Topic = topics.get_mut(&topic_dir).unwrap();
+            for subtopic in topic_parts {
+                topic.add_subtopic(subtopic.to_string().clone());
+                topic_name = subtopic.to_string();
+                let subtopic = topics.entry(topic_name.clone()).or_insert(Topic::new());
+                topic = subtopic;
             }
-
-            if topic_parts.len() > 0 {
-                for part in topic_parts {
-                    let new_subtopic = Topic::new();
-
-                    if topics.contains_key(part) {
-                        let new_subtopic: &mut Topic = topics.get_mut(part).unwrap();
-                    }
-                    topics_to_add.push((part.to_string(), new_subtopic));
-                }
-            }
-
-            // agrego los subtopics al topic padre
-            for (subtopic_name, subtopic) in topics_to_add {
-                topic_father.add_subtopic(subtopic_name.clone());
-                topics.insert(subtopic_name.clone(), subtopic);
-            }
-
-            // agrego el topic padre al hashmap de topics
-            topics.insert(topic_dir.clone(), topic_father);
         }
 
         // imprimir los topics y sus subtopics
-        for (topic_name, topic) in &topics {
-            println!("Topic: {}", topic_name);
-            for subtopic_name in topic.get_subtopics() {
-                println!("Subtopic: {}", subtopic_name);
-            }
-        }
+        // for (topic_name, topic) in &topics {
+        //     println!("Topic: {}", topic_name);
+        //     for subtopic_name in topic.get_subtopics() {
+        //         println!("Subtopic: {}", subtopic_name);
+        //     }
+        // }
 
         Ok(topics)
     }
