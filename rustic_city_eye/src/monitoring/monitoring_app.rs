@@ -26,26 +26,55 @@ use crate::utils::incident_payload::IncidentPayload;
 use crate::utils::location::Location;
 use crate::utils::payload_types::PayloadTypes;
 
+/// Es capaz de recibir la carga de incidentes por parte del usuario(que lo hace desde la interfaz grafica)
+/// y notificar a la red ante la aparicion de un incidente nuevo y los cambios de estado del mismo.
+///
+/// A traves de la interfaz grafica se visualiza el estado completo del sistema, incluyendo un mapa geografico de la region
+/// con los incidentes activos y la posicion y estado de cada Drone y cada camara de vigilancia.
+///
+/// Se comunica con la red(es decir, recibe y envia mensajes) a traves de un Client de MQTT: a traves de este se sabran los cambios de
+/// estado de cada agente e incidente, ademas de saber los cambios de estado en el sistema central de camaras.
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct MonitoringApp {
-    send_to_client_channel: Arc<Mutex<Sender<Box<dyn MessagesConfig + Send>>>>,
+    /// Es el Client de MQTT con el cual se comunicara en la red. Al crear una instancia de MonitoringApp, se creara
+    /// tambien un Client para comenzar a intercambiar mensajes con la red.
     monitoring_app_client: Client,
+
+    /// A traves de este canal se envian configuraciones de los packets a enviar desde la aplicacion a la red.
+    send_to_client_channel: Arc<Mutex<Sender<Box<dyn MessagesConfig + Send>>>>,
+
+    /// Es la instancia del sistema central de camaras del sistema: el mismo tiene la ubicacion y estado de cada camara, y
+    /// es capaz de agregar, quitar y modificar las mismas.
     camera_system: Arc<Mutex<CameraSystem<Client>>>,
+
+    /// Aqui se guardan los incidentes activos en el sistema, junto a la cantidad de agentes atendiendo al mismo
+    /// (se guarda en el segundo campo de cada tupla).
     incidents: Arc<Mutex<Vec<(Incident, u8)>>>,
+
+    /// Es la instancia del sistema que controla los Drones del sistema.
     drone_system: DroneSystem,
+
+    /// A traves de este canal el Client va a enviar a la aplicacion los mensajes provenientes del Broker de la red.
     receive_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
+
+    /// Aqui se tienen los Drones activos y su localizacion en el mapa.
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
+
+    /// Aqui se tienen a todas las camaras del sistema.
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
+
+    /// Indica si la aplicacion esta conectada o no. La interfaz grafica esta pendiente de los cambios de este flag para
+    /// tomar acciones en la aplicacion(como por ejemplo desconectar la aplicacion y volver al menu principal).
     pub connected: Arc<Mutex<bool>>,
 }
 
 #[allow(dead_code)]
 impl MonitoringApp {
-    /// recibe una address a la que conectarse
-    /// Crea el cliente de la app de monitoreo y lo conecta al broker.
-    /// Una vez creado su Client, se suscribe a sus topics de interes.
-    /// Crea un sistema de cámaras y un sistema de Drones.
+    /// Recibe en el vector de argumentos el username, password, la direccion IP y el port al cual debe conectarse
+    /// la aplicacion.
+    ///
+    /// Se crea el Client de la aplicacion, y tambien se instancia el Sistema Central de Camaras, y el Sistema de Drones.
     pub fn new(args: Vec<String>) -> Result<MonitoringApp, ProtocolError> {
         let address = args[2].to_string() + ":" + &args[3].to_string();
 
@@ -85,7 +114,7 @@ impl MonitoringApp {
     ///
     /// Este Client se va a construir a partir de la configuracion brindada en su archivo de configuracion.
     ///
-    /// Una vez conectado, se envian packets que van a suscribir a la aplicacion a sus topics de interes(ver metodo subscribe_to_topics).
+    /// Una vez conectado, se envian packets que van a suscribir a la aplicacion a sus topics de interes.
     ///
     /// Retorna error en caso de fallar la creacion.
     fn create_client(
@@ -123,8 +152,8 @@ impl MonitoringApp {
 
     /// Contiene las subscripciones a los topics de interes para la MonitoringApp:
     /// necesita la suscripcion al topic de locations de drones("drone_locations"),
-    /// al de actualizaciones de camaras(camera_update), y al topic de
-    /// drones atendiendo incidentes:
+    /// al de actualizaciones de camaras("camera_update"), y al topic de
+    /// incidentes resueltos("incidente_resuelto"):
     ///
     /// La idea es que la aplicacion reciba actualizaciones de estado de parte del camera_system,
     /// y de los Drones que tenga creados, y que pueda plasmar estos cambios en la interfaz grafica.
@@ -196,7 +225,9 @@ impl MonitoringApp {
         Ok(())
     }
 
-    /// Se encarga de correr al Client de la MonitoringApp, y al Client del CameraSystem.
+    /// Se encarga de correr al Client de la MonitoringApp, y al Client del CameraSystem, ademas
+    /// de manejar los cambios en las distintas entidades de la aplicacion para comunicarselos de forma
+    /// periodica a la UI(camaras, drones, incidentes, etc).
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
         self.handle_update_entities()?;
 
@@ -209,6 +240,11 @@ impl MonitoringApp {
         Ok(())
     }
 
+    /// Aqui se manejan los cambios en las entidades del sistema.
+    ///
+    /// Si update_entities nos retorna false, significa que al Client de la aplicacion ha recibido un packet del tipo disconnect
+    /// de parte del Broker, por lo que debe proceder a cerrarse -> el flag de connected que tiene la aplicacion pasa a false,
+    /// la UI al captar este cambio, nos envia al menu principal y la aplicacion de monitoreo se cierra.
     fn handle_update_entities(&self) -> Result<(), ProtocolError> {
         let receive_from_client_ref = Arc::clone(&self.receive_from_client);
         let active_drones_clone = Arc::clone(&self.active_drones);
@@ -244,7 +280,7 @@ impl MonitoringApp {
         Ok(())
     }
 
-    /// Dada una location para agregar una nueva camara, delega al camera_system la tarea de agregar la camara.
+    /// Dada una location para agregar una nueva camara, la agrega al sistema.
     pub fn add_camera(&mut self, location: Location) -> Result<u32, ProtocolError> {
         let mut lock = match self.camera_system.lock() {
             Ok(lock) => lock,
@@ -262,9 +298,10 @@ impl MonitoringApp {
         }
     }
 
-    /// Publica un nuevo incidente en una location determinada. La idea es que envie un packet
-    /// del tipo Publish hacia el topic de incidente, y que tanto el camera_system como los Drones
-    /// reciban la notificacion de este nuevo incidente.
+    /// Publica un nuevo incidente en una location determinada.
+    ///
+    /// La aplicacion envia un packet del tipo Publish hacia el topic de incidentes, y el sistema
+    /// recibe esta notificacion(el sistema central de camaras y cada agente).
     pub fn add_incident(&mut self, location: Location) -> Result<(), ProtocolError> {
         let incident = Incident::new(location);
         let mut incidents = match self.incidents.lock() {
@@ -297,7 +334,7 @@ impl MonitoringApp {
         }
     }
 
-    /// Agrega un Drone: delega al DroneSystem la tarea de agregarlo efectivamente.
+    /// Agrega un Drone al sistema.
     pub fn add_drone(
         &mut self,
         location: Location,
