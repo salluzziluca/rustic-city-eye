@@ -186,7 +186,6 @@ impl Client {
     ) -> Result<(), ClientError> {
         let reason_code: u8;
         let reason_string: String;
-        println!("Entró a handle_disconnect");
         match reason {
             "normal" => {
                 reason_code = 0x00;
