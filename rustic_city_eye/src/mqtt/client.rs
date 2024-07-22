@@ -253,6 +253,10 @@ impl Client {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::StreamError),
         };
+        let stream_clone_three = match stream_lock.try_clone() {
+            Ok(stream) => stream,
+            Err(_) => return Err(ProtocolError::StreamError),
+        };
 
         let threadpool = ThreadPool::new(5);
 
@@ -284,7 +288,10 @@ impl Client {
                     disconnect_sender,
                     client_id_clone,
                 ) {
-                    Ok(_) => Ok(()),
+                    Ok(_) => {
+                        stream_clone_three.shutdown(Shutdown::Both).unwrap();
+                        Ok(())
+                    }
                     Err(e) => Err(e),
                 }
             });
@@ -320,7 +327,7 @@ impl Client {
                 ) {
                     Ok(return_val) => {
                         if return_val == ClientReturn::DisconnectRecieved {
-                            disconnect_sender.send(true).expect("no envie bien el bool");
+                            disconnect_sender.send(true).expect("Error al desconectar");
                             return Ok(());
                         }
                     }
