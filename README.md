@@ -22,6 +22,18 @@
     ```sh
     cargo run --bin broker 5000
     ```
+
+### Cierre manual del Broker
+
+- Al estar ejecutando el Broker, el usuario tiene la posibilidad de ingresar comandos en la misma terminal. 
+- Un comando soportado por el Broker es el "shutdown", que lo que va a hacer es cerrar el Broker manualmente.
+
+    ```sh
+    shutdown
+    ```
+
+- Esto terminara con la ejecucion del Broker, cerrando todas las conexiones que esten corriendo.
+
 ## Como ejecutar la Aplicacion de Monitoreo
 1. Una vez que se tiene un Broker corriendo, abra otra terminal.
 2. En esta nueva terminal, ejecute el siguiente comando:

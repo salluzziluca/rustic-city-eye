@@ -340,7 +340,7 @@ mod tests {
         let incident_keywords_file_path = "./tests/incident_keywords";
         let mut classifier = ImageClassifier::new(url, incident_keywords_file_path)?;
 
-        let _ = classifier.set_incident_keywords(incident_keywords_file_path)?;
+        classifier.set_incident_keywords(incident_keywords_file_path)?;
         let expected_keywords = vec![
             "flood".to_string(),
             "fire".to_string(),
