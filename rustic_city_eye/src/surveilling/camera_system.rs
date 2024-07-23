@@ -21,13 +21,13 @@ use crate::{
         publish::publish_config::PublishConfig,
         subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
-    }, surveilling::{annotation::ImageClassifier, camera::Camera, camera_system}, utils::{incident_payload::IncidentPayload, location::{self, Location}, payload_types::PayloadTypes, threadpool::ThreadPool}
+    }, surveilling::{annotation::ImageClassifier, camera::Camera}, utils::{incident_payload::IncidentPayload, location::{ Location}, payload_types::PayloadTypes, threadpool::ThreadPool}
 };
 
 const AREA_DE_ALCANCE: f64 = 0.0025;
 const NIVEL_DE_PROXIMIDAD_MAXIMO: f64 = AREA_DE_ALCANCE;
 const PATH: &str = "src/surveilling/cameras.";
-const INCIDENTES: [&str; 15] = [
+const INCIDENTES: [&str; 16] = [
     "Flood",
     "Fire",
     "Smoke",
@@ -35,7 +35,7 @@ const INCIDENTES: [&str; 15] = [
     "Accident",
     "Theft",
     "Crash",
-    "Gun",
+    "Gun barrel",
     "Collision",
     "Rebellion",
     "Explosion",
@@ -43,6 +43,7 @@ const INCIDENTES: [&str; 15] = [
     "Atmospheric phenomenon",
     "Flame",
     "Wildfire",
+    "Air gun",
 ];
 const PORCENTAJE_MINIMO_DE_PROBABILIDAD: f64 = 0.6;
 
@@ -323,8 +324,9 @@ impl<T: ClientTrait + Clone + Send+ Sync + 'static> CameraSystem<T> {
                                 .classify_image(str_path)
                                 .map_err(|e| ProtocolError::AnnotationError(e.to_string()))?;
                             println!("La camara de id {:?} ha clasificado la imagen y el resultado es: {:?}", camera_id, classification_result);
-
-                            if INCIDENTES.contains(&classification_result[0].0.as_str()) && classification_result[0].1 > PORCENTAJE_MINIMO_DE_PROBABILIDAD{
+                            if classification_result.is_empty() {
+                                println!("No es un incidente");
+                            }else if INCIDENTES.contains(&classification_result[0].0.as_str()) && classification_result[0].1 > PORCENTAJE_MINIMO_DE_PROBABILIDAD{
                                 let camera = match system_clone.lock().unwrap().get_camera_by_id(camera_id){
                                     Some(camera) => camera,
                                     None => {
