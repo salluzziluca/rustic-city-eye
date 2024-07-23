@@ -300,9 +300,22 @@ impl<T: ClientTrait + Clone + Send+ Sync + 'static> CameraSystem<T> {
                         };
                         if matches!(event.kind, notify::EventKind::Create(_)) {
                             let path = event.paths[0].clone();
-                            let str_path = path.to_str().unwrap();
+                            let str_path = match path.to_str() {
+                                Some(str_path) => str_path,
+                                None => {
+                                    println!("Error al convertir el path a string");
+                                    break;
+                                }
+                            };
                             let path = str_path.split('/').collect::<Vec<&str>>();
-                            let camera_id = path[9].parse::<u32>().unwrap();
+                            let camera_id = match path[9].parse::<u32>(){
+                                Ok(camera_id) => camera_id,
+                                Err(_) => {
+                                    println!("Error al parsear el id de la camara");
+                                    break;
+                                }
+                            };
+                            
                             println!(
                                 "se ha creado el directorio de la camara de id {:?}",
                                 camera_id
@@ -314,7 +327,13 @@ impl<T: ClientTrait + Clone + Send+ Sync + 'static> CameraSystem<T> {
                             let path = event.paths[0].clone();
                             let str_path = path.to_str().unwrap();
                             let path = str_path.split('/').collect::<Vec<&str>>();
-                            let camera_id = path[9].parse::<u32>().unwrap();
+                            let camera_id = match path[9].parse::<u32>(){
+                                Ok(camera_id) => camera_id,
+                                Err(_) => {
+                                    println!("Error al parsear el id de la camara");
+                                    return Err(ProtocolError::InvalidCommand("Invalid camera id".to_string()));
+                                }
+                            };
 
                             println!("La camara de id {:?} esta analizando una imagen", camera_id);
                             let url =
