@@ -21,7 +21,7 @@ use crate::{
         publish::publish_config::PublishConfig,
         subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
-    }, surveilling::{annotation::ImageClassifier, camera::Camera}, utils::{incident_payload::IncidentPayload, location::{ Location}, payload_types::PayloadTypes, threadpool::ThreadPool}
+    }, surveilling::{annotation::ImageClassifier, camera::Camera}, utils::{incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes, threadpool::ThreadPool}
 };
 
 const AREA_DE_ALCANCE: f64 = 0.0025;
@@ -280,7 +280,6 @@ impl<T: ClientTrait + Clone + Send+ Sync + 'static> CameraSystem<T> {
             let (tx, rx) = channel();
             let mut watcher = match recommended_watcher(tx) {
                 Ok(watcher) => {
-                    println!("Watcher creado correctamente");
                     watcher
                 }
                 Err(e) => return Err(ProtocolError::WatcherError(e.to_string())),
@@ -292,7 +291,13 @@ impl<T: ClientTrait + Clone + Send+ Sync + 'static> CameraSystem<T> {
         loop {
                 match rx.recv() {
                     Ok(event) => {
-                        let event = event.unwrap();
+                        let event = match event {
+                            Ok(event) => event,
+                            Err(e) => {
+                                println!("watch error: {:?}", e);
+                                break;
+                            }
+                        };
                         if matches!(event.kind, notify::EventKind::Create(_)) {
                             let path = event.paths[0].clone();
                             let str_path = path.to_str().unwrap();
@@ -317,9 +322,6 @@ impl<T: ClientTrait + Clone + Send+ Sync + 'static> CameraSystem<T> {
                             let incident_keywords_file_path = "./tests/incident_keywords";
                             let classifier = ImageClassifier::new(url, incident_keywords_file_path)
                                 .map_err(|e| ProtocolError::AnnotationError(e.to_string()))?;
-                            println!("el classifier se crea ok");
-                            println!("el path es {:?}", str_path);
-                            println!("es un archivo");
                             let classification_result = classifier
                                 .classify_image(str_path)
                                 .map_err(|e| ProtocolError::AnnotationError(e.to_string()))?;
@@ -380,8 +382,12 @@ impl<T: ClientTrait + Clone + Send+ Sync + 'static> CameraSystem<T> {
             "normal".to_string(),
             self.camera_system_client.get_client_id(),
         );
-        let send_to_client_channel = self.send_to_client_channel.lock().unwrap();
-
+        let send_to_client_channel = match self.send_to_client_channel.lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                return Err(ProtocolError::SendError("Error locking send_to_client_channel".to_string()));
+            }
+        };
         match send_to_client_channel.send(Box::new(disconnect_config)) {
             Ok(_) => {}
             Err(e) => {
