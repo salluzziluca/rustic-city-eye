@@ -36,6 +36,7 @@ pub enum ProtocolError {
 
     InvalidCommand(String),
     AnnotationError(String),
+    ArcMutexError(String),
 }
 
 impl fmt::Display for ProtocolError {
@@ -122,6 +123,9 @@ impl fmt::Display for ProtocolError {
             }
             ProtocolError::AnnotationError(ref err) => {
                 write!(f, "Error al anotar: {}", err)
+            }
+            ProtocolError::ArcMutexError(ref err) => {
+                write!(f, "Error al usar Arc<Mutex>: {}", err)
             }
         }
     }

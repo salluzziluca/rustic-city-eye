@@ -12,7 +12,7 @@ use std::{
 use rand::Rng;
 
 use crate::{
-    mqtt::{
+    monitoring::incident::Incident, mqtt::{
         client::{Client, ClientTrait},
         client_message::{self, ClientMessage},
         disconnect_config::DisconnectConfig,
@@ -21,21 +21,37 @@ use crate::{
         publish::publish_config::PublishConfig,
         subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
-    },
-    surveilling::{annotation::ImageClassifier, camera::Camera},
-    utils::{location::Location, payload_types::PayloadTypes},
+    }, surveilling::{annotation::ImageClassifier, camera::Camera, camera_system}, utils::{incident_payload::IncidentPayload, location::{self, Location}, payload_types::PayloadTypes, threadpool::ThreadPool}
 };
 
 const AREA_DE_ALCANCE: f64 = 0.0025;
 const NIVEL_DE_PROXIMIDAD_MAXIMO: f64 = AREA_DE_ALCANCE;
 const PATH: &str = "src/surveilling/cameras.";
+const INCIDENTES: [&str; 15] = [
+    "Flood",
+    "Fire",
+    "Smoke",
+    "Fight",
+    "Accident",
+    "Theft",
+    "Crash",
+    "Gun",
+    "Collision",
+    "Rebellion",
+    "Explosion",
+    "Gas",
+    "Atmospheric phenomenon",
+    "Flame",
+    "Wildfire",
+];
+const PORCENTAJE_MINIMO_DE_PROBABILIDAD: f64 = 0.6;
 
 use super::camera_error::CameraError;
 #[derive(Debug)]
 
 /// Entidad encargada de gestionar todas las camaras. Tiene como parametro a su instancia de cliente, utiliza un hash `<ID, Camera>` como estructura principal y diferentes channels para comunicarse con su cliente.
 /// Los mensajes recibidos le llegan mediante el channel `reciev_from_client` y envia una config con los mensajes que quiere enviar mediante `send_to_client_channel``
-pub struct CameraSystem<T: ClientTrait + Clone> {
+pub struct CameraSystem<T: ClientTrait + Clone+ Send +Sync> {
     pub send_to_client_channel: Arc<Mutex<Sender<Box<dyn MessagesConfig + Send>>>>,
     camera_system_client: T,
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
@@ -43,7 +59,7 @@ pub struct CameraSystem<T: ClientTrait + Clone> {
     snapshot: Vec<Camera>,
 }
 
-impl<T: ClientTrait + Clone> Clone for CameraSystem<T> {
+impl<T: ClientTrait + Clone+Send +Sync> Clone for CameraSystem<T> {
     fn clone(&self) -> Self {
         CameraSystem {
             send_to_client_channel: Arc::clone(&self.send_to_client_channel),
@@ -55,7 +71,7 @@ impl<T: ClientTrait + Clone> Clone for CameraSystem<T> {
     }
 }
 
-impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
+impl<T: ClientTrait + Clone + Send+ Sync + 'static> CameraSystem<T> {
     /// Crea un nuevo camera system con un cliente de mqtt
     ///
     /// Envia un connect segun la configuracion del archivo connect_config.json
@@ -258,8 +274,8 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                 }
             }
         });
-
         thread::spawn(move || {
+            let pool = ThreadPool::new(10);
             let (tx, rx) = channel();
             let mut watcher = match recommended_watcher(tx) {
                 Ok(watcher) => {
@@ -268,11 +284,11 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                 }
                 Err(e) => return Err(ProtocolError::WatcherError(e.to_string())),
             };
-
+            
             watcher
-                .watch(Path::new(PATH), RecursiveMode::Recursive)
-                .expect("No se pudo ver el directorio");
-            loop {
+            .watch(Path::new(PATH), RecursiveMode::Recursive)
+            .expect("No se pudo ver el directorio");
+        loop {
                 match rx.recv() {
                     Ok(event) => {
                         let event = event.unwrap();
@@ -286,10 +302,14 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                                 camera_id
                             );
                         } else if matches!(event.kind, notify::EventKind::Modify(_)) {
+                            let system_clone = Arc::clone(&system);
+                            pool.execute(move || -> Result<(), ProtocolError> {
+                                let system_clone2 = Arc::clone(&system_clone);
                             let path = event.paths[0].clone();
                             let str_path = path.to_str().unwrap();
                             let path = str_path.split('/').collect::<Vec<&str>>();
                             let camera_id = path[9].parse::<u32>().unwrap();
+
                             println!("La camara de id {:?} esta analizando una imagen", camera_id);
                             let url =
                                 "https://vision.googleapis.com/v1/images:annotate".to_string();
@@ -303,6 +323,41 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                                 .classify_image(str_path)
                                 .map_err(|e| ProtocolError::AnnotationError(e.to_string()))?;
                             println!("La camara de id {:?} ha clasificado la imagen y el resultado es: {:?}", camera_id, classification_result);
+
+                            if INCIDENTES.contains(&classification_result[0].0.as_str()) && classification_result[0].1 > PORCENTAJE_MINIMO_DE_PROBABILIDAD{
+                                let camera = match system_clone.lock().unwrap().get_camera_by_id(camera_id){
+                                    Some(camera) => camera,
+                                    None => {
+                                        return Err(ProtocolError::InvalidCommand("Camera not found".to_string()));
+                                    }
+                                };
+                                let location = camera.get_location();
+                                let incident = Incident::new(location);
+                                let incident_payload = IncidentPayload::new(incident);
+                                let publish_config = PublishConfig::read_config(
+                                    "./src/surveilling/publish_incident_config.json",
+                                    PayloadTypes::IncidentLocation(incident_payload),
+                                )
+                                .map_err(|e| ProtocolError::SendError(e.to_string()))?;
+                            println!("ENTRE");
+                            let mut lock = match system_clone2.lock() {
+                                Ok(guard) => guard,
+                                Err(_) => {
+                                    return Err(ProtocolError::ArcMutexError(
+                                        "Error locking cameras mutex".to_string(),
+                                    ));
+                                }
+                            };
+                                match lock.send_message(Box::new(publish_config)) {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        return Err(ProtocolError::SendError(e.to_string()));
+                                    }
+                                }
+                            
+                            }
+                            Ok(())
+                        });
                         }
                     }
                     Err(e) => {
