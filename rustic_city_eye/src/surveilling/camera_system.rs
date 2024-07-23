@@ -6,7 +6,7 @@ use std::{
         mpsc::{self, channel, Receiver, Sender},
         Arc, Mutex,
     },
-    thread,
+    thread, time::{Duration, Instant},
 };
 
 use rand::Rng;
@@ -288,6 +288,8 @@ impl<T: ClientTrait + Clone + Send+ Sync + 'static> CameraSystem<T> {
             watcher
             .watch(Path::new(PATH), RecursiveMode::Recursive)
             .expect("No se pudo ver el directorio");
+        let mut last_event_times: HashMap<String, Instant> = HashMap::new();
+
         loop {
                 match rx.recv() {
                     Ok(event) => {
@@ -298,15 +300,25 @@ impl<T: ClientTrait + Clone + Send+ Sync + 'static> CameraSystem<T> {
                                 break;
                             }
                         };
+                        let path = event.paths[0].clone();
+                        let str_path = match path.to_str() {
+                            Some(str_path) => str_path,
+                            None => {
+                                println!("Error al convertir el path a string");
+                                break;
+                            }
+                        };
+                                    // Check if we should process this event
+            let now = Instant::now();
+            let should_process = match last_event_times.get(str_path) {
+                Some(&last_time) => now.duration_since(last_time) > Duration::from_secs(1), // 1 second debounce time
+                None => true,
+            };
+
+            if should_process {
+                last_event_times.insert(str_path.to_string().clone(), now);
                         if matches!(event.kind, notify::EventKind::Create(_)) {
-                            let path = event.paths[0].clone();
-                            let str_path = match path.to_str() {
-                                Some(str_path) => str_path,
-                                None => {
-                                    println!("Error al convertir el path a string");
-                                    break;
-                                }
-                            };
+                           
                             let path = str_path.split('/').collect::<Vec<&str>>();
                             let camera_id = match path[9].parse::<u32>(){
                                 Ok(camera_id) => camera_id,
@@ -321,6 +333,7 @@ impl<T: ClientTrait + Clone + Send+ Sync + 'static> CameraSystem<T> {
                                 camera_id
                             );
                         } else if matches!(event.kind, notify::EventKind::Modify(_)) {
+                            println!("event kind: {:?}", event.kind);
                             let system_clone = Arc::clone(&system);
                             pool.execute(move || -> Result<(), ProtocolError> {
                                 let system_clone2 = Arc::clone(&system_clone);
@@ -388,12 +401,14 @@ impl<T: ClientTrait + Clone + Send+ Sync + 'static> CameraSystem<T> {
                             Ok(())
                         });
                         }
+                        }
                     }
                     Err(e) => {
                         println!("watch error: {:?}", e);
                         break;
                     }
                 }
+                
             }
             Ok(())
         });
