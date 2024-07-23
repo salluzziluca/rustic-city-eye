@@ -325,7 +325,13 @@ impl<T: ClientTrait + Clone + Send+ Sync + 'static> CameraSystem<T> {
                             pool.execute(move || -> Result<(), ProtocolError> {
                                 let system_clone2 = Arc::clone(&system_clone);
                             let path = event.paths[0].clone();
-                            let str_path = path.to_str().unwrap();
+                            let str_path = match path.to_str(){
+                                Some(str_path) => str_path,
+                                None => {
+                                    println!("Error al convertir el path a string");
+                                    return Err(ProtocolError::InvalidCommand("Invalid path".to_string()));
+                                }
+                            };
                             let path = str_path.split('/').collect::<Vec<&str>>();
                             let camera_id = match path[9].parse::<u32>(){
                                 Ok(camera_id) => camera_id,
