@@ -80,7 +80,7 @@ pub fn add_incident_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monito
                 if ui.button(RichText::new("🚨").heading()).clicked() {
                     if let Some(position) = map.click_watcher.clicked_at {
                         let location = Location::new(position.lat(), position.lon());
-                        monitoring_app.add_incident(location);
+                        let _ = monitoring_app.add_incident(location);
 
                         map.incidents.push(IncidentView {
                             image: map.incident_icon.clone(),
