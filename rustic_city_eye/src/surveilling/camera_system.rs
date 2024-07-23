@@ -22,7 +22,7 @@ use crate::{
         subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
     },
-    surveilling::camera::Camera,
+    surveilling::{annotation::ImageClassifier, camera::Camera},
     utils::{location::Location, payload_types::PayloadTypes},
 };
 
@@ -278,11 +278,31 @@ impl<T: ClientTrait + Clone + Send + 'static> CameraSystem<T> {
                         let event = event.unwrap();
                         if matches!(event.kind, notify::EventKind::Create(_)) {
                             let path = event.paths[0].clone();
-                            let path = path.to_str().unwrap();
-                            let path = path.split('/').collect::<Vec<&str>>();
+                            let str_path = path.to_str().unwrap();
+                            let path = str_path.split('/').collect::<Vec<&str>>();
                             let camera_id = path[9].parse::<u32>().unwrap();
-
+                            println!(
+                                "se ha creado el directorio de la camara de id {:?}",
+                                camera_id
+                            );
+                        } else if matches!(event.kind, notify::EventKind::Modify(_)) {
+                            let path = event.paths[0].clone();
+                            let str_path = path.to_str().unwrap();
+                            let path = str_path.split('/').collect::<Vec<&str>>();
+                            let camera_id = path[9].parse::<u32>().unwrap();
                             println!("La camara de id {:?} esta analizando una imagen", camera_id);
+                            let url =
+                                "https://vision.googleapis.com/v1/images:annotate".to_string();
+                            let incident_keywords_file_path = "./tests/incident_keywords";
+                            let classifier = ImageClassifier::new(url, incident_keywords_file_path)
+                                .map_err(|e| ProtocolError::AnnotationError(e.to_string()))?;
+                            println!("el classifier se crea ok");
+                            println!("el path es {:?}", str_path);
+                            println!("es un archivo");
+                            let classification_result = classifier
+                                .classify_image(str_path)
+                                .map_err(|e| ProtocolError::AnnotationError(e.to_string()))?;
+                            println!("La camara de id {:?} ha clasificado la imagen y el resultado es: {:?}", camera_id, classification_result);
                         }
                     }
                     Err(e) => {

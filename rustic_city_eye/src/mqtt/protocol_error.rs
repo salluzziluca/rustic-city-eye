@@ -35,6 +35,7 @@ pub enum ProtocolError {
     WatcherError(String),
 
     InvalidCommand(String),
+    AnnotationError(String),
 }
 
 impl fmt::Display for ProtocolError {
@@ -118,6 +119,9 @@ impl fmt::Display for ProtocolError {
             }
             ProtocolError::WatcherError(ref err) => {
                 write!(f, "Error al crear watcher: {}", err)
+            }
+            ProtocolError::AnnotationError(ref err) => {
+                write!(f, "Error al anotar: {}", err)
             }
         }
     }
