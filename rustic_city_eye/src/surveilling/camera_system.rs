@@ -332,7 +332,7 @@ impl<T: ClientTrait + Clone + Send+ Sync + 'static> CameraSystem<T> {
                                 "se ha creado el directorio de la camara de id {:?}",
                                 camera_id
                             );
-                        } else if matches!(event.kind, notify::EventKind::Modify(_)) {
+                        } else if (matches!(event.kind, notify::EventKind::Modify(_)) && (str_path.ends_with(".jpg") || str_path.ends_with(".jpeg"))|| str_path.ends_with(".png")) {
                             println!("event kind: {:?}", event.kind);
                             let system_clone = Arc::clone(&system);
                             pool.execute(move || -> Result<(), ProtocolError> {
