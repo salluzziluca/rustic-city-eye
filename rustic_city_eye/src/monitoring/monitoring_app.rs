@@ -206,6 +206,25 @@ impl MonitoringApp {
         let topic_name = "incidente_resuelto".to_string();
         let subscribe_config = SubscribeConfig::new(
             topic_name.clone(),
+            subscribe_properties.clone(),
+            connect_config.client_id.clone(),
+        );
+        match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
+            Ok(_) => {
+                println!(
+                    "Monitoring App subscrita al topic {} correctamente",
+                    topic_name
+                );
+            }
+            Err(e) => {
+                println!("Monitoring: Error sending message: {:?}", e);
+                return Err(ProtocolError::SubscribeError);
+            }
+        };
+
+        let topic_name = "incidente".to_string();
+        let subscribe_config = SubscribeConfig::new(
+            topic_name.clone(),
             subscribe_properties,
             connect_config.client_id,
         );
@@ -495,6 +514,22 @@ pub fn update_entities(
                             }
 
                             incidents.retain(|(inc, _)| !to_remove.contains(inc));
+                        }
+                    }
+                    "incidente" => {
+                        if let PayloadTypes::IncidentLocation(incident_payload) = payload {
+                            let incident = incident_payload.get_incident();
+                            let mut incidents = match incidents.lock() {
+                                Ok(incidents) => incidents,
+                                Err(_) => return true,
+                            };
+
+                            if !incidents
+                                .iter()
+                                .any(|(existing_incident, _)| *existing_incident == incident)
+                            {
+                                incidents.push((incident, 0));
+                            }
                         }
                     }
                     _ => {}
