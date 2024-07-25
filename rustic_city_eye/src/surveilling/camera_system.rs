@@ -328,6 +328,8 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         Ok(())
     }
 
+    /// Busca dentro de un path relativo hacia el directorio donde se guardan las imagenes de una camara determinada
+    /// el direntry del mismo.
     fn get_relative_path_to_camera(path: &str) -> Option<&str> {
         let parts: Vec<&str> = path.split('/').collect();
 
