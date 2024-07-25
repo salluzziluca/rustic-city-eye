@@ -11,7 +11,6 @@ use egui::{CentralPanel, RichText, TextStyle, TopBottomPanel};
 use incident_view::IncidentView;
 use plugins::*;
 use rustic_city_eye::{
-    drones::drone::DRONE_SPEED,
     monitoring::{incident::Incident, monitoring_app::MonitoringApp},
     surveilling::camera::Camera,
     utils::location::Location,
@@ -52,7 +51,9 @@ impl MyMap {
     ) {
         match updated_locations.try_lock() {
             Ok(mut new_drone_locations) => {
-                println!("new_drone_locations: {:?}", new_drone_locations);
+                if !new_drone_locations.is_empty(){
+                    println!("new_drone_locations: {:?}", new_drone_locations);
+                } 
                 loop {
                     if let Some((id, location, target_location)) = new_drone_locations.pop_front() {
                         if let Some(drone) = self.drones.get_mut(&id) {
@@ -344,6 +345,7 @@ impl App for MyApp {
         } else {
             self.handle_map(ctx, _frame);
         }
+        ctx.request_repaint();
     }
 }
 /// Funcion que se encarga de inicializar la aplicacion con sus texturas

@@ -30,12 +30,12 @@ impl DroneView {
         let dist_lat = self.position.lat() - self.target_position.lat();
         let dist_lon = self.position.lon() - self.target_position.lon();
         let dist = (dist_lat * dist_lat + dist_lon * dist_lon).sqrt();
-        // if dist > DRONE_SPEED {
-
-        let lat = self.position.lat() - dist_lat * DRONE_SPEED;
-        let lon = self.position.lon() - dist_lon * DRONE_SPEED;
-        self.position = Position::from_lat_lon(lat, lon);
-        // println!("DroneView::move_towards: {:?}", self.position);
-        // }
+        if dist > DRONE_SPEED * 0.05{
+            let lat = self.position.lat() - dist_lat/dist * DRONE_SPEED*0.05;
+            let lon = self.position.lon() - dist_lon/dist * DRONE_SPEED*0.05;
+            self.position = Position::from_lat_lon(lat, lon);
+        } else {
+            self.position = self.target_position;
+        }
     }
 }
