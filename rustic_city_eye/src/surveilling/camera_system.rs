@@ -646,6 +646,9 @@ fn process_dir_change(
     None
 }
 
+/// Utiliza el ImageClassifier para clasificar la imagen en el path
+/// Si este devuelve true, la imagen corresponde a un incidente y se envia el respectivo mensaje al broker
+/// Con la location de este incidente siendo la de la cámara.
 fn analize_image(
     event: notify::Event,
     system: &Arc<Mutex<CameraSystem<Client>>>,
@@ -685,15 +688,18 @@ fn analize_image(
         println!("La camara de id {:?} esta analizando una imagen", camera_id);
         let url = "https://vision.googleapis.com/v1/images:annotate".to_string();
         let incident_keywords_file_path = "./src/surveilling/incident_keywords";
+
         let classifier = ImageClassifier::new(url, incident_keywords_file_path)
             .map_err(|e| ProtocolError::AnnotationError(e.to_string()))?;
         let classification_result = classifier
             .annotate_image(str_path)
             .map_err(|e| ProtocolError::AnnotationError(e.to_string()))?;
+
         println!(
             "La camara de id {:?} ha clasificado la imagen y el resultado es: {:?}",
             camera_id, classification_result
         );
+
         if !classification_result {
             println!("No es un incidente");
         } else {
