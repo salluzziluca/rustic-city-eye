@@ -306,10 +306,17 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
                         if should_process {
                             last_event_times.insert(str_path.to_string().clone(), now);
                             if matches!(event.kind, notify::EventKind::Create(_)) {
-                                let camera_id = match CameraSystem::<Client>::get_relative_path_to_camera(str_path) {
-                                    Some(id) => id,
-                                    None => return Err(ProtocolError::CameraError("Error al parsear el id de la camara".to_string())),
-                                };
+                                let camera_id =
+                                    match CameraSystem::<Client>::get_relative_path_to_camera(
+                                        str_path,
+                                    ) {
+                                        Some(id) => id,
+                                        None => {
+                                            return Err(ProtocolError::CameraError(
+                                                "Error al parsear el id de la camara".to_string(),
+                                            ))
+                                        }
+                                    };
 
                                 println!(
                                     "se ha creado el directorio de la camara de id {:?}",
@@ -385,7 +392,6 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
                                         return Err(ProtocolError::SendError(e.to_string()));
                                     }
                                 }
-                            
                             }
                             Ok(())
                         });
@@ -403,6 +409,8 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         Ok(())
     }
 
+    /// Busca dentro de un path relativo hacia el directorio donde se guardan las imagenes de una camara determinada
+    /// el direntry del mismo.
     fn get_relative_path_to_camera(path: &str) -> Option<&str> {
         let parts: Vec<&str> = path.split('/').collect();
 
