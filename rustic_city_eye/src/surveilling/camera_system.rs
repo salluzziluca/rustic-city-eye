@@ -610,6 +610,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         Ok(())
     }
 }
+
 /// Procesa cualquier evento de cambio en en el directorio observado
 /// Si es un evento del tipo Create (creacion de directorio), notifica mediante logging al usuario
 ///
