@@ -25,7 +25,7 @@ use crate::{
 use chrono::{DateTime, Utc};
 use std::f64::consts::PI;
 const LOW_BATERRY_LEVEL: i64 = 20;
-const DRONE_SPEED: f64 = 0.001;
+pub const DRONE_SPEED: f64 = 0.001;
 const TOLERANCE_FACTOR: f64 = 0.6;
 const MILISECONDS_PER_SECOND: f64 = 1000.0;
 const TWO_PI: f64 = 2.0 * PI;
@@ -673,8 +673,6 @@ impl Drone {
         self.location.lat = new_lat;
         self.location.long = new_long;
 
-        self.update_location();
-
         Ok(())
     }
 
@@ -709,7 +707,7 @@ impl Drone {
         self.location.lat = new_lat;
         self.location.long = new_long;
 
-        self.update_location();
+        // self.update_location();
         Ok(())
     }
 
@@ -753,7 +751,7 @@ impl Drone {
     fn update_location(&mut self) {
         let publish_config = match PublishConfig::read_config(
             "src/drones/publish_config.json",
-            PayloadTypes::DroneLocation(self.id, self.location),
+            PayloadTypes::DroneLocation(self.id, self.location, self.target_location),
         ) {
             Ok(config) => config,
             Err(e) => {
@@ -817,6 +815,7 @@ impl Drone {
         let new_target_lat = self.center_location.lat + operation_radius * angle.cos();
         let new_target_long = self.center_location.long + operation_radius * angle.sin();
         self.target_location = Location::new(new_target_lat, new_target_long);
+        self.update_location();
         Ok(())
     }
 }

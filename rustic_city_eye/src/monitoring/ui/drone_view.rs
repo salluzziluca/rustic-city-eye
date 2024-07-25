@@ -1,3 +1,4 @@
+use rustic_city_eye::drones::drone::DRONE_SPEED;
 use walkers::Position;
 
 use crate::ImagesPluginData;
@@ -5,6 +6,7 @@ use crate::ImagesPluginData;
 pub struct DroneView {
     pub image: ImagesPluginData,
     pub position: Position,
+    pub target_position: Position,
     pub clicked: bool,
     // pub id: u32,
 }
@@ -21,5 +23,19 @@ impl DroneView {
         let dist_lat = self.position.lat() - position.lat();
         let dist_lon = self.position.lon() - position.lon();
         (dist_lat * dist_lat + dist_lon * dist_lon).sqrt() as f32
+    }
+
+    pub fn move_towards(&mut self) {
+        // println!("Target: {:?}", self.target_position);
+        let dist_lat = self.position.lat() - self.target_position.lat();
+        let dist_lon = self.position.lon() - self.target_position.lon();
+        let dist = (dist_lat * dist_lat + dist_lon * dist_lon).sqrt();
+        // if dist > DRONE_SPEED {
+
+        let lat = self.position.lat() - dist_lat * DRONE_SPEED;
+        let lon = self.position.lon() - dist_lon * DRONE_SPEED;
+        self.position = Position::from_lat_lon(lat, lon);
+        // println!("DroneView::move_towards: {:?}", self.position);
+        // }
     }
 }

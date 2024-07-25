@@ -147,6 +147,7 @@ pub fn add_drone_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitorin
                             DroneView {
                                 image: map.drone_icon.clone(),
                                 position,
+                                target_position: position,
                                 clicked: false,
                                 // id,
                             },

@@ -11,11 +11,15 @@ use egui::{CentralPanel, RichText, TextStyle, TopBottomPanel};
 use incident_view::IncidentView;
 use plugins::*;
 use rustic_city_eye::{
+    drones::drone::DRONE_SPEED,
     monitoring::{incident::Incident, monitoring_app::MonitoringApp},
     surveilling::camera::Camera,
     utils::location::Location,
 };
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::{Arc, Mutex},
+};
 use walkers::{sources::OpenStreetMap, HttpTiles, Map, MapMemory, Position, Texture, Tiles};
 
 use windows::*;
@@ -42,13 +46,47 @@ struct MyMap {
 }
 impl MyMap {
     /// Actualiza la posicion de los drones en el mapa
-    fn update_drones(&mut self, new_drone_locations: HashMap<u32, Location>) {
-        for (id, location) in new_drone_locations {
-            if let Some(drone) = self.drones.get_mut(&id) {
-                drone.position = Position::from_lon_lat(location.long, location.lat);
+    fn update_drones(
+        &mut self,
+        updated_locations: Arc<Mutex<VecDeque<(u32, Location, Location)>>>,
+    ) {
+        match updated_locations.try_lock() {
+            Ok(mut new_drone_locations) => {
+                println!("new_drone_locations: {:?}", new_drone_locations);
+                loop {
+                    if let Some((id, location, target_location)) = new_drone_locations.pop_front() {
+                        if let Some(drone) = self.drones.get_mut(&id) {
+                            drone.position = Position::from_lon_lat(location.long, location.lat);
+                            drone.target_position =
+                                Position::from_lon_lat(target_location.long, target_location.lat);
+                            // } else {
+                            //     let drone_view = drone_view::DroneView {
+                            //         image: self.drone_icon.clone(),
+                            //         position: Position::from_lon_lat(location.long, location.lat),
+                            //         target_position: Position::from_lon_lat(target_location.long, target_location.lat),
+                            //         clicked: false,
+                            //     };
+                            //     self.drones.insert(id, drone_view);
+                            // }
+                        }
+                    } else {
+                        break;
+                    }
+                }
             }
+            Err(_) => {}
+        };
+        // for (id, location) in new_drone_locations {
+        //     if let Some(drone) = self.drones.get_mut(&id) {
+        //         drone.position = Position::from_lon_lat(location.0.long, location.0.lat);
+        //         drone.target_position = Position::from_lon_lat(location.1.long, location.1.lat);
+        //     }
+        // }
+        for drone in self.drones.values_mut() {
+            drone.move_towards();
         }
     }
+
     /// Actualiza la posicion de las camaras en el mapa
     /// Si la camara esta en modo sleep, se muestra con un radio azul
     /// Si la camara esta activa, se muestra con un radio rojo
@@ -280,7 +318,7 @@ impl MyApp {
             zoom(ui, &mut self.map.map_memory, &mut self.map.zoom_level);
 
             if let Some(monitoring_app) = &mut self.monitoring_app {
-                let new_locations = monitoring_app.get_active_drones();
+                let new_locations = monitoring_app.get_updated_drones();
                 self.map.update_drones(new_locations);
                 let new_cameras = monitoring_app.get_cameras();
                 self.map.update_cameras(new_cameras);
