@@ -103,17 +103,17 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         let camera_system_client = client_factory(rx, address, connect_config, tx2)?;
         let client_id = camera_system_client.get_client_id();
         let subscribe_config = SubscribeConfig::new(
-            "incidente".to_string(),
+            "camera_system/*".to_string(),
             SubscribeProperties::new(1, vec![]),
             client_id.clone(),
         );
 
-        let _ = tx.send(Box::new(subscribe_config));
-        let subscribe_config = SubscribeConfig::new(
-            "incidente_resuelto".to_string(),
-            SubscribeProperties::new(1, vec![]),
-            client_id,
-        );
+        // let _ = tx.send(Box::new(subscribe_config));
+        // let subscribe_config = SubscribeConfig::new(
+        //     "incidente_resuelto".to_string(),
+        //     SubscribeProperties::new(1, vec![]),
+        //     client_id,
+        // );
 
         let _ = tx.send(Box::new(subscribe_config));
         Ok(CameraSystem {
@@ -422,6 +422,19 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         Ok(())
     }
 
+    /// Busca dentro de un path relativo hacia el directorio donde se guardan las imagenes de una camara determinada
+    /// el direntry del mismo.
+    fn get_relative_path_to_camera(path: &str) -> Option<&str> {
+        let parts: Vec<&str> = path.split('/').collect();
+
+        if let Some(pos) = parts.iter().position(|&x| x == "cameras.") {
+            if pos + 1 < parts.len() {
+                return Some(parts[pos + 1]);
+            }
+        }
+        None
+    }
+
     pub fn disconnect(&self) -> Result<(), ProtocolError> {
         let disconnect_config = DisconnectConfig::new(
             0x00_u8,
@@ -692,6 +705,134 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
 
         Ok(())
     }
+}
+
+/// Procesa cualquier evento de cambio en en el directorio observado
+/// Si es un evento del tipo Create (creacion de directorio), notifica mediante logging al usuario
+///
+/// Si el evento es de tipo modify (por ejemplo, un archivo ya existente es movido al dir en cuestion), y es una imagen, la camara correspondiente a la imagen analiza la imagen. Si es un incidente, se envia un mensaje al broker
+fn process_dir_change(
+    last_event_times: &mut HashMap<String, Instant>,
+    str_path: &str,
+    now: Instant,
+    event: notify::Event,
+    system: &Arc<Mutex<CameraSystem<Client>>>,
+    pool: &ThreadPool,
+) -> Option<Result<(), ProtocolError>> {
+    last_event_times.insert(str_path.to_string().clone(), now);
+    if matches!(event.kind, notify::EventKind::Create(_)) {
+        let camera_id = match CameraSystem::<Client>::get_relative_path_to_camera(str_path) {
+            Some(id) => id,
+            None => {
+                return Some(Err(ProtocolError::CameraError(
+                    "Error al parsear el id de la camara".to_string(),
+                )))
+            }
+        };
+
+        println!(
+            "se ha creado el directorio de la camara de id {:?}",
+            camera_id
+        );
+    } else if (matches!(event.kind, notify::EventKind::Modify(_))
+        && (str_path.ends_with(".jpg") || str_path.ends_with(".jpeg"))
+        || str_path.ends_with(".png"))
+    {
+        analize_image(event, system, pool);
+    }
+    None
+}
+
+/// Utiliza el ImageClassifier para clasificar la imagen en el path
+/// Si este devuelve true, la imagen corresponde a un incidente y se envia el respectivo mensaje al broker
+/// Con la location de este incidente siendo la de la cámara.
+fn analize_image(
+    event: notify::Event,
+    system: &Arc<Mutex<CameraSystem<Client>>>,
+    pool: &ThreadPool,
+) {
+    println!("event kind: {:?}", event.kind);
+    let system_clone = Arc::clone(system);
+    pool.execute(move || -> Result<(), ProtocolError> {
+        let system_clone2 = Arc::clone(&system_clone);
+        let path = event.paths[0].clone();
+        let str_path = match path.to_str() {
+            Some(str_path) => str_path,
+            None => {
+                println!("Error al convertir el path a string");
+                return Err(ProtocolError::InvalidCommand("Invalid path".to_string()));
+            }
+        };
+        let camera_id = match CameraSystem::<Client>::get_relative_path_to_camera(str_path) {
+            Some(id) => id,
+            None => {
+                return Err(ProtocolError::CameraError(
+                    "Error al parsear el id de la camara".to_string(),
+                ))
+            }
+        };
+
+        let camera_id = match camera_id.parse::<u32>() {
+            Ok(camera_id) => camera_id,
+            Err(_) => {
+                println!("Error al parsear el id de la camara");
+                return Err(ProtocolError::InvalidCommand(
+                    "Invalid camera id".to_string(),
+                ));
+            }
+        };
+
+        println!("La camara de id {:?} esta analizando una imagen", camera_id);
+        let url = "https://vision.googleapis.com/v1/images:annotate".to_string();
+        let incident_keywords_file_path = "./src/surveilling/incident_keywords";
+
+        let classifier = ImageClassifier::new(url, incident_keywords_file_path)
+            .map_err(|e| ProtocolError::AnnotationError(e.to_string()))?;
+        let classification_result = classifier
+            .annotate_image(str_path)
+            .map_err(|e| ProtocolError::AnnotationError(e.to_string()))?;
+
+        println!(
+            "La camara de id {:?} ha clasificado la imagen y el resultado es: {:?}",
+            camera_id, classification_result
+        );
+
+        if !classification_result {
+            println!("No es un incidente");
+        } else {
+            let camera = match system_clone.lock().unwrap().get_camera_by_id(camera_id) {
+                Some(camera) => camera,
+                None => {
+                    return Err(ProtocolError::InvalidCommand(
+                        "Camera not found".to_string(),
+                    ));
+                }
+            };
+            let location = camera.get_location();
+            let incident = Incident::new(location);
+            let incident_payload = IncidentPayload::new(incident);
+            let publish_config = PublishConfig::read_config(
+                "./src/surveilling/publish_incident_config.json",
+                PayloadTypes::IncidentLocation(incident_payload),
+            )
+            .map_err(|e| ProtocolError::SendError(e.to_string()))?;
+            let mut lock = match system_clone2.lock() {
+                Ok(guard) => guard,
+                Err(_) => {
+                    return Err(ProtocolError::ArcMutexError(
+                        "Error locking cameras mutex".to_string(),
+                    ));
+                }
+            };
+            match lock.send_message(Box::new(publish_config)) {
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(ProtocolError::SendError(e.to_string()));
+                }
+            }
+        }
+        Ok(())
+    });
 }
 
 impl CameraSystem<Client> {
