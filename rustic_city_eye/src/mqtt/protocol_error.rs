@@ -38,7 +38,6 @@ pub enum ProtocolError {
 
     AnnotationError(String),
     ArcMutexError(String),
-
 }
 
 impl fmt::Display for ProtocolError {
