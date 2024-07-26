@@ -413,7 +413,7 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
             drone_icon,
             drone_centers: vec![],
             drone_center_icon,
-            zoom_level: 1.0,
+            zoom_level: 0.5,
         },
         monitoring_app: None,
         correct_username: true,
