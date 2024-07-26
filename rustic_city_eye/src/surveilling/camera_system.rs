@@ -649,7 +649,8 @@ fn process_dir_change(
     None
 }
 
-/// Utiliza el ImageClassifier para clasificar la imagen en el path
+/// Al detectar que al directorio de una camara se le agrego una imagen, se busca esa camara dentro del sistema
+/// central de camaras, y ella se encarga de clasificar la imagen.
 /// Si este devuelve true, la imagen corresponde a un incidente y se envia el respectivo mensaje al broker
 /// Con la location de este incidente siendo la de la cámara.
 fn analize_image(
@@ -712,6 +713,7 @@ fn analize_image(
     });
 }
 
+/// Publica el incidente que la camara detecto.
 fn publish_incident(
     camera_system_ref: &Arc<Mutex<CameraSystem<Client>>>,
     camera: Camera,
@@ -735,7 +737,7 @@ fn publish_incident(
     match lock.send_message(Box::new(publish_config)) {
         Ok(_) => Ok(()),
         Err(e) => {
-            return Err(ProtocolError::SendError(e.to_string()));
+            Err(ProtocolError::SendError(e.to_string()))
         }
     }
 }

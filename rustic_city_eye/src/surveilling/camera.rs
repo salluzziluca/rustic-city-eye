@@ -21,10 +21,20 @@ use crate::utils::writer::{write_bool, write_string, write_u32};
 const PATH: &str = "src/surveilling/cameras";
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct Camera {
+    /// Esta sera la localizacion que tendra la camara dentro del sistema.
     location: Location,
+
+    /// Cada camara se identifica con un ID unico, el cual sera brindado por el sistema
+    /// central de camaras.
     id: u32,
+
+    /// Las cámaras inician su funcionamiento en modo ahorro de energia y pasan
+    /// a estado de alerta cuando se recibe una notificación de un incidente en
+    /// su area de alcance o en la de una cámara lindante.
     sleep_mode: bool,
 
+    /// A traves de este clasificador se haran las peticiones al proveedor de la tecnologia de
+    /// reconocimiento de imagenes para asi poder detectar incidentes en imagenes provistas por el usuario.
     image_classifier: ImageClassifier,
 }
 
@@ -52,6 +62,7 @@ impl Camera {
         Ok(camera)
     }
 
+    /// Utiliza su clasificador de imagenes para clasificar una imagen con un posible incidente.
     pub fn annotate_image(&self, image_path: &str) -> Result<bool, ProtocolError> {
         let classification_result = self
             .image_classifier
@@ -64,15 +75,19 @@ impl Camera {
     pub fn get_location(&self) -> Location {
         self.location
     }
+
     pub fn get_id(&self) -> u32 {
         self.id
     }
+
     pub fn get_sleep_mode(&self) -> bool {
         self.sleep_mode
     }
+
     pub fn set_sleep_mode(&mut self, sleep_mode: bool) {
         self.sleep_mode = sleep_mode;
     }
+
     pub fn write_to(&mut self, stream: &mut dyn Write) -> Result<(), CameraError> {
         write_u32(stream, &self.id).map_err(|_| CameraError::WriteError)?;
         write_string(stream, &self.location.get_latitude().to_string())
@@ -122,6 +137,7 @@ impl Camera {
             image_classifier,
         })
     }
+
     pub fn delete_directory(&self) -> Result<(), CameraError> {
         let dir_name = format!("./{}", self.id);
         let path = PATH.to_string() + &dir_name;
