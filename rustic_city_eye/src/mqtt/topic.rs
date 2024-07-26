@@ -45,7 +45,7 @@ impl Topic {
                     existe = true;
                 }
             }
-            Err(_) => return reason_code::UNSPECIFIED_ERROR_HEX,
+            Err(_) => return reason_code::SUB_ID_DUP_HEX,
         }
 
         let mut lock = match self.users.write() {

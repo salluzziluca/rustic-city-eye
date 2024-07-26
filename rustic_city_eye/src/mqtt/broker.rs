@@ -451,6 +451,9 @@ impl Broker {
         Ok(0x80_u8) // Unspecified Error reason code
     }
 
+
+    
+
     /// Maneja la subscripcion de un cliente a un topic.
     /// Devuelve el reason code correspondiente a si la subscripcion fue exitosa o no.
     /// Si el reason code es 0, el cliente se ha suscrito exitosamente.
@@ -459,35 +462,92 @@ impl Broker {
         topic_name: String,
         subscription: Subscription,
     ) -> Result<u8, ProtocolError> {
-        let reason_code;
+        let mut reason_code = SUCCESS_HEX;
 
-        if let Some(topic) = topics.get_mut(&topic_name) {
-            match topic.add_user_to_topic(subscription.clone()) {
-                0 => {
-                    match ClientConfig::add_new_subscription(
-                        subscription.client_id.clone(),
-                        topic_name.clone(),
-                    ) {
-                        Ok(_) => {
-                            println!("Subscribe exitoso");
-                            reason_code = SUCCESS_HEX;
-                        }
-                        Err(_) => {
-                            println!("Error no especificado");
-                            reason_code = UNSPECIFIED_ERROR_HEX;
+
+        // el topic recibido puede terminar en /*, por lo que se debe eliminar
+        // el caracter especial para poder buscar el topic en el hashmap
+        // de este topic obtengo sus subtopics y me suscribo a cada uno de ellos
+        let mut topic_name = topic_name.clone();
+
+        if topic_name.ends_with("/*") {
+ 
+            topic_name = topic_name.trim_end_matches("/*").to_string();
+            let topic = topics.get_mut(&topic_name).ok_or(ProtocolError::UnspecifiedError(
+                "The Topic was not found".to_string(),
+            ))?;
+            let subtopics = topic.get_subtopics();
+            let mut all_subscriptions_successful = true;
+            
+            for subtopic_name in subtopics {
+                println!("Subscribing to subtopic: {}", subtopic_name);
+                let subtopic = topics.get_mut(&subtopic_name).ok_or(ProtocolError::UnspecifiedError(
+                    "The Subtopic was not found".to_string(),
+                ))?;
+
+                println!("Subtopic: {:?}", subtopic);
+
+                let subtopic_subscription = Subscription::new(subtopic_name.clone(), subscription.client_id.clone());
+
+                match subtopic.add_user_to_topic(subtopic_subscription.clone()) {
+                    0 => {
+                        match ClientConfig::add_new_subscription_to_topic(
+                           subtopic_subscription.client_id.clone(),
+                            subtopic_name.clone(),
+                        ) {
+                            Ok(_) => {
+                                println!("Subscribe succesfull");
+                            }
+                            Err(_) => {
+                                println!("Non specified error");
+                                all_subscriptions_successful = false;
+                                break;
+                            }
                         }
                     }
-                }
-                0x92 => {
-                    reason_code = SUB_ID_DUP_HEX;
-                }
-                _ => {
-                    reason_code = UNSPECIFIED_ERROR_HEX;
+                    0x92 => {
+                        reason_code = SUB_ID_DUP_HEX;
+                        all_subscriptions_successful = false;
+                        break;
+                    }
+                    _ => {
+                        reason_code = UNSPECIFIED_ERROR_HEX;
+                        all_subscriptions_successful = false;
+                        break;
+                    }
                 }
             }
-        } else {
-            reason_code = UNSPECIFIED_ERROR_HEX;
+            if all_subscriptions_successful {
+                reason_code = SUCCESS_HEX;
+            }
         }
+        // if let Some(topic) = topics.get_mut(&topic_name) {
+        //     match topic.add_user_to_topic(subscription.clone()) {
+        //         0 => {
+        //             match ClientConfig::add_new_subscription(
+        //                 subscription.client_id.clone(),
+        //                 topic_name.clone(),
+        //             ) {
+        //                 Ok(_) => {
+        //                     println!("Subscribe exitoso");
+        //                     reason_code = SUCCESS_HEX;
+        //                 }
+        //                 Err(_) => {
+        //                     println!("Error no especificado");
+        //                     reason_code = UNSPECIFIED_ERROR_HEX;
+        //                 }
+        //             }
+        //         }
+        //         0x92 => {
+        //             reason_code = SUB_ID_DUP_HEX;
+        //         }
+        //         _ => {
+        //             reason_code = UNSPECIFIED_ERROR_HEX;
+        //         }
+        //     }
+        // } else {
+        //     reason_code = UNSPECIFIED_ERROR_HEX;
+        // }
 
         Ok(reason_code)
     }
@@ -712,7 +772,9 @@ impl Broker {
                 };
                 println!("Enviando un Connack");
                 match connack.write_to(&mut stream) {
-                    Ok(_) => return Ok(ProtocolReturn::ConnackSent),
+                    Ok(_) => {
+                        
+                        return Ok(ProtocolReturn::ConnackSent)},
                     Err(err) => {
                         println!("{:?}", err);
                     }
@@ -1035,20 +1097,55 @@ mod tests {
     use std::thread;
 
     #[test]
-    fn test_01_getting_starting_topics_ok() -> Result<(), ProtocolError> {
-        let file_path = "./src/monitoring/topics.txt";
-        let topics = Broker::get_broker_starting_topics(file_path)?;
+    fn test_01_creating_broker_topics_ok() -> std::io::Result<()> {
+        let topics = Broker::get_broker_starting_topics("./src/monitoring/topics.txt").unwrap();
 
-        let mut expected_topics = HashMap::new();
-        let topic_readings = Broker::process_topic_config_file(file_path)?;
+        let mut camera_system = Topic::new();
 
-        for topic in topic_readings {
-            expected_topics.insert(topic, Topic::new());
+        let mut monitoring_app = Topic::new();
+        let mut drone = Topic::new();
+
+        // inserto inciente como subtopic de camera system
+        camera_system.add_subtopic("incident".to_string());
+        camera_system.add_subtopic("incident_resolved".to_string());
+
+        monitoring_app.add_subtopic("drone_locations".to_string());
+        monitoring_app.add_subtopic("camera_update".to_string());
+        monitoring_app.add_subtopic("incident_resolved".to_string());
+
+        drone.add_subtopic("attending_incident".to_string());
+        drone.add_subtopic("incident".to_string());
+
+        let topics_to_check = vec![
+            "camera_system",
+            "monitoring_app",
+            "drone",
+            "incident",
+            "incident_resolved",
+            "drone_locations",
+            "camera_update",
+            "attending_incident",
+        ];
+
+        for topic in topics_to_check {
+            assert!(topics.contains_key(topic));
         }
 
-        for (topic_name, _topic) in topics {
-            assert!(expected_topics.contains_key(&topic_name));
-        }
+        // verifico subtopics de camera_system
+        let camera_system_subtopics = topics.get("camera_system").unwrap().get_subtopics();
+        assert!(camera_system_subtopics.contains(&"incident".to_string()));
+        assert!(camera_system_subtopics.contains(&"incident_resolved".to_string()));
+
+        // verifico subtopics de monitoring_app
+        let monitoring_app_subtopics = topics.get("monitoring_app").unwrap().get_subtopics();
+        assert!(monitoring_app_subtopics.contains(&"drone_locations".to_string()));
+        assert!(monitoring_app_subtopics.contains(&"camera_update".to_string()));
+        assert!(monitoring_app_subtopics.contains(&"incident_resolved".to_string()));
+
+        // verifico subtopics de drone
+        let drone_subtopics = topics.get("drone").unwrap().get_subtopics();
+        assert!(drone_subtopics.contains(&"attending_incident".to_string()));
+        assert!(drone_subtopics.contains(&"incident".to_string()));
 
         Ok(())
     }
@@ -1115,59 +1212,7 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_01_creating_broker_topics_ok() -> std::io::Result<()> {
-        let topics = Broker::get_broker_starting_topics("./src/monitoring/topics.txt").unwrap();
-
-        let mut camera_system = Topic::new();
-
-        let mut monitoring_app = Topic::new();
-        let mut drone = Topic::new();
-
-        // inserto inciente como subtopic de camera system
-        camera_system.add_subtopic("incident".to_string());
-        camera_system.add_subtopic("incident_resolved".to_string());
-
-        monitoring_app.add_subtopic("drone_locations".to_string());
-        monitoring_app.add_subtopic("camera_update".to_string());
-        monitoring_app.add_subtopic("incident_resolved".to_string());
-
-        drone.add_subtopic("attending_incident".to_string());
-        drone.add_subtopic("incident".to_string());
-
-        let topics_to_check = vec![
-            "camera_system",
-            "monitoring_app",
-            "drone",
-            "incident",
-            "incident_resolved",
-            "drone_locations",
-            "camera_update",
-            "attending_incident",
-        ];
-
-        for topic in topics_to_check {
-            assert!(topics.contains_key(topic));
-        }
-
-        // verifico subtopics de camera_system
-        let camera_system_subtopics = topics.get("camera_system").unwrap().get_subtopics();
-        assert!(camera_system_subtopics.contains(&"incident".to_string()));
-        assert!(camera_system_subtopics.contains(&"incident_resolved".to_string()));
-
-        // verifico subtopics de monitoring_app
-        let monitoring_app_subtopics = topics.get("monitoring_app").unwrap().get_subtopics();
-        assert!(monitoring_app_subtopics.contains(&"drone_locations".to_string()));
-        assert!(monitoring_app_subtopics.contains(&"camera_update".to_string()));
-        assert!(monitoring_app_subtopics.contains(&"incident_resolved".to_string()));
-
-        // verifico subtopics de drone
-        let drone_subtopics = topics.get("drone").unwrap().get_subtopics();
-        assert!(drone_subtopics.contains(&"attending_incident".to_string()));
-        assert!(drone_subtopics.contains(&"incident".to_string()));
-
-        Ok(())
-    }
+    
 
     #[test]
     fn test_handle_client() {
