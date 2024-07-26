@@ -673,62 +673,60 @@ impl Broker {
                 }
 
                 // si el cliente ya está conectado, no permite la nueva conexión y la rechaza con CLIENT_DUP
-                // match self.clients_ids.read() {
-                //     Ok(clients) => {
-                //         if clients.contains_key(&connect.client_id) {
-                //             let disconnect = BrokerMessage::Disconnect {
-                //                 reason_code: 0,
-                //                 session_expiry_interval: 0,
-                //                 reason_string: "CLIENT_DUP".to_string(),
-                //                 user_properties: Vec::new(),
-                //             };
-                //             _ = ClientConfig::remove_client(connect.client_id.clone());
+                match self.clients_ids.read() {
+                    Ok(clients) => {
+                        if clients.contains_key(&connect.client_id) {
+                            let disconnect = BrokerMessage::Disconnect {
+                                reason_code: 0,
+                                session_expiry_interval: 0,
+                                reason_string: "CLIENT_DUP".to_string(),
+                                user_properties: Vec::new(),
+                            };
+                            _ = ClientConfig::remove_client(connect.client_id.clone());
 
-                //             match disconnect.write_to(&mut stream) {
-                //                 Ok(_) => {
-                //                     println!("Disconnect enviado");
-                //                     return Ok(ProtocolReturn::DisconnectSent);
-                //                 }
-                //                 Err(err) => println!("Error al enviar Disconnect: {:?}", err),
-                //             }
-                //         } else {
-                //             _ = ClientConfig::save_client_log_in_json(connect.client_id.clone());
-                //         }
-                //     }
-                //     Err(e) => {
-                //         println!("Error al leer clientes: {:?}", e);
-                //         return Err(ProtocolError::UnspecifiedError(e.to_string()));
-                //     }
-                // }
+                            match disconnect.write_to(&mut stream) {
+                                Ok(_) => {
+                                    println!("Disconnect enviado");
+                                    return Ok(ProtocolReturn::DisconnectSent);
+                                }
+                                Err(err) => println!("Error al enviar Disconnect: {:?}", err),
+                            }
+                        } 
+                    }
+                    Err(e) => {
+                        println!("Error al leer clientes: {:?}", e);
+                        return Err(ProtocolError::UnspecifiedError(e.to_string()));
+                    }
+                }
 
-                // // reibe los mensajes de cuando estuvo offline
-                // if let Ok(offline_clients) = self.offline_clients.read() {
-                //     if offline_clients.contains_key(&connect.client_id) {
-                //         if let Some(pending_messages) = offline_clients.get(&connect.client_id) {
-                //             for message in pending_messages {
-                //                 match message.write_to(&mut stream) {
-                //                     Ok(_) => {
-                //                         println!("Mensaje enviado a {}", connect.client_id);
-                //                     }
-                //                     Err(e) => {
-                //                         println!("Error al enviar mensaje: {:?}", e);
-                //                         return Err(ProtocolError::UnspecifiedError(e.to_string()));
-                //                     }
-                //                 }
-                //             }
-                //         }
-                //     }
-                // }
+                // reibe los mensajes de cuando estuvo offline
+                if let Ok(offline_clients) = self.offline_clients.read() {
+                    if offline_clients.contains_key(&connect.client_id) {
+                        if let Some(pending_messages) = offline_clients.get(&connect.client_id) {
+                            for message in pending_messages {
+                                match message.write_to(&mut stream) {
+                                    Ok(_) => {
+                                        println!("Mensaje enviado a {}", connect.client_id);
+                                    }
+                                    Err(e) => {
+                                        println!("Error al enviar mensaje: {:?}", e);
+                                        return Err(ProtocolError::UnspecifiedError(e.to_string()));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
-                // //si está en offline_clients lo elimino de ahí
-                // if let Ok(mut lock) = self.offline_clients.write() {
-                //     _ = ClientConfig::remove_client(connect.client_id.clone());
-                //     lock.remove(&connect.client_id);
-                // } else {
-                //     return Err(ProtocolError::UnspecifiedError(
-                //         "Error al leer offline_clients".to_string(),
-                //     ));
-                // }
+                //si está en offline_clients lo elimino de ahí
+                if let Ok(mut lock) = self.offline_clients.write() {
+                    _ = ClientConfig::remove_client(connect.client_id.clone());
+                    lock.remove(&connect.client_id);
+                } else {
+                    return Err(ProtocolError::UnspecifiedError(
+                        "Error al leer offline_clients".to_string(),
+                    ));
+                }
 
                 //clona stream con ok err
                 let cloned_stream = match stream.try_clone() {
