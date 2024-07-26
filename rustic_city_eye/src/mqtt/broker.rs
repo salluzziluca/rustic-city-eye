@@ -27,7 +27,7 @@ use super::connect::last_will::LastWill;
 
 static SERVER_ARGS: usize = 2;
 
-const THREADPOOL_SIZE: usize = 20;
+const THREADPOOL_SIZE: usize = 30;
 
 #[derive(Clone)]
 pub struct Broker {

@@ -6,12 +6,15 @@ use std::{
 
 use serde::Deserialize;
 
-use crate::utils::{
-    location::Location,
-    reader::{read_bool, read_string, read_u32},
+use crate::{
+    mqtt::protocol_error::ProtocolError,
+    utils::{
+        location::Location,
+        reader::{read_bool, read_string, read_u32},
+    },
 };
 
-use super::camera_error::CameraError;
+use super::{annotation::ImageClassifier, camera_error::CameraError};
 
 use crate::utils::writer::{write_bool, write_string, write_u32};
 
@@ -21,14 +24,23 @@ pub struct Camera {
     location: Location,
     id: u32,
     sleep_mode: bool,
+
+    image_classifier: ImageClassifier,
 }
 
 impl Camera {
     pub fn new(location: Location, id: u32) -> Result<Camera, CameraError> {
+        let url = "https://vision.googleapis.com/v1/images:annotate".to_string();
+        let incident_keywords_file_path = "./src/surveilling/incident_keywords";
+
+        let image_classifier = ImageClassifier::new(url, incident_keywords_file_path)
+            .map_err(|e| CameraError::AnnotationError(e.to_string()))?;
+
         let camera = Self {
             location,
             id,
             sleep_mode: true,
+            image_classifier,
         };
 
         let dir_name = format!("./{}", camera.id);
@@ -38,6 +50,15 @@ impl Camera {
         }
 
         Ok(camera)
+    }
+
+    pub fn annotate_image(&self, image_path: &str) -> Result<bool, ProtocolError> {
+        let classification_result = self
+            .image_classifier
+            .annotate_image(image_path)
+            .map_err(|e| ProtocolError::AnnotationError(e.to_string()))?;
+
+        Ok(classification_result)
     }
 
     pub fn get_location(&self) -> Location {
@@ -64,6 +85,13 @@ impl Camera {
     }
 
     pub fn read_from(stream: &mut dyn Read) -> Result<Camera, Error> {
+        let url = "https://vision.googleapis.com/v1/images:annotate".to_string();
+        let incident_keywords_file_path = "./src/surveilling/incident_keywords";
+
+        let image_classifier = ImageClassifier::new(url, incident_keywords_file_path)
+            .map_err(|e| CameraError::AnnotationError(e.to_string()))
+            .expect("Fallo al crear clasificador de imagenes");
+
         let id = read_u32(stream)?;
         let latitude = read_string(stream)?;
         let longitude = read_string(stream)?;
@@ -91,6 +119,7 @@ impl Camera {
             location: Location::new(lat, long),
             id,
             sleep_mode,
+            image_classifier,
         })
     }
     pub fn delete_directory(&self) -> Result<(), CameraError> {
@@ -138,5 +167,20 @@ mod tests {
         assert!(Path::new(path.as_str()).exists());
         camera.delete_directory().unwrap();
         assert!(!Path::new(path.as_str()).exists());
+    }
+
+    #[test]
+    fn test_image_annotation_ok() {
+        let location = Location::new(1.0, 2.0);
+        let camera = Camera::new(location, 1).unwrap();
+
+        let image_path_one = "./tests/ia_annotation_img/fire.png";
+        let classification_result_one = camera.annotate_image(image_path_one).unwrap();
+
+        let image_path_two = "./tests/ia_annotation_img/no_incident.png";
+        let classification_result_two = camera.annotate_image(image_path_two).unwrap();
+
+        assert!(classification_result_one);
+        assert!(!classification_result_two);
     }
 }

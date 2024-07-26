@@ -59,14 +59,11 @@ struct VisionResponse {
 /// Se le proporcionan paths a imagenes, luego se encarga de realizar la peticion a la IA, y por ultimo devuelve la respuesta a esa peticion,
 /// que en nuestro caso sera etiquetar las imagenes. Tambien se proporciona la estadistica del score obtenido sobre cada una de las etiquetas,
 /// de forma tal de medir la confiabilidad de la clasificacion.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ImageClassifier {
     /// Este sera el url sobre el cual el clasificador hara peticiones a
     /// Google Cloud Vision.
     url: String,
-
-    /// Sobre este cliente de reqwest, se hacen peticiones sincronicas a la IA de clasificacion.
-    reqwest_client: Client,
 
     /// Contiene las keywords con las cuales se detectaran incidentes(al etiquetar una imagen, se evaluara por coincidencias
     /// con los elementos de este vector para decidir si la imagen contiene un incidente o no).
@@ -89,12 +86,10 @@ impl ImageClassifier {
         };
 
         let url = url + "?key=" + &api_key;
-        let client = Client::new();
         let incident_keywords = Vec::new();
 
         let mut classifier = ImageClassifier {
             url,
-            reqwest_client: client,
             incident_keywords,
         };
 
@@ -144,6 +139,8 @@ impl ImageClassifier {
         &self,
         image_base64: &str,
     ) -> Result<VisionResponse, AnnotationError> {
+        let client = Client::new();
+
         let request_body = VisionRequest {
             requests: vec![Request {
                 image: Image {
@@ -162,7 +159,7 @@ impl ImageClassifier {
             }],
         };
 
-        let response = self.reqwest_client.post(&self.url).json(&request_body);
+        let response = client.post(&self.url).json(&request_body);
 
         let response = match response.send() {
             Ok(res) => res,

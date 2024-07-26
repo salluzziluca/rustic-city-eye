@@ -9,6 +9,7 @@ pub enum CameraError {
     ArcMutexError(String),
     DeleteDirError(String),
     WatcherError(String),
+    AnnotationError(String),
 }
 
 impl fmt::Display for CameraError {
@@ -28,6 +29,9 @@ impl fmt::Display for CameraError {
             }
             CameraError::WatcherError(e) => {
                 write!(f, "Error with watcher: {}", e)
+            }
+            CameraError::AnnotationError(e) => {
+                write!(f, "Error al etiquetar: {}", e)
             }
         }
     }
