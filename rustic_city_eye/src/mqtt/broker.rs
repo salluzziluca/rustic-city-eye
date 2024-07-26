@@ -451,9 +451,6 @@ impl Broker {
         Ok(0x80_u8) // Unspecified Error reason code
     }
 
-
-    
-
     /// Maneja la subscripcion de un cliente a un topic.
     /// Devuelve el reason code correspondiente a si la subscripcion fue exitosa o no.
     /// Si el reason code es 0, el cliente se ha suscrito exitosamente.
@@ -464,35 +461,36 @@ impl Broker {
     ) -> Result<u8, ProtocolError> {
         let mut reason_code = SUCCESS_HEX;
 
-
-        // el topic recibido puede terminar en /*, por lo que se debe eliminar
-        // el caracter especial para poder buscar el topic en el hashmap
-        // de este topic obtengo sus subtopics y me suscribo a cada uno de ellos
         let mut topic_name = topic_name.clone();
 
         if topic_name.ends_with("/*") {
- 
             topic_name = topic_name.trim_end_matches("/*").to_string();
-            let topic = topics.get_mut(&topic_name).ok_or(ProtocolError::UnspecifiedError(
-                "The Topic was not found".to_string(),
-            ))?;
+            let topic = topics
+                .get_mut(&topic_name)
+                .ok_or(ProtocolError::UnspecifiedError(
+                    "The Topic was not found".to_string(),
+                ))?;
             let subtopics = topic.get_subtopics();
             let mut all_subscriptions_successful = true;
-            
+
             for subtopic_name in subtopics {
                 println!("Subscribing to subtopic: {}", subtopic_name);
-                let subtopic = topics.get_mut(&subtopic_name).ok_or(ProtocolError::UnspecifiedError(
-                    "The Subtopic was not found".to_string(),
-                ))?;
+                let subtopic =
+                    topics
+                        .get_mut(&subtopic_name)
+                        .ok_or(ProtocolError::UnspecifiedError(
+                            "The Subtopic was not found".to_string(),
+                        ))?;
 
                 println!("Subtopic: {:?}", subtopic);
 
-                let subtopic_subscription = Subscription::new(subtopic_name.clone(), subscription.client_id.clone());
+                let subtopic_subscription =
+                    Subscription::new(subtopic_name.clone(), subscription.client_id.clone());
 
                 match subtopic.add_user_to_topic(subtopic_subscription.clone()) {
                     0 => {
-                        match ClientConfig::add_new_subscription_to_topic(
-                           subtopic_subscription.client_id.clone(),
+                        match ClientConfig::add_new_subscription_to_file(
+                            subtopic_subscription.client_id.clone(),
                             subtopic_name.clone(),
                         ) {
                             Ok(_) => {
@@ -533,34 +531,66 @@ impl Broker {
         topic_name: String,
         subscription: Subscription,
     ) -> Result<u8, ProtocolError> {
-        let reason_code;
+        let mut reason_code = SUCCESS_HEX;
 
-        if let Some(topic) = topics.get_mut(&topic_name) {
-            match topic.remove_user_from_topic(subscription.clone()) {
-                0 => {
-                    println!("Unsubscribe exitoso");
-                    match ClientConfig::remove_subscription(
-                        subscription.client_id.clone(),
-                        topic_name.clone(),
-                    ) {
-                        Ok(_) => {
-                            reason_code = SUCCESS_HEX;
-                        }
-                        Err(_) => {
-                            reason_code = UNSPECIFIED_ERROR_HEX;
+        let mut topic_name = topic_name.clone();
+
+        if topic_name.ends_with("/*") {
+            topic_name = topic_name.trim_end_matches("/*").to_string();
+            let topic = topics
+                .get_mut(&topic_name)
+                .ok_or(ProtocolError::UnspecifiedError(
+                    "The Topic was not found".to_string(),
+                ))?;
+            let subtopics = topic.get_subtopics();
+            let mut all_subscriptions_successful = true;
+
+            for subtopic_name in subtopics {
+                println!("Subscribing to subtopic: {}", subtopic_name);
+                let subtopic =
+                    topics
+                        .get_mut(&subtopic_name)
+                        .ok_or(ProtocolError::UnspecifiedError(
+                            "The Subtopic was not found".to_string(),
+                        ))?;
+
+                println!("Subtopic: {:?}", subtopic);
+
+                let subtopic_subscription =
+                    Subscription::new(subtopic_name.clone(), subscription.client_id.clone());
+
+                match subtopic.remove_user_from_topic(subtopic_subscription.clone()) {
+                    0 => {
+                        match ClientConfig::remove_subscription_from_file(
+                            subtopic_subscription.client_id.clone(),
+                            subtopic_name.clone(),
+                        ) {
+                            Ok(_) => {
+                                println!("Subscribe succesfull");
+                            }
+                            Err(_) => {
+                                println!("Unable to add the subscription in the client file");
+                                all_subscriptions_successful = false;
+                                break;
+                            }
                         }
                     }
-                }
-                _ => {
-                    println!("Error no especificado");
-                    reason_code = UNSPECIFIED_ERROR_HEX;
+                    0x92 => {
+                        reason_code = SUB_ID_DUP_HEX;
+                        all_subscriptions_successful = false;
+                        break;
+                    }
+                    _ => {
+                        reason_code = UNSPECIFIED_ERROR_HEX;
+                        all_subscriptions_successful = false;
+                        break;
+                    }
                 }
             }
-        } else {
-            println!("Error no especificado");
-            reason_code = UNSPECIFIED_ERROR_HEX;
+            if all_subscriptions_successful {
+                reason_code = SUCCESS_HEX;
+            }
         }
-        println!("reason code {:?}", reason_code);
 
         Ok(reason_code)
     }
@@ -638,7 +668,7 @@ impl Broker {
                 // busca el path del archivo de logs y verifica si el cliente ya existe
                 if !ClientConfig::client_exists(connect.client_id.clone()) {
                     _ = ClientConfig::save_client_log_in_json(connect.client_id.clone());
-                }else{
+                } else {
                     _ = ClientConfig::change_client_state(connect.client_id.clone(), true);
                 }
 
@@ -754,9 +784,7 @@ impl Broker {
                 };
                 println!("Enviando un Connack");
                 match connack.write_to(&mut stream) {
-                    Ok(_) => {
-                        
-                        return Ok(ProtocolReturn::ConnackSent)},
+                    Ok(_) => return Ok(ProtocolReturn::ConnackSent),
                     Err(err) => {
                         println!("{:?}", err);
                     }
@@ -1193,8 +1221,6 @@ mod tests {
 
         Ok(())
     }
-
-    
 
     #[test]
     fn test_handle_client() {

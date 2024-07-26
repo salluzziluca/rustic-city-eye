@@ -1,4 +1,4 @@
-use std::{f32::consts::E, fs::File};
+use std::fs::File;
 
 use serde::{Deserialize, Serialize};
 
@@ -28,6 +28,7 @@ impl ClientConfig {
         }
     }
 
+    /// Verifica si un cliente existe en el archivo json
     pub fn clients_exists(client_id: String) -> bool {
         // verifica si un cliente existe en el archivo json
         let path = format!("./src/mqtt/clients/{}.json", client_id);
@@ -65,10 +66,8 @@ impl ClientConfig {
         Ok(())
     }
 
-    
-
     /// Agrega una nueva suscripción a un cliente en el archivo json
-    pub fn add_new_subscription_to_topic(
+    pub fn add_new_subscription_to_file(
         client_id: String,
         topic: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -85,7 +84,7 @@ impl ClientConfig {
     }
 
     /// Remueve una suscripción de un cliente en el archivo json
-    pub fn remove_subscription(
+    pub fn remove_subscription_from_file(
         client_id: String,
         topic: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -150,7 +149,7 @@ mod tests {
         let client_id = "test".to_string();
         let topic = "test".to_string();
         let _ = ClientConfig::save_client_log_in_json(client_id.clone());
-        let _ = ClientConfig::add_new_subscription_to_topic(client_id.clone(), topic.clone());
+        let _ = ClientConfig::add_new_subscription_to_file(client_id.clone(), topic.clone());
         let client_config = ClientConfig::get_client(client_id.clone());
         assert_eq!(client_config.unwrap().subscriptions.len(), 1);
         ClientConfig::remove_client(client_id.clone()).unwrap();
@@ -161,8 +160,8 @@ mod tests {
         let client_id = "test".to_string();
         let topic = "test".to_string();
         let _ = ClientConfig::save_client_log_in_json(client_id.clone());
-        let _ = ClientConfig::add_new_subscription_to_topic(client_id.clone(), topic.clone());
-        let _ = ClientConfig::remove_subscription(client_id.clone(), topic.clone());
+        let _ = ClientConfig::add_new_subscription_to_file(client_id.clone(), topic.clone());
+        let _ = ClientConfig::remove_subscription_from_file(client_id.clone(), topic.clone());
         let client_config = ClientConfig::get_client(client_id.clone());
         assert_eq!(client_config.unwrap().subscriptions.len(), 0);
         ClientConfig::remove_client(client_id.clone()).unwrap();
