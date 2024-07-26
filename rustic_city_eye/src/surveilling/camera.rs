@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::utils::{
     location::Location,
@@ -16,7 +16,7 @@ use super::camera_error::CameraError;
 use crate::utils::writer::{write_bool, write_string, write_u32};
 
 const PATH: &str = "src/surveilling/cameras";
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Camera {
     location: Location,
     id: u32,

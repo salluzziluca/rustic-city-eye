@@ -429,9 +429,15 @@ impl Broker {
         for user in users {
             match self.send_message_to_user(&user, &mensaje) {
                 Ok(_) => (),
-                Err(esta_offline) => {
-                    if esta_offline {
-                        self.handle_offline_user(&user.client_id, &message)?;
+                Err(_) => {
+                    if ClientConfig::client_is_online(user.client_id.clone()) {
+                        return Err(ProtocolError::UnspecifiedError(
+                            "Error al enviar mensaje".to_string(),
+                        ));
+                    } else {
+
+                        let _ = ClientConfig::add_offline_message(user.client_id.clone(), message.clone());
+
                     }
                 }
             }
