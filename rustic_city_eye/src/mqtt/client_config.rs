@@ -122,7 +122,10 @@ impl ClientConfig {
         }
     }
 
-    pub fn add_offline_message(client_id: String, message: ClientMessage) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn add_offline_message(
+        client_id: String,
+        message: ClientMessage,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let path = format!("./src/mqtt/clients/{}.json", client_id);
         if !ClientConfig::client_exists(client_id.clone()) {
             let _ = ClientConfig::save_client_log_in_json(client_id.clone());
@@ -133,7 +136,7 @@ impl ClientConfig {
         client_config.subscriptions.push(json);
         let json = serde_json::to_string(&client_config)?;
         std::fs::write(path, json)?;
-        
+
         Ok(())
     }
 }
