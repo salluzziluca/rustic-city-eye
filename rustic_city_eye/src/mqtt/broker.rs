@@ -4,10 +4,7 @@ use std::{
     io::{stdin, BufRead, BufReader},
     net::{Shutdown, TcpListener, TcpStream},
     process::exit,
-    sync::{
-        mpsc::{self},
-        Arc, Mutex, RwLock,
-    },
+    sync::{mpsc, Arc, Mutex, RwLock},
     thread,
 };
 
@@ -188,9 +185,8 @@ impl Broker {
         let threadpool = ThreadPool::new(THREADPOOL_SIZE);
 
         let broker_ref = Arc::new(Mutex::new(self.clone()));
-        let (_shutdown_sender, shutdown_receiver) = mpsc::channel();
 
-        thread::spawn(move || loop {
+        threadpool.execute(move || loop {
             let mut lock = match broker_ref.lock() {
                 Ok(l) => l,
                 Err(e) => {
@@ -210,12 +206,6 @@ impl Broker {
         });
 
         loop {
-            if let Ok(shutdown) = shutdown_receiver.try_recv() {
-                if shutdown {
-                    break;
-                }
-            };
-
             match listener.accept() {
                 Ok((stream, _)) => {
                     let topics_clone = self.topics.clone();
@@ -284,8 +274,6 @@ impl Broker {
                 Err(_) => return Err(ProtocolError::StreamError),
             }
         }
-
-        Ok(())
     }
 
     fn process_input_command<R: BufRead>(&mut self, reader: R) -> Result<(), ProtocolError> {

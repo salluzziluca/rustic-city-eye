@@ -15,10 +15,7 @@ use crate::mqtt::disconnect_config::DisconnectConfig;
 use crate::mqtt::{
     client_message::{self, ClientMessage},
     messages_config::MessagesConfig,
-    publish::{
-        publish_config::PublishConfig,
-        publish_properties::{PublishProperties, TopicProperties},
-    },
+    publish::publish_config::PublishConfig,
     subscribe_config::SubscribeConfig,
     subscribe_properties::SubscribeProperties,
     {client::Client, protocol_error::ProtocolError},
@@ -29,34 +26,56 @@ use crate::utils::incident_payload::IncidentPayload;
 use crate::utils::location::Location;
 use crate::utils::payload_types::PayloadTypes;
 
+/// Es capaz de recibir la carga de incidentes por parte del usuario(que lo hace desde la interfaz grafica)
+/// y notificar a la red ante la aparicion de un incidente nuevo y los cambios de estado del mismo.
+///
+/// A traves de la interfaz grafica se visualiza el estado completo del sistema, incluyendo un mapa geografico de la region
+/// con los incidentes activos y la posicion y estado de cada Drone y cada camara de vigilancia.
+///
+/// Se comunica con la red(es decir, recibe y envia mensajes) a traves de un Client de MQTT: a traves de este se sabran los cambios de
+/// estado de cada agente e incidente, ademas de saber los cambios de estado en el sistema central de camaras.
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct MonitoringApp {
-    send_to_client_channel: Arc<Mutex<Sender<Box<dyn MessagesConfig + Send>>>>,
+    /// Es el Client de MQTT con el cual se comunicara en la red. Al crear una instancia de MonitoringApp, se creara
+    /// tambien un Client para comenzar a intercambiar mensajes con la red.
     monitoring_app_client: Client,
+
+    /// A traves de este canal se envian configuraciones de los packets a enviar desde la aplicacion a la red.
+    send_to_client_channel: Arc<Mutex<Sender<Box<dyn MessagesConfig + Send>>>>,
+
+    /// Es la instancia del sistema central de camaras del sistema: el mismo tiene la ubicacion y estado de cada camara, y
+    /// es capaz de agregar, quitar y modificar las mismas.
     camera_system: Arc<Mutex<CameraSystem<Client>>>,
+
+    /// Aqui se guardan los incidentes activos en el sistema, junto a la cantidad de agentes atendiendo al mismo
+    /// (se guarda en el segundo campo de cada tupla).
     incidents: Arc<Mutex<Vec<(Incident, u8)>>>,
+
+    /// Es la instancia del sistema que controla los Drones del sistema.
     drone_system: DroneSystem,
+
+    /// A traves de este canal el Client va a enviar a la aplicacion los mensajes provenientes del Broker de la red.
     receive_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
+
+    /// Aqui se tienen los Drones activos y su localizacion en el mapa.
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
+
+    /// Aqui se tienen a todas las camaras del sistema.
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
+
+    /// Indica si la aplicacion esta conectada o no. La interfaz grafica esta pendiente de los cambios de este flag para
+    /// tomar acciones en la aplicacion(como por ejemplo desconectar la aplicacion y volver al menu principal).
+    pub connected: Arc<Mutex<bool>>,
 }
 
 #[allow(dead_code)]
 impl MonitoringApp {
-    /// recibe una address a la que conectarse
-    /// Crea el cliente de la app de monitoreo y lo conecta al broker.
-    /// Una vez creado su Client, se suscribe a sus topics de interes.
-    /// Crea un sistema de cámaras y agrega una cámara al sistema
-    pub fn new(
-        args: Vec<String>,
-        disconnect_notification_sender: Sender<()>,
-    ) -> Result<MonitoringApp, ProtocolError> {
-        let mut connect_config =
-            client_message::Connect::read_connect_config("src/monitoring/connect_config.json")?;
-        connect_config.username = Some(args[0].to_string());
-        connect_config.password = Some(args[1].as_bytes().to_vec());
-
+    /// Recibe en el vector de argumentos el username, password, la direccion IP y el port al cual debe conectarse
+    /// la aplicacion.
+    ///
+    /// Se crea el Client de la aplicacion, y tambien se instancia el Sistema Central de Camaras, y el Sistema de Drones.
+    pub fn new(args: Vec<String>) -> Result<MonitoringApp, ProtocolError> {
         let address = args[2].to_string() + ":" + &args[3].to_string();
 
         let camera_system = match CameraSystem::<Client>::with_real_client(address.clone()) {
@@ -69,58 +88,53 @@ impl MonitoringApp {
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
 
-        let monitoring_app_client =
-            MonitoringApp::create_client(rx, address, connect_config, tx2, tx.clone())?;
+        let monitoring_app_client = MonitoringApp::create_client(
+            Some(args[0].to_string()),
+            Some(args[1].as_bytes().to_vec()),
+            rx,
+            address,
+            tx2,
+            tx.clone(),
+        )?;
 
-        let receive_from_client = Arc::new(Mutex::new(rx2));
-        let active_drones = Arc::new(Mutex::new(HashMap::new()));
-        let incidents = Arc::new(Mutex::new(Vec::new()));
-        let cameras = Arc::new(Mutex::new(HashMap::new()));
-        let tx_arc = Arc::new(Mutex::new(tx));
-        let disconnect_sender_arc = Arc::new(Mutex::new(disconnect_notification_sender));
-
-        let monitoring_app = MonitoringApp {
-            send_to_client_channel: Arc::clone(&tx_arc),
-            incidents: Arc::clone(&incidents),
+        Ok(MonitoringApp {
+            send_to_client_channel: Arc::new(Mutex::new(tx)),
+            incidents: Arc::new(Mutex::new(Vec::new())),
             camera_system: Arc::new(Mutex::new(camera_system)),
             monitoring_app_client,
             drone_system,
-            receive_from_client: Arc::clone(&receive_from_client),
-            active_drones: Arc::clone(&active_drones),
-            cameras: Arc::clone(&cameras),
-        };
-        thread::spawn(move || loop {
-            let receiver_clone = Arc::clone(&receive_from_client);
-            let active_drones_clone = Arc::clone(&active_drones);
-            let cameras_clone = Arc::clone(&cameras);
-            let incidents_clone = Arc::clone(&incidents);
-            let disconnect_sender_clone = Arc::clone(&disconnect_sender_arc);
-
-            update_entities(
-                receiver_clone,
-                active_drones_clone,
-                cameras_clone,
-                incidents_clone,
-                disconnect_sender_clone,
-            );
-        });
-        Ok(monitoring_app)
+            receive_from_client: Arc::new(Mutex::new(rx2)),
+            active_drones: Arc::new(Mutex::new(HashMap::new())),
+            cameras: Arc::new(Mutex::new(HashMap::new())),
+            connected: Arc::new(Mutex::new(true)),
+        })
     }
 
     /// Crea el Client a traves del cual la MonitoringApp va a comunicarse con la red.
     ///
     /// Este Client se va a construir a partir de la configuracion brindada en su archivo de configuracion.
     ///
-    /// Una vez conectado, se envian packets que van a suscribir a la aplicacion a sus topics de interes(ver metodo subscribe_to_topics).
+    /// Una vez conectado, se envian packets que van a suscribir a la aplicacion a sus topics de interes.
     ///
     /// Retorna error en caso de fallar la creacion.
     fn create_client(
+        username: Option<String>,
+        password: Option<Vec<u8>>,
         receive_from_monitoring_channel: Receiver<Box<dyn MessagesConfig + Send>>,
         address: String,
-        connect_config: Connect,
         send_to_monitoring_channel: Sender<ClientMessage>,
         send_from_monitoring_channel: Sender<Box<dyn MessagesConfig + Send>>,
     ) -> Result<Client, ProtocolError> {
+        let mut connect_config =
+            client_message::Connect::read_connect_config("src/monitoring/connect_config.json")?;
+        if let Some(username) = username {
+            connect_config.username = Some(username);
+        }
+
+        if let Some(password) = password {
+            connect_config.password = Some(password);
+        }
+
         match Client::new(
             receive_from_monitoring_channel,
             address,
@@ -140,7 +154,6 @@ impl MonitoringApp {
     /// necesita la suscripcion al topic de locations de drones("drone_locations"),
     /// al de actualizaciones de camaras(camera_update), y al topic de
     /// drones atendiendo incidentes. Por lo tenato, se suscribe al topic que contiene todos estos subtopics llamado "monitoring_app"
-    ///
     /// La idea es que la aplicacion reciba actualizaciones de estado de parte del camera_system,
     /// y de los Drones que tenga creados, y que pueda plasmar estos cambios en la interfaz grafica.
     fn subscribe_to_topics(
@@ -169,50 +182,15 @@ impl MonitoringApp {
             }
         };
 
-        // let topic_name = "camera_update".to_string();
-        // let subscribe_config = SubscribeConfig::new(
-        //     topic_name.clone(),
-        //     subscribe_properties.clone(),
-        //     connect_config.client_id.clone(),
-        // );
-        // match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
-        //     Ok(_) => {
-        //         println!(
-        //             "Monitoring App subscrita al topic {} correctamente",
-        //             topic_name
-        //         );
-        //     }
-
-        //     Err(e) => {
-        //         println!("Monitoring: Error sending message: {:?}", e);
-        //         return Err(ProtocolError::SubscribeError);
-        //     }
-        // };
-
-        // let topic_name = "incident_resolved".to_string();
-        // let subscribe_config = SubscribeConfig::new(
-        //     topic_name.clone(),
-        //     subscribe_properties,
-        //     connect_config.client_id,
-        // );
-        // match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
-        //     Ok(_) => {
-        //         println!(
-        //             "Monitoring App subscrita al topic {} correctamente",
-        //             topic_name
-        //         );
-        //     }
-        //     Err(e) => {
-        //         println!("Monitoring: Error sending message: {:?}", e);
-        //         return Err(ProtocolError::SubscribeError);
-        //     }
-        // };
-
         Ok(())
     }
 
-    /// Se encarga de correr al Client de la MonitoringApp, y al Client del CameraSystem.
+    /// Se encarga de correr al Client de la MonitoringApp, y al Client del CameraSystem, ademas
+    /// de manejar los cambios en las distintas entidades de la aplicacion para comunicarselos de forma
+    /// periodica a la UI(camaras, drones, incidentes, etc).
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
+        self.handle_update_entities()?;
+
         println!("Client de la monitoring app comienza a correr");
         self.monitoring_app_client.client_run()?;
 
@@ -222,7 +200,47 @@ impl MonitoringApp {
         Ok(())
     }
 
-    /// Dada una location para agregar una nueva camara, delega al camera_system la tarea de agregar la camara.
+    /// Aqui se manejan los cambios en las entidades del sistema.
+    ///
+    /// Si update_entities nos retorna false, significa que al Client de la aplicacion ha recibido un packet del tipo disconnect
+    /// de parte del Broker, por lo que debe proceder a cerrarse -> el flag de connected que tiene la aplicacion pasa a false,
+    /// la UI al captar este cambio, nos envia al menu principal y la aplicacion de monitoreo se cierra.
+    fn handle_update_entities(&self) -> Result<(), ProtocolError> {
+        let receive_from_client_ref = Arc::clone(&self.receive_from_client);
+        let active_drones_clone = Arc::clone(&self.active_drones);
+        let cameras_clone = Arc::clone(&self.cameras);
+        let incidents_clone = Arc::clone(&self.incidents);
+        let connected_clone = Arc::clone(&self.connected);
+
+        thread::spawn(move || loop {
+            let receiver_clone: Arc<Mutex<Receiver<ClientMessage>>> =
+                Arc::clone(&receive_from_client_ref);
+            let active_drones_clone: Arc<Mutex<HashMap<u32, Location>>> =
+                Arc::clone(&active_drones_clone);
+            let cameras_clone = Arc::clone(&cameras_clone);
+            let incidents_clone = Arc::clone(&incidents_clone);
+            let connected_clone = Arc::clone(&connected_clone);
+
+            if !update_entities(
+                receiver_clone,
+                active_drones_clone,
+                cameras_clone,
+                incidents_clone,
+            ) {
+                match connected_clone.lock() {
+                    Ok(mut l) => {
+                        *l = false;
+                        return Ok(());
+                    }
+                    Err(_) => return Err(ProtocolError::LockError),
+                }
+            };
+        });
+
+        Ok(())
+    }
+
+    /// Dada una location para agregar una nueva camara, la agrega al sistema.
     pub fn add_camera(&mut self, location: Location) -> Result<u32, ProtocolError> {
         let mut lock = match self.camera_system.lock() {
             Ok(lock) => lock,
@@ -240,54 +258,43 @@ impl MonitoringApp {
         }
     }
 
-    /// Publica un nuevo incidente en una location determinada. La idea es que envie un packet
-    /// del tipo Publish hacia el topic de incidente, y que tanto el camera_system como los Drones
-    /// reciban la notificacion de este nuevo incidente.
-    pub fn add_incident(&mut self, location: Location) {
+    /// Publica un nuevo incidente en una location determinada.
+    ///
+    /// La aplicacion envia un packet del tipo Publish hacia el topic de incidentes, y el sistema
+    /// recibe esta notificacion(el sistema central de camaras y cada agente).
+    pub fn add_incident(&mut self, location: Location) -> Result<(), ProtocolError> {
         let incident = Incident::new(location);
         let mut incidents = match self.incidents.lock() {
             Ok(incidents) => incidents,
-            Err(_) => return,
+            Err(_) => return Err(ProtocolError::LockError),
         };
 
-        let (incident, drones_attending_incident) = (incident.clone(), 0);
+        incidents.push((incident.clone(), 0));
 
-        incidents.push((incident.clone(), drones_attending_incident));
+        let incident_payload = IncidentPayload::new(incident);
+        let publish_config = PublishConfig::read_config(
+            "src/monitoring/publish_incident_config.json",
+            PayloadTypes::IncidentLocation(incident_payload),
+        )?;
 
-        let topic_properties = TopicProperties {
-            topic_alias: 10,
-            response_topic: "".to_string(),
-        };
-
-        let properties = PublishProperties::new(
-            1,
-            10,
-            topic_properties,
-            [1, 2, 3].to_vec(),
-            "a".to_string(),
-            1,
-            "a".to_string(),
-        );
-        let payload = PayloadTypes::IncidentLocation(IncidentPayload::new(incident));
-
-        let publish_config =
-            PublishConfig::new(1, 1, 1, "incidente".to_string(), payload, properties);
         let send_to_client_channel = match self.send_to_client_channel.lock() {
             Ok(send_to_client_channel) => send_to_client_channel,
-            Err(_) => return,
+            Err(_) => return Err(ProtocolError::LockError),
         };
 
         match send_to_client_channel.send(Box::new(publish_config)) {
             Ok(_) => {
                 println!("Incidente publicado correctamente");
+                Ok(())
             }
-            Err(_) => {
-                println!("Error al publicar el incidente");
+            Err(e) => {
+                println!("Error al publicar el incidente {}", e);
+                Err(ProtocolError::PublishError)
             }
         }
     }
 
-    /// Agrega un Drone: delega al DroneSystem la tarea de agregarlo efectivamente.
+    /// Agrega un Drone al sistema.
     pub fn add_drone(
         &mut self,
         location: Location,
@@ -391,74 +398,93 @@ pub fn update_entities(
     active_drones: Arc<Mutex<HashMap<u32, Location>>>,
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
     incidents: Arc<Mutex<Vec<(Incident, u8)>>>,
-    disconnect_sender: Arc<Mutex<Sender<()>>>,
-) {
+) -> bool {
     let receiver = match recieve_from_client.lock() {
         Ok(receiver) => receiver,
-        Err(_) => return,
+        Err(_) => return true,
     };
 
-    loop {
-        if let Ok(ClientMessage::Publish {
-            packet_id: _,
-            topic_name,
-            qos: _,
-            retain_flag: _,
-            payload,
-            dup_flag: _,
-            properties: _,
-        }) = receiver.try_recv()
-        {
-            if topic_name == "drone_locations" {
-                let mut active_drones: std::sync::MutexGuard<HashMap<u32, Location>> =
-                    match active_drones.try_lock() {
-                        Ok(active_drones) => active_drones,
-                        Err(_) => return,
-                    };
-                if let PayloadTypes::DroneLocation(id, drone_locationn) = payload {
-                    active_drones.insert(id, drone_locationn);
-                }
-            } else if topic_name == "camera_update" {
-                println!("Monitoring: Camera update received");
-                let mut cameras = match cameras.try_lock() {
-                    Ok(cameras) => cameras,
-                    Err(_) => return,
-                };
-                if let PayloadTypes::CamerasUpdatePayload(updated_cameras) = payload {
-                    for camera in updated_cameras {
-                        cameras.insert(camera.get_id(), camera);
-                    }
-                }
-            } else if topic_name == "incidente_resuelto" {
-                if let PayloadTypes::IncidentLocation(incident_payload) = payload {
-                    let mut incidents = match incidents.lock() {
-                        Ok(incidents) => incidents,
-                        Err(_) => return,
-                    };
-                    let mut to_remove = Vec::new();
-
-                    for (incident, _count) in incidents.iter_mut() {
-                        if incident.get_location() == incident_payload.get_incident().get_location()
-                        {
-                            to_remove.push(incident.clone());
+    match receiver.try_recv() {
+        Ok(message) => match message {
+            ClientMessage::Publish {
+                packet_id: _,
+                topic_name,
+                qos: _,
+                retain_flag: _,
+                payload,
+                dup_flag: _,
+                properties: _,
+            } => {
+                match topic_name.as_str() {
+                    "drone_locations" => {
+                        let mut active_drones: std::sync::MutexGuard<HashMap<u32, Location>> =
+                            match active_drones.try_lock() {
+                                Ok(active_drones) => active_drones,
+                                Err(_) => return true,
+                            };
+                        if let PayloadTypes::DroneLocation(id, drone_locationn) = payload {
+                            active_drones.insert(id, drone_locationn);
                         }
                     }
+                    "camera_update" => {
+                        println!("Monitoring: Camera update received");
+                        let mut cameras = match cameras.try_lock() {
+                            Ok(cameras) => cameras,
+                            Err(_) => return true,
+                        };
+                        if let PayloadTypes::CamerasUpdatePayload(updated_cameras) = payload {
+                            for camera in updated_cameras {
+                                cameras.insert(camera.get_id(), camera);
+                            }
+                        }
+                    }
+                    "incidente_resuelto" => {
+                        if let PayloadTypes::IncidentLocation(incident_payload) = payload {
+                            let mut incidents = match incidents.lock() {
+                                Ok(incidents) => incidents,
+                                Err(_) => return true,
+                            };
+                            let mut to_remove = Vec::new();
 
-                    incidents.retain(|(inc, _)| !to_remove.contains(inc));
+                            for (incident, _count) in incidents.iter_mut() {
+                                if incident.get_location()
+                                    == incident_payload.get_incident().get_location()
+                                {
+                                    to_remove.push(incident.clone());
+                                }
+                            }
+
+                            incidents.retain(|(inc, _)| !to_remove.contains(inc));
+                        }
+                    }
+                    "incidente" => {
+                        if let PayloadTypes::IncidentLocation(incident_payload) = payload {
+                            let incident = incident_payload.get_incident();
+                            let mut incidents = match incidents.lock() {
+                                Ok(incidents) => incidents,
+                                Err(_) => return true,
+                            };
+
+                            if !incidents
+                                .iter()
+                                .any(|(existing_incident, _)| *existing_incident == incident)
+                            {
+                                incidents.push((incident, 0));
+                            }
+                        }
+                    }
+                    _ => {}
                 }
+                true
             }
-        }
-
-        if let Ok(ClientMessage::Disconnect {
-            reason_code: _,
-            session_expiry_interval: _,
-            reason_string: _,
-            client_id: _,
-        }) = receiver.try_recv()
-        {
-            println!("la moni se va a caer mi loco");
-            let lock = disconnect_sender.lock().unwrap();
-            lock.send(()).unwrap();
-        }
+            ClientMessage::Disconnect {
+                reason_code: _,
+                session_expiry_interval: _,
+                reason_string: _,
+                client_id: _,
+            } => false,
+            _ => true,
+        },
+        Err(_) => true,
     }
 }
