@@ -499,7 +499,7 @@ impl Broker {
                                 println!("Subscribe succesfull");
                             }
                             Err(_) => {
-                                println!("Non specified error");
+                                println!("Unable to add the subscription in the client file");
                                 all_subscriptions_successful = false;
                                 break;
                             }
@@ -521,33 +521,6 @@ impl Broker {
                 reason_code = SUCCESS_HEX;
             }
         }
-        // if let Some(topic) = topics.get_mut(&topic_name) {
-        //     match topic.add_user_to_topic(subscription.clone()) {
-        //         0 => {
-        //             match ClientConfig::add_new_subscription(
-        //                 subscription.client_id.clone(),
-        //                 topic_name.clone(),
-        //             ) {
-        //                 Ok(_) => {
-        //                     println!("Subscribe exitoso");
-        //                     reason_code = SUCCESS_HEX;
-        //                 }
-        //                 Err(_) => {
-        //                     println!("Error no especificado");
-        //                     reason_code = UNSPECIFIED_ERROR_HEX;
-        //                 }
-        //             }
-        //         }
-        //         0x92 => {
-        //             reason_code = SUB_ID_DUP_HEX;
-        //         }
-        //         _ => {
-        //             reason_code = UNSPECIFIED_ERROR_HEX;
-        //         }
-        //     }
-        // } else {
-        //     reason_code = UNSPECIFIED_ERROR_HEX;
-        // }
 
         Ok(reason_code)
     }
@@ -662,61 +635,70 @@ impl Broker {
             ClientMessage::Connect { 0: connect } => {
                 println!("Recibí un Connect");
 
+                // busca el path del archivo de logs y verifica si el cliente ya existe
+                if !ClientConfig::client_exists(connect.client_id.clone()) {
+                    _ = ClientConfig::save_client_log_in_json(connect.client_id.clone());
+                }else{
+                    _ = ClientConfig::change_client_state(connect.client_id.clone(), true);
+                }
+
                 // si el cliente ya está conectado, no permite la nueva conexión y la rechaza con CLIENT_DUP
-                match self.clients_ids.read() {
-                    Ok(clients) => {
-                        if clients.contains_key(&connect.client_id) {
-                            let disconnect = BrokerMessage::Disconnect {
-                                reason_code: 0,
-                                session_expiry_interval: 0,
-                                reason_string: "CLIENT_DUP".to_string(),
-                                user_properties: Vec::new(),
-                            };
-                            _ = ClientConfig::remove_client(connect.client_id.clone());
+                // match self.clients_ids.read() {
+                //     Ok(clients) => {
+                //         if clients.contains_key(&connect.client_id) {
+                //             let disconnect = BrokerMessage::Disconnect {
+                //                 reason_code: 0,
+                //                 session_expiry_interval: 0,
+                //                 reason_string: "CLIENT_DUP".to_string(),
+                //                 user_properties: Vec::new(),
+                //             };
+                //             _ = ClientConfig::remove_client(connect.client_id.clone());
 
-                            match disconnect.write_to(&mut stream) {
-                                Ok(_) => {
-                                    println!("Disconnect enviado");
-                                    return Ok(ProtocolReturn::DisconnectSent);
-                                }
-                                Err(err) => println!("Error al enviar Disconnect: {:?}", err),
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        println!("Error al leer clientes: {:?}", e);
-                        return Err(ProtocolError::UnspecifiedError(e.to_string()));
-                    }
-                }
+                //             match disconnect.write_to(&mut stream) {
+                //                 Ok(_) => {
+                //                     println!("Disconnect enviado");
+                //                     return Ok(ProtocolReturn::DisconnectSent);
+                //                 }
+                //                 Err(err) => println!("Error al enviar Disconnect: {:?}", err),
+                //             }
+                //         } else {
+                //             _ = ClientConfig::save_client_log_in_json(connect.client_id.clone());
+                //         }
+                //     }
+                //     Err(e) => {
+                //         println!("Error al leer clientes: {:?}", e);
+                //         return Err(ProtocolError::UnspecifiedError(e.to_string()));
+                //     }
+                // }
 
-                // reibe los mensajes de cuando estuvo offline
-                if let Ok(offline_clients) = self.offline_clients.read() {
-                    if offline_clients.contains_key(&connect.client_id) {
-                        if let Some(pending_messages) = offline_clients.get(&connect.client_id) {
-                            for message in pending_messages {
-                                match message.write_to(&mut stream) {
-                                    Ok(_) => {
-                                        println!("Mensaje enviado a {}", connect.client_id);
-                                    }
-                                    Err(e) => {
-                                        println!("Error al enviar mensaje: {:?}", e);
-                                        return Err(ProtocolError::UnspecifiedError(e.to_string()));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                // // reibe los mensajes de cuando estuvo offline
+                // if let Ok(offline_clients) = self.offline_clients.read() {
+                //     if offline_clients.contains_key(&connect.client_id) {
+                //         if let Some(pending_messages) = offline_clients.get(&connect.client_id) {
+                //             for message in pending_messages {
+                //                 match message.write_to(&mut stream) {
+                //                     Ok(_) => {
+                //                         println!("Mensaje enviado a {}", connect.client_id);
+                //                     }
+                //                     Err(e) => {
+                //                         println!("Error al enviar mensaje: {:?}", e);
+                //                         return Err(ProtocolError::UnspecifiedError(e.to_string()));
+                //                     }
+                //                 }
+                //             }
+                //         }
+                //     }
+                // }
 
-                //si está en offline_clients lo elimino de ahí
-                if let Ok(mut lock) = self.offline_clients.write() {
-                    _ = ClientConfig::remove_client(connect.client_id.clone());
-                    lock.remove(&connect.client_id);
-                } else {
-                    return Err(ProtocolError::UnspecifiedError(
-                        "Error al leer offline_clients".to_string(),
-                    ));
-                }
+                // //si está en offline_clients lo elimino de ahí
+                // if let Ok(mut lock) = self.offline_clients.write() {
+                //     _ = ClientConfig::remove_client(connect.client_id.clone());
+                //     lock.remove(&connect.client_id);
+                // } else {
+                //     return Err(ProtocolError::UnspecifiedError(
+                //         "Error al leer offline_clients".to_string(),
+                //     ));
+                // }
 
                 //clona stream con ok err
                 let cloned_stream = match stream.try_clone() {

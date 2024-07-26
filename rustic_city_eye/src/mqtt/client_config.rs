@@ -28,6 +28,22 @@ impl ClientConfig {
         }
     }
 
+    pub fn clients_exists(client_id: String) -> bool {
+        // verifica si un cliente existe en el archivo json
+        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        std::fs::metadata(path).is_ok()
+    }
+
+    /// Guarda la configuración de un cliente en un archivo json
+    pub fn save_client_log_in_json(client_id: String) -> Result<(), Box<dyn std::error::Error>> {
+        let client_config = ClientConfig::new(client_id.clone());
+        let json = serde_json::to_string(&client_config)?;
+        let path = format!("./src/mqtt/clients/{}.json", client_id);
+
+        std::fs::write(path, json)?;
+        Ok(())
+    }
+
     /// Cambia el estado de un cliente existente en el archivo json
     pub fn change_client_state(
         client_id: String,
@@ -49,15 +65,7 @@ impl ClientConfig {
         Ok(())
     }
 
-    /// Guarda la configuración de un cliente en un archivo json
-    pub fn save_client_log_in_json(client_id: String) -> Result<(), Box<dyn std::error::Error>> {
-        let client_config = ClientConfig::new(client_id.clone());
-        let json = serde_json::to_string(&client_config)?;
-        let path = format!("./src/mqtt/clients/{}.json", client_id);
-
-        std::fs::write(path, json)?;
-        Ok(())
-    }
+    
 
     /// Agrega una nueva suscripción a un cliente en el archivo json
     pub fn add_new_subscription_to_topic(
