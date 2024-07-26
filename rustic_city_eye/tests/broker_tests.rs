@@ -214,7 +214,7 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let topic_properties = TopicProperties {
             topic_alias: 10,
-            response_topic: "incidente".to_string(),
+            response_topic: "incident".to_string(),
         };
 
         let properties = PublishProperties::new(
@@ -231,7 +231,7 @@ mod tests {
         let incident_payload = incident_payload::IncidentPayload::new(new);
         let publish = ClientMessage::Publish {
             packet_id: 1,
-            topic_name: "incidente".to_string(),
+            topic_name: "incident".to_string(),
             qos: 1,
             retain_flag: 1,
             payload: PayloadTypes::IncidentLocation(incident_payload),
@@ -264,7 +264,7 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let topic_properties = TopicProperties {
             topic_alias: 10,
-            response_topic: "incidente".to_string(),
+            response_topic: "incident".to_string(),
         };
 
         let properties = PublishProperties::new(
@@ -281,7 +281,7 @@ mod tests {
         let incident_payload = incident_payload::IncidentPayload::new(new);
         let publish = ClientMessage::Publish {
             packet_id: 1,
-            topic_name: "incidente".to_string(),
+            topic_name: "incident".to_string(),
             qos: 0,
             retain_flag: 1,
             payload: PayloadTypes::IncidentLocation(incident_payload),

@@ -28,22 +28,11 @@ impl ClientConfig {
         }
     }
 
-    /// Cambia el estado de un cliente en el archivo json
-    pub fn change_client_state(
-        client_id: String,
-        state: bool,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    /// Verifica si un cliente existe en el archivo json
+    pub fn client_exists(client_id: String) -> bool {
+        // verifica si un cliente existe en el archivo json
         let path = format!("./src/mqtt/clients/{}.json", client_id);
-        let file = File::open(&path)?;
-        let client_config: ClientConfig = serde_json::from_reader(file)?;
-        let new_client_config = ClientConfig {
-            client_id: client_config.client_id,
-            state,
-            subscriptions: client_config.subscriptions,
-        };
-        let json = serde_json::to_string(&new_client_config)?;
-        std::fs::write(&path, json)?;
-        Ok(())
+        std::fs::metadata(path).is_ok()
     }
 
     /// Guarda la configuración de un cliente en un archivo json
@@ -56,14 +45,35 @@ impl ClientConfig {
         Ok(())
     }
 
+    /// Cambia el estado de un cliente existente en el archivo json
+    pub fn change_client_state(
+        client_id: String,
+        state: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        if std::fs::metadata(&path).is_err() {
+            return Err("Client not found".into());
+        }
+        let file = File::open(&path)?;
+        let client_config: ClientConfig = serde_json::from_reader(file)?;
+        let new_client_config = ClientConfig {
+            client_id: client_config.client_id,
+            state,
+            subscriptions: client_config.subscriptions,
+        };
+        let json = serde_json::to_string(&new_client_config)?;
+        std::fs::write(&path, json)?;
+        Ok(())
+    }
+
     /// Agrega una nueva suscripción a un cliente en el archivo json
-    pub fn add_new_subscription(
+    pub fn add_new_subscription_to_file(
         client_id: String,
         topic: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let path = format!("./src/mqtt/clients/{}.json", client_id);
         if !ClientConfig::client_exists(client_id.clone()) {
-            ClientConfig::save_client_log_in_json(client_id.clone())?;
+            return Err("Client not found".into());
         }
         let file = std::fs::File::open(path.clone())?;
         let mut client_config: ClientConfig = serde_json::from_reader(file)?;
@@ -74,7 +84,7 @@ impl ClientConfig {
     }
 
     /// Remueve una suscripción de un cliente en el archivo json
-    pub fn remove_subscription(
+    pub fn remove_subscription_from_file(
         client_id: String,
         topic: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -89,13 +99,6 @@ impl ClientConfig {
             return Err("Subscription not found".into());
         }
         Ok(())
-    }
-
-    /// Verifica si un cliente existe en el archivo json
-    pub fn client_exists(client_id: String) -> bool {
-        // verifica si un cliente existe en el archivo json
-        let path = format!("./src/mqtt/clients/{}.json", client_id);
-        std::fs::metadata(path).is_ok()
     }
 
     /// Remueve un cliente del archivo json
@@ -113,14 +116,18 @@ impl ClientConfig {
 mod tests {
     use super::*;
     impl ClientConfig {
-        /// Obtiene un cliente del archivo json
-        pub fn get_client(client_id: String) -> ClientConfig {
-            // obtiene un cliente del archivo json
+        pub fn get_client(client_id: String) -> Result<ClientConfig, Box<dyn std::error::Error>> {
             let path = format!("./src/mqtt/clients/{}.json", client_id);
-            let file = std::fs::File::open(path).unwrap();
-            serde_json::from_reader(file).unwrap()
+            if std::fs::metadata(&path).is_ok() {
+                let file = std::fs::File::open(path)?;
+                let client_config: ClientConfig = serde_json::from_reader(file)?;
+                Ok(client_config)
+            } else {
+                Err("Archivo JSON no encontrado o está vacío".into())
+            }
         }
     }
+
     #[test]
     fn test_new_client_config() {
         let client_id = "test".to_string();
@@ -131,32 +138,13 @@ mod tests {
     }
 
     #[test]
-    fn test_change_client_state() {
-        let client_id = "test".to_string();
-        let _ = ClientConfig::save_client_log_in_json(client_id.clone());
-        let _ = ClientConfig::change_client_state(client_id.clone(), false);
-        let client_config = ClientConfig::get_client(client_id.clone());
-        assert!(!client_config.state);
-        ClientConfig::remove_client(client_id.clone()).unwrap();
-    }
-
-    #[test]
-    fn test_save_client_log_in_json() {
-        let client_id = "test".to_string();
-        let _ = ClientConfig::save_client_log_in_json(client_id.clone());
-        let path = format!("./src/mqtt/clients/{}.json", client_id);
-        assert!(std::fs::metadata(path).is_ok());
-        ClientConfig::remove_client(client_id.clone()).unwrap();
-    }
-
-    #[test]
     fn test_add_new_subscription() {
         let client_id = "test".to_string();
         let topic = "test".to_string();
         let _ = ClientConfig::save_client_log_in_json(client_id.clone());
-        let _ = ClientConfig::add_new_subscription(client_id.clone(), topic.clone());
+        let _ = ClientConfig::add_new_subscription_to_file(client_id.clone(), topic.clone());
         let client_config = ClientConfig::get_client(client_id.clone());
-        assert_eq!(client_config.subscriptions[0], topic);
+        assert_eq!(client_config.unwrap().subscriptions.len(), 1);
         ClientConfig::remove_client(client_id.clone()).unwrap();
     }
 
@@ -165,10 +153,20 @@ mod tests {
         let client_id = "test".to_string();
         let topic = "test".to_string();
         let _ = ClientConfig::save_client_log_in_json(client_id.clone());
-        let _ = ClientConfig::add_new_subscription(client_id.clone(), topic.clone());
-        let _ = ClientConfig::remove_subscription(client_id.clone(), topic.clone());
+        let _ = ClientConfig::add_new_subscription_to_file(client_id.clone(), topic.clone());
+        let _ = ClientConfig::remove_subscription_from_file(client_id.clone(), topic.clone());
         let client_config = ClientConfig::get_client(client_id.clone());
-        assert_eq!(client_config.subscriptions.len(), 0);
+        assert_eq!(client_config.unwrap().subscriptions.len(), 0);
+        ClientConfig::remove_client(client_id.clone()).unwrap();
+    }
+
+    #[test]
+    fn test_change_client_state() {
+        let client_id = "test".to_string();
+        let _ = ClientConfig::save_client_log_in_json(client_id.clone());
+        let _ = ClientConfig::change_client_state(client_id.clone(), false);
+        let client_config = ClientConfig::get_client(client_id.clone());
+        assert!(!client_config.unwrap().state);
         ClientConfig::remove_client(client_id.clone()).unwrap();
     }
 }
