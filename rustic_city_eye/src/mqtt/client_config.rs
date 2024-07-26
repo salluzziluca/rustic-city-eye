@@ -29,7 +29,7 @@ impl ClientConfig {
     }
 
     /// Verifica si un cliente existe en el archivo json
-    pub fn clients_exists(client_id: String) -> bool {
+    pub fn client_exists(client_id: String) -> bool {
         // verifica si un cliente existe en el archivo json
         let path = format!("./src/mqtt/clients/{}.json", client_id);
         std::fs::metadata(path).is_ok()
@@ -51,7 +51,7 @@ impl ClientConfig {
         state: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let path = format!("./src/mqtt/clients/{}.json", client_id);
-        if !std::fs::metadata(&path).is_ok() {
+        if std::fs::metadata(&path).is_err() {
             return Err("Client not found".into());
         }
         let file = File::open(&path)?;
@@ -99,13 +99,6 @@ impl ClientConfig {
             return Err("Subscription not found".into());
         }
         Ok(())
-    }
-
-    /// Verifica si un cliente existe en el archivo json
-    pub fn client_exists(client_id: String) -> bool {
-        // verifica si un cliente existe en el archivo json
-        let path = format!("./src/mqtt/clients/{}.json", client_id);
-        std::fs::metadata(path).is_ok()
     }
 
     /// Remueve un cliente del archivo json

@@ -1,8 +1,6 @@
 use std::fmt::Debug;
 use std::sync::{Arc, RwLock};
 
-use std::collections::HashMap;
-
 use super::subscription::Subscription;
 
 use super::reason_code;
@@ -166,5 +164,17 @@ mod tests {
         assert_eq!(topic.get_subtopics().len(), 2);
         assert_eq!(topic.get_subtopics()[0], subtopic);
         assert_eq!(topic.get_subtopics()[1], subtopic2);
+    }
+
+    #[test]
+    fn test_client_exists() {
+        let mut topic = Topic::new();
+        let user_id = "user".to_string();
+        let subscription = Subscription::new("topic".to_string(), user_id);
+        let result = topic.add_user_to_topic(subscription.clone());
+        assert_eq!(result, 0x00);
+        let users = topic.get_users_from_topic();
+        assert_eq!(users.len(), 1);
+        assert_eq!(users[0], subscription);
     }
 }

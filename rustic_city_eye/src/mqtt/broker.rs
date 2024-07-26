@@ -691,7 +691,7 @@ impl Broker {
                                 }
                                 Err(err) => println!("Error al enviar Disconnect: {:?}", err),
                             }
-                        } 
+                        }
                     }
                     Err(e) => {
                         println!("Error al leer clientes: {:?}", e);
