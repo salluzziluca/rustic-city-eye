@@ -1,10 +1,5 @@
-camera_system
-camera_system/incident
-camera_system/incident_resolved
-monitoring_app
-monitoring_app/drone_locations
-monitoring_app/camera_update
-monitoring_app/incident_resolved
-drone
-drone/attending_incident
-drone/incident
+incidente
+drone_locations
+incidente_resuelto
+camera_update
+attendingincident
