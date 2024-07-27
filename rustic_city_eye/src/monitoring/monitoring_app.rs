@@ -155,8 +155,9 @@ impl MonitoringApp {
 
     /// Contiene las subscripciones a los topics de interes para la MonitoringApp:
     /// necesita la suscripcion al topic de locations de drones("drone_locations"),
-    /// al de actualizaciones de camaras(camera_update), y al topic de
-    /// drones atendiendo incidentes. Por lo tenato, se suscribe al topic que contiene todos estos subtopics llamado "monitoring_app"
+    /// al de actualizaciones de camaras("camera_update"), y al topic de
+    /// incidentes resueltos("incidente_resuelto"):
+    ///
     /// La idea es que la aplicacion reciba actualizaciones de estado de parte del camera_system,
     /// y de los Drones que tenga creados, y que pueda plasmar estos cambios en la interfaz grafica.
     fn subscribe_to_topics(
@@ -165,12 +166,70 @@ impl MonitoringApp {
     ) -> Result<(), ProtocolError> {
         let subscribe_properties: SubscribeProperties =
             SubscribeProperties::new(1, connect_config.properties.user_properties);
-        let topic_name = "monitoring_app/*".to_string();
+        let topic_name = "drone_locations".to_string();
 
         let subscribe_config = SubscribeConfig::new(
             topic_name.clone(),
             subscribe_properties.clone(),
             connect_config.client_id.clone(),
+        );
+        match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
+            Ok(_) => {
+                println!(
+                    "Monitoring App subscrita al topic {} correctamente",
+                    topic_name
+                );
+            }
+            Err(e) => {
+                println!("Monitoring: Error sending message: {:?}", e);
+                return Err(ProtocolError::SubscribeError);
+            }
+        };
+
+        let topic_name = "camera_update".to_string();
+        let subscribe_config = SubscribeConfig::new(
+            topic_name.clone(),
+            subscribe_properties.clone(),
+            connect_config.client_id.clone(),
+        );
+        match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
+            Ok(_) => {
+                println!(
+                    "Monitoring App subscrita al topic {} correctamente",
+                    topic_name
+                );
+            }
+
+            Err(e) => {
+                println!("Monitoring: Error sending message: {:?}", e);
+                return Err(ProtocolError::SubscribeError);
+            }
+        };
+
+        let topic_name = "incidente_resuelto".to_string();
+        let subscribe_config = SubscribeConfig::new(
+            topic_name.clone(),
+            subscribe_properties.clone(),
+            connect_config.client_id.clone(),
+        );
+        match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
+            Ok(_) => {
+                println!(
+                    "Monitoring App subscrita al topic {} correctamente",
+                    topic_name
+                );
+            }
+            Err(e) => {
+                println!("Monitoring: Error sending message: {:?}", e);
+                return Err(ProtocolError::SubscribeError);
+            }
+        };
+
+        let topic_name = "incidente".to_string();
+        let subscribe_config = SubscribeConfig::new(
+            topic_name.clone(),
+            subscribe_properties,
+            connect_config.client_id,
         );
         match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
             Ok(_) => {
@@ -210,7 +269,6 @@ impl MonitoringApp {
     /// la UI al captar este cambio, nos envia al menu principal y la aplicacion de monitoreo se cierra.
     fn handle_update_entities(&self) -> Result<(), ProtocolError> {
         let receive_from_client_ref = Arc::clone(&self.receive_from_client);
-        let active_drones_clone = Arc::clone(&self.active_drones);
         let updated_drones_clone = Arc::clone(&self.updated_drones);
         let cameras_clone = Arc::clone(&self.cameras);
         let incidents_clone = Arc::clone(&self.incidents);
@@ -219,8 +277,6 @@ impl MonitoringApp {
         thread::spawn(move || loop {
             let receiver_clone: Arc<Mutex<Receiver<ClientMessage>>> =
                 Arc::clone(&receive_from_client_ref);
-            let active_drones_clone: Arc<Mutex<HashMap<u32, (Location, Location)>>> =
-                Arc::clone(&active_drones_clone);
             let updated_drones_clone = Arc::clone(&updated_drones_clone);
             let cameras_clone = Arc::clone(&cameras_clone);
             let incidents_clone = Arc::clone(&incidents_clone);
@@ -228,7 +284,6 @@ impl MonitoringApp {
 
             if !update_entities(
                 receiver_clone,
-                active_drones_clone,
                 updated_drones_clone,
                 cameras_clone,
                 incidents_clone,
@@ -409,7 +464,6 @@ impl MonitoringApp {
 ///   y aquellos que no fueron a resolver el incidente dejaran de ir a resolverlo, y volveran a patrullar en su area.
 pub fn update_entities(
     recieve_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
-    active_drones: Arc<Mutex<HashMap<u32, (Location, Location)>>>,
     updated_drones: Arc<Mutex<VecDeque<(u32, Location, Location)>>>,
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
     incidents: Arc<Mutex<Vec<(Incident, u8)>>>,

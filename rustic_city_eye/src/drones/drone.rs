@@ -172,7 +172,7 @@ impl Drone {
     ) -> Result<(), DroneError> {
         let subscribe_properties =
             SubscribeProperties::new(1, connect_config.properties.user_properties);
-        let topic_name = "drone/*".to_string();
+        let topic_name = "incidente".to_string();
         let subscribe_config = SubscribeConfig::new(
             topic_name.clone(),
             subscribe_properties.clone(),
@@ -195,27 +195,27 @@ impl Drone {
             }
         };
 
-        // let topic_name = "attending_incident".to_string();
-        // let subscribe_config = SubscribeConfig::new(
-        //     topic_name.clone(),
-        //     subscribe_properties,
-        //     connect_config.client_id.clone(),
-        // );
-        // match send_from_drone_channel.send(Box::new(subscribe_config)) {
-        //     Ok(_) => {
-        //         println!(
-        //             "Drone {} suscrito al topic {} correctamente",
-        //             connect_config.client_id, topic_name
-        //         );
-        //     }
-        //     Err(e) => {
-        //         println!(
-        //             "Drone {}: Error sending message: {:?}",
-        //             connect_config.client_id, e
-        //         );
-        //         return Err(DroneError::SubscribeError(e.to_string()));
-        //     }
-        // };
+        let topic_name = "attendingincident".to_string();
+        let subscribe_config = SubscribeConfig::new(
+            topic_name.clone(),
+            subscribe_properties,
+            connect_config.client_id.clone(),
+        );
+        match send_from_drone_channel.send(Box::new(subscribe_config)) {
+            Ok(_) => {
+                println!(
+                    "Drone {} suscrito al topic {} correctamente",
+                    connect_config.client_id, topic_name
+                );
+            }
+            Err(e) => {
+                println!(
+                    "Drone {}: Error sending message: {:?}",
+                    connect_config.client_id, e
+                );
+                return Err(DroneError::SubscribeError(e.to_string()));
+            }
+        };
 
         Ok(())
     }
