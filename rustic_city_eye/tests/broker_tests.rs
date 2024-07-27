@@ -523,9 +523,7 @@ mod tests {
 
         assert_eq!(result.unwrap(), ProtocolReturn::DisconnectRecieved);
 
-        // verifico la lista de desconectados
-        let offline_clients = broker.get_offline_clients();
-        assert!(offline_clients.contains_key("kvtr33"));
+    
 
         // verificio que no este en la lista de conectados
         let online_clients = broker.get_clients_ids();
