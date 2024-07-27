@@ -1,6 +1,6 @@
 use std::io::{Error, Read, Write};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::utils::{reader::*, writer::*};
 
@@ -16,7 +16,7 @@ const USER_PROPERTY_ID: u8 = 0x26;
 const SUBSCRIPTION_IDENTIFIER_ID: u8 = 0x0B;
 const CONTENT_TYPE_ID: u8 = 0x03;
 
-#[derive(Debug, PartialEq, Clone, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PublishProperties {
     /// Si vale 0, indica que el payload tiene bytes unspecified -> es equivalente a no enviar un payload format indicator.
     /// Si vale 1 indica que el payload esta encodeado en UTF-8
@@ -32,7 +32,7 @@ pub struct PublishProperties {
     pub content_type: String,
 }
 
-#[derive(Debug, PartialEq, Clone, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 
 pub struct TopicProperties {
     pub topic_alias: u16,

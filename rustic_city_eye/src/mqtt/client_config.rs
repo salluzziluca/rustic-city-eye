@@ -2,7 +2,7 @@ use std::fs::File;
 
 use serde::{Deserialize, Serialize};
 
-use super::protocol_error::ProtocolError;
+use super::{client_message::ClientMessage, protocol_error::ProtocolError};
 
 /// Estructura que representa la configuración de un cliente
 #[derive(Serialize, Deserialize)]
@@ -63,7 +63,7 @@ impl ClientConfig {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let path = format!("./src/mqtt/clients/{}.json", client_id);
         if !ClientConfig::client_exists(client_id.clone()) {
-            ClientConfig::save_client_log_in_json(client_id.clone())?;
+            let _ = ClientConfig::save_client_log_in_json(client_id.clone());
         }
         let file = std::fs::File::open(path.clone())?;
         let mut client_config: ClientConfig = serde_json::from_reader(file)?;
@@ -106,6 +106,35 @@ impl ClientConfig {
             Ok(_) => Ok(()),
             Err(e) => Err(ProtocolError::RemoveClientError(e.to_string())),
         }
+    }
+
+    pub fn client_is_online(client_id: String) -> bool {
+        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        if std::fs::metadata(&path).is_ok() {
+            let file = std::fs::File::open(path).unwrap();
+            let client_config: ClientConfig = serde_json::from_reader(file).unwrap();
+            client_config.state
+        } else {
+            false
+        }
+    }
+
+    pub fn add_offline_message(
+        client_id: String,
+        message: ClientMessage,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        if !ClientConfig::client_exists(client_id.clone()) {
+            let _ = ClientConfig::save_client_log_in_json(client_id.clone());
+        }
+        let file = std::fs::File::open(path.clone())?;
+        let mut client_config: ClientConfig = serde_json::from_reader(file)?;
+        let json = serde_json::to_string(&message)?;
+        client_config.subscriptions.push(json);
+        let json = serde_json::to_string(&client_config)?;
+        std::fs::write(path, json)?;
+
+        Ok(())
     }
 }
 
