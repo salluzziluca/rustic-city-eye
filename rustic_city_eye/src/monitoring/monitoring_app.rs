@@ -1,6 +1,5 @@
 //! Se conecta mediante TCP a la dirección asignada por los args que le ingresan
 //! en su constructor.
-
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -152,8 +151,9 @@ impl MonitoringApp {
 
     /// Contiene las subscripciones a los topics de interes para la MonitoringApp:
     /// necesita la suscripcion al topic de locations de drones("drone_locations"),
-    /// al de actualizaciones de camaras(camera_update), y al topic de
-    /// drones atendiendo incidentes. Por lo tenato, se suscribe al topic que contiene todos estos subtopics llamado "monitoring_app"
+    /// al de actualizaciones de camaras("camera_update"), y al topic de
+    /// incidentes resueltos("incidente_resuelto"):
+    ///
     /// La idea es que la aplicacion reciba actualizaciones de estado de parte del camera_system,
     /// y de los Drones que tenga creados, y que pueda plasmar estos cambios en la interfaz grafica.
     fn subscribe_to_topics(
@@ -162,12 +162,70 @@ impl MonitoringApp {
     ) -> Result<(), ProtocolError> {
         let subscribe_properties: SubscribeProperties =
             SubscribeProperties::new(1, connect_config.properties.user_properties);
-        let topic_name = "monitoring_app/*".to_string();
+        let topic_name = "drone_locations".to_string();
 
         let subscribe_config = SubscribeConfig::new(
             topic_name.clone(),
             subscribe_properties.clone(),
             connect_config.client_id.clone(),
+        );
+        match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
+            Ok(_) => {
+                println!(
+                    "Monitoring App subscrita al topic {} correctamente",
+                    topic_name
+                );
+            }
+            Err(e) => {
+                println!("Monitoring: Error sending message: {:?}", e);
+                return Err(ProtocolError::SubscribeError);
+            }
+        };
+
+        let topic_name = "camera_update".to_string();
+        let subscribe_config = SubscribeConfig::new(
+            topic_name.clone(),
+            subscribe_properties.clone(),
+            connect_config.client_id.clone(),
+        );
+        match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
+            Ok(_) => {
+                println!(
+                    "Monitoring App subscrita al topic {} correctamente",
+                    topic_name
+                );
+            }
+
+            Err(e) => {
+                println!("Monitoring: Error sending message: {:?}", e);
+                return Err(ProtocolError::SubscribeError);
+            }
+        };
+
+        let topic_name = "incidente_resuelto".to_string();
+        let subscribe_config = SubscribeConfig::new(
+            topic_name.clone(),
+            subscribe_properties.clone(),
+            connect_config.client_id.clone(),
+        );
+        match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
+            Ok(_) => {
+                println!(
+                    "Monitoring App subscrita al topic {} correctamente",
+                    topic_name
+                );
+            }
+            Err(e) => {
+                println!("Monitoring: Error sending message: {:?}", e);
+                return Err(ProtocolError::SubscribeError);
+            }
+        };
+
+        let topic_name = "incidente".to_string();
+        let subscribe_config = SubscribeConfig::new(
+            topic_name.clone(),
+            subscribe_properties,
+            connect_config.client_id,
         );
         match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
             Ok(_) => {

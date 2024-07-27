@@ -35,7 +35,6 @@ pub enum ProtocolError {
     WatcherError(String),
 
     InvalidCommand(String),
-
     AnnotationError(String),
     ArcMutexError(String),
 }

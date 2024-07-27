@@ -11,7 +11,7 @@ pub struct Topic {
     /// Hashmap de subscriptores.
     users: Arc<RwLock<Vec<Subscription>>>,
     // vector de subtopics
-    subtopics: Vec<String>,
+    // subtopic: Vec<Topic>,
 }
 
 impl Default for Topic {
@@ -25,7 +25,6 @@ impl Topic {
     pub fn new() -> Self {
         Self {
             users: Arc::new(RwLock::new(Vec::new())),
-            subtopics: Vec::new(),
         }
     }
 
@@ -43,7 +42,7 @@ impl Topic {
                     existe = true;
                 }
             }
-            Err(_) => return reason_code::SUB_ID_DUP_HEX,
+            Err(_) => return reason_code::UNSPECIFIED_ERROR_HEX,
         }
 
         let mut lock = match self.users.write() {
@@ -72,18 +71,6 @@ impl Topic {
         }
 
         reason_code::SUCCESS_HEX
-    }
-
-    pub fn add_subtopic(&mut self, topic: String) {
-        self.subtopics.push(topic);
-    }
-
-    pub fn remove_subtopic(&mut self, topic: String) {
-        self.subtopics.retain(|x| x != &topic);
-    }
-
-    pub fn get_subtopics(&self) -> Vec<String> {
-        self.subtopics.clone()
     }
 
     pub fn get_users_from_topic(&self) -> Vec<Subscription> {
@@ -152,29 +139,5 @@ mod tests {
         assert_eq!(result, 0x00);
         let result = topic.remove_user_from_topic(subscription);
         assert_eq!(result, 0x00);
-    }
-
-    #[test]
-    fn test_add_subtopic() {
-        let mut topic = Topic::new();
-        let subtopic = "subtopic".to_string();
-        topic.add_subtopic(subtopic.clone());
-        let subtopic2 = "subtopic2".to_string();
-        topic.add_subtopic(subtopic2.clone());
-        assert_eq!(topic.get_subtopics().len(), 2);
-        assert_eq!(topic.get_subtopics()[0], subtopic);
-        assert_eq!(topic.get_subtopics()[1], subtopic2);
-    }
-
-    #[test]
-    fn test_client_exists() {
-        let mut topic = Topic::new();
-        let user_id = "user".to_string();
-        let subscription = Subscription::new("topic".to_string(), user_id);
-        let result = topic.add_user_to_topic(subscription.clone());
-        assert_eq!(result, 0x00);
-        let users = topic.get_users_from_topic();
-        assert_eq!(users.len(), 1);
-        assert_eq!(users[0], subscription);
     }
 }
