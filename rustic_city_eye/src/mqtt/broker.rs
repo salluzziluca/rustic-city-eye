@@ -4,10 +4,7 @@ use std::{
     io::{stdin, BufRead, BufReader},
     net::{Shutdown, TcpListener, TcpStream},
     process::exit,
-    sync::{
-        mpsc::{self},
-        Arc, Mutex, RwLock,
-    },
+    sync::{mpsc, Arc, Mutex, RwLock},
     thread,
 };
 
@@ -45,9 +42,6 @@ pub struct Broker {
     packets: Arc<RwLock<HashMap<u16, ClientMessage>>>,
 
     /// Contiene los clientes conectados al broker.
-
-    /// Contiene los clientes desconectados del broker y sus mensajes pendientes.
-    offline_clients: Arc<RwLock<HashMap<String, Vec<ClientMessage>>>>,
     #[allow(clippy::type_complexity)]
     clients_ids: Arc<RwLock<HashMap<String, (Option<TcpStream>, Option<LastWill>)>>>,
 
@@ -66,7 +60,6 @@ impl Broker {
         let clients_auth_info = Broker::process_clients_file("./src/monitoring/clients.txt")?;
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let packets = Arc::new(RwLock::new(HashMap::new()));
-        let offline_clients = Arc::new(RwLock::new(HashMap::new()));
 
         Ok(Broker {
             address,
@@ -74,7 +67,6 @@ impl Broker {
             clients_auth_info,
             packets,
             clients_ids,
-            offline_clients,
         })
     }
 
@@ -171,9 +163,8 @@ impl Broker {
         let threadpool = ThreadPool::new(THREADPOOL_SIZE);
 
         let broker_ref = Arc::new(Mutex::new(self.clone()));
-        let (_shutdown_sender, shutdown_receiver) = mpsc::channel();
 
-        thread::spawn(move || loop {
+        threadpool.execute(move || loop {
             let mut lock = match broker_ref.lock() {
                 Ok(l) => l,
                 Err(e) => {
@@ -193,12 +184,6 @@ impl Broker {
         });
 
         loop {
-            if let Ok(shutdown) = shutdown_receiver.try_recv() {
-                if shutdown {
-                    break;
-                }
-            };
-
             match listener.accept() {
                 Ok((stream, _)) => {
                     let topics_clone = self.topics.clone();
@@ -267,8 +252,6 @@ impl Broker {
                 Err(_) => return Err(ProtocolError::StreamError),
             }
         }
-
-        Ok(())
     }
 
     fn process_input_command<R: BufRead>(&mut self, reader: R) -> Result<(), ProtocolError> {
@@ -385,25 +368,6 @@ impl Broker {
         }
     }
 
-    /// Maneja el mensaje de un usuario offline.
-    ///
-    /// Guarda el mensaje en offline_clients.
-    fn handle_offline_user(
-        &self,
-        user_id: &str,
-        message: &ClientMessage,
-    ) -> Result<(), ProtocolError> {
-        let mut offline_clients = self.offline_clients.write().map_err(|_| {
-            ProtocolError::UnspecifiedError("Error al leer offline_clients".to_string())
-        })?;
-        if let Some(messages) = offline_clients.get_mut(user_id) {
-            messages.push(message.clone());
-        } else {
-            offline_clients.insert(user_id.to_string(), vec![message.clone()]);
-        }
-        Ok(())
-    }
-
     /// Maneja el envio de un mensaje a un topic.
     ///
     /// Retorna el reason code correspondiente a si el envio fue exitoso o no.
@@ -424,9 +388,16 @@ impl Broker {
         for user in users {
             match self.send_message_to_user(&user, &mensaje) {
                 Ok(_) => (),
-                Err(esta_offline) => {
-                    if esta_offline {
-                        self.handle_offline_user(&user.client_id, &message)?;
+                Err(_) => {
+                    if ClientConfig::client_is_online(user.client_id.clone()) {
+                        return Err(ProtocolError::UnspecifiedError(
+                            "Error al enviar mensaje".to_string(),
+                        ));
+                    } else {
+                        let _ = ClientConfig::add_offline_message(
+                            user.client_id.clone(),
+                            message.clone(),
+                        );
                     }
                 }
             }
@@ -609,35 +580,6 @@ impl Broker {
                         println!("Error al leer clientes: {:?}", e);
                         return Err(ProtocolError::UnspecifiedError(e.to_string()));
                     }
-                }
-
-                // reibe los mensajes de cuando estuvo offline
-                if let Ok(offline_clients) = self.offline_clients.read() {
-                    if offline_clients.contains_key(&connect.client_id) {
-                        if let Some(pending_messages) = offline_clients.get(&connect.client_id) {
-                            for message in pending_messages {
-                                match message.write_to(&mut stream) {
-                                    Ok(_) => {
-                                        println!("Mensaje enviado a {}", connect.client_id);
-                                    }
-                                    Err(e) => {
-                                        println!("Error al enviar mensaje: {:?}", e);
-                                        return Err(ProtocolError::UnspecifiedError(e.to_string()));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                //si está en offline_clients lo elimino de ahí
-                if let Ok(mut lock) = self.offline_clients.write() {
-                    _ = ClientConfig::remove_client(connect.client_id.clone());
-                    lock.remove(&connect.client_id);
-                } else {
-                    return Err(ProtocolError::UnspecifiedError(
-                        "Error al leer offline_clients".to_string(),
-                    ));
                 }
 
                 //clona stream con ok err
@@ -825,9 +767,6 @@ impl Broker {
                     reason_string
                 );
 
-                // cambio el estado del cliente a desconectado
-                _ = ClientConfig::change_client_state(client_id.clone(), false);
-
                 // elimino el client_id de clients_ids
                 if let Ok(mut lock) = self.clients_ids.write() {
                     lock.remove(&client_id);
@@ -835,12 +774,7 @@ impl Broker {
                     return Err(ProtocolError::WriteError);
                 }
 
-                // agrego el client_id a offline_clients
-                if let Ok(mut lock) = self.offline_clients.write() {
-                    lock.insert(client_id, Vec::new());
-                } else {
-                    return Err(ProtocolError::WriteError);
-                }
+                _ = ClientConfig::change_client_state(client_id.clone(), false);
 
                 return Ok(ProtocolReturn::DisconnectRecieved);
             }
@@ -910,14 +844,6 @@ impl Broker {
         ))
     }
 
-    /// Devuelve los clientes offline y sus mensajes pendientes de manera estática
-    /// para poder testear
-    pub fn get_offline_clients(&self) -> HashMap<String, Vec<ClientMessage>> {
-        match self.offline_clients.read() {
-            Ok(lock) => lock.clone(),
-            Err(_) => HashMap::new(),
-        }
-    }
     /// Devuelve los clientes conectados de manera estática
     /// para poder testear
     pub fn get_clients_ids(&self) -> Vec<String> {

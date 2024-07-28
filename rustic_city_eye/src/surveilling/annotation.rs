@@ -124,6 +124,17 @@ impl ImageClassifier {
         Ok(result)
     }
 
+    /// A partir del resultado de la clasificacion de una imagen, determina si se detecta un incidente o no.
+    pub fn annotate_image(&self, image_path: &str) -> Result<bool, AnnotationError> {
+        let classify_result = self.classify_image(image_path)?;
+
+        if classify_result.is_empty() {
+            return Ok(false);
+        }
+
+        Ok(true)
+    }
+
     /// Dada una imagen codificada en Base64, se construye una request(la cual va a tener como feature
     /// a Label Detection de la IA utilizada), y se hara un POST sobre el cliente de reqwest.
     ///
@@ -231,7 +242,9 @@ mod tests {
         let classifier = ImageClassifier::new(url, incident_keywords_file_path)?;
         let image_path = "./tests/ia_annotation_img/assault.png";
 
-        classifier.classify_image(image_path)?;
+        let annotate_result = classifier.annotate_image(image_path)?;
+
+        assert!(annotate_result);
 
         Ok(())
     }
@@ -243,9 +256,9 @@ mod tests {
         let classifier = ImageClassifier::new(url, incident_keywords_file_path)?;
 
         let image_path = "./tests/ia_annotation_img/assault.png";
-        let classification_result = classifier.classify_image(image_path)?;
+        let classification_result = classifier.annotate_image(image_path)?;
 
-        assert!(!classification_result.is_empty());
+        assert!(classification_result);
 
         Ok(())
     }
@@ -260,13 +273,13 @@ mod tests {
         let incident_keywords_file_path = "./tests/incident_keywords";
         let classifier = ImageClassifier::new(url, incident_keywords_file_path)?;
 
-        let classification_result_one = classifier.classify_image(image_path_one)?;
-        let classification_result_two = classifier.classify_image(image_path_two)?;
-        let classification_result_three = classifier.classify_image(image_path_three)?;
+        let classification_result_one = classifier.annotate_image(image_path_one)?;
+        let classification_result_two = classifier.annotate_image(image_path_two)?;
+        let classification_result_three = classifier.annotate_image(image_path_three)?;
 
-        assert!(!classification_result_one.is_empty());
-        assert!(!classification_result_two.is_empty());
-        assert!(!classification_result_three.is_empty());
+        assert!(classification_result_one);
+        assert!(classification_result_two);
+        assert!(classification_result_three);
 
         Ok(())
     }
@@ -282,15 +295,15 @@ mod tests {
         let incident_keywords_file_path = "./tests/incident_keywords";
         let classifier = ImageClassifier::new(url, incident_keywords_file_path)?;
 
-        let classification_result_one = classifier.classify_image(image_path_one)?;
-        let classification_result_two = classifier.classify_image(image_path_two)?;
-        let classification_result_three = classifier.classify_image(image_path_three)?;
-        let classification_result_four = classifier.classify_image(image_path_four)?;
+        let classification_result_one = classifier.annotate_image(image_path_one)?;
+        let classification_result_two = classifier.annotate_image(image_path_two)?;
+        let classification_result_three = classifier.annotate_image(image_path_three)?;
+        let classification_result_four = classifier.annotate_image(image_path_four)?;
 
-        assert!(!classification_result_one.is_empty());
-        assert!(!classification_result_two.is_empty());
-        assert!(!classification_result_three.is_empty());
-        assert!(!classification_result_four.is_empty());
+        assert!(classification_result_one);
+        assert!(classification_result_two);
+        assert!(classification_result_three);
+        assert!(classification_result_four);
 
         Ok(())
     }
@@ -304,11 +317,11 @@ mod tests {
         let incident_keywords_file_path = "./tests/incident_keywords";
         let classifier = ImageClassifier::new(url, incident_keywords_file_path)?;
 
-        let classification_result_one = classifier.classify_image(image_path_one)?;
-        let classification_result_two = classifier.classify_image(image_path_two)?;
+        let classification_result_one = classifier.annotate_image(image_path_one)?;
+        let classification_result_two = classifier.annotate_image(image_path_two)?;
 
-        assert!(!classification_result_one.is_empty());
-        assert!(!classification_result_two.is_empty());
+        assert!(classification_result_one);
+        assert!(classification_result_two);
 
         Ok(())
     }
@@ -323,13 +336,13 @@ mod tests {
         let incident_keywords_file_path = "./tests/incident_keywords";
         let classifier = ImageClassifier::new(url, incident_keywords_file_path)?;
 
-        let classification_result_one = classifier.classify_image(image_path_one)?;
-        let classification_result_two = classifier.classify_image(image_path_two)?;
-        let classification_result_three = classifier.classify_image(image_path_three)?;
+        let classification_result_one = classifier.annotate_image(image_path_one)?;
+        let classification_result_two = classifier.annotate_image(image_path_two)?;
+        let classification_result_three = classifier.annotate_image(image_path_three)?;
 
-        assert!(classification_result_one.is_empty());
-        assert!(classification_result_two.is_empty());
-        assert!(classification_result_three.is_empty());
+        assert!(!classification_result_one);
+        assert!(!classification_result_two);
+        assert!(!classification_result_three);
 
         Ok(())
     }
@@ -340,7 +353,7 @@ mod tests {
         let incident_keywords_file_path = "./tests/incident_keywords";
         let mut classifier = ImageClassifier::new(url, incident_keywords_file_path)?;
 
-        let _ = classifier.set_incident_keywords(incident_keywords_file_path)?;
+        classifier.set_incident_keywords(incident_keywords_file_path)?;
         let expected_keywords = vec![
             "flood".to_string(),
             "fire".to_string(),

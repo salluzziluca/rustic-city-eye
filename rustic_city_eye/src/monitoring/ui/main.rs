@@ -15,7 +15,7 @@ use rustic_city_eye::{
     surveilling::camera::Camera,
     utils::location::Location,
 };
-use std::{collections::HashMap, sync::mpsc};
+use std::collections::HashMap;
 use walkers::{sources::OpenStreetMap, HttpTiles, Map, MapMemory, Position, Texture, Tiles};
 
 use windows::*;
@@ -194,14 +194,11 @@ impl MyApp {
                         self.port.clone(),
                     ];
 
-                    let (disconnect_notifications_sender, _disconnect_notifications_receiver) =
-                        mpsc::channel();
-
                     self.correct_username = !self.username.is_empty();
                     self.correct_password = !self.password.is_empty();
                     self.correct_ip = !self.ip.is_empty();
                     self.correct_port = !self.port.is_empty();
-                    match MonitoringApp::new(args, disconnect_notifications_sender) {
+                    match MonitoringApp::new(args) {
                         Ok(mut monitoring_app) => {
                             let _ = monitoring_app.run_client();
                             self.monitoring_app = Some(monitoring_app);
@@ -236,6 +233,17 @@ impl MyApp {
     /// Si se presiona el boton de zoom, se actualiza el zoom level
     /// Carga las diferentes ventanas de camaras, incidentes, drones y centros de drones
     fn handle_map(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
+        if let Some(monitoring_app) = &self.monitoring_app {
+            let lock = monitoring_app.connected.lock().unwrap();
+            if !*lock {
+                self.connected = false;
+                self.username.clear();
+                self.password.clear();
+                self.ip.clear();
+                self.port.clear();
+            }
+        }
+
         CentralPanel::default().show(ctx, |ui| {
             let last_clicked = self.map.click_watcher.clicked_at;
 
@@ -293,6 +301,7 @@ impl MyApp {
 impl App for MyApp {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         if !self.connected {
+            self.monitoring_app = None;
             self.handle_form(ctx, _frame);
         } else {
             self.handle_map(ctx, _frame);

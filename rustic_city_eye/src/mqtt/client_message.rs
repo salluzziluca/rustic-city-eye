@@ -52,7 +52,7 @@ pub struct Connect {
     pub(crate) password: Option<Vec<u8>>,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum ClientMessage {
     Connect(Connect),
 
