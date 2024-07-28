@@ -695,7 +695,6 @@ fn analize_image(event: Vec<String>, system: &Arc<Mutex<CameraSystem<Client>>>, 
                 Err(_) => {
                     return Err(ProtocolError::ArcMutexError(
                         "Error locking cameras mutex".to_string(),
-
                     ));
                 }
             };
