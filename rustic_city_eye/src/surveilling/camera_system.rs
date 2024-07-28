@@ -273,7 +273,6 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
             loop {
                 match rx.recv() {
                     Ok(event) => {
-                        println!("watch event: {:?}", event);
                         let now = Instant::now();
                         let should_process = match last_event_times.get(&event[PATH_POSITION]) {
                             Some(&last_time) => {
@@ -642,7 +641,6 @@ fn process_dir_change(
 fn analize_image(event: Vec<String>, system: &Arc<Mutex<CameraSystem<Client>>>, pool: &ThreadPool) {
     let system_clone = Arc::clone(system);
     pool.execute(move || -> Result<(), ProtocolError> {
-        println!("analizando imagen...?");
         let system_clone2 = Arc::clone(&system_clone);
         let str_path = event[1].clone();
 
@@ -665,7 +663,10 @@ fn analize_image(event: Vec<String>, system: &Arc<Mutex<CameraSystem<Client>>>, 
             }
         };
 
-        println!("La camara de id {:?} esta analizando una imagen", camera_id);
+        println!(
+            "Camera Sys: La camara de id {:?} esta analizando una imagen",
+            camera_id
+        );
         let url = "https://vision.googleapis.com/v1/images:annotate".to_string();
         let incident_keywords_file_path = "./src/surveilling/incident_keywords";
 
@@ -675,14 +676,13 @@ fn analize_image(event: Vec<String>, system: &Arc<Mutex<CameraSystem<Client>>>, 
             .annotate_image(&str_path)
             .map_err(|e| ProtocolError::AnnotationError(e.to_string()))?;
 
-        println!(
-            "La camara de id {:?} ha clasificado la imagen y el resultado es: {:?}",
-            camera_id, classification_result
-        );
-
         if !classification_result {
             println!("No es un incidente");
         } else {
+            println!(
+                "CameraSys: La camara de id {:?} ha detectado un incidente",
+                camera_id
+            );
             let camera = match system_clone.lock().unwrap().get_camera_by_id(camera_id) {
                 Some(camera) => camera,
                 None => {
