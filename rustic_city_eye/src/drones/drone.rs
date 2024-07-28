@@ -264,8 +264,7 @@ impl Drone {
         match self.drone_client.client_run() {
             Ok(client) => {
                 println!("Drone {} patrullando en su area de operacion", self.id);
-                // exit
-                return Ok(());
+                client
             }
             Err(e) => {
                 print!(
