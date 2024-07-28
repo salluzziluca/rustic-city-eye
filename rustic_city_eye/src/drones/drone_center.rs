@@ -20,7 +20,7 @@ pub struct DroneCenter {
     drone_config_path: String,
     address: String,
 
-    disconnect_senders: Vec<Sender<()>>
+    disconnect_senders: Vec<Sender<()>>,
 }
 
 impl DroneCenter {
@@ -36,7 +36,7 @@ impl DroneCenter {
             drones: HashMap::default(),
             drone_config_path,
             address,
-            disconnect_senders: Vec::new()
+            disconnect_senders: Vec::new(),
         }
     }
 
@@ -54,7 +54,10 @@ impl DroneCenter {
         }
 
         for sender in self.disconnect_senders.clone() {
-            sender.send(()).unwrap();
+            match sender.send(()) {
+                Ok(_) => (),
+                Err(_) => return Err(ProtocolError::DisconnectError),
+            };
         }
 
         Ok(())
@@ -77,7 +80,7 @@ impl DroneCenter {
             self.location,
             &self.drone_config_path.to_string(),
             self.address.to_string(),
-            disconnect_receiver
+            disconnect_receiver,
         )?;
 
         self.disconnect_senders.push(disconnect_sender);
