@@ -56,4 +56,12 @@ Para detectar incidentes, optamos por utilizar dos filtros que nos provee la API
 
 El clasificador de imagenes que hemos declarado funciona de la siguiente manera para etiquetar las imagenes: se le provee un path hacia una imagen local, y se pasa a codificarla en base 64(haciendo uso del crate externo `Base64`), luego se realiza la request a la API, haciendo uso de un Client del crate externo `reqwest` en modo Blocking: esto nos permite manejar peticiones HTTP de manera sincronica, ya que va a bloquear el thread en ejecucion hasta que reciba una response. Las requests van a serializarse, y las responses van a deserializarse, obteniendo asi un vector de tuplas `(String, f64)`: el String corresponde a la etiqueta, y el f64 corresponde al score de esa etiqueta.
 
-Al obtener el vector de etiquetas con sus respectivos scores, se pasa a detectar posibles incidentes, y es que si alguna de esas etiquetas contiene una palabra clave para detectar incidentes(puede ser por ejemplo la palabra `Fire`), se indica que un incidente fue detectado.
+Al obtener el vector de etiquetas con sus respectivos scores, se pasa a detectar posibles incidentes, y es que si alguna de esas etiquetas contiene una palabra clave para detectar incidentes(puede ser por ejemplo la palabra `Fire`), se indica que un incidente fue detectado.  
+![alt text](image.png)
+
+# MultiThreading
+Se implemento un sistema mediante el cual, cuando se crea una nueva camara, se crea tambien un directorio asociada a esta. Con su ID como nombre del dir. Se desarrolló un watcher que se encarga de monitorear un directorio en busca de nuevas imágenes. (el watcher en cuestion tambien se utiliza para verificar la correcta creacion de directorios de camras, las cuales se pueden verificar mediante el logging por consola)
+
+Cuando se detecta una nueva imagen dentro de algun directorio de camaras se le envia mediante un channel la informacion de este evento al camera system, este luego spawnea un thread que se encarga de inicializar un clasificiador y enviar a este la(s) imagen(es) para que este se encargue del etiquetado. 
+
+![alt text](image-1.png)
