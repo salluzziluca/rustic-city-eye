@@ -513,6 +513,7 @@ impl Broker {
         }
     }
 
+
     /// Lee del stream un mensaje y lo procesa
     /// Devuelve un ProtocolReturn con informacion del mensaje recibido
     /// O ProtocolError en caso de error
@@ -531,39 +532,43 @@ impl Broker {
 
         match mensaje {
             ClientMessage::Connect { 0: connect } => {
-                println!("Recibí un Connect");
+                println!("Connect received");
 
-                if ClientConfig::client_exists(connect.client_id.clone()) {
-                    let _ = ClientConfig::change_client_state(connect.client_id.clone(), true);
-                    // suscribir a todos los topics que el cliente tenia suscriptos
-                    let subscriptions = ClientConfig::get_client_subscriptions(connect.client_id.clone());
-
-                    // remover las suscripciones del json de cliente
-                    let _ = ClientConfig::remove_all_subscriptions_from_file(connect.client_id.clone());                    
-                    
-                    for subscription in subscriptions {
-
-                        // suscribir al cliente a los topics que tenia suscriptos
-                        
-                    }
-
-                }
-
-                //clona stream con ok err
                 let cloned_stream = match stream.try_clone() {
                     Ok(stream) => stream,
                     Err(_) => return Err(ProtocolError::StreamError),
                 };
 
                 let will_message = connect.clone().give_will_message();
-                if let Ok(mut clients) = self.clients_ids.write() {
-                    clients.insert(
-                        connect.client_id.clone(),
-                        (Some(cloned_stream), will_message),
-                    );
+
+                if ClientConfig::client_exists(connect.client_id.clone()) {
+                    println!("Loading client from file");
+                    let _ = ClientConfig::change_client_state(connect.client_id.clone(), true);   
+                    //update client stream
+                    if let Ok(mut clients) = self.clients_ids.write() {
+                        // elimino el client_id de clients_ids
+                        clients.remove(&connect.client_id);
+                        // agrego el nuevo client_id
+                        clients.insert(
+                            connect.client_id.clone(),
+                            (Some(cloned_stream), will_message),
+                        );
+                    } else {
+                        return Err(ProtocolError::WriteError);
+                    }  
                 } else {
-                    return Err(ProtocolError::WriteError);
+                    println!("Creating new client");
+                    let _ = ClientConfig::create_client_log_in_json(connect.client_id.clone());
+                    if let Ok(mut clients) = self.clients_ids.write() {
+                        clients.insert(
+                            connect.client_id.clone(),
+                            (Some(cloned_stream), will_message),
+                        );
+                    } else {
+                        return Err(ProtocolError::WriteError);
+                    }
                 }
+      
 
                 let connect_clone = connect.clone();
                 let _connack_reason_code = match authenticate_client(
@@ -743,7 +748,7 @@ impl Broker {
                     return Err(ProtocolError::WriteError);
                 }
 
-                _ = ClientConfig::change_client_state(client_id.clone(), false);
+                _ = ClientConfig::change_client_state(client_id.clone(), false);                
 
                 return Ok(ProtocolReturn::DisconnectRecieved);
             }
@@ -813,20 +818,8 @@ impl Broker {
         ))
     }
 
-    /// Devuelve los clientes conectados de manera estática
-    /// para poder testear
-    pub fn get_clients_ids(&self) -> Vec<String> {
-        let mut clients_ids = Vec::new();
-        let lock = match self.clients_ids.read() {
-            Ok(lock) => lock,
-            Err(_) => return clients_ids,
-        };
-        for client_id in lock.keys() {
-            clients_ids.push(client_id.clone());
-        }
 
-        clients_ids
-    }
+
     pub fn broker_exit(&self) -> Result<(), ProtocolError> {
         let clients = self
             .clients_ids
@@ -840,7 +833,7 @@ impl Broker {
                     reason_string: "SERVER_SHUTDOWN".to_string(),
                     user_properties: Vec::new(),
                 };
-                ClientConfig::remove_client(client_id.clone())?;
+                
                 match stream.try_clone() {
                     Ok(mut cloned_stream) => {
                         match disconnect.write_to(&mut cloned_stream) {
