@@ -160,7 +160,7 @@ impl Drone {
     }
 
     /// Contiene las subscripciones a los topics de interes para el Drone: necesita la suscripcion al topic
-    /// de incidentes("incident"), y al de drones atendiendo incidentes("attendingincident"): la idea es que reciban los incidentes
+    /// de incidentes("incident"), y al de drones atendiendo incidentes("attending_incident"): la idea es que reciban los incidentes
     /// cargados desde la aplicacion de monitoreo, y que ademas sepan que drones estan atendiendo ciertos incidentes, para que los drones
     /// puedan organizarse para resolver los distintos incidentes.
     fn subscribe_to_topics(
@@ -169,7 +169,7 @@ impl Drone {
     ) -> Result<(), DroneError> {
         let subscribe_properties =
             SubscribeProperties::new(1, connect_config.properties.user_properties);
-        let topic_name = "incidente".to_string();
+        let topic_name = "incident".to_string();
         let subscribe_config = SubscribeConfig::new(
             topic_name.clone(),
             subscribe_properties.clone(),
@@ -192,7 +192,7 @@ impl Drone {
             }
         };
 
-        let topic_name = "attendingincident".to_string();
+        let topic_name = "attending_incident".to_string();
         let subscribe_config = SubscribeConfig::new(
             topic_name.clone(),
             subscribe_properties,
@@ -410,11 +410,11 @@ impl Drone {
 
     /// closure del thread de recepcion de mensajes de parte del Client del Drone.
     ///
-    /// Por cada mensaje recibido de los topics de interes del Drone("incident" y "attendingincident"),
+    /// Por cada mensaje recibido de los topics de interes del Drone("incident" y "attending_incident"),
     /// el Drone determinara su accionar.
     ///
     /// Si recibe un incidente, se redirige hacia el mismo para resolverlo y publica su nuevo estado en
-    /// attendingincident.
+    /// attending_incident.
     /// A su vez, recibe aquellas notificaciones de todos los Drones que esten yendo a resolver el incidente, y van a jugar una carrera:
     /// los primeros 2 Drones que lleguen, se podran a resolver el incidente, y los demas pasaran a ignorar este incidente y volveran a patrullar.
 
@@ -448,7 +448,7 @@ impl Drone {
             } = message
             {
                 match topic_name.as_str() {
-                    "incidente" => {
+                    "incident" => {
                         if self_cloned.drone_state == DroneState::Waiting {
                             let location = payload.get_incident().get_location();
                             self_cloned.drone_state = DroneState::AttendingIncident(location);
@@ -471,7 +471,7 @@ impl Drone {
             } = message
             {
                 match topic_name.as_str() {
-                    "attendingincident" => {
+                    "attending_incident" => {
                         let mut to_remove = Vec::new();
 
                         for (incident, count) in self_cloned.incidents.iter_mut() {

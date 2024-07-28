@@ -2,7 +2,7 @@
   "dup_flag": 1,
   "qos": 1,
   "retain_flag": 1,
-  "topic_name": "attendingincident",
+  "topic_name": "attending_incident",
   "payload": {
     "IncidentLocation": {
       "id": 1,

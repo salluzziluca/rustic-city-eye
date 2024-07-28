@@ -152,7 +152,7 @@ impl MonitoringApp {
     /// Contiene las subscripciones a los topics de interes para la MonitoringApp:
     /// necesita la suscripcion al topic de locations de drones("drone_locations"),
     /// al de actualizaciones de camaras("camera_update"), y al topic de
-    /// incidentes resueltos("incidente_resuelto"):
+    /// incidentes resueltos("incident_resolved"):
     ///
     /// La idea es que la aplicacion reciba actualizaciones de estado de parte del camera_system,
     /// y de los Drones que tenga creados, y que pueda plasmar estos cambios en la interfaz grafica.
@@ -202,7 +202,7 @@ impl MonitoringApp {
             }
         };
 
-        let topic_name = "incidente_resuelto".to_string();
+        let topic_name = "incident_resolved".to_string();
         let subscribe_config = SubscribeConfig::new(
             topic_name.clone(),
             subscribe_properties.clone(),
@@ -221,7 +221,7 @@ impl MonitoringApp {
             }
         };
 
-        let topic_name = "incidente".to_string();
+        let topic_name = "incident".to_string();
         let subscribe_config = SubscribeConfig::new(
             topic_name.clone(),
             subscribe_properties,
@@ -445,11 +445,11 @@ impl MonitoringApp {
 /// Si se recibe un mensaje del topic camera_update, se recibe un snapshot de las camaras que cambiaron su
 /// estado, por lo que se notifica a la UI estos cambios y los muestra.
 ///
-/// Si se recibe un mensaje del topic attendingincident, se lleva a cabo un procedimiento:
+/// Si se recibe un mensaje del topic attending_incident, se lleva a cabo un procedimiento:
 /// - La Monitoring App lleva un registro de todos los incidentes ingresados, junto a la cantidad de Drones que
 ///   estan resolviendolo(apenas se publica un incidente nuevo, este valor sera 0).
 /// - A medida que vaya recibiendo mensajes sobre ese topic, se ira incrementando el valor de este contador.
-/// - Si este contador llega a 2, se publica un mensaje con topic incidente_resuelto, el cual recibiran los Drones,
+/// - Si este contador llega a 2, se publica un mensaje con topic incident_resolved, el cual recibiran los Drones,
 ///   y aquellos que no fueron a resolver el incidente dejaran de ir a resolverlo, y volveran a patrullar en su area.
 pub fn update_entities(
     recieve_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
@@ -496,7 +496,7 @@ pub fn update_entities(
                             }
                         }
                     }
-                    "incidente_resuelto" => {
+                    "incident_resolved" => {
                         if let PayloadTypes::IncidentLocation(incident_payload) = payload {
                             let mut incidents = match incidents.lock() {
                                 Ok(incidents) => incidents,
@@ -515,7 +515,7 @@ pub fn update_entities(
                             incidents.retain(|(inc, _)| !to_remove.contains(inc));
                         }
                     }
-                    "incidente" => {
+                    "incident" => {
                         if let PayloadTypes::IncidentLocation(incident_payload) = payload {
                             let incident = incident_payload.get_incident();
                             let mut incidents = match incidents.lock() {

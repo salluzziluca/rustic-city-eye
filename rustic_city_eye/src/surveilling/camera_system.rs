@@ -66,7 +66,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
     ///
     /// Envia un connect segun la configuracion del archivo connect_config.json
     ///
-    /// Se subscribe a los mensajes de tipo "incidente" e "incidente_resuelto"
+    /// Se subscribe a los mensajes de tipo "incident" e "incident_resolved"
     ///
     pub fn new<F>(address: String, client_factory: F) -> Result<CameraSystem<T>, ProtocolError>
     where
@@ -85,14 +85,14 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         let camera_system_client = client_factory(rx, address, connect_config, tx2)?;
         let client_id = camera_system_client.get_client_id();
         let subscribe_config = SubscribeConfig::new(
-            "incidente".to_string(),
+            "incident".to_string(),
             SubscribeProperties::new(1, vec![]),
             client_id.clone(),
         );
 
         let _ = tx.send(Box::new(subscribe_config));
         let subscribe_config = SubscribeConfig::new(
-            "incidente_resuelto".to_string(),
+            "incident_resolved".to_string(),
             SubscribeProperties::new(1, vec![]),
             client_id,
         );
@@ -243,12 +243,12 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
                         payload: PayloadTypes::IncidentLocation(payload),
                         ..
                     }) => {
-                        if topic_name == "incidente" {
+                        if topic_name == "incident" {
                             incident_location = Some(payload.get_incident().get_location());
                             drop(reciever); // Release the lock here
 
                             continue;
-                        } else if topic_name == "incidente_resuelto" {
+                        } else if topic_name == "incident_resolved" {
                             solved_incident_location = Some(payload.get_incident().get_location());
                             drop(reciever); // Release the lock here
 
@@ -1443,7 +1443,7 @@ mod tests {
                     payload,
                     properties: _,
                 } => {
-                    assert_eq!(payload.topic, "incidente");
+                    assert_eq!(payload.topic, "incident");
                 }
                 _ => {
                     panic!("Unexpected message type");
@@ -1460,7 +1460,7 @@ mod tests {
                     payload,
                     properties: _,
                 } => {
-                    assert_eq!(payload.topic, "incidente_resuelto");
+                    assert_eq!(payload.topic, "incident_resolved");
                 }
                 _ => {
                     panic!("Unexpected message type");
