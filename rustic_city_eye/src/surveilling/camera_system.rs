@@ -706,11 +706,22 @@ fn analize_image(
         if !classification_result {
             println!("No es un incidente");
         } else {
-            let camera = match system_clone.lock().unwrap().get_camera_by_id(camera_id) {
-                Some(camera) => camera,
-                None => {
-                    return Err(ProtocolError::InvalidCommand(
-                        "Camera not found".to_string(),
+            println!(
+                "CameraSys: La camara de id {:?} ha detectado un incidente",
+                camera_id
+            );
+            let camera = match system_clone.lock() {
+                Ok(mut guard) => match guard.get_camera_by_id(camera_id) {
+                    Some(camera) => camera,
+                    None => {
+                        return Err(ProtocolError::InvalidCommand(
+                            "Camera not found".to_string(),
+                        ));
+                    }
+                },
+                Err(_) => {
+                    return Err(ProtocolError::ArcMutexError(
+                        "Error locking cameras mutex".to_string(),
                     ));
                 }
             };
