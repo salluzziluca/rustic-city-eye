@@ -111,8 +111,14 @@ impl ClientConfig {
     pub fn client_is_online(client_id: String) -> bool {
         let path = format!("./src/mqtt/clients/{}.json", client_id);
         if std::fs::metadata(&path).is_ok() {
-            let file = std::fs::File::open(path).unwrap();
-            let client_config: ClientConfig = serde_json::from_reader(file).unwrap();
+            let file = match std::fs::File::open(path) {
+                Ok(file) => file,
+                Err(_) => return false,
+            };
+            let client_config: ClientConfig = match serde_json::from_reader(file) {
+                Ok(client_config) => client_config,
+                Err(_) => return false,
+            };
             client_config.state
         } else {
             false
