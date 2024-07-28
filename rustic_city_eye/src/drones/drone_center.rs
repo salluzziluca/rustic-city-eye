@@ -1,3 +1,5 @@
+use std::sync::mpsc::{self, Sender};
+
 use egui::ahash::HashMap;
 use rand::Rng;
 
@@ -17,6 +19,8 @@ pub struct DroneCenter {
     pub drones: HashMap<u32, Drone>,
     drone_config_path: String,
     address: String,
+
+    disconnect_senders: Vec<Sender<()>>,
 }
 
 impl DroneCenter {
@@ -32,6 +36,7 @@ impl DroneCenter {
             drones: HashMap::default(),
             drone_config_path,
             address,
+            disconnect_senders: Vec::new(),
         }
     }
 
@@ -48,6 +53,13 @@ impl DroneCenter {
             drone.disconnect()?;
         }
 
+        for sender in self.disconnect_senders.clone() {
+            match sender.send(()) {
+                Ok(_) => (),
+                Err(_) => return Err(ProtocolError::DisconnectError),
+            };
+        }
+
         Ok(())
     }
 
@@ -60,13 +72,19 @@ impl DroneCenter {
             id += 1;
         }
 
+        let (disconnect_sender, disconnect_receiver) = mpsc::channel();
+
         let mut drone = Drone::new(
             id,
             location,
             self.location,
             &self.drone_config_path.to_string(),
             self.address.to_string(),
+            disconnect_receiver,
         )?;
+
+        self.disconnect_senders.push(disconnect_sender);
+
         drone.run_drone()?;
         self.drones.insert(id, drone);
         Ok(id)
