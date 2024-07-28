@@ -38,6 +38,26 @@ Para servirnos de un modelo y una infraestructura previamente preprocesados y en
 
 ## Detalles y costos del proveedor
 
+### Por que usamos Google Vision AI
+
+1. Google Vision AI nos ofrece una capa gratuita ideal para fines de prueba y demostraciones en vivo: 1000 unidades gratuitas por mes para las API de visión. Esto es más que suficiente para nuestras necesidades, permitiendo hasta 1000 requests mensuales, lo cual supera el requerimiento mínimo de 10 requests por minuto requeridas para nuestra demostracion final en vivo.
+2. Facilidad de Integración y Documentación Extensa: Cuenta con una documentación extensa y detallada, que facilita la integración con sistemas desarrollados en Rust. Esto es crucial para asegurar una integración rápida y eficiente con el sistema central de cámaras.
+3. Variedad y Calidad de Servicios: Nos servimos especificamente de la feature de `label detection` y la feature que clasifica contenido explicito. Creemos que son las herramientas que necesitamos para detectar los distintos incidentes.
+4. Ecosistema de Google Cloud: Google Vision AI permite beneficiarnos del ecosistema de Google Cloud, que ofrece una amplia variedad de herramientas y servicios complementarios. Esto puede facilitar la escalabilidad futura y la integración con otras tecnologías de Cloud.
+
+
+### Analisis de Costos y performance
+
+Supongamos que el sistema de cámaras realiza un promedio de 10 solicitudes por minuto en funcionamiento continuo. Esto equivale a:
+
+- Solicitudes por hora: 10 solicitudes/minuto * 60 minutos/hora = 600 solicitudes/hora
+- Solicitudes por día: 600 solicitudes/hora * 24 horas/día = 14,400 solicitudes/día
+- Solicitudes por mes: 14,400 solicitudes/día * 30 días/mes = 432,000 solicitudes/mes
+
+El servicio de Google tiene un costo promedio de $1.50 por cada 1000 imagenes a procesar. Por lo que haciendo ese numero de peticiones al mes, tendriamos un total de $646.50/mes.
+
+El servicio es rapido a la hora de hacerle peticiones, en promedio se tarda de 0.35 a 0.6 segundos. Teniendo en cuenta el costo total, y el alto rendimiento que esta IA posee, creemos que es una gran opcion para la deteccion de incidentes en el contexto de nuestra aplicacion.
+
 ## Uso del proveedor
 
 En un principio, el usuario debe tener creado un proyecto en Google Cloud, y debe habilitar el servicio de Vision AI. Una vez generado, debe crear una API key para realizar las peticiones de usuario. Nuestro programa funciona si el usuario tiene seteada una variable de entorno `GOOGLE_API_KEY` con la key de su proyecto.
@@ -98,10 +118,6 @@ Un Job es una tarea que se va a ejecutar en un thread. En nuestra implementació
 ## Sistema de Multithreading implementado
 
 Se implementó un sistema mediante el cual, cuando se crea una nueva camara, se crea tambien un directorio asociada a esta. Con su ID como nombre del dir. Se desarrolló un Watcher que se encarga de monitorear un directorio en busca de nuevas imágenes. (el Watcher en cuestion tambien se utiliza para verificar la correcta creacion de directorios de camaras, las cuales se pueden verificar mediante el logging por consola).
-
-Cuando se detecta una nueva imagen dentro de algun directorio de camaras se le envia mediante un channel la informacion de este evento al camera system, este luego spawnea un thread que se encarga de inicializar un clasificador y enviar a este la(s) imagen(es) para que este se encargue del etiquetado. 
-
-Este diagrama de secuencia tiene como fin mostrar cómo se maneja la detección y análisis de cambios en los distintos directorios de las camaras dentro de nuestro sistema.
 
 El proceso se da dentro del metodo función run_client en el CameraSystem. Este metodo del CameraSystem maneja la recepción y el procesamiento de diferentes mensajes reenviados por el cliente. Dependiendo del tipo de mensaje, se activan o desactivan las cámaras cercanas a la ubicación del incidente. Tambien en el se maneja un Watcher que esta pendiente a cambios dentro de los directorios de las distintas camaras del sistema: Este es capaz de encontrar nuevos directorios(los cuales son creados apenas se crea una camara nueva en la aplicacion), y tambien es capaz de detectar nuevos archivos en el mismo(cuando el usuario ingresa las imagenes que quiere que sean procesadas por las camaras).
 
