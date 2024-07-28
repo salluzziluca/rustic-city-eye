@@ -151,7 +151,10 @@ impl Drone {
             send_to_drone_channel,
         ) {
             Ok(client) => {
-                println!("Soy el Drone {}, y mi Client se conecto exitosamente!", id);
+                println!(
+                    "I'm Drone {}, and my Client has been connected successfully!",
+                    id
+                );
                 Drone::subscribe_to_topics(connect_config, send_from_drone_channel)?;
                 Ok(client)
             }
@@ -169,52 +172,45 @@ impl Drone {
     ) -> Result<(), DroneError> {
         let subscribe_properties =
             SubscribeProperties::new(1, connect_config.properties.user_properties);
-        let topic_name = "incident".to_string();
+        let topics = vec!["incident", "attending_incident"];
+
+        for topic_name in topics {
+            Self::subscribe_to_topic(
+                &topic_name.to_string(),
+                &subscribe_properties,
+                &connect_config.client_id,
+                &send_from_drone_channel,
+            )?;
+        }
+
+        Ok(())
+    }
+
+    fn subscribe_to_topic(
+        topic_name: &String,
+        subscribe_properties: &SubscribeProperties,
+        client_id: &String,
+        send_from_channel: &Sender<Box<dyn MessagesConfig + Send>>,
+    ) -> Result<(), DroneError> {
         let subscribe_config = SubscribeConfig::new(
             topic_name.clone(),
             subscribe_properties.clone(),
-            connect_config.client_id.clone(),
+            client_id.clone(),
         );
 
-        match send_from_drone_channel.send(Box::new(subscribe_config)) {
+        match send_from_channel.send(Box::new(subscribe_config)) {
             Ok(_) => {
                 println!(
-                    "Drone {} suscrito al topic {} correctamente",
-                    connect_config.client_id, topic_name
+                    "Drone {} suscribed to topic {} successfully",
+                    client_id, topic_name
                 );
+                Ok(())
             }
             Err(e) => {
-                println!(
-                    "Drone {}: Error sending message: {:?}",
-                    connect_config.client_id, e
-                );
-                return Err(DroneError::SubscribeError(e.to_string()));
+                println!("Drone {}: Error sending message: {:?}", client_id, e);
+                Err(DroneError::SubscribeError(e.to_string()))
             }
-        };
-
-        let topic_name = "attending_incident".to_string();
-        let subscribe_config = SubscribeConfig::new(
-            topic_name.clone(),
-            subscribe_properties,
-            connect_config.client_id.clone(),
-        );
-        match send_from_drone_channel.send(Box::new(subscribe_config)) {
-            Ok(_) => {
-                println!(
-                    "Drone {} suscrito al topic {} correctamente",
-                    connect_config.client_id, topic_name
-                );
-            }
-            Err(e) => {
-                println!(
-                    "Drone {}: Error sending message: {:?}",
-                    connect_config.client_id, e
-                );
-                return Err(DroneError::SubscribeError(e.to_string()));
-            }
-        };
-
-        Ok(())
+        }
     }
 
     /// Desconecta al Client del Drone. Se cierra el canal por el cual el Drone envia packets

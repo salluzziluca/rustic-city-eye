@@ -69,8 +69,13 @@ impl ClientConfig {
         if !ClientConfig::client_exists(client_id.clone()) {
             let _ = ClientConfig::create_client_log_in_json(client_id.clone());
         }
+
         let file = std::fs::File::open(path.clone())?;
         let mut client_config: ClientConfig = serde_json::from_reader(file)?;
+        if client_config.subscriptions.contains(&topic) {
+            return Ok(());
+        }
+
         client_config.subscriptions.push(topic);
         let json = serde_json::to_string(&client_config)?;
         std::fs::write(path, json)?;
@@ -127,7 +132,9 @@ impl ClientConfig {
         }
     }
 
-    pub fn remove_all_subscriptions_from_file(client_id: String) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn remove_all_subscriptions_from_file(
+        client_id: String,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let path = format!("./src/mqtt/clients/{}.json", client_id);
         let file = std::fs::File::open(path.clone())?;
         let mut client_config: ClientConfig = serde_json::from_reader(file)?;
@@ -137,7 +144,9 @@ impl ClientConfig {
         Ok(())
     }
 
-    pub fn get_client_subscriptions(client_id: String) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    pub fn get_client_subscriptions(
+        client_id: String,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
         let path = format!("./src/mqtt/clients/{}.json", client_id);
         let file = std::fs::File::open(path.clone())?;
         let client_config: ClientConfig = serde_json::from_reader(file)?;

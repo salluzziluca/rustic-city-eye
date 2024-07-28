@@ -160,87 +160,52 @@ impl MonitoringApp {
         connect_config: Connect,
         send_from_monitoring_channel: Sender<Box<dyn MessagesConfig + Send>>,
     ) -> Result<(), ProtocolError> {
-        let subscribe_properties: SubscribeProperties =
+        let subscribe_properties =
             SubscribeProperties::new(1, connect_config.properties.user_properties);
-        let topic_name = "drone_locations".to_string();
+        let topics = vec![
+            "drone_locations",
+            "camera_update",
+            "incident_resolved",
+            "incident",
+        ];
 
-        let subscribe_config = SubscribeConfig::new(
-            topic_name.clone(),
-            subscribe_properties.clone(),
-            connect_config.client_id.clone(),
-        );
-        match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
-            Ok(_) => {
-                println!(
-                    "Monitoring App subscrita al topic {} correctamente",
-                    topic_name
-                );
-            }
-            Err(e) => {
-                println!("Monitoring: Error sending message: {:?}", e);
-                return Err(ProtocolError::SubscribeError);
-            }
-        };
-
-        let topic_name = "camera_update".to_string();
-        let subscribe_config = SubscribeConfig::new(
-            topic_name.clone(),
-            subscribe_properties.clone(),
-            connect_config.client_id.clone(),
-        );
-        match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
-            Ok(_) => {
-                println!(
-                    "Monitoring App subscrita al topic {} correctamente",
-                    topic_name
-                );
-            }
-
-            Err(e) => {
-                println!("Monitoring: Error sending message: {:?}", e);
-                return Err(ProtocolError::SubscribeError);
-            }
-        };
-
-        let topic_name = "incident_resolved".to_string();
-        let subscribe_config = SubscribeConfig::new(
-            topic_name.clone(),
-            subscribe_properties.clone(),
-            connect_config.client_id.clone(),
-        );
-        match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
-            Ok(_) => {
-                println!(
-                    "Monitoring App subscrita al topic {} correctamente",
-                    topic_name
-                );
-            }
-            Err(e) => {
-                println!("Monitoring: Error sending message: {:?}", e);
-                return Err(ProtocolError::SubscribeError);
-            }
-        };
-
-        let topic_name = "incident".to_string();
-        let subscribe_config = SubscribeConfig::new(
-            topic_name.clone(),
-            subscribe_properties,
-            connect_config.client_id,
-        );
-        match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
-            Ok(_) => {
-                println!(
-                    "Monitoring App subscrita al topic {} correctamente",
-                    topic_name
-                );
-            }
-            Err(e) => {
-                println!("Monitoring: Error sending message: {:?}", e);
-                return Err(ProtocolError::SubscribeError);
-            }
-        };
+        for topic_name in topics {
+            Self::subscribe_to_topic(
+                &topic_name.to_string(),
+                &subscribe_properties,
+                &connect_config.client_id,
+                &send_from_monitoring_channel,
+            )?;
+        }
 
         Ok(())
+    }
+
+    fn subscribe_to_topic(
+        topic_name: &String,
+        subscribe_properties: &SubscribeProperties,
+        client_id: &String,
+        send_from_monitoring_channel: &Sender<Box<dyn MessagesConfig + Send>>,
+    ) -> Result<(), ProtocolError> {
+        let subscribe_config = SubscribeConfig::new(
+            topic_name.clone(),
+            subscribe_properties.clone(),
+            client_id.clone(),
+        );
+
+        match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
+            Ok(_) => {
+                println!(
+                    "Monitoring App suscribed to topic {} successfully",
+                    topic_name
+                );
+                Ok(())
+            }
+            Err(e) => {
+                println!("Monitoring: Error sending message: {:?}", e);
+                Err(ProtocolError::SubscribeError)
+            }
+        }
     }
 
     /// Se encarga de correr al Client de la MonitoringApp, y al Client del CameraSystem, ademas

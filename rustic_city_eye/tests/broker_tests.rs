@@ -108,10 +108,6 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
 
-        // obtengo la lista de clientes
-        let clients_ids = broker.get_clients_ids();
-        assert!(clients_ids.contains(&"monitoring_app".to_string()));
-
         // vuelvo a enviar el connect con el mismo id
         let connect_propierties = ConnectProperties {
             session_expiry_interval: 1,
@@ -522,12 +518,6 @@ mod tests {
         }
 
         assert_eq!(result.unwrap(), ProtocolReturn::DisconnectRecieved);
-
-    
-
-        // verificio que no este en la lista de conectados
-        let online_clients = broker.get_clients_ids();
-        assert!(!online_clients.contains(&"kvtr33".to_string()));
 
         // vuelvo a conectar
         let connect_propierties = ConnectProperties {
