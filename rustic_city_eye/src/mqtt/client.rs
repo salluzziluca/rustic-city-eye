@@ -289,7 +289,9 @@ impl Client {
                     client_id_clone,
                 ) {
                     Ok(_) => {
-                        stream_clone_three.shutdown(Shutdown::Both).unwrap();
+                        stream_clone_three.shutdown(Shutdown::Both).map_err(|_| {
+                            ProtocolError::ShutdownError("Error al cerrar el stream".to_string())
+                        })?;
                         Ok(())
                     }
                     Err(e) => Err(e),
