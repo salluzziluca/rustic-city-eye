@@ -19,45 +19,43 @@ pub fn watch_directory(path: PathBuf, tx: Sender<Vec<String>>) -> thread::JoinHa
             let mut new_dirs = HashSet::new();
             for dir in known_dirs.iter() {
                 if let Ok(entries) = fs::read_dir(dir) {
-                    for entry in entries {
-                        if let Ok(entry) = entry {
-                            let entry_path = entry.path();
-                            let metadata = match fs::metadata(&entry_path) {
-                                Ok(m) => m,
+                    for entry in entries.flatten() {
+                        let entry_path = entry.path();
+                        let metadata = match fs::metadata(&entry_path) {
+                            Ok(m) => m,
+                            Err(e) => {
+                                println!("Failed to get metadata: {:?}", e);
+                                continue;
+                            }
+                        };
+                        if metadata.is_file() && !known_files.contains(&entry_path) {
+                            known_files.insert(entry_path.clone());
+                            let tuple = vec![
+                                "New file detected".to_string(),
+                                match entry_path.to_str() {
+                                    Some(s) => s.to_string(),
+                                    None => "".to_string(),
+                                },
+                            ];
+                            match tx.send(tuple) {
+                                Ok(_) => {}
                                 Err(e) => {
-                                    println!("Failed to get metadata: {:?}", e);
-                                    continue;
+                                    println!("Failed to send message: {:?}", e);
                                 }
-                            };
-                            if metadata.is_file() && !known_files.contains(&entry_path) {
-                                known_files.insert(entry_path.clone());
-                                let tuple = vec![
-                                    "New file detected".to_string(),
-                                    match entry_path.to_str() {
-                                        Some(s) => s.to_string(),
-                                        None => "".to_string(),
-                                    },
-                                ];
-                                match tx.send(tuple) {
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        println!("Failed to send message: {:?}", e);
-                                    }
-                                }
-                            } else if metadata.is_dir() && !known_dirs.contains(&entry_path) {
-                                new_dirs.insert(entry_path.clone());
-                                let tuple = vec![
-                                    "New directory detected".to_string(),
-                                    match entry_path.to_str() {
-                                        Some(s) => s.to_string(),
-                                        None => "".to_string(),
-                                    },
-                                ];
-                                match tx.send(tuple) {
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        println!("Failed to send message: {:?}", e);
-                                    }
+                            }
+                        } else if metadata.is_dir() && !known_dirs.contains(&entry_path) {
+                            new_dirs.insert(entry_path.clone());
+                            let tuple = vec![
+                                "New directory detected".to_string(),
+                                match entry_path.to_str() {
+                                    Some(s) => s.to_string(),
+                                    None => "".to_string(),
+                                },
+                            ];
+                            match tx.send(tuple) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    println!("Failed to send message: {:?}", e);
                                 }
                             }
                         }
@@ -92,7 +90,7 @@ mod tests {
 
         // Create a new file in the directory
         let file_path = temp_dir.path().join("test_file.txt");
-        let mut file = File::create(&file_path).unwrap();
+        let mut file = File::create(file_path).unwrap();
         writeln!(file, "Hello, world!").unwrap();
 
         // Wait for the watcher to detect the change, with a timeout
@@ -120,7 +118,7 @@ mod tests {
 
         // Create a new directory
         let new_dir_path = temp_dir.path().join("new_dir");
-        fs::create_dir(&new_dir_path).unwrap();
+        fs::create_dir(new_dir_path).unwrap();
 
         // Wait for the watcher to detect the change, with a timeout
         let received_message = rx.recv_timeout(Duration::from_secs(5));
@@ -146,7 +144,7 @@ mod tests {
 
         // Create a new file in the directory
         let file_path = temp_dir.path().join("test_file.txt");
-        let mut file = File::create(&file_path).unwrap();
+        let mut file = File::create(file_path).unwrap();
         writeln!(file, "Hello, world!").unwrap();
 
         // Wait for the watcher to detect the change, with a timeout
@@ -173,7 +171,7 @@ mod tests {
 
         // Create a new directory
         let new_dir_path = temp_dir.path().join("new_dir");
-        fs::create_dir(&new_dir_path).unwrap();
+        fs::create_dir(new_dir_path).unwrap();
 
         // Wait for the watcher to detect the change, with a timeout
         let received_message = rx.recv_timeout(Duration::from_secs(5));
@@ -203,7 +201,7 @@ mod tests {
 
         // Create a new file in the directory
         let file_path = new_dir_path.join("test_file.txt");
-        let mut file = File::create(&file_path).unwrap();
+        let mut file = File::create(file_path).unwrap();
         writeln!(file, "Hello, world!").unwrap();
 
         // Wait for the watcher to detect the change, with a timeout
