@@ -1,6 +1,5 @@
 //! Se conecta mediante TCP a la dirección asignada por los args que le ingresan
 //! en su constructor.
-
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};

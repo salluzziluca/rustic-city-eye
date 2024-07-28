@@ -3,7 +3,7 @@ use std::{
     io::{Error, ErrorKind, Read},
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     monitoring::incident::Incident,
@@ -20,7 +20,7 @@ use super::writer::{write_string, write_u8};
 
 /// Aqui se definen los distintos tipos de payload que va a soportar nuestra aplicacion.
 /// La idea es que implemente el trait de Payload, de forma tal que sepa escribirse sobre un stream dado.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum PayloadTypes {
     IncidentLocation(IncidentPayload),
     AttendingIncident(IncidentPayload),
