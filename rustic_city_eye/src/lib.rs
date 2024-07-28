@@ -51,6 +51,7 @@ pub mod surveilling {
     pub mod camera;
     pub mod camera_error;
     pub mod camera_system;
+    pub mod cameras_config;
 }
 
 pub mod drones {

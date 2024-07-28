@@ -1,13 +1,9 @@
 use notify::{recommended_watcher, RecursiveMode, Watcher};
 use std::{
-    collections::HashMap,
-    path::Path,
-    sync::{
+    collections::HashMap, path::Path, sync::{
         mpsc::{self, channel, Receiver, Sender},
         Arc, Mutex,
-    },
-    thread,
-    time::{Duration, Instant},
+    }, thread, time::{Duration, Instant}
 };
 
 use rand::Rng;
@@ -24,7 +20,7 @@ use crate::{
         subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
     },
-    surveilling::{annotation::ImageClassifier, camera::Camera},
+    surveilling::{annotation::ImageClassifier, camera::Camera, cameras_config::CamerasConfig},
     utils::{
         incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes,
         threadpool::ThreadPool,
@@ -98,6 +94,9 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         );
 
         let _ = tx.send(Box::new(subscribe_config));
+
+        let _ = Self::create_cameras_file();
+
         Ok(CameraSystem {
             send_to_client_channel: Arc::new(Mutex::new(tx)),
             camera_system_client,
@@ -105,6 +104,19 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
             reciev_from_client: Arc::new(Mutex::new(rx2)),
             snapshot: Vec::new(),
         })
+    }
+
+
+    
+    pub fn create_cameras_file() -> Result<(), CameraError> {
+        let cameras_config = CamerasConfig::new();
+        
+        let json = serde_json::to_string(&cameras_config).map_err(|e| CameraError::JsonError(e.to_string()))?;
+        let path = format!("./src/surveilling/cameras.json");
+    
+        let _ = std::fs::write(path, json);
+            
+        Ok(())
     }
 
     pub fn add_camera(&mut self, location: Location) -> Result<u32, CameraError> {
