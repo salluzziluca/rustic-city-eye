@@ -59,7 +59,7 @@ struct VisionResponse {
 /// Se le proporcionan paths a imagenes, luego se encarga de realizar la peticion a la IA, y por ultimo devuelve la respuesta a esa peticion,
 /// que en nuestro caso sera etiquetar las imagenes. Tambien se proporciona la estadistica del score obtenido sobre cada una de las etiquetas,
 /// de forma tal de medir la confiabilidad de la clasificacion.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ImageClassifier {
     /// Este sera el url sobre el cual el clasificador hara peticiones a
     /// Google Cloud Vision.

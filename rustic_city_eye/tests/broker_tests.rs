@@ -523,8 +523,6 @@ mod tests {
 
         assert_eq!(result.unwrap(), ProtocolReturn::DisconnectRecieved);
 
-    
-
         // verificio que no este en la lista de conectados
         let online_clients = broker.get_clients_ids();
         assert!(!online_clients.contains(&"kvtr33".to_string()));

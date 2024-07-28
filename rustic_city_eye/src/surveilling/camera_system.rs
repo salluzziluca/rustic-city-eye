@@ -673,7 +673,7 @@ fn analize_image(event: Vec<String>, system: &Arc<Mutex<CameraSystem<Client>>>, 
                 ));
             }
         };
-        let classification_result = camera.annotate_image(str_path)?;
+        let classification_result = camera.annotate_image(&str_path)?;
 
         if !classification_result {
             println!("No es un incidente");
@@ -707,9 +707,7 @@ fn publish_incident(
     };
     match lock.send_message(Box::new(publish_config)) {
         Ok(_) => Ok(()),
-        Err(e) => {
-            Err(ProtocolError::SendError(e.to_string()))
-        }
+        Err(e) => Err(ProtocolError::SendError(e.to_string())),
     }
 }
 
