@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::mpsc::{self, Sender};
+use std::sync::mpsc::Sender;
 use std::thread;
 use std::time::Duration;
 
@@ -22,21 +22,43 @@ pub fn watch_directory(path: PathBuf, tx: Sender<Vec<String>>) -> thread::JoinHa
                     for entry in entries {
                         if let Ok(entry) = entry {
                             let entry_path = entry.path();
-                            let metadata = fs::metadata(&entry_path).unwrap();
+                            let metadata = match fs::metadata(&entry_path) {
+                                Ok(m) => m,
+                                Err(e) => {
+                                    println!("Failed to get metadata: {:?}", e);
+                                    continue;
+                                }
+                            };
                             if metadata.is_file() && !known_files.contains(&entry_path) {
                                 known_files.insert(entry_path.clone());
                                 let tuple = vec![
                                     "New file detected".to_string(),
-                                    entry_path.to_str().unwrap().to_string(),
+                                    match entry_path.to_str() {
+                                        Some(s) => s.to_string(),
+                                        None => "".to_string(),
+                                    },
                                 ];
-                                tx.send(tuple).unwrap();
+                                match tx.send(tuple) {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        println!("Failed to send message: {:?}", e);
+                                    }
+                                }
                             } else if metadata.is_dir() && !known_dirs.contains(&entry_path) {
                                 new_dirs.insert(entry_path.clone());
                                 let tuple = vec![
                                     "New directory detected".to_string(),
-                                    entry_path.to_str().unwrap().to_string(),
+                                    match entry_path.to_str() {
+                                        Some(s) => s.to_string(),
+                                        None => "".to_string(),
+                                    },
                                 ];
-                                tx.send(tuple).unwrap();
+                                match tx.send(tuple) {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        println!("Failed to send message: {:?}", e);
+                                    }
+                                }
                             }
                         }
                     }
@@ -173,7 +195,7 @@ mod tests {
         let dir_path = temp_dir.path().to_path_buf();
 
         let (tx, rx) = mpsc::channel();
-        let handle = watch_directory(dir_path.clone(), tx);
+        watch_directory(dir_path.clone(), tx);
 
         // Create a new directory
         let new_dir_path = temp_dir.path().join("new_dir");

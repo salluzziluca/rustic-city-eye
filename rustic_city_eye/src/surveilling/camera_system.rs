@@ -1,4 +1,3 @@
-use notify::{recommended_watcher, RecursiveMode, Watcher};
 use std::{
     collections::HashMap,
     path::Path,
