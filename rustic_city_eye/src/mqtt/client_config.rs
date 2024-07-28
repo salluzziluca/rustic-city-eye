@@ -184,6 +184,7 @@ mod tests {
             serde_json::from_reader(file).unwrap()
         }
     }
+    
     #[test]
     fn test_new_client_config() {
         let client_id = "test".to_string();

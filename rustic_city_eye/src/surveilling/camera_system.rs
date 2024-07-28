@@ -20,7 +20,7 @@ use crate::{
         subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
     },
-    surveilling::{annotation::ImageClassifier, camera::Camera, cameras_config::CamerasConfig},
+    surveilling::{annotation::ImageClassifier, camera::Camera, cameras_config::CameraConfig},
     utils::{
         incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes,
         threadpool::ThreadPool,
@@ -95,8 +95,6 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
 
         let _ = tx.send(Box::new(subscribe_config));
 
-        let _ = Self::create_cameras_file();
-
         Ok(CameraSystem {
             send_to_client_channel: Arc::new(Mutex::new(tx)),
             camera_system_client,
@@ -106,18 +104,6 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         })
     }
 
-
-    
-    pub fn create_cameras_file() -> Result<(), CameraError> {
-        let cameras_config = CamerasConfig::new();
-        
-        let json = serde_json::to_string(&cameras_config).map_err(|e| CameraError::JsonError(e.to_string()))?;
-        let path = format!("./src/surveilling/cameras.json");
-    
-        let _ = std::fs::write(path, json);
-            
-        Ok(())
-    }
 
     pub fn add_camera(&mut self, location: Location) -> Result<u32, CameraError> {
         let mut rng = rand::thread_rng();
@@ -137,6 +123,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         }
 
         let camera = Camera::new(location, id)?;
+        let _ = CameraConfig::add_camera_to_json(camera.clone());        
         println!("CameraSys: creo la camara con id: {:?}", id);
         cameras.insert(id, camera);
 

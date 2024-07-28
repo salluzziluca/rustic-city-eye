@@ -18,9 +18,9 @@ use crate::utils::writer::{write_bool, write_string, write_u32};
 const PATH: &str = "src/surveilling/cameras";
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Camera {
-    location: Location,
-    id: u32,
-    sleep_mode: bool,
+    pub location: Location,
+    pub id: u32,
+    pub sleep_mode: bool,
 }
 
 impl Camera {
