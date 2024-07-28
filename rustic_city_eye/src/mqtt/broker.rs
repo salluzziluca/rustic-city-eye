@@ -542,7 +542,9 @@ impl Broker {
 
                 if ClientConfig::client_exists(connect.client_id.clone()) {
                     println!("Loading client from file");
-                    let _ = ClientConfig::change_client_state(connect.client_id.clone(), true);
+                    if let Err(e) = ClientConfig::change_client_state(connect.client_id.clone(), true) {
+                        return Err(ProtocolError::UnspecifiedError(e.to_string()));                        
+                    }
 
                     if let Ok(mut clients) = self.clients_ids.write() {
                         clients.remove(&connect.client_id);
@@ -555,7 +557,9 @@ impl Broker {
                     }
                 } else {
                     println!("Creating new client");
-                    let _ = ClientConfig::create_client_log_in_json(connect.client_id.clone());
+                    if let Err(e) = ClientConfig::create_client_log_in_json(connect.client_id.clone()){
+                        return Err(ProtocolError::UnspecifiedError(e.to_string()));
+                    }
                     if let Ok(mut clients) = self.clients_ids.write() {
                         clients.insert(
                             connect.client_id.clone(),
@@ -602,7 +606,7 @@ impl Broker {
                     reason_code: 0,
                     properties,
                 };
-                println!("Enviando un Connack");
+                println!("Sending Connack");
                 match connack.write_to(&mut stream) {
                     Ok(_) => return Ok(ProtocolReturn::ConnackSent),
                     Err(err) => {
