@@ -23,7 +23,7 @@ use crate::{
         subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
     },
-    surveilling::{annotation::ImageClassifier, camera::Camera},
+    surveilling::camera::Camera,
     utils::{
         incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes,
         threadpool::ThreadPool, watcher::watch_directory,
@@ -635,7 +635,8 @@ fn process_dir_change(
     None
 }
 
-/// Utiliza el ImageClassifier para clasificar la imagen en el path
+/// Al detectar que al directorio de una camara se le agrego una imagen, se busca esa camara dentro del sistema
+/// central de camaras, y ella se encarga de clasificar la imagen.
 /// Si este devuelve true, la imagen corresponde a un incidente y se envia el respectivo mensaje al broker
 /// Con la location de este incidente siendo la de la cámara.
 fn analize_image(event: Vec<String>, system: &Arc<Mutex<CameraSystem<Client>>>, pool: &ThreadPool) {
@@ -662,67 +663,52 @@ fn analize_image(event: Vec<String>, system: &Arc<Mutex<CameraSystem<Client>>>, 
                 ));
             }
         };
+        println!("La camara de id {:?} esta analizando una imagen", camera_id);
 
-        println!(
-            "Camera Sys: La camara de id {:?} esta analizando una imagen",
-            camera_id
-        );
-        let url = "https://vision.googleapis.com/v1/images:annotate".to_string();
-        let incident_keywords_file_path = "./src/surveilling/incident_keywords";
-
-        let classifier = ImageClassifier::new(url, incident_keywords_file_path)
-            .map_err(|e| ProtocolError::AnnotationError(e.to_string()))?;
-        let classification_result = classifier
-            .annotate_image(&str_path)
-            .map_err(|e| ProtocolError::AnnotationError(e.to_string()))?;
+        let camera = match system_clone.lock().unwrap().get_camera_by_id(camera_id) {
+            Some(camera) => camera,
+            None => {
+                return Err(ProtocolError::InvalidCommand(
+                    "Camera not found".to_string(),
+                ));
+            }
+        };
+        let classification_result = camera.annotate_image(&str_path)?;
 
         if !classification_result {
             println!("No es un incidente");
         } else {
-            println!(
-                "CameraSys: La camara de id {:?} ha detectado un incidente",
-                camera_id
-            );
-            let camera = match system_clone.lock() {
-                Ok(mut guard) => match guard.get_camera_by_id(camera_id) {
-                    Some(camera) => camera,
-                    None => {
-                        return Err(ProtocolError::InvalidCommand(
-                            "Camera not found".to_string(),
-                        ));
-                    }
-                },
-                Err(_) => {
-                    return Err(ProtocolError::ArcMutexError(
-                        "Error locking cameras mutex".to_string(),
-                    ));
-                }
-            };
-            let location = camera.get_location();
-            let incident = Incident::new(location);
-            let incident_payload = IncidentPayload::new(incident);
-            let publish_config = PublishConfig::read_config(
-                "./src/surveilling/publish_incident_config.json",
-                PayloadTypes::IncidentLocation(incident_payload),
-            )
-            .map_err(|e| ProtocolError::SendError(e.to_string()))?;
-            let mut lock = match system_clone2.lock() {
-                Ok(guard) => guard,
-                Err(_) => {
-                    return Err(ProtocolError::ArcMutexError(
-                        "Error locking cameras mutex".to_string(),
-                    ));
-                }
-            };
-            match lock.send_message(Box::new(publish_config)) {
-                Ok(_) => {}
-                Err(e) => {
-                    return Err(ProtocolError::SendError(e.to_string()));
-                }
-            }
+            publish_incident(&system_clone2, camera)?;
         }
         Ok(())
     });
+}
+
+/// Publica el incidente que la camara detecto.
+fn publish_incident(
+    camera_system_ref: &Arc<Mutex<CameraSystem<Client>>>,
+    camera: Camera,
+) -> Result<(), ProtocolError> {
+    let location = camera.get_location();
+    let incident = Incident::new(location);
+    let incident_payload = IncidentPayload::new(incident);
+    let publish_config = PublishConfig::read_config(
+        "./src/surveilling/publish_incident_config.json",
+        PayloadTypes::IncidentLocation(incident_payload),
+    )
+    .map_err(|e| ProtocolError::SendError(e.to_string()))?;
+    let mut lock = match camera_system_ref.lock() {
+        Ok(guard) => guard,
+        Err(_) => {
+            return Err(ProtocolError::ArcMutexError(
+                "Error locking cameras mutex".to_string(),
+            ));
+        }
+    };
+    match lock.send_message(Box::new(publish_config)) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(ProtocolError::SendError(e.to_string())),
+    }
 }
 
 impl CameraSystem<Client> {
