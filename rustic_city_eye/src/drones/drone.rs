@@ -391,7 +391,7 @@ impl Drone {
                 DroneState::AttendingIncident(location) => {
                     println!("Drone {} yendo a solucionar el incidente", lock.id);
                     lock.update_target_location(Some(location))?;
-                    if lock.calculate_new_position() { 
+                    if lock.calculate_new_position() {
                         lock.publish_attending_accident(location);
                     }
                 }
@@ -673,14 +673,13 @@ impl Drone {
 
         if self.location == self.center_location {
             self.drone_state = DroneState::ChargingBattery;
-            }
+        }
         if self.target_location != self.center_location {
             self.update_target_location(Some(self.center_location))?;
         }
         self.calculate_new_position();
         Ok(())
     }
-
 
     // fn drone_movement(&mut self, target_location: Location) -> Result<bool, DroneError> {
     //     if (self.location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
@@ -695,9 +694,7 @@ impl Drone {
 
     //     Ok(false)
     // }
-    fn calculate_new_position(
-        &mut self,
-    ) -> bool{
+    fn calculate_new_position(&mut self) -> bool {
         let direction_lat = self.target_location.lat - self.location.lat;
         let direction_long = self.target_location.long - self.location.long;
         let magnitude = (direction_lat.powi(2) + direction_long.powi(2)).sqrt();
@@ -775,20 +772,22 @@ impl Drone {
             };
         }
     }
-    fn update_target_location(&mut self, target_location: Option<Location>) -> Result<(), DroneError> {
-
-
-        match target_location{
+    fn update_target_location(
+        &mut self,
+        target_location: Option<Location>,
+    ) -> Result<(), DroneError> {
+        match target_location {
             Some(location) => {
                 self.target_location = location;
             }
             None => {
                 let current_time = Utc::now().timestamp_millis() as f64;
-                let angle = ((current_time * ANGLE_SCALING_FACTOR) / MILISECONDS_PER_SECOND) % TWO_PI;
+                let angle =
+                    ((current_time * ANGLE_SCALING_FACTOR) / MILISECONDS_PER_SECOND) % TWO_PI;
                 let operation_radius = self.drone_config.get_operation_radius();
                 let new_target_lat = self.center_location.lat + operation_radius * angle.cos();
                 let new_target_long = self.center_location.long + operation_radius * angle.sin();
-                self.target_location = Location::new(new_target_lat, new_target_long);        
+                self.target_location = Location::new(new_target_lat, new_target_long);
             }
         }
         self.update_location();

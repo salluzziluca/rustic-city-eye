@@ -30,9 +30,9 @@ impl DroneView {
         let dist_lat = self.position.lat() - self.target_position.lat();
         let dist_lon = self.position.lon() - self.target_position.lon();
         let dist = (dist_lat * dist_lat + dist_lon * dist_lon).sqrt();
-        if dist > DRONE_SPEED * 0.05{
-            let lat = self.position.lat() - dist_lat/dist * DRONE_SPEED*0.05;
-            let lon = self.position.lon() - dist_lon/dist * DRONE_SPEED*0.05;
+        if dist > DRONE_SPEED * 0.05 {
+            let lat = self.position.lat() - dist_lat / dist * DRONE_SPEED * 0.05;
+            let lon = self.position.lon() - dist_lon / dist * DRONE_SPEED * 0.05;
             self.position = Position::from_lat_lon(lat, lon);
         } else {
             self.position = self.target_position;

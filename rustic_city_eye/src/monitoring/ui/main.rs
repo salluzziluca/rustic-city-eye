@@ -7,7 +7,7 @@ mod windows;
 
 use camera_view::CameraView;
 use eframe::{run_native, App, CreationContext, NativeOptions};
-use egui::{CentralPanel, RichText, TextStyle, TopBottomPanel};
+use egui::{CentralPanel, Key, RichText, TextStyle, TopBottomPanel, Vec2};
 use incident_view::IncidentView;
 use plugins::*;
 use rustic_city_eye::{
@@ -49,40 +49,18 @@ impl MyMap {
         &mut self,
         updated_locations: Arc<Mutex<VecDeque<(u32, Location, Location)>>>,
     ) {
-        match updated_locations.try_lock() {
-            Ok(mut new_drone_locations) => {
-                if !new_drone_locations.is_empty(){
-                    println!("new_drone_locations: {:?}", new_drone_locations);
-                } 
-                loop {
-                    if let Some((id, location, target_location)) = new_drone_locations.pop_front() {
-                        if let Some(drone) = self.drones.get_mut(&id) {
-                            drone.position = Position::from_lon_lat(location.long, location.lat);
-                            drone.target_position =
-                                Position::from_lon_lat(target_location.long, target_location.lat);
-                            // } else {
-                            //     let drone_view = drone_view::DroneView {
-                            //         image: self.drone_icon.clone(),
-                            //         position: Position::from_lon_lat(location.long, location.lat),
-                            //         target_position: Position::from_lon_lat(target_location.long, target_location.lat),
-                            //         clicked: false,
-                            //     };
-                            //     self.drones.insert(id, drone_view);
-                            // }
-                        }
-                    } else {
-                        break;
-                    }
+        if let Ok(mut new_drone_locations) = updated_locations.try_lock() {
+            if !new_drone_locations.is_empty() {
+                println!("new_drone_locations: {:?}", new_drone_locations);
+            }
+            while let Some((id, location, target_location)) = new_drone_locations.pop_front() {
+                if let Some(drone) = self.drones.get_mut(&id) {
+                    drone.position = Position::from_lon_lat(location.long, location.lat);
+                    drone.target_position =
+                        Position::from_lon_lat(target_location.long, target_location.lat);
                 }
             }
-            Err(_) => {}
         };
-        // for (id, location) in new_drone_locations {
-        //     if let Some(drone) = self.drones.get_mut(&id) {
-        //         drone.position = Position::from_lon_lat(location.0.long, location.0.lat);
-        //         drone.target_position = Position::from_lon_lat(location.1.long, location.1.lat);
-        //     }
-        // }
         for drone in self.drones.values_mut() {
             drone.move_towards();
         }
@@ -95,11 +73,7 @@ impl MyMap {
     fn update_cameras(&mut self, new_cameras: HashMap<u32, Camera>) {
         for (id, camera) in new_cameras {
             if let Some(camera_view) = self.cameras.get_mut(&id) {
-                if camera.get_sleep_mode() {
-                    camera_view.active = false;}
-                else {
-                    camera_view.active = true;
-                }
+                camera_view.active = !camera.get_sleep_mode();
             }
         }
     }
@@ -217,14 +191,18 @@ impl MyApp {
                         .font(TextStyle::Body),
                 );
 
-                if ui.button("Submit").clicked() {
+                ui.add_space(20.0);
+                if ui
+                    .add_sized(Vec2::new(200.0, 50.0), egui::Button::new("Submit"))
+                    .clicked() |
+                    ctx.input(|i| i.key_pressed(Key::Enter))
+                {
                     let args = vec![
                         self.username.clone(),
                         self.password.clone(),
                         self.ip.clone(),
                         self.port.clone(),
                     ];
-
                     self.correct_username = !self.username.is_empty();
                     self.correct_password = !self.password.is_empty();
                     self.correct_ip = !self.ip.is_empty();
@@ -247,9 +225,8 @@ impl MyApp {
                         }
                     };
                 }
-            })
+            });
         });
-
         TopBottomPanel::bottom("credits_panel").show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.label(
