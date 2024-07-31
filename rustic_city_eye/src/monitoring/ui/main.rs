@@ -95,18 +95,10 @@ impl MyMap {
     fn update_cameras(&mut self, new_cameras: HashMap<u32, Camera>) {
         for (id, camera) in new_cameras {
             if let Some(camera_view) = self.cameras.get_mut(&id) {
-                if !camera.get_sleep_mode() {
-                    camera_view.radius = ImagesPluginData::new(
-                        self.active_camera_radius.texture.clone(),
-                        self.zoom_level,
-                        self.active_camera_radius.y_scale,
-                    );
-                } else {
-                    camera_view.radius = ImagesPluginData::new(
-                        self.camera_radius.texture.clone(),
-                        self.zoom_level,
-                        self.camera_radius.y_scale,
-                    );
+                if camera.get_sleep_mode() {
+                    camera_view.active = false;}
+                else {
+                    camera_view.active = true;
                 }
             }
         }
@@ -286,7 +278,6 @@ impl MyApp {
         CentralPanel::default().show(ctx, |ui| {
             let last_clicked = self.map.click_watcher.clicked_at;
 
-            // Dereference the Box<dyn Tiles> to access the underlying type
             let tiles_ref: &mut dyn Tiles = &mut *self.map.tiles;
             ui.add(
                 Map::new(

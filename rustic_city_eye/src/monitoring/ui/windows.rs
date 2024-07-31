@@ -56,7 +56,9 @@ pub fn add_camera_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitori
                                 image: map.camera_icon.clone(),
                                 position,
                                 radius: map.camera_radius.clone(),
+                                active_radius: map.active_camera_radius.clone(),
                                 clicked: false,
+                                active: false,
                             },
                         );
                     }
