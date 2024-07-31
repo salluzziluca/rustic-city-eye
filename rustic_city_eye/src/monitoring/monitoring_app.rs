@@ -263,6 +263,24 @@ impl MonitoringApp {
         Ok(())
     }
 
+    pub fn load_existing_camera_system(&mut self, camera: Camera) -> Result<(), ProtocolError> {
+        let mut lock = match self.camera_system.lock() {
+            Ok(lock) => lock,
+            Err(e) => {
+                println!("Monitoring: Error locking camera system: {:?}", e);
+                return Err(ProtocolError::LockError);
+            }
+        };
+
+        match lock.load_existing_camera(camera) {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                println!("Monitoring: Error loading existing cameras: {:?}", e);
+                Err(ProtocolError::CameraError(e.to_string()))
+            }
+        }
+    }
+
     /// Dada una location para agregar una nueva camara, la agrega al sistema.
     pub fn add_camera(&mut self, location: Location) -> Result<u32, ProtocolError> {
         let mut lock = match self.camera_system.lock() {
@@ -272,6 +290,7 @@ impl MonitoringApp {
                 return Err(ProtocolError::LockError);
             }
         };
+
         match lock.add_camera(location) {
             Ok(id) => Ok(id),
             Err(e) => {

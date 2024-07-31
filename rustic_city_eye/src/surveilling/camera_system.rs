@@ -20,7 +20,7 @@ use crate::{
         subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
     },
-    surveilling::{annotation::ImageClassifier, camera::Camera, cameras_config::CameraConfig},
+    surveilling::{annotation::ImageClassifier, camera::Camera, cameras_config::CamerasConfig},
     utils::{
         incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes,
         threadpool::ThreadPool,
@@ -104,6 +104,22 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         })
     }
 
+    pub fn load_existing_camera(&mut self, camera: Camera) -> Result<(), CameraError> {
+        let mut cameras = match self.cameras.lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                return Err(CameraError::ArcMutexError(
+                    "Error locking cameras mutex".to_string(),
+                ));
+            }
+        };
+        cameras.insert(camera.get_id(), camera);
+        Ok(())
+    }
+
+
+
+
 
     pub fn add_camera(&mut self, location: Location) -> Result<u32, CameraError> {
         let mut rng = rand::thread_rng();
@@ -123,7 +139,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         }
 
         let camera = Camera::new(location, id)?;
-        let _ = CameraConfig::add_camera_to_json(camera.clone());        
+        let _ = CamerasConfig::add_camera_to_json(camera.clone());        
         println!("CameraSys: creo la camara con id: {:?}", id);
         cameras.insert(id, camera);
 

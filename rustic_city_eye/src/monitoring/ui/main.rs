@@ -12,7 +12,7 @@ use incident_view::IncidentView;
 use plugins::*;
 use rustic_city_eye::{
     monitoring::{incident::Incident, monitoring_app::MonitoringApp},
-    surveilling::camera::Camera,
+    surveilling::{camera::Camera, cameras_config::CamerasConfig},
     utils::location::Location,
 };
 use std::collections::HashMap;
@@ -206,7 +206,7 @@ impl MyApp {
                         }
                         Err(e) => {
                             println!(
-                                "La conexion ha fallado. Intenta conectarte nuevamente {}.",
+                                "The conection failed. Please try again {}.",
                                 e
                             );
                             self.username.clear();
@@ -229,6 +229,7 @@ impl MyApp {
             });
         });
     }
+
     /// Muestra el mapa
     /// Si se presiona el boton de zoom, se actualiza el zoom level
     /// Carga las diferentes ventanas de camaras, incidentes, drones y centros de drones
@@ -279,6 +280,29 @@ impl MyApp {
             );
             zoom(ui, &mut self.map.map_memory, &mut self.map.zoom_level);
 
+            if CamerasConfig::count_cameras() > 0 {
+                CamerasConfig::get_cameras().iter().for_each(|camera| {
+                    let location = camera.get_location();
+                    let camera_view = CameraView {
+                        image: self.map.camera_icon.clone(),
+                        radius: ImagesPluginData::new(
+                            self.map.camera_radius.texture.clone(),
+                            self.map.zoom_level,
+                            self.map.camera_radius.y_scale,
+                        ),
+                        position: Position::from_lon_lat(location.long, location.lat),
+                        clicked: false,
+                    };
+                    self.map.cameras.insert(camera.get_id(), camera_view);
+
+                    if let Some(monitoring_app) = &mut self.monitoring_app {
+                        let _ = monitoring_app.load_existing_camera_system(camera.clone());
+                    }
+
+                });
+            }
+
+            
             if let Some(monitoring_app) = &mut self.monitoring_app {
                 let new_locations = monitoring_app.get_active_drones();
                 self.map.update_drones(new_locations);
