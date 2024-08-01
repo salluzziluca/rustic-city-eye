@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use super::{drone_config::DroneConfig, drone_error::DroneError, drone_state::DroneState};
+use super::{drone_data::DroneData, drone_error::DroneError, drone_state::DroneState};
 use crate::{
     monitoring::incident::Incident,
     mqtt::{
@@ -51,7 +51,7 @@ pub struct Drone {
 
     /// Contiene configuraciones como la tasa de movimiento, la tasa de carga y descarga de bateria,
     /// y el radio de operacion.
-    drone_config: DroneConfig,
+    drone_config: DroneData,
 
     ///  El Drone puede tener distintos estados:
     /// - Waiting: esta circulando en su radio de operacion, pero no esta atendiendo ningun incidente.
@@ -93,7 +93,7 @@ impl Drone {
         address: String,
         disconnect_receiver_from_center: Receiver<()>,
     ) -> Result<Drone, DroneError> {
-        let drone_config = DroneConfig::new(config_file_path)?;
+        let drone_config = DroneData::new(config_file_path)?;
         let connect_config = Drone::read_connect_config("src/drones/connect_config.json", id)?;
 
         let (tx, rx) = mpsc::channel();
