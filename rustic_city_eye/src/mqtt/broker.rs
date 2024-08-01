@@ -27,7 +27,7 @@ use super::connect::last_will::LastWill;
 
 static SERVER_ARGS: usize = 2;
 
-const THREADPOOL_SIZE: usize = 20;
+const THREADPOOL_SIZE: usize = 30;
 
 #[derive(Clone)]
 pub struct Broker {
@@ -541,37 +541,37 @@ impl Broker {
                 let will_message = connect.clone().give_will_message();
 
                 if ClientConfig::client_exists(connect.client_id.clone()) {
-                    println!("Loading client from file");
-                    if let Err(e) =
-                        ClientConfig::change_client_state(connect.client_id.clone(), true)
-                    {
-                        return Err(ProtocolError::UnspecifiedError(e.to_string()));
-                    }
+                    // si el path del client existe, eliminarlo
+                    ClientConfig::delete_client_file(connect.client_id.clone())?;
 
-                    if let Ok(mut clients) = self.clients_ids.write() {
-                        clients.remove(&connect.client_id);
-                        clients.insert(
-                            connect.client_id.clone(),
-                            (Some(cloned_stream), will_message),
-                        );
-                    } else {
-                        return Err(ProtocolError::WriteError);
-                    }
+                    // println!("Loading client from file");
+                    // if let Err(e) =
+                    //     ClientConfig::change_client_state(connect.client_id.clone(), true)
+                    // {
+                    //     return Err(ProtocolError::UnspecifiedError(e.to_string()));
+                    // }
+
+                    // if let Ok(mut clients) = self.clients_ids.write() {
+                    //     clients.remove(&connect.client_id);
+                    //     clients.insert(
+                    //         connect.client_id.clone(),
+                    //         (Some(cloned_stream), will_message),
+                    //     );
+                    // } else {
+                    //     return Err(ProtocolError::WriteError);
+                    // }
+                }
+                println!("Creating new client");
+                if let Err(e) = ClientConfig::create_client_log_in_json(connect.client_id.clone()) {
+                    return Err(ProtocolError::UnspecifiedError(e.to_string()));
+                }
+                if let Ok(mut clients) = self.clients_ids.write() {
+                    clients.insert(
+                        connect.client_id.clone(),
+                        (Some(cloned_stream), will_message),
+                    );
                 } else {
-                    println!("Creating new client");
-                    if let Err(e) =
-                        ClientConfig::create_client_log_in_json(connect.client_id.clone())
-                    {
-                        return Err(ProtocolError::UnspecifiedError(e.to_string()));
-                    }
-                    if let Ok(mut clients) = self.clients_ids.write() {
-                        clients.insert(
-                            connect.client_id.clone(),
-                            (Some(cloned_stream), will_message),
-                        );
-                    } else {
-                        return Err(ProtocolError::WriteError);
-                    }
+                    return Err(ProtocolError::WriteError);
                 }
 
                 let connect_clone = connect.clone();
