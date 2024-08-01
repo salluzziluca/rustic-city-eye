@@ -47,7 +47,8 @@ impl DroneSystem {
             self.address.to_string(),
         );
         self.drone_centers.insert(id, drone_center);
-        println!("Drone center id {} creado exitosamente", id);
+        println!("Drone center id: {} added successfully", id);
+
         Ok(id)
     }
 

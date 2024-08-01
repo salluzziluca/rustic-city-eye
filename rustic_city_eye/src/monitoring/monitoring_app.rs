@@ -141,7 +141,7 @@ impl MonitoringApp {
             send_to_monitoring_channel,
         ) {
             Ok(client) => {
-                println!("Soy la MonitoringApp, y mi Client se conecto exitosamente!");
+                println!("I'm the MonitoringApp, and my Client is connected successfully!");
                 MonitoringApp::subscribe_to_topics(connect_config, send_from_monitoring_channel)?;
                 Ok(client)
             }
@@ -152,7 +152,7 @@ impl MonitoringApp {
     /// Contiene las subscripciones a los topics de interes para la MonitoringApp:
     /// necesita la suscripcion al topic de locations de drones("drone_locations"),
     /// al de actualizaciones de camaras("camera_update"), y al topic de
-    /// incidentes resueltos("incidente_resuelto"):
+    /// incidentes resueltos("incident_resolved"):
     ///
     /// La idea es que la aplicacion reciba actualizaciones de estado de parte del camera_system,
     /// y de los Drones que tenga creados, y que pueda plasmar estos cambios en la interfaz grafica.
@@ -160,87 +160,54 @@ impl MonitoringApp {
         connect_config: Connect,
         send_from_monitoring_channel: Sender<Box<dyn MessagesConfig + Send>>,
     ) -> Result<(), ProtocolError> {
-        let subscribe_properties: SubscribeProperties =
+        let subscribe_properties =
             SubscribeProperties::new(1, connect_config.properties.user_properties);
-        let topic_name = "drone_locations".to_string();
+        let topics = vec![
+            "drone_locations",
+            "camera_update",
+            "incident_resolved",
+            "incident",
+        ];
 
-        let subscribe_config = SubscribeConfig::new(
-            topic_name.clone(),
-            subscribe_properties.clone(),
-            connect_config.client_id.clone(),
-        );
-        match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
-            Ok(_) => {
-                println!(
-                    "Monitoring App subscrita al topic {} correctamente",
-                    topic_name
-                );
-            }
-            Err(e) => {
-                println!("Monitoring: Error sending message: {:?}", e);
-                return Err(ProtocolError::SubscribeError);
-            }
-        };
-
-        let topic_name = "camera_update".to_string();
-        let subscribe_config = SubscribeConfig::new(
-            topic_name.clone(),
-            subscribe_properties.clone(),
-            connect_config.client_id.clone(),
-        );
-        match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
-            Ok(_) => {
-                println!(
-                    "Monitoring App subscrita al topic {} correctamente",
-                    topic_name
-                );
-            }
-
-            Err(e) => {
-                println!("Monitoring: Error sending message: {:?}", e);
-                return Err(ProtocolError::SubscribeError);
-            }
-        };
-
-        let topic_name = "incidente_resuelto".to_string();
-        let subscribe_config = SubscribeConfig::new(
-            topic_name.clone(),
-            subscribe_properties.clone(),
-            connect_config.client_id.clone(),
-        );
-        match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
-            Ok(_) => {
-                println!(
-                    "Monitoring App subscrita al topic {} correctamente",
-                    topic_name
-                );
-            }
-            Err(e) => {
-                println!("Monitoring: Error sending message: {:?}", e);
-                return Err(ProtocolError::SubscribeError);
-            }
-        };
-
-        let topic_name = "incidente".to_string();
-        let subscribe_config = SubscribeConfig::new(
-            topic_name.clone(),
-            subscribe_properties,
-            connect_config.client_id,
-        );
-        match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
-            Ok(_) => {
-                println!(
-                    "Monitoring App subscrita al topic {} correctamente",
-                    topic_name
-                );
-            }
-            Err(e) => {
-                println!("Monitoring: Error sending message: {:?}", e);
-                return Err(ProtocolError::SubscribeError);
-            }
-        };
+        for topic_name in topics {
+            Self::subscribe_to_topic(
+                &topic_name.to_string(),
+                &subscribe_properties,
+                &connect_config.client_id,
+                &send_from_monitoring_channel,
+            )?;
+        }
 
         Ok(())
+    }
+
+    /// Se encarga de suscribir a la MonitoringApp a un topic determinado.
+    fn subscribe_to_topic(
+        topic_name: &String,
+        subscribe_properties: &SubscribeProperties,
+        client_id: &str,
+        send_from_monitoring_channel: &Sender<Box<dyn MessagesConfig + Send>>,
+    ) -> Result<(), ProtocolError> {
+        let client_id_owned = client_id.to_owned();
+        let subscribe_config = SubscribeConfig::new(
+            topic_name.clone(),
+            subscribe_properties.clone(),
+            client_id_owned.clone(),
+        );
+
+        match send_from_monitoring_channel.send(Box::new(subscribe_config)) {
+            Ok(_) => {
+                println!(
+                    "Monitoring App suscribed to topic {} successfully",
+                    topic_name
+                );
+                Ok(())
+            }
+            Err(e) => {
+                println!("Monitoring: Error sending message: {:?}", e);
+                Err(ProtocolError::SubscribeError)
+            }
+        }
     }
 
     /// Se encarga de correr al Client de la MonitoringApp, y al Client del CameraSystem, ademas
@@ -249,10 +216,10 @@ impl MonitoringApp {
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
         self.handle_update_entities()?;
 
-        println!("Client de la monitoring app comienza a correr");
+        println!(";Monitoring App client starts running");
         self.monitoring_app_client.client_run()?;
 
-        println!("Client del camera system comienza a correr");
+        println!("Camera System client starts running");
         CameraSystem::<Client>::run_client(None, self.camera_system.clone())?;
 
         Ok(())
@@ -298,6 +265,25 @@ impl MonitoringApp {
         Ok(())
     }
 
+    /// Carga las camaras existentes en el sistema.
+    pub fn load_existing_camera_system(&mut self, camera: Camera) -> Result<(), ProtocolError> {
+        let mut lock = match self.camera_system.lock() {
+            Ok(lock) => lock,
+            Err(e) => {
+                println!("Monitoring: Error locking camera system: {:?}", e);
+                return Err(ProtocolError::LockError);
+            }
+        };
+
+        match lock.load_existing_camera(camera) {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                println!("Monitoring: Error loading existing cameras: {:?}", e);
+                Err(ProtocolError::CameraError(e.to_string()))
+            }
+        }
+    }
+
     /// Dada una location para agregar una nueva camara, la agrega al sistema.
     pub fn add_camera(&mut self, location: Location) -> Result<u32, ProtocolError> {
         let mut lock = match self.camera_system.lock() {
@@ -307,6 +293,7 @@ impl MonitoringApp {
                 return Err(ProtocolError::LockError);
             }
         };
+
         match lock.add_camera(location) {
             Ok(id) => Ok(id),
             Err(e) => {
@@ -342,11 +329,11 @@ impl MonitoringApp {
 
         match send_to_client_channel.send(Box::new(publish_config)) {
             Ok(_) => {
-                println!("Incidente publicado correctamente");
+                println!("Incidente published successfully");
                 Ok(())
             }
             Err(e) => {
-                println!("Error al publicar el incidente {}", e);
+                println!("Error publishing incident {}", e);
                 Err(ProtocolError::PublishError)
             }
         }
@@ -417,7 +404,7 @@ impl MonitoringApp {
         match send_to_client_channel.send(Box::new(disconnect_config)) {
             Ok(_) => {}
             Err(_) => {
-                println!("Error al desconectar la Monitoring App");
+                println!("Error disconnecting the Monitoring App");
                 return Err(ProtocolError::DisconnectError);
             }
         }
@@ -430,7 +417,7 @@ impl MonitoringApp {
         system.disconnect()?;
         self.drone_system.disconnect_system()?;
 
-        println!("Cliente de la monitoring app desconectado correctamente");
+        println!("Monitoring App disconnected successfully");
 
         Ok(())
     }
@@ -445,11 +432,11 @@ impl MonitoringApp {
 /// Si se recibe un mensaje del topic camera_update, se recibe un snapshot de las camaras que cambiaron su
 /// estado, por lo que se notifica a la UI estos cambios y los muestra.
 ///
-/// Si se recibe un mensaje del topic attendingincident, se lleva a cabo un procedimiento:
+/// Si se recibe un mensaje del topic attending_incident, se lleva a cabo un procedimiento:
 /// - La Monitoring App lleva un registro de todos los incidentes ingresados, junto a la cantidad de Drones que
 ///   estan resolviendolo(apenas se publica un incidente nuevo, este valor sera 0).
 /// - A medida que vaya recibiendo mensajes sobre ese topic, se ira incrementando el valor de este contador.
-/// - Si este contador llega a 2, se publica un mensaje con topic incidente_resuelto, el cual recibiran los Drones,
+/// - Si este contador llega a 2, se publica un mensaje con topic incident_resolved, el cual recibiran los Drones,
 ///   y aquellos que no fueron a resolver el incidente dejaran de ir a resolverlo, y volveran a patrullar en su area.
 pub fn update_entities(
     recieve_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
@@ -496,7 +483,7 @@ pub fn update_entities(
                             }
                         }
                     }
-                    "incidente_resuelto" => {
+                    "incident_resolved" => {
                         if let PayloadTypes::IncidentLocation(incident_payload) = payload {
                             let mut incidents = match incidents.lock() {
                                 Ok(incidents) => incidents,
@@ -515,7 +502,7 @@ pub fn update_entities(
                             incidents.retain(|(inc, _)| !to_remove.contains(inc));
                         }
                     }
-                    "incidente" => {
+                    "incident" => {
                         if let PayloadTypes::IncidentLocation(incident_payload) = payload {
                             let incident = incident_payload.get_incident();
                             let mut incidents = match incidents.lock() {

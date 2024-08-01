@@ -1,5 +1,5 @@
-incidente
+incident
 drone_locations
-incidente_resuelto
+incident_resolved
 camera_update
-attendingincident
+attending_incident

@@ -155,7 +155,10 @@ impl Drone {
             send_to_drone_channel,
         ) {
             Ok(client) => {
-                println!("Soy el Drone {}, y mi Client se conecto exitosamente!", id);
+                println!(
+                    "I'm Drone {}, and my Client has been connected successfully!",
+                    id
+                );
                 Drone::subscribe_to_topics(connect_config, send_from_drone_channel)?;
                 Ok(client)
             }
@@ -164,7 +167,7 @@ impl Drone {
     }
 
     /// Contiene las subscripciones a los topics de interes para el Drone: necesita la suscripcion al topic
-    /// de incidentes("incident"), y al de drones atendiendo incidentes("attendingincident"): la idea es que reciban los incidentes
+    /// de incidentes("incident"), y al de drones atendiendo incidentes("attending_incident"): la idea es que reciban los incidentes
     /// cargados desde la aplicacion de monitoreo, y que ademas sepan que drones estan atendiendo ciertos incidentes, para que los drones
     /// puedan organizarse para resolver los distintos incidentes.
     fn subscribe_to_topics(
@@ -173,52 +176,45 @@ impl Drone {
     ) -> Result<(), DroneError> {
         let subscribe_properties =
             SubscribeProperties::new(1, connect_config.properties.user_properties);
-        let topic_name = "incidente".to_string();
+        let topics = vec!["incident", "attending_incident"];
+
+        for topic_name in topics {
+            Self::subscribe_to_topic(
+                &topic_name.to_string(),
+                &subscribe_properties,
+                &connect_config.client_id,
+                &send_from_drone_channel,
+            )?;
+        }
+
+        Ok(())
+    }
+
+    fn subscribe_to_topic(
+        topic_name: &String,
+        subscribe_properties: &SubscribeProperties,
+        client_id: &String,
+        send_from_channel: &Sender<Box<dyn MessagesConfig + Send>>,
+    ) -> Result<(), DroneError> {
         let subscribe_config = SubscribeConfig::new(
             topic_name.clone(),
             subscribe_properties.clone(),
-            connect_config.client_id.clone(),
+            client_id.clone(),
         );
 
-        match send_from_drone_channel.send(Box::new(subscribe_config)) {
+        match send_from_channel.send(Box::new(subscribe_config)) {
             Ok(_) => {
                 println!(
-                    "Drone {} suscrito al topic {} correctamente",
-                    connect_config.client_id, topic_name
+                    "Drone {} suscribed to topic {} successfully",
+                    client_id, topic_name
                 );
+                Ok(())
             }
             Err(e) => {
-                println!(
-                    "Drone {}: Error sending message: {:?}",
-                    connect_config.client_id, e
-                );
-                return Err(DroneError::SubscribeError(e.to_string()));
+                println!("Drone {}: Error sending message: {:?}", client_id, e);
+                Err(DroneError::SubscribeError(e.to_string()))
             }
-        };
-
-        let topic_name = "attendingincident".to_string();
-        let subscribe_config = SubscribeConfig::new(
-            topic_name.clone(),
-            subscribe_properties,
-            connect_config.client_id.clone(),
-        );
-        match send_from_drone_channel.send(Box::new(subscribe_config)) {
-            Ok(_) => {
-                println!(
-                    "Drone {} suscrito al topic {} correctamente",
-                    connect_config.client_id, topic_name
-                );
-            }
-            Err(e) => {
-                println!(
-                    "Drone {}: Error sending message: {:?}",
-                    connect_config.client_id, e
-                );
-                return Err(DroneError::SubscribeError(e.to_string()));
-            }
-        };
-
-        Ok(())
+        }
     }
 
     /// Desconecta al Client del Drone. Se cierra el canal por el cual el Drone envia packets
@@ -236,7 +232,7 @@ impl Drone {
         if let Some(ref sender) = *send_to_client_channel {
             match sender.send(Box::new(disconnect_config)) {
                 Ok(_) => {
-                    println!("Drone {} desconectado correctamente", self.id);
+                    println!("Drone {} disconnected successfully", self.id);
                 }
                 Err(e) => {
                     println!("Error sending to client channel: {:?}", e);
@@ -245,7 +241,7 @@ impl Drone {
             };
         }
 
-        println!("Cliente del drone {} desconectado correctamente", self.id);
+        println!("Drone client {} disconnected successfully", self.id);
         Ok(())
     }
 
@@ -266,10 +262,10 @@ impl Drone {
     ///   recibe los Publish packets que vengan de los topics al que este suscrito.
     pub fn run_drone(&mut self) -> Result<(), DroneError> {
         match self.drone_client.client_run() {
-            Ok(_) => println!("Drone {} patrullando en su area de operacion", self.id),
+            Ok(_) => println!("Drone {} patrolling in its area of operation", self.id),
             Err(e) => {
                 print!(
-                    "Error al correr el Client del Drone con id {}: {:?}",
+                    "Error while running the Drone Client with id {}: {:?}",
                     self.id, e
                 );
                 return Err(DroneError::ProtocolError(e.to_string()));
@@ -382,10 +378,7 @@ impl Drone {
 
                 DroneState::ChargingBattery => match lock.charge_battery() {
                     Ok(_) => {
-                        println!(
-                            "El Drone {} cargo su bateria: volviendo a patrullar",
-                            lock.id
-                        );
+                        println!("Drone {} charged its battery: returning to patrol", lock.id);
                     }
                     Err(e) => {
                         println!("Error charging battery: {:?}", e);
@@ -436,7 +429,7 @@ impl Drone {
                     };
                 }
                 DroneState::AttendingIncident(location) => {
-                    println!("Drone {} yendo a solucionar el incidente", lock.id);
+                    println!("Drone {} going to solve the incident", lock.id);
                     match lock.drone_movement(location) {
                         Ok(is_at_incident_location) => {
                             if is_at_incident_location {
@@ -459,11 +452,11 @@ impl Drone {
 
     /// closure del thread de recepcion de mensajes de parte del Client del Drone.
     ///
-    /// Por cada mensaje recibido de los topics de interes del Drone("incident" y "attendingincident"),
+    /// Por cada mensaje recibido de los topics de interes del Drone("incident" y "attending_incident"),
     /// el Drone determinara su accionar.
     ///
     /// Si recibe un incidente, se redirige hacia el mismo para resolverlo y publica su nuevo estado en
-    /// attendingincident.
+    /// attending_incident.
     /// A su vez, recibe aquellas notificaciones de todos los Drones que esten yendo a resolver el incidente, y van a jugar una carrera:
     /// los primeros 2 Drones que lleguen, se podran a resolver el incidente, y los demas pasaran a ignorar este incidente y volveran a patrullar.
 
@@ -503,7 +496,7 @@ impl Drone {
                     payload: PayloadTypes::IncidentLocation(payload),
                     ..
                 } => match topic_name.as_str() {
-                    "incidente" => {
+                    "incident" => {
                         if self_cloned.drone_state == DroneState::Waiting {
                             let location = payload.get_incident().get_location();
                             self_cloned.drone_state = DroneState::AttendingIncident(location);
@@ -524,7 +517,7 @@ impl Drone {
                     payload: PayloadTypes::AttendingIncident(payload),
                     ..
                 } => match topic_name.as_str() {
-                    "attendingincident" => {
+                    "attending_incident" => {
                         let mut to_remove = Vec::new();
 
                         for (incident, count) in self_cloned.incidents.iter_mut() {
@@ -563,7 +556,7 @@ impl Drone {
                                     if let Some(ref sender) = *send_to_client_channel {
                                         match sender.send(Box::new(publish_config)) {
                                             Ok(_) => {
-                                                println!("Drone notifica la resolucion del incidente en la location {:?}", incident.get_location());
+                                                println!("Drone notifies the resolution of the incident at the location {:?}", incident.get_location());
                                             }
                                             Err(e) => {
                                                 println!(
@@ -656,7 +649,7 @@ impl Drone {
         if elapsed_time >= discharge_rate {
             self.battery_level -= 1;
             if self.battery_level == LOW_BATERRY_LEVEL {
-                println!("El Drone {} se quedo con niveles de bateria bajos", self.id);
+                println!("Drone {} was left with low battery levels", self.id);
                 self.drone_state = DroneState::LowBatteryLevel;
             }
             (current_time, true)
@@ -697,10 +690,7 @@ impl Drone {
     ///
     /// Al llegar al 100%, devuelve un DroneState del tipo Waiting.
     pub fn charge_battery(&mut self) -> Result<DroneState, DroneError> {
-        println!(
-            "El Drone {} esta cargando su bateria en la central",
-            self.id
-        );
+        println!("Drone {} charging its battery at the central", self.id);
         let mut start_time = Utc::now();
 
         loop {
@@ -753,7 +743,7 @@ impl Drone {
     /// Una vez que llega a esta location, cambia su estado a
     /// ChargingBattery, por lo que el Drone va a comenzar a cargarse.
     fn redirect_to_operation_center(&mut self) -> Result<(), DroneError> {
-        println!("Drone {} redirigiendose a su central de carga", self.id);
+        println!("Drone {} redirecting to its charging station", self.id);
         if (self.location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
             == (self.center_location.lat * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR
             && (self.location.long * COORDINATE_SCALE_FACTOR) / COORDINATE_SCALE_FACTOR

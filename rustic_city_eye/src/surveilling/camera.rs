@@ -26,7 +26,7 @@ pub struct Camera {
 
     /// Cada camara se identifica con un ID unico, el cual sera brindado por el sistema
     /// central de camaras.
-    id: u32,
+    pub id: u32,
 
     /// Las cámaras inician su funcionamiento en modo ahorro de energia y pasan
     /// a estado de alerta cuando se recibe una notificación de un incidente en

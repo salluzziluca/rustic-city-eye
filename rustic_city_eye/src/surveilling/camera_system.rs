@@ -23,7 +23,7 @@ use crate::{
         subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
     },
-    surveilling::camera::Camera,
+    surveilling::{camera::Camera, cameras_config::CamerasConfig},
     utils::{
         incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes,
         threadpool::ThreadPool, watcher::watch_directory,
@@ -66,7 +66,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
     ///
     /// Envia un connect segun la configuracion del archivo connect_config.json
     ///
-    /// Se subscribe a los mensajes de tipo "incidente" e "incidente_resuelto"
+    /// Se subscribe a los mensajes de tipo "incident" e "incident_resolved"
     ///
     pub fn new<F>(address: String, client_factory: F) -> Result<CameraSystem<T>, ProtocolError>
     where
@@ -85,19 +85,20 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         let camera_system_client = client_factory(rx, address, connect_config, tx2)?;
         let client_id = camera_system_client.get_client_id();
         let subscribe_config = SubscribeConfig::new(
-            "incidente".to_string(),
+            "incident".to_string(),
             SubscribeProperties::new(1, vec![]),
             client_id.clone(),
         );
 
         let _ = tx.send(Box::new(subscribe_config));
         let subscribe_config = SubscribeConfig::new(
-            "incidente_resuelto".to_string(),
+            "incident_resolved".to_string(),
             SubscribeProperties::new(1, vec![]),
             client_id,
         );
 
         let _ = tx.send(Box::new(subscribe_config));
+
         Ok(CameraSystem {
             send_to_client_channel: Arc::new(Mutex::new(tx)),
             camera_system_client,
@@ -107,25 +108,38 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         })
     }
 
+    /// Bloquea el mutex de las camaras y devuelve un guard
+    fn lock_cameras(
+        &self,
+    ) -> Result<std::sync::MutexGuard<std::collections::HashMap<u32, Camera>>, CameraError> {
+        match self.cameras.lock() {
+            Ok(guard) => Ok(guard),
+            Err(_) => Err(CameraError::ArcMutexError(
+                "Error locking cameras mutex".to_string(),
+            )),
+        }
+    }
+
+    /// Carga una camara existente en el sistema
+    pub fn load_existing_camera(&mut self, camera: Camera) -> Result<(), CameraError> {
+        let mut cameras = self.lock_cameras()?;
+        cameras.insert(camera.get_id(), camera);
+        Ok(())
+    }
+
+    /// Agrega una camara al sistema
     pub fn add_camera(&mut self, location: Location) -> Result<u32, CameraError> {
         let mut rng = rand::thread_rng();
-
         let mut id = rng.gen();
 
-        let mut cameras = match self.cameras.lock() {
-            Ok(guard) => guard,
-            Err(_) => {
-                return Err(CameraError::ArcMutexError(
-                    "Error locking cameras mutex".to_string(),
-                ));
-            }
-        };
+        let mut cameras = self.lock_cameras()?;
         while cameras.contains_key(&id) {
             id = rng.gen();
         }
 
         let camera = Camera::new(location, id)?;
-        println!("CameraSys: creo la camara con id: {:?}", id);
+        let _ = CamerasConfig::add_camera_to_json(camera.clone());
+        println!("Camera System creates camera with id: {:?}", id);
         cameras.insert(id, camera);
 
         Ok(id)
@@ -243,12 +257,12 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
                         payload: PayloadTypes::IncidentLocation(payload),
                         ..
                     }) => {
-                        if topic_name == "incidente" {
+                        if topic_name == "incident" {
                             incident_location = Some(payload.get_incident().get_location());
                             drop(reciever); // Release the lock here
 
                             continue;
-                        } else if topic_name == "incidente_resuelto" {
+                        } else if topic_name == "incident_resolved" {
                             solved_incident_location = Some(payload.get_incident().get_location());
                             drop(reciever); // Release the lock here
 
@@ -350,7 +364,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
             }
             Err(e) => return Err(ProtocolError::CameraError(e.to_string())),
         }
-        println!("Cliente del system desconectado correctamente");
+        println!("The camera system has been disconnected");
 
         Ok(())
     }
@@ -388,7 +402,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         for loc in locations_to_activate {
             self.activate_cameras_by_camera_location(loc)?;
         }
-        println!("CameraSys: Camaras activadas");
+        println!("Camera System: cameras activated");
         self.publish_cameras_update()?;
 
         Ok(())
@@ -562,7 +576,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         if updated_cameras.is_empty() {
             return Ok(());
         }
-        println!("CameraSys: publicando el estado de las camaras a el broker");
+        println!("Camera System: publishing camera update to broker");
 
         let publish_config = match PublishConfig::read_config(
             "./src/surveilling/publish_config_update.json",
@@ -620,15 +634,12 @@ fn process_dir_change(
                 Some(id) => id,
                 None => {
                     return Some(Err(ProtocolError::CameraError(
-                        "Error al parsear el id de la camara".to_string(),
+                        "Error parsing the camera id".to_string(),
                     )))
                 }
             };
 
-            println!(
-                "se ha creado el directorio de la camara de id {:?}",
-                camera_id
-            );
+            println!("Camera's ID directory has been created {:?}", camera_id);
         }
         _ => {}
     }
@@ -649,7 +660,7 @@ fn analize_image(event: Vec<String>, system: &Arc<Mutex<CameraSystem<Client>>>, 
             Some(id) => id,
             None => {
                 return Err(ProtocolError::CameraError(
-                    "Error al parsear el id de la camara".to_string(),
+                    "Error while parsing the camera's id".to_string(),
                 ))
             }
         };
@@ -657,13 +668,13 @@ fn analize_image(event: Vec<String>, system: &Arc<Mutex<CameraSystem<Client>>>, 
         let camera_id = match camera_id.parse::<u32>() {
             Ok(camera_id) => camera_id,
             Err(_) => {
-                println!("Error al parsear el id de la camara");
+                println!("Error while parsing the camera's id");
                 return Err(ProtocolError::InvalidCommand(
                     "Invalid camera id".to_string(),
                 ));
             }
         };
-        println!("La camara de id {:?} esta analizando una imagen", camera_id);
+        println!("Camera id {:?} is analyzing an image", camera_id);
 
         let camera = match system_clone.lock().unwrap().get_camera_by_id(camera_id) {
             Some(camera) => camera,
@@ -676,7 +687,7 @@ fn analize_image(event: Vec<String>, system: &Arc<Mutex<CameraSystem<Client>>>, 
         let classification_result = camera.annotate_image(&str_path)?;
 
         if !classification_result {
-            println!("No es un incidente");
+            println!("Not an incident");
         } else {
             publish_incident(&system_clone2, camera)?;
         }
@@ -1413,7 +1424,7 @@ mod tests {
                     payload,
                     properties: _,
                 } => {
-                    assert_eq!(payload.topic, "incidente");
+                    assert_eq!(payload.topic, "incident");
                 }
                 _ => {
                     panic!("Unexpected message type");
@@ -1430,7 +1441,7 @@ mod tests {
                     payload,
                     properties: _,
                 } => {
-                    assert_eq!(payload.topic, "incidente_resuelto");
+                    assert_eq!(payload.topic, "incident_resolved");
                 }
                 _ => {
                     panic!("Unexpected message type");
