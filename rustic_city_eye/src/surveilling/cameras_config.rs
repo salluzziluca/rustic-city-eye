@@ -133,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_add_camera() {
-        let path = format!("./src/surveilling/cameras.json");
+        let path = "./src/surveilling/cameras.json".to_string();
         if std::fs::metadata(&path).is_ok() {
             std::fs::remove_file(path).unwrap();
         }
@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn test_remove_camera() {
-        let path = format!("./src/surveilling/cameras.json");
+        let path = "./src/surveilling/cameras.json".to_string();
         if std::fs::metadata(&path).is_ok() {
             std::fs::remove_file(path).unwrap();
         }
@@ -160,7 +160,7 @@ mod tests {
 
     #[test]
     fn test_get_cameras() {
-        let path = format!("./src/surveilling/cameras.json");
+        let path = "./src/surveilling/cameras.json".to_string();
         if std::fs::metadata(&path).is_ok() {
             std::fs::remove_file(path).unwrap();
         }
