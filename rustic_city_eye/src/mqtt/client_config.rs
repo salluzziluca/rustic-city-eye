@@ -111,7 +111,7 @@ impl ClientConfig {
     pub fn remove_client_file(client_id: String) -> Result<(), ProtocolError> {
         // remueve un cliente del archivo json
         let path = format!("./src/mqtt/clients/{}.json", client_id);
-        if !std::fs::metadata(&path).is_ok() {
+        if std::fs::metadata(&path).is_err() {
             return Ok(());
         }
 
@@ -184,7 +184,7 @@ mod tests {
             serde_json::from_reader(file).unwrap()
         }
     }
-    
+
     #[test]
     fn test_new_client_config() {
         let client_id = "test".to_string();

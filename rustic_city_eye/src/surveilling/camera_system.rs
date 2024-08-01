@@ -1,9 +1,13 @@
 use notify::{recommended_watcher, RecursiveMode, Watcher};
 use std::{
-    collections::HashMap, path::Path, sync::{
+    collections::HashMap,
+    path::Path,
+    sync::{
         mpsc::{self, channel, Receiver, Sender},
         Arc, Mutex,
-    }, thread, time::{Duration, Instant}
+    },
+    thread,
+    time::{Duration, Instant},
 };
 
 use rand::Rng;
@@ -104,43 +108,38 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         })
     }
 
+    /// Bloquea el mutex de las camaras y devuelve un guard
+    fn lock_cameras(
+        &self,
+    ) -> Result<std::sync::MutexGuard<std::collections::HashMap<u32, Camera>>, CameraError> {
+        match self.cameras.lock() {
+            Ok(guard) => Ok(guard),
+            Err(_) => Err(CameraError::ArcMutexError(
+                "Error locking cameras mutex".to_string(),
+            )),
+        }
+    }
+
+    /// Carga una camara existente en el sistema
     pub fn load_existing_camera(&mut self, camera: Camera) -> Result<(), CameraError> {
-        let mut cameras = match self.cameras.lock() {
-            Ok(guard) => guard,
-            Err(_) => {
-                return Err(CameraError::ArcMutexError(
-                    "Error locking cameras mutex".to_string(),
-                ));
-            }
-        };
+        let mut cameras = self.lock_cameras()?;
         cameras.insert(camera.get_id(), camera);
         Ok(())
     }
 
-
-
-
-
+    /// Agrega una camara al sistema
     pub fn add_camera(&mut self, location: Location) -> Result<u32, CameraError> {
         let mut rng = rand::thread_rng();
-
         let mut id = rng.gen();
 
-        let mut cameras = match self.cameras.lock() {
-            Ok(guard) => guard,
-            Err(_) => {
-                return Err(CameraError::ArcMutexError(
-                    "Error locking cameras mutex".to_string(),
-                ));
-            }
-        };
+        let mut cameras = self.lock_cameras()?;
         while cameras.contains_key(&id) {
             id = rng.gen();
         }
 
         let camera = Camera::new(location, id)?;
-        let _ = CamerasConfig::add_camera_to_json(camera.clone());        
-        println!("CameraSys: creo la camara con id: {:?}", id);
+        let _ = CamerasConfig::add_camera_to_json(camera.clone());
+        println!("Camera System creates camera with id: {:?}", id);
         cameras.insert(id, camera);
 
         Ok(id)
@@ -289,7 +288,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
 
             watcher
                 .watch(Path::new(PATH), RecursiveMode::Recursive)
-                .expect("No se pudo ver el directorio");
+                .expect("Unable to find path");
             let mut last_event_times: HashMap<String, Instant> = HashMap::new();
 
             loop {
@@ -306,7 +305,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
                         let str_path = match path.to_str() {
                             Some(str_path) => str_path,
                             None => {
-                                println!("Error al convertir el path a string");
+                                println!("Error while converting path to string");
                                 break;
                             }
                         };
@@ -387,7 +386,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
             }
             Err(e) => return Err(ProtocolError::CameraError(e.to_string())),
         }
-        println!("Cliente del system desconectado correctamente");
+        println!("The camera system has been disconnected");
 
         Ok(())
     }
@@ -425,7 +424,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         for loc in locations_to_activate {
             self.activate_cameras_by_camera_location(loc)?;
         }
-        println!("CameraSys: Camaras activadas");
+        println!("Camera System: cameras activated");
         self.publish_cameras_update()?;
 
         Ok(())
@@ -599,7 +598,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         if updated_cameras.is_empty() {
             return Ok(());
         }
-        println!("CameraSys: publicando el estado de las camaras a el broker");
+        println!("Camera System: publishing camera update to broker");
 
         let publish_config = match PublishConfig::read_config(
             "./src/surveilling/publish_config_update.json",
@@ -646,13 +645,13 @@ fn process_dir_change(
             Some(id) => id,
             None => {
                 return Some(Err(ProtocolError::CameraError(
-                    "Error al parsear el id de la camara".to_string(),
+                    "Error while parsing the string".to_string(),
                 )))
             }
         };
 
         println!(
-            "se ha creado el directorio de la camara de id {:?}",
+            "Camera's directory with id {:?} has been created successfully",
             camera_id
         );
     } else if (matches!(event.kind, notify::EventKind::Modify(_))
@@ -680,7 +679,7 @@ fn analize_image(
         let str_path = match path.to_str() {
             Some(str_path) => str_path,
             None => {
-                println!("Error al convertir el path a string");
+                println!("Error while converting path to string");
                 return Err(ProtocolError::InvalidCommand("Invalid path".to_string()));
             }
         };
@@ -688,7 +687,7 @@ fn analize_image(
             Some(id) => id,
             None => {
                 return Err(ProtocolError::CameraError(
-                    "Error al parsear el id de la camara".to_string(),
+                    "Error while parsing the camera's id".to_string(),
                 ))
             }
         };
@@ -696,14 +695,14 @@ fn analize_image(
         let camera_id = match camera_id.parse::<u32>() {
             Ok(camera_id) => camera_id,
             Err(_) => {
-                println!("Error al parsear el id de la camara");
+                println!("Error while parsing the camera's id");
                 return Err(ProtocolError::InvalidCommand(
                     "Invalid camera id".to_string(),
                 ));
             }
         };
 
-        println!("La camara de id {:?} esta analizando una imagen", camera_id);
+        println!("The camera {:?} is analazing", camera_id);
         let url = "https://vision.googleapis.com/v1/images:annotate".to_string();
         let incident_keywords_file_path = "./src/surveilling/incident_keywords";
 
@@ -714,12 +713,12 @@ fn analize_image(
             .map_err(|e| ProtocolError::AnnotationError(e.to_string()))?;
 
         println!(
-            "La camara de id {:?} ha clasificado la imagen y el resultado es: {:?}",
+            "The camera {:?} has cclassified the image and the result is: {:?}",
             camera_id, classification_result
         );
 
         if !classification_result {
-            println!("No es un incidente");
+            println!("Not an incident");
         } else {
             let camera = match system_clone.lock().unwrap().get_camera_by_id(camera_id) {
                 Some(camera) => camera,

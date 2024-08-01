@@ -141,7 +141,7 @@ impl MonitoringApp {
             send_to_monitoring_channel,
         ) {
             Ok(client) => {
-                println!("Soy la MonitoringApp, y mi Client se conecto exitosamente!");
+                println!("I'm the MonitoringApp, and my Client is connected successfully!");
                 MonitoringApp::subscribe_to_topics(connect_config, send_from_monitoring_channel)?;
                 Ok(client)
             }
@@ -181,6 +181,7 @@ impl MonitoringApp {
         Ok(())
     }
 
+    /// Se encarga de suscribir a la MonitoringApp a un topic determinado.
     fn subscribe_to_topic(
         topic_name: &String,
         subscribe_properties: &SubscribeProperties,
@@ -214,10 +215,10 @@ impl MonitoringApp {
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
         self.handle_update_entities()?;
 
-        println!("Client de la monitoring app comienza a correr");
+        println!(";Monitoring App client starts running");
         self.monitoring_app_client.client_run()?;
 
-        println!("Client del camera system comienza a correr");
+        println!("Camera System client starts running");
         CameraSystem::<Client>::run_client(None, self.camera_system.clone())?;
 
         Ok(())
@@ -263,6 +264,7 @@ impl MonitoringApp {
         Ok(())
     }
 
+    /// Carga las camaras existentes en el sistema.
     pub fn load_existing_camera_system(&mut self, camera: Camera) -> Result<(), ProtocolError> {
         let mut lock = match self.camera_system.lock() {
             Ok(lock) => lock,
@@ -326,11 +328,11 @@ impl MonitoringApp {
 
         match send_to_client_channel.send(Box::new(publish_config)) {
             Ok(_) => {
-                println!("Incidente publicado correctamente");
+                println!("Incidente published successfully");
                 Ok(())
             }
             Err(e) => {
-                println!("Error al publicar el incidente {}", e);
+                println!("Error publishing incident {}", e);
                 Err(ProtocolError::PublishError)
             }
         }
@@ -401,7 +403,7 @@ impl MonitoringApp {
         match send_to_client_channel.send(Box::new(disconnect_config)) {
             Ok(_) => {}
             Err(_) => {
-                println!("Error al desconectar la Monitoring App");
+                println!("Error disconnecting the Monitoring App");
                 return Err(ProtocolError::DisconnectError);
             }
         }
@@ -414,7 +416,7 @@ impl MonitoringApp {
         system.disconnect()?;
         self.drone_system.disconnect_system()?;
 
-        println!("Cliente de la monitoring app desconectado correctamente");
+        println!("Monitoring App disconnected successfully");
 
         Ok(())
     }

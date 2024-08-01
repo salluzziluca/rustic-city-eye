@@ -205,10 +205,7 @@ impl MyApp {
                             self.connected = true;
                         }
                         Err(e) => {
-                            println!(
-                                "The conection failed. Please try again {}.",
-                                e
-                            );
+                            println!("The conection failed. Please try again {}.", e);
                             self.username.clear();
                             self.password.clear();
                             self.ip.clear();
@@ -298,11 +295,9 @@ impl MyApp {
                     if let Some(monitoring_app) = &mut self.monitoring_app {
                         let _ = monitoring_app.load_existing_camera_system(camera.clone());
                     }
-
                 });
             }
 
-            
             if let Some(monitoring_app) = &mut self.monitoring_app {
                 let new_locations = monitoring_app.get_active_drones();
                 self.map.update_drones(new_locations);

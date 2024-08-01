@@ -542,8 +542,10 @@ impl Broker {
 
                 if ClientConfig::client_exists(connect.client_id.clone()) {
                     println!("Loading client from file");
-                    if let Err(e) = ClientConfig::change_client_state(connect.client_id.clone(), true) {
-                        return Err(ProtocolError::UnspecifiedError(e.to_string()));                        
+                    if let Err(e) =
+                        ClientConfig::change_client_state(connect.client_id.clone(), true)
+                    {
+                        return Err(ProtocolError::UnspecifiedError(e.to_string()));
                     }
 
                     if let Ok(mut clients) = self.clients_ids.write() {
@@ -557,7 +559,9 @@ impl Broker {
                     }
                 } else {
                     println!("Creating new client");
-                    if let Err(e) = ClientConfig::create_client_log_in_json(connect.client_id.clone()){
+                    if let Err(e) =
+                        ClientConfig::create_client_log_in_json(connect.client_id.clone())
+                    {
                         return Err(ProtocolError::UnspecifiedError(e.to_string()));
                     }
                     if let Ok(mut clients) = self.clients_ids.write() {
