@@ -13,6 +13,7 @@ pub enum DroneError {
     PatrollingError(String),
     MovingToIncidentError(String),
     ReceiveError(String),
+    SendError(String),
 }
 
 impl fmt::Display for DroneError {
@@ -42,6 +43,7 @@ impl fmt::Display for DroneError {
                 write!(f, "Error al moverse al incidente: {}", err)
             }
             DroneError::ReceiveError(ref err) => write!(f, "Error al recibir mensaje: {}", err),
+            DroneError::SendError(ref err) => write!(f, "Error al enviar mensaje: {}", err),
         }
     }
 }

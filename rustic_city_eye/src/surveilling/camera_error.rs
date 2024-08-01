@@ -10,6 +10,7 @@ pub enum CameraError {
     DeleteDirError(String),
     WatcherError(String),
     JsonError(String),
+    AnnotationError(String),
 }
 
 impl fmt::Display for CameraError {
@@ -32,6 +33,9 @@ impl fmt::Display for CameraError {
             }
             CameraError::JsonError(e) => {
                 write!(f, "Error with json: {}", e)
+            }
+            CameraError::AnnotationError(e) => {
+                write!(f, "Error al etiquetar: {}", e)
             }
         }
     }

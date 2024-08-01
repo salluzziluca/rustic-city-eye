@@ -48,6 +48,7 @@ impl DroneSystem {
         );
         self.drone_centers.insert(id, drone_center);
         println!("Drone center id: {} added successfully", id);
+
         Ok(id)
     }
 
