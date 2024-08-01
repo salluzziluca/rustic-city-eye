@@ -45,7 +45,7 @@ impl DroneData {
             Ok(file) => file,
             Err(e) => {
                 println!(
-                    "Error al abrir el archivo de configuracion del Drone: {:?}",
+                    "Error opening Drone configuration file: {:?}",
                     e,
                 );
                 return Err(DroneError::ReadingConfigFileError);
