@@ -185,13 +185,14 @@ impl MonitoringApp {
     fn subscribe_to_topic(
         topic_name: &String,
         subscribe_properties: &SubscribeProperties,
-        client_id: &String,
+        client_id: &str,
         send_from_monitoring_channel: &Sender<Box<dyn MessagesConfig + Send>>,
     ) -> Result<(), ProtocolError> {
+        let client_id_owned = client_id.to_owned();
         let subscribe_config = SubscribeConfig::new(
             topic_name.clone(),
             subscribe_properties.clone(),
-            client_id.clone(),
+            client_id_owned.clone(),
         );
 
         match send_from_monitoring_channel.send(Box::new(subscribe_config)) {

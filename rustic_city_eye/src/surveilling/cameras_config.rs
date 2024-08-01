@@ -18,8 +18,8 @@ impl CamerasConfig {
 
     /// Verifica si una cámara con el id dado existe en el archivo cameras.json
     pub fn camera_exists(id: u32) -> bool {
-        let path = format!("./src/surveilling/cameras.json");
-        if !std::fs::metadata(&path).is_ok() {
+        let path = "./src/surveilling/cameras.json".to_string();
+        if std::fs::metadata(&path).is_err() {
             return false;
         }
 
@@ -44,8 +44,8 @@ impl CamerasConfig {
 
     /// Devuelve la cantidad de cámaras en el archivo cameras.json
     pub fn count_cameras() -> u32 {
-        let path = format!("./src/surveilling/cameras.json");
-        if !std::fs::metadata(&path).is_ok() {
+        let path = "./src/surveilling/cameras.json".to_string();
+        if std::fs::metadata(&path).is_err() {
             return 0;
         }
 
@@ -64,9 +64,9 @@ impl CamerasConfig {
 
     /// Agrega una cámara al archivo cameras.json
     pub fn add_camera_to_json(camera: Camera) -> Result<(), Box<dyn std::error::Error>> {
-        let path = format!("./src/surveilling/cameras.json");
+        let path = "./src/surveilling/cameras.json".to_string();
 
-        if !std::fs::metadata(&path).is_ok() {
+        if std::fs::metadata(&path).is_err() {
             let cameras_config = CamerasConfig::new();
             let json = serde_json::to_string(&cameras_config)?;
             std::fs::write(path.clone(), json)?;
@@ -84,7 +84,7 @@ impl CamerasConfig {
 
     /// Remueve una cámara con el id dado del archivo cameras.json
     pub fn remove_camera_from_file(id: u32) -> Result<(), Box<dyn std::error::Error>> {
-        let path = format!("./src/surveilling/cameras.json");
+        let path = "./src/surveilling/cameras.json".to_string();
         if !CamerasConfig::camera_exists(id) {
             return Ok(());
         }
@@ -94,8 +94,8 @@ impl CamerasConfig {
 
     /// Devuelve todas las cámaras en el archivo cameras.json
     pub fn get_cameras() -> Vec<Camera> {
-        let path = format!("./src/surveilling/cameras.json");
-        if !std::fs::metadata(&path).is_ok() {
+        let path = "./src/surveilling/cameras.json".to_string();
+        if std::fs::metadata(&path).is_err() {
             return Vec::new();
         }
 
@@ -110,6 +110,12 @@ impl CamerasConfig {
         };
 
         cameras_config.cameras
+    }
+}
+
+impl Default for CamerasConfig {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
