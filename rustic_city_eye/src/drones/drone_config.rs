@@ -44,10 +44,7 @@ impl DroneConfig {
         let config_file = match File::open(file_path) {
             Ok(file) => file,
             Err(e) => {
-                println!(
-                    "Error opening Drone configuration file: {:?}",
-                    e,
-                );
+                println!("Error opening Drone configuration file: {:?}", e,);
                 return Err(DroneError::ReadingConfigFileError);
             }
         };

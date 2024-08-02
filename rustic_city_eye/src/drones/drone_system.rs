@@ -47,7 +47,6 @@ impl DroneSystem {
 
         self.drone_centers.insert(id, drone_center);
 
-        println!("BUG 1");
         println!("Drone center id: {} loaded successfully", id);
 
         Ok(id)
@@ -81,7 +80,11 @@ impl DroneSystem {
         Ok(id)
     }
 
-    pub fn load_existing_drone(&mut self, location: Location, drone_center_id: u32) -> Result<u32, DroneError> {
+    pub fn load_existing_drone(
+        &mut self,
+        location: Location,
+        drone_center_id: u32,
+    ) -> Result<u32, DroneError> {
         let drone_center = match self.drone_centers.get_mut(&drone_center_id) {
             Some(drone_center) => drone_center,
             None => return Err(DroneError::DroneCenterNotFound),
@@ -106,10 +109,7 @@ impl DroneSystem {
         };
 
         let id = drone_center.add_drone(location)?;
-        let _ = DronesCentralConfig::add_drone_to_json(
-            location,
-            id,
-        );
+        let _ = DronesCentralConfig::add_drone_to_json(location, id);
         Ok(id)
     }
 }

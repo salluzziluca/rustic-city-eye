@@ -11,7 +11,10 @@ use egui::{CentralPanel, RichText, TextStyle, TopBottomPanel};
 use incident_view::IncidentView;
 use plugins::*;
 use rustic_city_eye::{
-    drones::drones_central_config::DronesCentralConfig, monitoring::{incident::Incident, monitoring_app::MonitoringApp}, surveilling::{camera::Camera, cameras_config::CamerasConfig}, utils::location::Location
+    drones::drones_central_config::DronesCentralConfig,
+    monitoring::{incident::Incident, monitoring_app::MonitoringApp},
+    surveilling::{camera::Camera, cameras_config::CamerasConfig},
+    utils::location::Location,
 };
 use std::collections::HashMap;
 use walkers::{sources::OpenStreetMap, HttpTiles, Map, MapMemory, Position, Texture, Tiles};
@@ -201,6 +204,9 @@ impl MyApp {
                             let _ = monitoring_app.run_client();
                             self.monitoring_app = Some(monitoring_app);
                             self.connected = true;
+                            self.configure_cameras();
+                            self.configure_central_drones();
+                            self.configure_drones();
                         }
                         Err(e) => {
                             println!("The conection failed. Please try again {}.", e);
@@ -240,7 +246,7 @@ impl MyApp {
                     clicked: false,
                 };
                 self.map.cameras.insert(camera.get_id(), camera_view);
-    
+
                 if let Some(monitoring_app) = &mut self.monitoring_app {
                     let _ = monitoring_app.load_existing_camera_system(camera.clone());
                 }
@@ -250,39 +256,43 @@ impl MyApp {
 
     fn configure_central_drones(&mut self) {
         if DronesCentralConfig::count_centrals() > 0 {
-            DronesCentralConfig::get_centrals().iter().for_each(|drone_center| {
-                let location = drone_center.get_location();
-                let drone_center_view = drone_center_view::DroneCenterView {
-                    image: self.map.drone_center_icon.clone(),
-                    position: Position::from_lon_lat(location.long, location.lat),
-                    clicked: false,
-                };
-                self.map.drone_centers.push(drone_center_view);
-    
-                if let Some(monitoring_app) = &mut self.monitoring_app {
-                    println!("BUG 3");
-                    let _ = monitoring_app.load_existing_drone_center(drone_center.location.clone()); 
-                }
-            });
+            println!("pin100");
+            DronesCentralConfig::get_centrals()
+                .iter()
+                .for_each(|central| {
+                    let location = central.get_location();
+                    let drone_center_view = drone_center_view::DroneCenterView {
+                        image: self.map.drone_center_icon.clone(),
+                        position: Position::from_lon_lat(location.long, location.lat),
+                        clicked: false,
+                    };
+
+                    self.map.drone_centers.push(drone_center_view);
+
+                    if let Some(monitoring_app) = &mut self.monitoring_app {
+                        let _ = monitoring_app.load_existing_drone_center(central.location);
+                    }
+                });
         }
     }
 
     fn configure_drones(&mut self) {
-        if DronesCentralConfig::count_drones() > 0{
-            DronesCentralConfig::get_drones().iter().for_each(|drone: &(Location, u32)| {
-                let location = drone.0;
-                let drone_view = drone_view::DroneView {
-                    image: self.map.drone_icon.clone(),
-                    position: Position::from_lon_lat(location.long, location.lat),
-                    clicked: false,
-                };
-                self.map.drones.insert(drone.1, drone_view);
+        if DronesCentralConfig::count_drones() > 0 {
+            DronesCentralConfig::get_drones()
+                .iter()
+                .for_each(|drone: &(Location, u32)| {
+                    let location = drone.0;
+                    let drone_view = drone_view::DroneView {
+                        image: self.map.drone_icon.clone(),
+                        position: Position::from_lon_lat(location.long, location.lat),
+                        clicked: false,
+                    };
+                    self.map.drones.insert(drone.1, drone_view);
 
-                if let Some(monitoring_app) = &mut self.monitoring_app {
-                    let _ = monitoring_app.load_existing_drone( location.clone(), drone.1);
-                }
-                
-            });
+                    if let Some(monitoring_app) = &mut self.monitoring_app {
+                        let _ = monitoring_app.load_existing_drone(location, drone.1);
+                    }
+                });
         }
     }
 
@@ -335,10 +345,6 @@ impl MyApp {
                 )),
             );
             zoom(ui, &mut self.map.map_memory, &mut self.map.zoom_level);
-
-            self.configure_cameras();
-            self.configure_central_drones();
-            self.configure_drones();
 
             if let Some(monitoring_app) = &mut self.monitoring_app {
                 let new_locations = monitoring_app.get_active_drones();

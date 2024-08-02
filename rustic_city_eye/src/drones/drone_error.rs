@@ -21,19 +21,15 @@ impl fmt::Display for DroneError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             DroneError::ReadingConfigFileError => {
-                write!(
-                    f,
-                    "Error: The drone configuration file could not be found."
-                )
+                write!(f, "Error: The drone configuration file could not be found.")
             }
             DroneError::DroneCenterNotFound => {
                 write!(f, "Error: The drone center could not be found.")
             }
             DroneError::ProtocolError(ref err) => write!(f, "Protocol error: {}", err),
-            DroneError::BatteryEmpty => write!(
-                f,
-                "Error: the drone battery is completely discharged."
-            ),
+            DroneError::BatteryEmpty => {
+                write!(f, "Error: the drone battery is completely discharged.")
+            }
             DroneError::SubscribeError(ref err) => write!(f, "Protocol error: {}", err),
             DroneError::LockError(ref err) => write!(f, "Error acquiring a lock: {}", err),
             DroneError::ChargingBatteryError(ref err) => {
@@ -63,10 +59,12 @@ mod tests {
         );
 
         let error = DroneError::DroneCenterNotFound;
-        assert_eq!(format!("{}", error), "Error: The drone center could not be found.");
+        assert_eq!(
+            format!("{}", error),
+            "Error: The drone center could not be found."
+        );
 
         let error = DroneError::ProtocolError("Error".to_string());
         assert_eq!(format!("{}", error), "Protocol error: Error");
-        
     }
 }

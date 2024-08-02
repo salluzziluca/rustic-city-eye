@@ -351,10 +351,18 @@ impl MonitoringApp {
         }
     }
 
-    pub fn load_existing_drone(&mut self, location: Location, drone_center_id: u32) -> u32 {
-        self.drone_system
+    pub fn load_existing_drone(
+        &mut self,
+        location: Location,
+        drone_center_id: u32,
+    ) -> Result<u32, ProtocolError> {
+        match self
+            .drone_system
             .load_existing_drone(location, drone_center_id)
-            .map_or(0, |id| id)
+        {
+            Ok(id) => Ok(id),
+            Err(e) => Err(ProtocolError::DroneError(e.to_string())),
+        }
     }
 
     /// Agrega un centro de Drones nuevo.
@@ -365,7 +373,6 @@ impl MonitoringApp {
     }
 
     pub fn load_existing_drone_center(&mut self, location: Location) -> u32 {
-        println!("BUG 2");
         self.drone_system
             .load_existing_drone_center(location)
             .map_or(0, |id| id)

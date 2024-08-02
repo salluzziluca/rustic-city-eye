@@ -12,7 +12,7 @@ pub struct DronesCentralConfig {
     pub drone_centers: Vec<(u32, Location, String, String)>,
 }
 
-impl DronesCentralConfig{
+impl DronesCentralConfig {
     pub fn new() -> DronesCentralConfig {
         DronesCentralConfig {
             drones: Vec::new(),
@@ -82,6 +82,7 @@ impl DronesCentralConfig{
 
         let mut drone_centers = Vec::new();
         for (id, location, config_path, address) in drones_central_config.drone_centers {
+            println!("Loaded drone center {}", id);
             let drone_center = DroneCenter::new(id, location, config_path, address);
             drone_centers.push(drone_center);
         }
@@ -89,20 +90,28 @@ impl DronesCentralConfig{
         drone_centers
     }
 
-    pub fn add_central_to_json(id: u32, location: Location, config_path: String, address: String) -> Result<(), DroneError> {
+    pub fn add_central_to_json(
+        id: u32,
+        location: Location,
+        config_path: String,
+        address: String,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let path = "./src/drones/drones_central_config.json".to_string();
         if std::fs::metadata(&path).is_err() {
             let drones_central_config = DronesCentralConfig::new();
-            let json = serde_json::to_string(&drones_central_config).map_err(|_| DroneError::CentralError("Error while serializing the drone center persistent file".to_string()))?;
-            std::fs::write(path.clone(), json).map_err(|_| DroneError::CentralError("Error while writing the drone center persistent file".to_string()))?;
+            let json = serde_json::to_string(&drones_central_config)?;
+            std::fs::write(path.clone(), json)?;
         }
 
-        let file = File::open(path.clone()).map_err(|_| DroneError::CentralError("Error while opening the drone center persistent file".to_string()))?;
-        let mut drones_central_config: DronesCentralConfig = serde_json::from_reader(file).map_err(|_| DroneError::CentralError("Error while reading the drone center persistent file".to_string()))?;
+        let file = File::open(path.clone())?;
 
-        drones_central_config.drone_centers.push((id, location, config_path, address));
-        let json = serde_json::to_string(&drones_central_config).map_err(|_| DroneError::CentralError("Error while serializing the drone center persistent file".to_string()))?;
-        std::fs::write(path, json).map_err(|_| DroneError::CentralError("Error while writing the drone center persistent file".to_string()))?;
+        let mut drones_central_config: DronesCentralConfig = serde_json::from_reader(file)?;
+
+        drones_central_config
+            .drone_centers
+            .push((id, location, config_path, address));
+        let json = serde_json::to_string(&drones_central_config)?;
+        std::fs::write(path, json)?;
 
         Ok(())
     }
@@ -112,7 +121,11 @@ impl DronesCentralConfig{
         if !DronesCentralConfig::central_exists(id) {
             return Ok(());
         }
-        std::fs::remove_file(path).map_err(|_| DroneError::CentralError("Error while removing the drone center persistent file".to_string()))?;
+        std::fs::remove_file(path).map_err(|_| {
+            DroneError::CentralError(
+                "Error while removing the drone center persistent file".to_string(),
+            )
+        })?;
         Ok(())
     }
 
@@ -183,16 +196,41 @@ impl DronesCentralConfig{
         let path = "./src/drones/drones_central_config.json".to_string();
         if std::fs::metadata(&path).is_err() {
             let drones_central_config = DronesCentralConfig::new();
-            let json = serde_json::to_string(&drones_central_config).map_err(|_| DroneError::CentralError("Error while serializing the drone center persistent file".to_string()))?;
-            std::fs::write(path.clone(), json).map_err(|_| DroneError::CentralError("Error while writing the drone center persistent file".to_string()))?;
+            let json = serde_json::to_string(&drones_central_config).map_err(|_| {
+                DroneError::CentralError(
+                    "Error while serializing the drone center persistent file".to_string(),
+                )
+            })?;
+            std::fs::write(path.clone(), json).map_err(|_| {
+                DroneError::CentralError(
+                    "Error while writing the drone center persistent file".to_string(),
+                )
+            })?;
         }
 
-        let file = File::open(path.clone()).map_err(|_| DroneError::CentralError("Error while opening the drone center persistent file".to_string()))?;
-        let mut drones_central_config: DronesCentralConfig = serde_json::from_reader(file).map_err(|_| DroneError::CentralError("Error while reading the drone center persistent file".to_string()))?;
+        let file = File::open(path.clone()).map_err(|_| {
+            DroneError::CentralError(
+                "Error while opening the drone center persistent file".to_string(),
+            )
+        })?;
+        let mut drones_central_config: DronesCentralConfig = serde_json::from_reader(file)
+            .map_err(|_| {
+                DroneError::CentralError(
+                    "Error while reading the drone center persistent file".to_string(),
+                )
+            })?;
 
         drones_central_config.drones.push((location, id));
-        let json = serde_json::to_string(&drones_central_config).map_err(|_| DroneError::CentralError("Error while serializing the drone center persistent file".to_string()))?;
-        std::fs::write(path, json).map_err(|_| DroneError::CentralError("Error while writing the drone center persistent file".to_string()))?;
+        let json = serde_json::to_string(&drones_central_config).map_err(|_| {
+            DroneError::CentralError(
+                "Error while serializing the drone center persistent file".to_string(),
+            )
+        })?;
+        std::fs::write(path, json).map_err(|_| {
+            DroneError::CentralError(
+                "Error while writing the drone center persistent file".to_string(),
+            )
+        })?;
 
         Ok(())
     }
@@ -202,10 +240,19 @@ impl DronesCentralConfig{
         if !DronesCentralConfig::drone_exists(id) {
             return Ok(());
         }
-        std::fs::remove_file(path).map_err(|_| DroneError::CentralError("Error while removing the drone center persistent file".to_string()))?;
+        std::fs::remove_file(path).map_err(|_| {
+            DroneError::CentralError(
+                "Error while removing the drone center persistent file".to_string(),
+            )
+        })?;
         Ok(())
     }
+}
 
+impl Default for DronesCentralConfig {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(test)]
@@ -226,34 +273,43 @@ mod tests {
         }
 
         let location = Location::new(1.0, 1.0);
-        let _ = DronesCentralConfig::add_central_to_json(1, location, "config_path".to_string(), "address".to_string());
+        let _ = DronesCentralConfig::add_central_to_json(
+            1,
+            location,
+            "config_path".to_string(),
+            "address".to_string(),
+        );
         assert!(DronesCentralConfig::central_exists(1));
-        std::fs::remove_file(&path)
-            .expect("Error while removing the drone center persistent file");
-
+        std::fs::remove_file(&path).expect("Error while removing the drone center persistent file");
     }
 
     #[test]
     fn test_drones_central_config_get_centrals() {
         let drone_centers = DronesCentralConfig::get_centrals();
         assert_eq!(drone_centers.len(), 0);
-        DronesCentralConfig::add_central_to_json(1, Location::new(1.0, 1.0), "config_path".to_string(), "address".to_string()).unwrap();
+        DronesCentralConfig::add_central_to_json(
+            1,
+            Location::new(1.0, 1.0),
+            "config_path".to_string(),
+            "address".to_string(),
+        )
+        .unwrap();
         let drone_centers = DronesCentralConfig::get_centrals();
         assert_eq!(drone_centers.len(), 1);
         std::fs::remove_file("./src/drones/drones_central_config.json").unwrap();
     }
 
     #[test]
-    fn test_drones_config_add_drone(){
+    fn test_drones_config_add_drone() {
         let path = "./src/drones/drones_central_config.json".to_string();
         if std::fs::metadata(&path).is_ok() {
             std::fs::remove_file(&path).unwrap();
-        
-        let location = Location::new(1.0, 1.0);
-        let _ = DronesCentralConfig::add_drone_to_json(location, 1);
-        assert!(DronesCentralConfig::drone_exists(1));
-        std::fs::remove_file(&path)
-            .expect("Error while removing the drone center persistent file");
+
+            let location = Location::new(1.0, 1.0);
+            let _ = DronesCentralConfig::add_drone_to_json(location, 1);
+            assert!(DronesCentralConfig::drone_exists(1));
+            std::fs::remove_file(&path)
+                .expect("Error while removing the drone center persistent file");
         }
     }
 }
