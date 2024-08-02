@@ -38,7 +38,7 @@ use crate::utils::payload_types::PayloadTypes;
 pub struct MonitoringApp {
     /// Es el Client de MQTT con el cual se comunicara en la red. Al crear una instancia de MonitoringApp, se creara
     /// tambien un Client para comenzar a intercambiar mensajes con la red.
-    monitoring_app_client: Arc<Client>,
+    monitoring_app_client: Client,
 
     /// A traves de este canal se envian configuraciones de los packets a enviar desde la aplicacion a la red.
     send_to_client_channel: Arc<Mutex<Sender<Box<dyn MessagesConfig + Send>>>>,
@@ -100,7 +100,7 @@ impl MonitoringApp {
             send_to_client_channel: Arc::new(Mutex::new(tx)),
             incidents: Arc::new(Mutex::new(Vec::new())),
             camera_system: Arc::new(Mutex::new(camera_system)),
-            monitoring_app_client: Arc::new(monitoring_app_client),
+            monitoring_app_client,
             drone_system,
             receive_from_client: Arc::new(Mutex::new(rx2)),
             active_drones: Arc::new(Mutex::new(HashMap::new())),
