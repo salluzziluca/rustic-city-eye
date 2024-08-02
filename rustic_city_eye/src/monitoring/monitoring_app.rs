@@ -358,6 +358,13 @@ impl MonitoringApp {
             .map_or(0, |id| id)
     }
 
+    pub fn load_existing_drone_center(&mut self, location: Location) -> u32 {
+        println!("BUG 2");
+        self.drone_system
+            .load_existing_drone_center(location)
+            .map_or(0, |id| id)
+    }
+
     pub fn get_incidents(&self) -> Vec<Incident> {
         match self.incidents.lock() {
             Ok(incidents) => {

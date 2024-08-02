@@ -1,6 +1,7 @@
 use egui::ahash::HashMap;
 
 use crate::drones::drone_center::DroneCenter;
+use crate::drones::drones_central_config::DronesCentralConfig;
 use crate::mqtt::protocol_error::ProtocolError;
 use crate::utils::location::Location;
 
@@ -31,6 +32,27 @@ impl DroneSystem {
         Ok(())
     }
 
+    pub fn load_existing_drone_center(&mut self, location: Location) -> Result<u32, DroneError> {
+        let mut id = 0;
+        while self.drone_centers.contains_key(&id) {
+            id += 1;
+        }
+
+        let drone_center = DroneCenter::new(
+            id,
+            location,
+            self.drone_config_path.to_string(),
+            self.address.to_string(),
+        );
+
+        self.drone_centers.insert(id, drone_center);
+
+        println!("BUG 1");
+        println!("Drone center id: {} loaded successfully", id);
+
+        Ok(id)
+    }
+
     /// Agrega un nuevo centro de drones al sistema de drones.
     ///
     /// Devuelve su id o DroneError en caso de error.
@@ -46,7 +68,14 @@ impl DroneSystem {
             self.drone_config_path.to_string(),
             self.address.to_string(),
         );
+
         self.drone_centers.insert(id, drone_center);
+        let _ = DronesCentralConfig::add_central_to_json(
+            id,
+            location,
+            self.drone_config_path.to_string(),
+            self.address.to_string(),
+        );
         println!("Drone center id: {} added successfully", id);
 
         Ok(id)

@@ -14,6 +14,7 @@ pub enum DroneError {
     MovingToIncidentError(String),
     ReceiveError(String),
     SendError(String),
+    CentralError(String),
 }
 
 impl fmt::Display for DroneError {
@@ -22,28 +23,29 @@ impl fmt::Display for DroneError {
             DroneError::ReadingConfigFileError => {
                 write!(
                     f,
-                    "Error: no se ha podido encontrar el archivo de configuracion de drones."
+                    "Error: The drone configuration file could not be found."
                 )
             }
             DroneError::DroneCenterNotFound => {
-                write!(f, "Error: no se ha podido encontrar el centro de drones.")
+                write!(f, "Error: The drone center could not be found.")
             }
-            DroneError::ProtocolError(ref err) => write!(f, "Error de protocolo: {}", err),
+            DroneError::ProtocolError(ref err) => write!(f, "Protocol error: {}", err),
             DroneError::BatteryEmpty => write!(
                 f,
-                "Error: la bateria del dron está completamente descargada."
+                "Error: the drone battery is completely discharged."
             ),
-            DroneError::SubscribeError(ref err) => write!(f, "Error de protocolo: {}", err),
-            DroneError::LockError(ref err) => write!(f, "Error al adquirir un lock: {}", err),
+            DroneError::SubscribeError(ref err) => write!(f, "Protocol error: {}", err),
+            DroneError::LockError(ref err) => write!(f, "Error acquiring a lock: {}", err),
             DroneError::ChargingBatteryError(ref err) => {
-                write!(f, "Error al cargar la bateria del Drone: {}", err)
+                write!(f, "Error when charging the Drone battery: {}", err)
             }
-            DroneError::PatrollingError(ref err) => write!(f, "Error al patrullar: {}", err),
+            DroneError::PatrollingError(ref err) => write!(f, "Error while patrolling: {}", err),
             DroneError::MovingToIncidentError(ref err) => {
-                write!(f, "Error al moverse al incidente: {}", err)
+                write!(f, "Error moving to incident: {}", err)
             }
-            DroneError::ReceiveError(ref err) => write!(f, "Error al recibir mensaje: {}", err),
-            DroneError::SendError(ref err) => write!(f, "Error al enviar mensaje: {}", err),
+            DroneError::ReceiveError(ref err) => write!(f, "Error receiving message: {}", err),
+            DroneError::SendError(ref err) => write!(f, "Error sending message: {}", err),
+            DroneError::CentralError(ref err) => write!(f, "Error in the drone center {}", err),
         }
     }
 }
@@ -57,19 +59,14 @@ mod tests {
         let error = DroneError::ReadingConfigFileError;
         assert_eq!(
             format!("{}", error),
-            "Error: no se ha podido encontrar el archivo de configuracion de drones."
+            "Error: The drone configuration file could not be found."
         );
 
         let error = DroneError::DroneCenterNotFound;
-        assert_eq!(
-            format!("{}", error),
-            "Error: no se ha podido encontrar el centro de drones."
-        );
+        assert_eq!(format!("{}", error), "Error: The drone center could not be found.");
 
-        let error = DroneError::ProtocolError("Error de protocolo".to_string());
-        assert_eq!(
-            format!("{}", error),
-            "Error de protocolo: Error de protocolo"
-        );
+        let error = DroneError::ProtocolError("Error".to_string());
+        assert_eq!(format!("{}", error), "Protocol error: Error");
+        
     }
 }
