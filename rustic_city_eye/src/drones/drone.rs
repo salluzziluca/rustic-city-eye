@@ -66,7 +66,7 @@ pub struct Drone {
 
     /// Client con el que va a interactuar en la red con las demas aplicaciones.
     pub drone_client: Arc<Client>,
-    
+
     /// Nivel de bateria actual del Drone.
     pub battery_level: i64,
 
