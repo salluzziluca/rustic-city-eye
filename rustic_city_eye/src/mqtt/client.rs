@@ -259,7 +259,7 @@ impl Client {
         let (disconnect_sender, disconnect_receiver) = mpsc::channel();
         //let client_id_clone = self.client_id.clone();
 
-        let cloned_self = Arc::new(self);
+        let cloned_self = Arc::clone(&self);
         let _write_messages = {
             let cloned_self = Arc::clone(&cloned_self);
             threadpool.execute(move || {
