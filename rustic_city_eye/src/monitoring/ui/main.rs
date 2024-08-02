@@ -268,7 +268,22 @@ impl MyApp {
     }
 
     fn configure_drones(&mut self) {
-        
+        if DronesCentralConfig::count_drones() > 0{
+            DronesCentralConfig::get_drones().iter().for_each(|drone: &(Location, u32)| {
+                let location = drone.0;
+                let drone_view = drone_view::DroneView {
+                    image: self.map.drone_icon.clone(),
+                    position: Position::from_lon_lat(location.long, location.lat),
+                    clicked: false,
+                };
+                self.map.drones.insert(drone.1, drone_view);
+
+                if let Some(monitoring_app) = &mut self.monitoring_app {
+                    let _ = monitoring_app.load_existing_drone( location.clone(), drone.1);
+                }
+                
+            });
+        }
     }
 
     /// Muestra el mapa

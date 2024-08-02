@@ -81,6 +81,17 @@ impl DroneSystem {
         Ok(id)
     }
 
+    pub fn load_existing_drone(&mut self, location: Location, drone_center_id: u32) -> Result<u32, DroneError> {
+        let drone_center = match self.drone_centers.get_mut(&drone_center_id) {
+            Some(drone_center) => drone_center,
+            None => return Err(DroneError::DroneCenterNotFound),
+        };
+
+        let id = drone_center.load_existing_drone(location)?;
+
+        Ok(id)
+    }
+
     /// Agrega un nuevo dron al centro de drones especificado segun ID
     ///
     /// Devuelve el id del drone o DroneError en caso de error.
@@ -95,6 +106,10 @@ impl DroneSystem {
         };
 
         let id = drone_center.add_drone(location)?;
+        let _ = DronesCentralConfig::add_drone_to_json(
+            location,
+            id,
+        );
         Ok(id)
     }
 }
