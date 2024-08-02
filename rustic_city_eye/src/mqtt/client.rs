@@ -5,8 +5,6 @@ use std::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,
     },
-    thread,
-    time::Duration,
 };
 
 use crate::{
@@ -17,7 +15,7 @@ use crate::{
     utils::threadpool::ThreadPool,
 };
 
-use super::{client_message, client_return::ClientReturn, error::ClientError, messages_config};
+use super::{client_message, client_return::ClientReturn, error::ClientError};
 
 pub enum StreamOperation {
     Write(ClientMessage),
@@ -250,7 +248,7 @@ impl Client {
         // }
     }
 
-    pub fn run_client(&self) -> Result<(), ProtocolError> {
+    pub fn run_client(&mut self) -> Result<(), ProtocolError> {
         let threadpool = ThreadPool::new(5);
 
         let stream_clone = match self.stream.try_clone() {
@@ -270,27 +268,27 @@ impl Client {
         let _handle_stream_operations = threadpool.execute(move || {
             let mut stream = stream_clone;
 
-            while let Ok(command) = receiver.recv() {
-                match command {
-                    StreamOperation::Write(message) => {
-                        // println!("mensaje recibido {:?}", message);
-                        match message.write_to(&mut stream) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                eprintln!("{}", e);
-                                return Err(e);
+            loop {
+                if let Ok(command) = receiver.try_recv() {
+                    match command {
+                        StreamOperation::Write(message) => {
+                            match message.write_to(&mut stream) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    eprintln!("{}", e);
+                                    break;
+                                }
+                            };
+                        }
+                        StreamOperation::Read => {
+                            if let Ok(message) = BrokerMessage::read_from(&mut stream) {
+                                println!("mensaje {:?}", message);
+                                message_from_stream_sender.send(message).unwrap();
                             }
-                        };
-                    }
-                    StreamOperation::Read => {
-                        if let Ok(message) = BrokerMessage::read_from(&mut stream) {
-                            println!("mensaje {:?}", message);
-                            message_from_stream_sender.send(message).unwrap();
                         }
                     }
                 }
             }
-            Ok(())
         });
 
         let _handle_incoming_messages = threadpool.execute(move || loop {
@@ -404,7 +402,6 @@ impl Client {
                     }
     
                     if let Ok(message) = message_from_stream_receiver.try_recv() {
-                        println!("tengo el mensajito {:?}", message);
                         match message {
                             BrokerMessage::PublishDelivery {
                                 packet_id,
@@ -415,6 +412,7 @@ impl Client {
                                 properties,
                                 payload,
                             } => {
+                                println!("me llego del topic {:?}", topic_name);
                                 match sender_to_client.send(ClientMessage::Publish {
                                     packet_id,
                                     topic_name,
@@ -424,8 +422,26 @@ impl Client {
                                     properties,
                                     payload,
                                 }) {
-                                    Ok(_) => {}
+                                    Ok(_) => {println!("enviado correctamente a la moni");}
                                     Err(e) => println!("Error al enviar publish al sistema: {:?}", e),
+                                }
+                            }
+                            BrokerMessage::Puback { packet_id_msb, packet_id_lsb, reason_code: _ } => {
+                                for pending_message in &pending_messages {
+                                    let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
+                                    if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {}
+                                }
+                            }
+                            BrokerMessage::Suback { packet_id_msb, packet_id_lsb, reason_code: _ } => {
+                                for pending_message in &pending_messages {
+                                    let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
+                                    if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {}
+                                }
+                            }
+                            BrokerMessage::Unsuback { packet_id_msb, packet_id_lsb, reason_code: _ } => {
+                                for pending_message in &pending_messages {
+                                    let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
+                                    if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {}
                                 }
                             }
                             _ => {}
@@ -1082,12 +1098,9 @@ impl Client {
 
 impl ClientTrait for Client {
     fn client_run(&mut self) -> Result<(), ProtocolError> {
-        self.client_run()
+        self.run_client()
     }
 
-    // fn clone_box(&self) -> Box<dyn ClientTrait> {
-    //     Box::new(self.clone())
-    // }
     fn assign_packet_id(&self) -> u16 {
         self.assign_packet_id()
     }
@@ -1259,7 +1272,7 @@ pub fn handle_message(
 #[cfg(test)]
 mod tests {
 
-    use std::sync::Condvar;
+    use std::{sync::Condvar, thread};
 
     use crate::mqtt::broker::Broker;
 

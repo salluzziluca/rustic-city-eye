@@ -14,7 +14,7 @@ use rand::Rng;
 use crate::{
     monitoring::incident::Incident,
     mqtt::{
-        client::{self, Client, ClientTrait},
+        client::{Client, ClientTrait},
         client_message::{self, ClientMessage},
         disconnect_config::DisconnectConfig,
         messages_config::MessagesConfig,
@@ -43,7 +43,7 @@ use super::camera_error::CameraError;
 /// Los mensajes recibidos le llegan mediante el channel `reciev_from_client` y envia una config con los mensajes que quiere enviar mediante `send_to_client_channel``
 pub struct CameraSystem<T: ClientTrait + Send + Sync> {
     pub send_to_client_channel: Arc<Mutex<Sender<Box<dyn MessagesConfig + Send>>>>,
-    camera_system_client: Arc<T>,
+    camera_system_client: T,
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
     reciev_from_client: Arc<Mutex<Receiver<client_message::ClientMessage>>>,
     snapshot: Vec<Camera>,
@@ -101,7 +101,7 @@ impl<T: ClientTrait + Send + Sync + 'static> CameraSystem<T> {
 
         Ok(CameraSystem {
             send_to_client_channel: Arc::new(Mutex::new(tx)),
-            camera_system_client: Arc::new(camera_system_client),
+            camera_system_client,
             cameras: Arc::new(Mutex::new(HashMap::new())),
             reciev_from_client: Arc::new(Mutex::new(rx2)),
             snapshot: Vec::new(),
@@ -189,13 +189,13 @@ impl<T: ClientTrait + Send + Sync + 'static> CameraSystem<T> {
         let system_clone_two = Arc::clone(&system);
 
         thread::spawn(move || {
-            let lock = match system_clone_one.lock() {
+            let mut lock = match system_clone_one.lock() {
                 Ok(guard) => guard,
                 Err(_) => {
                     return;
                 }
             };
-            match <Arc<client::Client> as Clone>::clone(&lock.camera_system_client).run_client() {
+            match lock.camera_system_client.run_client() {
                 Ok(_) => {}
                 Err(e) => {
                     println!("CameraSys: Error running client: {:?}", e);
@@ -1524,9 +1524,6 @@ mod tests {
                 Ok(())
             }
 
-            fn clone_box(&self) -> Box<dyn ClientTrait> {
-                Box::new(self.clone())
-            }
             fn assign_packet_id(&self) -> u16 {
                 0
             }

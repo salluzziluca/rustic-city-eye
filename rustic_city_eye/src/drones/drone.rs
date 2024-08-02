@@ -65,7 +65,7 @@ pub struct Drone {
     pub drone_state: DroneState,
 
     /// Client con el que va a interactuar en la red con las demas aplicaciones.
-    pub drone_client: Arc<Client>,
+    pub drone_client: Arc<Mutex<Client>>,
 
     /// Nivel de bateria actual del Drone.
     pub battery_level: i64,
@@ -109,7 +109,7 @@ impl Drone {
             target_location,
             drone_config,
             drone_state: DroneState::Waiting,
-            drone_client: Arc::new(drone_client),
+            drone_client: Arc::new(Mutex::new(drone_client)),
             battery_level: 100,
             send_to_client_channel: Arc::new(Mutex::new(Some(tx))),
             recieve_from_client: Arc::new(Mutex::new(rx2)),
@@ -261,7 +261,8 @@ impl Drone {
     /// - Un tercer thread para manejar la recepcion de mensajes de parte de su Client:
     ///   recibe los Publish packets que vengan de los topics al que este suscrito.
     pub fn run_drone(&mut self) -> Result<(), DroneError> {
-        match self.drone_client.run_client() {
+        let mut lock = self.drone_client.lock().unwrap();
+        match lock.run_client() {
             Ok(_) => println!("Drone {} patrolling in its area of operation", self.id),
             Err(e) => {
                 print!(
