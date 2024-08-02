@@ -14,7 +14,7 @@ use rand::Rng;
 use crate::{
     monitoring::incident::Incident,
     mqtt::{
-        client::{Client, ClientTrait},
+        client::{self, Client, ClientTrait},
         client_message::{self, ClientMessage},
         disconnect_config::DisconnectConfig,
         messages_config::MessagesConfig,
@@ -43,25 +43,25 @@ use super::camera_error::CameraError;
 /// Los mensajes recibidos le llegan mediante el channel `reciev_from_client` y envia una config con los mensajes que quiere enviar mediante `send_to_client_channel``
 pub struct CameraSystem<T: ClientTrait + Send + Sync> {
     pub send_to_client_channel: Arc<Mutex<Sender<Box<dyn MessagesConfig + Send>>>>,
-    camera_system_client: T,
+    camera_system_client: Arc<T>,
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
     reciev_from_client: Arc<Mutex<Receiver<client_message::ClientMessage>>>,
     snapshot: Vec<Camera>,
 }
 
-impl<T: ClientTrait + Clone + Send + Sync> Clone for CameraSystem<T> {
-    fn clone(&self) -> Self {
-        CameraSystem {
-            send_to_client_channel: Arc::clone(&self.send_to_client_channel),
-            camera_system_client: self.camera_system_client.clone(),
-            cameras: self.cameras.clone(),
-            reciev_from_client: Arc::clone(&self.reciev_from_client),
-            snapshot: self.snapshot.clone(),
-        }
-    }
-}
+// impl<T: ClientTrait + Send + Sync> Clone for CameraSystem<T> {
+//     fn clone(&self) -> Self {
+//         CameraSystem {
+//             send_to_client_channel: Arc::clone(&self.send_to_client_channel),
+//             camera_system_client: self.camera_system_client,
+//             cameras: self.cameras.clone(),
+//             reciev_from_client: Arc::clone(&self.reciev_from_client),
+//             snapshot: self.snapshot.clone(),
+//         }
+//     }
+// }
 
-impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
+impl<T: ClientTrait + Send + Sync + 'static> CameraSystem<T> {
     /// Crea un nuevo camera system con un cliente de mqtt
     ///
     /// Envia un connect segun la configuracion del archivo connect_config.json
@@ -101,7 +101,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
 
         Ok(CameraSystem {
             send_to_client_channel: Arc::new(Mutex::new(tx)),
-            camera_system_client: camera_system_client,
+            camera_system_client: Arc::new(camera_system_client),
             cameras: Arc::new(Mutex::new(HashMap::new())),
             reciev_from_client: Arc::new(Mutex::new(rx2)),
             snapshot: Vec::new(),
@@ -189,13 +189,13 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         let system_clone_two = Arc::clone(&system);
 
         thread::spawn(move || {
-            let mut lock = match system_clone_one.lock() {
+            let lock = match system_clone_one.lock() {
                 Ok(guard) => guard,
                 Err(_) => {
                     return;
                 }
             };
-            match lock.camera_system_client.client_run() {
+            match <Arc<client::Client> as Clone>::clone(&lock.camera_system_client).run_client() {
                 Ok(_) => {}
                 Err(e) => {
                     println!("CameraSys: Error running client: {:?}", e);
@@ -219,7 +219,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
                 let self_clone_two = Arc::clone(&system_clone_two);
 
                 let mut lock = match self_clone_two.lock() {
-                    Ok(guard) => guard.clone(),
+                    Ok(guard) => guard,
                     Err(_) => {
                         return;
                     }

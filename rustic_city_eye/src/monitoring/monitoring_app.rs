@@ -217,7 +217,7 @@ impl MonitoringApp {
         self.handle_update_entities()?;
 
         println!("Monitoring App client starts running");
-        self.monitoring_app_client.clone().client_run()?;
+        self.monitoring_app_client.run_client()?;
 
         println!("Camera System client starts running");
         CameraSystem::<Client>::run_client(None, self.camera_system.clone())?;
