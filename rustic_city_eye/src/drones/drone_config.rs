@@ -9,7 +9,7 @@ use std::{fs::File, io::BufReader};
 ///     - Hace que se mueva dentro de su area de operacion.
 #[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone)]
-pub struct DroneData {
+pub struct DroneConfig {
     /// Indice la tasa de carga de la bateria en milisegundos.
     /// Por ej: si vale 10, por cada segundo que pase, la
     /// bateria del Drone aumentara en un 100 por ciento.
@@ -30,17 +30,17 @@ pub struct DroneData {
     movement_rate: i64,
 }
 
-impl DroneData {
+impl DroneConfig {
     /// Leo la configuracion a partir de un archivo json.
-    pub fn new(config_file_path: &str) -> Result<DroneData, DroneError> {
-        match DroneData::read_drone_config(config_file_path) {
+    pub fn new(config_file_path: &str) -> Result<DroneConfig, DroneError> {
+        match DroneConfig::read_drone_config(config_file_path) {
             Ok(config) => Ok(config),
             Err(err) => Err(err),
         }
     }
 
-    /// Toma un path a un archivo de configuracion y levanta el DroneData.
-    fn read_drone_config(file_path: &str) -> Result<DroneData, DroneError> {
+    /// Toma un path a un archivo de configuracion y levanta el DroneConfig.
+    fn read_drone_config(file_path: &str) -> Result<DroneConfig, DroneError> {
         let config_file = match File::open(file_path) {
             Ok(file) => file,
             Err(e) => {
@@ -84,9 +84,9 @@ mod tests {
 
     #[test]
     fn test_01_config_creation_cases() {
-        let config_ok = DroneData::new("./src/drones/drone_config.json");
+        let config_ok = DroneConfig::new("./src/drones/drone_config.json");
 
-        let config_err = DroneData::new("este/es/un/path/feo");
+        let config_err = DroneConfig::new("este/es/un/path/feo");
 
         assert!(config_ok.is_ok());
         assert!(config_err.is_err());
@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn test_04_bad_config_file() {
-        let config = DroneData::read_drone_config("este/es/un/path/feo");
+        let config = DroneConfig::read_drone_config("este/es/un/path/feo");
 
         assert!(config.is_err());
     }
