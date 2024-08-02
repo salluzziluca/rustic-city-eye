@@ -267,6 +267,10 @@ impl MyApp {
         }
     }
 
+    fn configure_drones(&mut self) {
+        
+    }
+
     /// Muestra el mapa
     /// Si se presiona el boton de zoom, se actualiza el zoom level
     /// Carga las diferentes ventanas de camaras, incidentes, drones y centros de drones
@@ -319,6 +323,7 @@ impl MyApp {
 
             self.configure_cameras();
             self.configure_central_drones();
+            self.configure_drones();
 
             if let Some(monitoring_app) = &mut self.monitoring_app {
                 let new_locations = monitoring_app.get_active_drones();
