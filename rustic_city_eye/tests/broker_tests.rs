@@ -98,57 +98,54 @@ mod tests {
 
     //     let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
 
-    //     let mut result: Result<ProtocolReturn, ProtocolError> = Err(
-    //         ProtocolError::UnspecifiedError("Error no especificado".to_string()),
-    //     );
     //     if let Ok((stream, _)) = listener.accept() {
-    //         result = broker.handle_messages(stream);
+    //         let result = broker.handle_messages(stream);
+    //         assert!(result.is_ok());
+    //         assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
     //     }
 
-    //     assert!(result.is_ok());
-    //     assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
-
+    
     //     // vuelvo a enviar el connect con el mismo id
-    //     let connect_propierties = ConnectProperties {
-    //         session_expiry_interval: 1,
-    //         receive_maximum: 2,
-    //         maximum_packet_size: 10,
-    //         topic_alias_maximum: 99,
-    //         request_response_information: true,
-    //         request_problem_information: false,
-    //         user_properties: vec![
-    //             ("Hola".to_string(), "Mundo".to_string()),
-    //             ("Chau".to_string(), "Mundo".to_string()),
-    //         ],
-    //         authentication_method: "test".to_string(),
-    //         authentication_data: vec![1_u8, 2_u8, 3_u8, 4_u8, 5_u8],
-    //     };
-    //     let will_properties = WillProperties::new(
-    //         120,
-    //         1,
-    //         30,
-    //         "plain".to_string(),
-    //         "topic".to_string(),
-    //         vec![1, 2, 3, 4, 5],
-    //         vec![("propiedad".to_string(), "valor".to_string())],
-    //     );
+    //     // let connect_propierties = ConnectProperties {
+    //     //     session_expiry_interval: 1,
+    //     //     receive_maximum: 2,
+    //     //     maximum_packet_size: 10,
+    //     //     topic_alias_maximum: 99,
+    //     //     request_response_information: true,
+    //     //     request_problem_information: false,
+    //     //     user_properties: vec![
+    //     //         ("Hola".to_string(), "Mundo".to_string()),
+    //     //         ("Chau".to_string(), "Mundo".to_string()),
+    //     //     ],
+    //     //     authentication_method: "test".to_string(),
+    //     //     authentication_data: vec![1_u8, 2_u8, 3_u8, 4_u8, 5_u8],
+    //     // };
+    //     // let will_properties = WillProperties::new(
+    //     //     120,
+    //     //     1,
+    //     //     30,
+    //     //     "plain".to_string(),
+    //     //     "topic".to_string(),
+    //     //     vec![1, 2, 3, 4, 5],
+    //     //     vec![("propiedad".to_string(), "valor".to_string())],
+    //     // );
 
-    //     let connect = Connect::new(
-    //         true,
-    //         true,
-    //         1,
-    //         true,
-    //         35,
-    //         connect_propierties,
-    //         "monitoring_app".to_string(),
-    //         will_properties,
-    //         "topic".to_string(),
-    //         "chauchis".to_string(),
-    //         "prueba".to_string(),
-    //         "".to_string(),
-    //     );
+    //     // let connect = Connect::new(
+    //     //     true,
+    //     //     true,
+    //     //     1,
+    //     //     true,
+    //     //     35,
+    //     //     connect_propierties,
+    //     //     "monitoring_app".to_string(),
+    //     //     will_properties,
+    //     //     "topic".to_string(),
+    //     //     "chauchis".to_string(),
+    //     //     "prueba".to_string(),
+    //     //     "".to_string(),
+    //     // );
 
-    //     let connect = ClientMessage::Connect(connect);
+    //     let connect = ClientMessage::Connect(connect_config.clone());
 
     //     thread::spawn(move || {
     //         let mut stream = TcpStream::connect(addr).unwrap();
@@ -157,15 +154,12 @@ mod tests {
     //         stream.write_all(&buffer).unwrap();
     //     });
 
-    //     let mut result: Result<ProtocolReturn, ProtocolError> = Err(
-    //         ProtocolError::UnspecifiedError("Error no especificado".to_string()),
-    //     );
     //     if let Ok((stream_clone, _)) = listener.accept() {
-    //         result = broker.handle_messages(stream_clone);
+    //         let result = broker.handle_messages(stream_clone);
+    //         assert!(result.is_ok());
+    //         assert_eq!(result.unwrap(), ProtocolReturn::DisconnectSent);
     //     }
 
-    //     assert!(result.is_ok());
-    //     assert_eq!(result.unwrap(), ProtocolReturn::DisconnectSent);
     // }
 
     #[test]

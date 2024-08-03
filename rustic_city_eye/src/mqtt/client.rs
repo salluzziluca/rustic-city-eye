@@ -21,7 +21,6 @@ use super::{client_message, client_return::ClientReturn, stream_operation::Strea
 
 pub trait ClientTrait {
     fn client_run(&mut self) -> Result<(), ProtocolError>;
-    // fn clone_box(&self) -> Box<dyn ClientTrait>;
     fn assign_packet_id(&self) -> u16;
     fn get_publish_end_channel(
         &self,
@@ -29,11 +28,7 @@ pub trait ClientTrait {
     fn get_client_id(&self) -> String;
     fn disconnect_client(&self) -> Result<(), ProtocolError>;
 }
-// impl Clone for Box<dyn ClientTrait> {
-//     fn clone(&self) -> Box<dyn ClientTrait> {
-//         self.clone_box()
-//     }
-// }
+
 #[derive(Debug)]
 pub struct Client {
     receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
@@ -234,56 +229,39 @@ impl Client {
         Ok(())
     }
 
-    fn handle_stream_readings(
+    pub fn handle_stream_readings(
         mut stream: TcpStream,
         message_from_stream_sender: Sender<BrokerMessage>,
         puback_notify_sender: Sender<bool>,
     ) -> Result<(), ProtocolError> {
-        loop {
-            // if disconnect_from_client_receiver.try_recv().is_ok() {
-            //     // match stream.shutdown(Shutdown::Both) {
-            //     //     Ok(_) => {
-            //     //         break;
-            //     //     }
-            //     //     Err(e) => {
-            //     //         eprintln!("{}", ProtocolError::ShutdownError(e.to_string()));
-            //     //         break;
-            //     //     }
-            //     // }
-            //     break;
-            // }
-
-            match BrokerMessage::read_from(&mut stream) {
-                Ok(message) => match message {
-                    BrokerMessage::Disconnect {
+        while let Ok(message) = BrokerMessage::read_from(&mut stream) {
+            match message {
+                BrokerMessage::Disconnect {
+                    reason_code,
+                    session_expiry_interval,
+                    reason_string,
+                    user_properties,
+                } => {
+                    let disconnect = BrokerMessage::Disconnect {
                         reason_code,
                         session_expiry_interval,
                         reason_string,
                         user_properties,
-                    } => {
-                        let disconnect = BrokerMessage::Disconnect {
-                            reason_code,
-                            session_expiry_interval,
-                            reason_string,
-                            user_properties,
-                        };
-                        message_from_stream_sender.send(disconnect).unwrap();
-                        break;
-                    }
-                    BrokerMessage::Puback {
-                        packet_id_msb: _,
-                        packet_id_lsb: _,
-                        reason_code: _,
-                    } => {
-                        message_from_stream_sender.send(message).unwrap();
-                        puback_notify_sender.send(true).unwrap();
-                    }
-                    _ => message_from_stream_sender.send(message).unwrap(),
-                },
-                Err(_) => break,
+                    };
+                    message_from_stream_sender.send(disconnect).unwrap();
+                    break;
+                }
+                BrokerMessage::Puback {
+                    packet_id_msb: _,
+                    packet_id_lsb: _,
+                    reason_code: _,
+                } => {
+                    message_from_stream_sender.send(message).unwrap();
+                    puback_notify_sender.send(true).unwrap();
+                }
+                _ => message_from_stream_sender.send(message).unwrap(),
             }
         }
-
         Ok(())
     }
 
@@ -343,7 +321,7 @@ impl Client {
                                     if qos == 1 {
                                         loop {
                                             thread::sleep(Duration::from_millis(20));
-    
+
                                             if let Ok(puback) = puback_notify_receiver.try_recv() {
                                                 if !puback {
                                                     let publish = ClientMessage::Publish {
@@ -355,16 +333,28 @@ impl Client {
                                                         dup_flag: dup_flag + 1,
                                                         properties: properties.clone(),
                                                     };
-    
-                                                    match sender.send(StreamOperation::WriteClientMessage(publish)) {
-                                                        Ok(_) => match pending_id_messages_sender.send(packet_id) {
+
+                                                    match sender.send(
+                                                        StreamOperation::WriteClientMessage(
+                                                            publish,
+                                                        ),
+                                                    ) {
+                                                        Ok(_) => match pending_id_messages_sender
+                                                            .send(packet_id)
+                                                        {
                                                             Ok(_) => {}
                                                             Err(e) => {
-                                                                return Err(ProtocolError::SendError(e.to_string()));
+                                                                return Err(
+                                                                    ProtocolError::SendError(
+                                                                        e.to_string(),
+                                                                    ),
+                                                                );
                                                             }
                                                         },
                                                         Err(e) => {
-                                                            return Err(ProtocolError::SendError(e.to_string()));
+                                                            return Err(ProtocolError::SendError(
+                                                                e.to_string(),
+                                                            ));
                                                         }
                                                     }
                                                 } else {
@@ -389,11 +379,9 @@ impl Client {
                         ref payload,
                     } => {
                         let topic_new = payload.topic.to_string();
-                        match subscriptions_ref.lock() {
-                            Ok(mut guard) => {
-                                guard.push(topic_new);
-                            }
-                            Err(_) => {}
+
+                        if let Ok(mut guard) = subscriptions_ref.lock() {
+                            guard.push(topic_new);
                         };
 
                         match sender.send(StreamOperation::WriteClientMessage(message)) {
@@ -414,11 +402,8 @@ impl Client {
                         ref payload,
                     } => {
                         let topic_new = payload.topic.to_string();
-                        match subscriptions_ref.lock() {
-                            Ok(mut guard) => {
-                                guard.retain(|x| x != &topic_new);
-                            }
-                            Err(_) => {}
+                        if let Ok(mut guard) = subscriptions_ref.lock() {
+                            guard.retain(|x| x != &topic_new);
                         };
 
                         match sender.send(StreamOperation::WriteClientMessage(message)) {

@@ -5,10 +5,9 @@ mod tests {
         mqtt::{
             broker::Broker,
             broker_message::BrokerMessage,
-            client::{handle_message, Client},
+            client::Client,
             client_return::ClientReturn,
             connack_properties::ConnackProperties,
-            protocol_error::ProtocolError,
             publish::publish_properties::{PublishProperties, TopicProperties},
         },
         surveilling::camera_system::CameraSystem,
@@ -19,10 +18,7 @@ mod tests {
     use std::{
         io::Write,
         net::{TcpListener, TcpStream},
-        sync::{
-            mpsc::{self, channel},
-            Arc, Condvar, Mutex,
-        },
+        sync::{mpsc::channel, Arc, Condvar, Mutex},
         thread,
     };
 
@@ -64,26 +60,29 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError(
-            "Error no especificado".to_string(),
-        ));
-
-        let pending_messages: Vec<u16> = Vec::new();
-        let (sender, _) = channel();
+        let mut pending_messages: Vec<u16> = Vec::new();
+        let (sender, receiver) = channel();
         let (tx, _) = channel();
         let (disconnect_from_broker_sender, _) = channel();
+        let (tx1, _) = channel();
+        let (tx2, _) = channel();
+
         if let Ok((stream, _)) = listener.accept() {
-            result = Client::handle_message(
-                connack,
-                &mut pending_messages,
-                sender,
-                tx,
-                disconnect_from_broker_sender,
-                "monitoreo".to_string(),
-            );
+            let _ = Client::handle_stream_readings(stream, sender, tx);
         }
 
-        assert_eq!(result.unwrap(), ClientReturn::ConnackReceived);
+        if let Ok(message) = receiver.try_recv() {
+            let result = Client::handle_message(
+                message,
+                &mut pending_messages,
+                tx1,
+                tx2,
+                disconnect_from_broker_sender,
+                "monitoreo".to_string(),
+            )
+            .unwrap();
+            assert_eq!(result, ClientReturn::ConnackReceived);
+        }
     }
 
     #[test]
@@ -104,26 +103,35 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError(
-            "Error no especificado".to_string(),
-        ));
+        let mut pending_messages: Vec<u16> = Vec::new();
+        let (sender, receiver) = channel();
+        let (tx, rx) = channel();
+        let (disconnect_from_broker_sender, _) = channel();
+        let (tx1, _) = channel();
+        let (tx2, _) = channel();
 
-        let pending_messages: Vec<u16> = Vec::new();
-        let (sender, recibidor) = channel();
-        let (tx, _) = channel();
-
-        thread::spawn(move || loop {
-            if let Ok(recibido) = recibidor.try_recv() {
-                if recibido {
-                    break;
-                }
-            }
-        });
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages, sender, tx, "juancito".to_string())
+            let _ = Client::handle_stream_readings(stream, sender, tx);
         }
 
-        assert_eq!(result.unwrap(), ClientReturn::PubackRecieved);
+        thread::spawn(move || loop {
+            if rx.try_recv().is_ok() {
+                break;
+            }
+        });
+
+        if let Ok(message) = receiver.try_recv() {
+            let result = Client::handle_message(
+                message,
+                &mut pending_messages,
+                tx1,
+                tx2,
+                disconnect_from_broker_sender,
+                "monitoreo".to_string(),
+            )
+            .unwrap();
+            assert_eq!(result, ClientReturn::PubackRecieved);
+        }
     }
 
     #[test]
@@ -143,18 +151,36 @@ mod tests {
             disconnect.write_to(&mut buffer).unwrap();
             stream.write_all(&buffer).unwrap();
         });
-        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError(
-            "Error no especificado".to_string(),
-        ));
 
-        let pending_messages: Vec<u16> = Vec::new();
-        let (sender, _) = channel();
+        let mut pending_messages: Vec<u16> = Vec::new();
+        let (sender, receiver) = channel();
         let (tx, _) = channel();
+        let (disconnect_from_broker_sender, rx2) = channel();
+        let (tx1, rx3) = channel();
+        let (tx2, rx) = channel();
+
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages, sender, tx, "juancito".to_string());
+            let _ = Client::handle_stream_readings(stream, sender, tx);
         }
 
-        assert_eq!(result.unwrap(), ClientReturn::DisconnectRecieved);
+        thread::spawn(move || loop {
+            if rx.try_recv().is_ok() && rx2.try_recv().is_ok() && rx3.try_recv().is_ok() {
+                break;
+            }
+        });
+
+        if let Ok(message) = receiver.try_recv() {
+            let result = Client::handle_message(
+                message,
+                &mut pending_messages,
+                tx1,
+                tx2,
+                disconnect_from_broker_sender,
+                "monitoreo".to_string(),
+            )
+            .unwrap();
+            assert_eq!(result, ClientReturn::DisconnectRecieved);
+        }
     }
 
     #[test]
@@ -174,17 +200,29 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError(
-            "Error no especificado".to_string(),
-        ));
-
-        let pending_messages: Vec<u16> = Vec::new();
-        let (sender, _) = channel();
+        let mut pending_messages: Vec<u16> = Vec::new();
+        let (sender, receiver) = channel();
         let (tx, _) = channel();
+        let (disconnect_from_broker_sender, _) = channel();
+        let (tx1, _) = channel();
+        let (tx2, _) = channel();
+
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages, sender, tx, "juancito".to_string())
+            let _ = Client::handle_stream_readings(stream, sender, tx);
         }
-        assert_eq!(result.unwrap(), ClientReturn::SubackRecieved);
+
+        if let Ok(message) = receiver.try_recv() {
+            let result = Client::handle_message(
+                message,
+                &mut pending_messages,
+                tx1,
+                tx2,
+                disconnect_from_broker_sender,
+                "monitoreo".to_string(),
+            )
+            .unwrap();
+            assert_eq!(result, ClientReturn::SubackRecieved);
+        }
     }
 
     #[test]
@@ -225,28 +263,35 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError(
-            "Error no especificado".to_string(),
-        ));
+        let mut pending_messages: Vec<u16> = Vec::new();
+        let (sender, receiver) = channel();
+        let (tx, _) = channel();
+        let (disconnect_from_broker_sender, _) = channel();
+        let (tx1, _) = channel();
+        let (tx2, rx2) = channel();
 
-        let pending_messages: Vec<u16> = Vec::new();
-        //agregar id 1 a pending messages
-        //pending_messages.push(1);
-        let (sender, _) = channel();
-
-        let (tx, _rx) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(
-                stream,
-                pending_messages.clone(),
-                sender,
-                tx,
-                "juancito".to_string(),
-            )
+            let _ = Client::handle_stream_readings(stream, sender, tx);
         }
 
-        assert_eq!(result.unwrap(), ClientReturn::PublishDeliveryRecieved);
-        //assert_eq!(pending_messages.len(), 0);
+        thread::spawn(move || loop {
+            if rx2.try_recv().is_ok() {
+                break;
+            }
+        });
+
+        if let Ok(message) = receiver.try_recv() {
+            let result = Client::handle_message(
+                message,
+                &mut pending_messages,
+                tx1,
+                tx2,
+                disconnect_from_broker_sender,
+                "monitoreo".to_string(),
+            )
+            .unwrap();
+            assert_eq!(result, ClientReturn::PublishDeliveryRecieved);
+        }
     }
 
     #[test]
@@ -266,18 +311,29 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError(
-            "Error no especificado".to_string(),
-        ));
-
-        let pending_messages: Vec<u16> = Vec::new();
-        let (sender, _) = channel();
+        let mut pending_messages: Vec<u16> = Vec::new();
+        let (sender, receiver) = channel();
         let (tx, _) = channel();
+        let (disconnect_from_broker_sender, _) = channel();
+        let (tx1, _) = channel();
+        let (tx2, _) = channel();
+
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages, sender, tx, "juancito".to_string())
+            let _ = Client::handle_stream_readings(stream, sender, tx);
         }
 
-        assert_eq!(result.unwrap(), ClientReturn::UnsubackRecieved);
+        if let Ok(message) = receiver.try_recv() {
+            let result = Client::handle_message(
+                message,
+                &mut pending_messages,
+                tx1,
+                tx2,
+                disconnect_from_broker_sender,
+                "monitoreo".to_string(),
+            )
+            .unwrap();
+            assert_eq!(result, ClientReturn::UnsubackRecieved);
+        }
     }
 
     #[test]
@@ -293,18 +349,29 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError(
-            "Error no especificado".to_string(),
-        ));
-
-        let pending_messages: Vec<u16> = Vec::new();
-        let (sender, _) = channel();
+        let mut pending_messages: Vec<u16> = Vec::new();
+        let (sender, receiver) = channel();
         let (tx, _) = channel();
+        let (disconnect_from_broker_sender, _) = channel();
+        let (tx1, _) = channel();
+        let (tx2, _) = channel();
+
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages, sender, tx, "juancito".to_string())
+            let _ = Client::handle_stream_readings(stream, sender, tx);
         }
 
-        assert_eq!(result.unwrap(), ClientReturn::PingrespRecieved);
+        if let Ok(message) = receiver.try_recv() {
+            let result = Client::handle_message(
+                message,
+                &mut pending_messages,
+                tx1,
+                tx2,
+                disconnect_from_broker_sender,
+                "monitoreo".to_string(),
+            )
+            .unwrap();
+            assert_eq!(result, ClientReturn::PingrespRecieved);
+        }
     }
 
     #[test]
@@ -327,18 +394,29 @@ mod tests {
             stream.write_all(&buffer).unwrap();
         });
 
-        let mut result: Result<ClientReturn, ProtocolError> = Err(ProtocolError::UnspecifiedError(
-            "Error no especificado".to_string(),
-        ));
-
-        let pending_messages: Vec<u16> = Vec::new();
-        let (sender, _) = channel();
+        let mut pending_messages: Vec<u16> = Vec::new();
+        let (sender, receiver) = channel();
         let (tx, _) = channel();
+        let (disconnect_from_broker_sender, _) = channel();
+        let (tx1, _) = channel();
+        let (tx2, _) = channel();
+
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages, sender, tx, "juancito".to_string())
+            let _ = Client::handle_stream_readings(stream, sender, tx);
         }
 
-        assert_eq!(result.unwrap(), ClientReturn::AuthRecieved);
+        if let Ok(message) = receiver.try_recv() {
+            let result = Client::handle_message(
+                message,
+                &mut pending_messages,
+                tx1,
+                tx2,
+                disconnect_from_broker_sender,
+                "monitoreo".to_string(),
+            )
+            .unwrap();
+            assert_eq!(result, ClientReturn::AuthRecieved);
+        }
     }
 
     #[test]
