@@ -372,12 +372,14 @@ impl MonitoringApp {
             .map_or(0, |id| id)
     }
 
+    /// Carga un centro de Drones existente.
     pub fn load_existing_drone_center(&mut self, location: Location) -> u32 {
         self.drone_system
             .load_existing_drone_center(location)
             .map_or(0, |id| id)
     }
 
+    /// Retorna los incidentes activos en el sistema.
     pub fn get_incidents(&self) -> Vec<Incident> {
         match self.incidents.lock() {
             Ok(incidents) => {
@@ -393,6 +395,7 @@ impl MonitoringApp {
         }
     }
 
+    /// Retorna los Drones activos en el sistema.
     pub fn get_active_drones(&self) -> HashMap<u32, Location> {
         match self.active_drones.lock() {
             Ok(active_drones) => active_drones.clone(),
@@ -400,6 +403,7 @@ impl MonitoringApp {
         }
     }
 
+    /// Retorna las camaras activas en el sistema.
     pub fn get_cameras(&self) -> HashMap<u32, Camera> {
         match self.cameras.lock() {
             Ok(cameras) => cameras.clone(),

@@ -80,6 +80,7 @@ impl DroneSystem {
         Ok(id)
     }
 
+    /// Carga un dron existente y lo agrega al centro de drones especificado segun ID
     pub fn load_existing_drone(
         &mut self,
         location: Location,
@@ -90,7 +91,7 @@ impl DroneSystem {
             None => return Err(DroneError::DroneCenterNotFound),
         };
 
-        let id = drone_center.load_existing_drone(location)?;
+        let id = drone_center.add_drone(location)?;
 
         Ok(id)
     }

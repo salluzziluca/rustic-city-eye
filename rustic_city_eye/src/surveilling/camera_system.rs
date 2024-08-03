@@ -333,6 +333,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         None
     }
 
+    /// Desconecta el sistema de camaras del broker
     pub fn disconnect(&self) -> Result<(), ProtocolError> {
         let disconnect_config = DisconnectConfig::new(
             0x00_u8,

@@ -20,6 +20,7 @@ impl DronesCentralConfig {
         }
     }
 
+    /// Verifica si un centro de drones con el id dado existe en el archivo drones_central_config.json
     pub fn central_exists(id: u32) -> bool {
         let path = "./src/drones/drones_central_config.json".to_string();
         if std::fs::metadata(&path).is_err() {
@@ -45,6 +46,7 @@ impl DronesCentralConfig {
         false
     }
 
+    /// Devuelve la cantidad de centros de drones en el archivo drones_central_config.json
     pub fn count_centrals() -> u32 {
         let path = "./src/drones/drones_central_config.json".to_string();
         if std::fs::metadata(&path).is_err() {
@@ -64,6 +66,7 @@ impl DronesCentralConfig {
         drones_central_config.drone_centers.len() as u32
     }
 
+    /// Devuelve los centros de drones en el archivo drones_central_config.json
     pub fn get_centrals() -> Vec<DroneCenter> {
         let path = "./src/drones/drones_central_config.json".to_string();
         if std::fs::metadata(&path).is_err() {
@@ -90,6 +93,7 @@ impl DronesCentralConfig {
         drone_centers
     }
 
+    /// Agrega un centro de drones al archivo drones_central_config.json
     pub fn add_central_to_json(
         id: u32,
         location: Location,
@@ -116,6 +120,7 @@ impl DronesCentralConfig {
         Ok(())
     }
 
+    /// Elimina un centro de drones con el id dado del archivo drones_central_config.json
     pub fn remove_central_from_json(id: u32) -> Result<(), DroneError> {
         let path = "./src/drones/drones_central_config.json".to_string();
         if !DronesCentralConfig::central_exists(id) {
@@ -129,6 +134,7 @@ impl DronesCentralConfig {
         Ok(())
     }
 
+    /// Verifica si un dron con el id dado existe en el archivo drones_central_config.json
     pub fn drone_exists(id: u32) -> bool {
         let path = "./src/drones/drones_central_config.json".to_string();
         if std::fs::metadata(&path).is_err() {
@@ -154,6 +160,7 @@ impl DronesCentralConfig {
         false
     }
 
+    /// Devuelve la cantidad de drones en el archivo drones_central_config.json
     pub fn count_drones() -> u32 {
         let path = "./src/drones/drones_central_config.json".to_string();
         if std::fs::metadata(&path).is_err() {
@@ -173,6 +180,7 @@ impl DronesCentralConfig {
         drones_central_config.drones.len() as u32
     }
 
+    /// Devuelve los drones en el archivo drones_central_config.json
     pub fn get_drones() -> Vec<(Location, u32)> {
         let path = "./src/drones/drones_central_config.json".to_string();
         if std::fs::metadata(&path).is_err() {
@@ -192,6 +200,7 @@ impl DronesCentralConfig {
         drones_central_config.drones
     }
 
+    /// Agrega un dron al archivo drones_central_config.json
     pub fn add_drone_to_json(location: Location, id: u32) -> Result<(), DroneError> {
         let path = "./src/drones/drones_central_config.json".to_string();
         if std::fs::metadata(&path).is_err() {
@@ -235,6 +244,7 @@ impl DronesCentralConfig {
         Ok(())
     }
 
+    /// Elimina un dron con el id dado del archivo drones_central_config.json
     pub fn remove_drone_from_json(id: u32) -> Result<(), DroneError> {
         let path = "./src/drones/drones_central_config.json".to_string();
         if !DronesCentralConfig::drone_exists(id) {
