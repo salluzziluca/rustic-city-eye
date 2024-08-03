@@ -10,4 +10,5 @@ pub enum ClientReturn {
     PingrespRecieved,
     AuthRecieved,
     PlaceHolder,
+    NoMessageReceived,
 }

@@ -5,7 +5,7 @@ mod tests {
         mqtt::{
             broker::Broker,
             broker_message::BrokerMessage,
-            client::handle_message,
+            client::{handle_message, Client},
             client_return::ClientReturn,
             connack_properties::ConnackProperties,
             protocol_error::ProtocolError,
@@ -19,7 +19,7 @@ mod tests {
     use std::{
         io::Write,
         net::{TcpListener, TcpStream},
-        sync::{mpsc::channel, Arc, Condvar, Mutex},
+        sync::{mpsc::{self, channel}, Arc, Condvar, Mutex},
         thread,
     };
 
@@ -68,8 +68,9 @@ mod tests {
         let pending_messages: Vec<u16> = Vec::new();
         let (sender, _) = channel();
         let (tx, _) = channel();
+        let (disconnect_from_broker_sender, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = handle_message(stream, pending_messages, sender, tx, "juancito".to_string())
+            result = Client::handle_message(connack, &mut pending_messages, sender, tx, disconnect_from_broker_sender, "monitoreo".to_string());
         }
 
         assert_eq!(result.unwrap(), ClientReturn::ConnackReceived);
