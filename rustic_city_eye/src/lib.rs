@@ -61,6 +61,7 @@ pub mod drones {
     pub mod drone_location;
     pub mod drone_state;
     pub mod drone_system;
+    pub mod drones_central_config;
 
     pub mod drone_error;
 }

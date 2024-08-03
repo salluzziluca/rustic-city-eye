@@ -174,9 +174,14 @@ pub fn add_disconnect_window(
         .show(ui.ctx(), |ui| {
             ui.horizontal(|ui| {
                 if ui.button(RichText::new("Disconnect").heading()).clicked() {
-                    let _ = monitoring_app.disconnect();
+                    match monitoring_app.disconnect() {
+                        Ok(_) => println!("Disconnected"),
+                        Err(e) => println!("Error disconnecting: {}", e),
+                    };
                     map.cameras.clear();
                     map.incidents.clear();
+                    map.drone_centers.clear();
+                    map.drones.clear();
                     *connected = false;
                 }
             });

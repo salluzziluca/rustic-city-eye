@@ -63,6 +63,31 @@ impl DroneCenter {
         Ok(())
     }
 
+    // /// Carga un dron existente y lo agrega al hashmap con un ID que no esté siendo utilizado
+    // pub fn load_existing_drone(&mut self, location: Location) -> Result<u32, DroneError> {
+    //     let mut id = 0;
+    //     while self.drones.contains_key(&id) {
+    //         id += 1;
+    //     }
+
+    //     let (disconnect_sender, disconnect_receiver) = mpsc::channel();
+
+    //     let mut drone = Drone::new(
+    //         id,
+    //         location,
+    //         self.location,
+    //         &self.drone_config_path.to_string(),
+    //         self.address.to_string(),
+    //         disconnect_receiver,
+    //     )?;
+
+    //     self.disconnect_senders.push(disconnect_sender);
+
+    //     drone.run_drone()?;
+    //     self.drones.insert(id, drone);
+    //     Ok(id)
+    // }
+
     /// Crea un dron y lo agrega al hashmap con un ID que no esté siendo utilizado
     ///
     /// Retorna el ID del dron creado o DroneError en caso de error.
