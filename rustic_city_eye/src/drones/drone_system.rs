@@ -1,6 +1,7 @@
 use egui::ahash::HashMap;
 
 use crate::drones::drone_center::DroneCenter;
+use crate::drones::drones_central_config::DronesCentralConfig;
 use crate::mqtt::protocol_error::ProtocolError;
 use crate::utils::location::Location;
 
@@ -31,6 +32,26 @@ impl DroneSystem {
         Ok(())
     }
 
+    pub fn load_existing_drone_center(&mut self, location: Location) -> Result<u32, DroneError> {
+        let mut id = 0;
+        while self.drone_centers.contains_key(&id) {
+            id += 1;
+        }
+
+        let drone_center = DroneCenter::new(
+            id,
+            location,
+            self.drone_config_path.to_string(),
+            self.address.to_string(),
+        );
+
+        self.drone_centers.insert(id, drone_center);
+
+        println!("Drone center id: {} loaded successfully", id);
+
+        Ok(id)
+    }
+
     /// Agrega un nuevo centro de drones al sistema de drones.
     ///
     /// Devuelve su id o DroneError en caso de error.
@@ -46,7 +67,32 @@ impl DroneSystem {
             self.drone_config_path.to_string(),
             self.address.to_string(),
         );
+
         self.drone_centers.insert(id, drone_center);
+        let _ = DronesCentralConfig::add_central_to_json(
+            id,
+            location,
+            self.drone_config_path.to_string(),
+            self.address.to_string(),
+        );
+        println!("Drone center id: {} added successfully", id);
+
+        Ok(id)
+    }
+
+    /// Carga un dron existente y lo agrega al centro de drones especificado segun ID
+    pub fn load_existing_drone(
+        &mut self,
+        location: Location,
+        drone_center_id: u32,
+    ) -> Result<u32, DroneError> {
+        let drone_center = match self.drone_centers.get_mut(&drone_center_id) {
+            Some(drone_center) => drone_center,
+            None => return Err(DroneError::DroneCenterNotFound),
+        };
+
+        let id = drone_center.add_drone(location)?;
+
         Ok(id)
     }
 
@@ -64,6 +110,7 @@ impl DroneSystem {
         };
 
         let id = drone_center.add_drone(location)?;
+        let _ = DronesCentralConfig::add_drone_to_json(location, id);
         Ok(id)
     }
 }

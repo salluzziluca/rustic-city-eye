@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::drone_error::DroneError;
 use std::{fs::File, io::BufReader};
@@ -8,7 +8,7 @@ use std::{fs::File, io::BufReader};
 ///     - Simula su descarga de bateria.
 ///     - Hace que se mueva dentro de su area de operacion.
 #[allow(dead_code)]
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DroneConfig {
     /// Indice la tasa de carga de la bateria en milisegundos.
     /// Por ej: si vale 10, por cada segundo que pase, la
@@ -44,10 +44,7 @@ impl DroneConfig {
         let config_file = match File::open(file_path) {
             Ok(file) => file,
             Err(e) => {
-                println!(
-                    "Error al abrir el archivo de configuracion del Drone: {:?}",
-                    e,
-                );
+                println!("Error opening Drone configuration file: {:?}", e,);
                 return Err(DroneError::ReadingConfigFileError);
             }
         };

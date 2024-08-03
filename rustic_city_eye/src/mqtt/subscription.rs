@@ -1,5 +1,7 @@
+use serde::{Deserialize, Serialize};
+
 /// Subscription struct que se usa para almacenar la suscripción de un cliente a un topic
-#[derive(Debug, Eq, Hash, PartialEq, Clone)]
+#[derive(Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Subscription {
     /// Topic al que se quiere suscribir
     pub topic: String,
