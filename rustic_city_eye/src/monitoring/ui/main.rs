@@ -11,8 +11,9 @@ use egui::{CentralPanel, RichText, TextStyle, TopBottomPanel};
 use incident_view::IncidentView;
 use plugins::*;
 use rustic_city_eye::{
+    drones::drones_central_config::DronesCentralConfig,
     monitoring::{incident::Incident, monitoring_app::MonitoringApp},
-    surveilling::camera::Camera,
+    surveilling::{camera::Camera, cameras_config::CamerasConfig},
     utils::location::Location,
 };
 use std::collections::HashMap;
@@ -203,12 +204,12 @@ impl MyApp {
                             let _ = monitoring_app.run_client();
                             self.monitoring_app = Some(monitoring_app);
                             self.connected = true;
+                            self.configure_cameras();
+                            self.configure_central_drones();
+                            self.configure_drones();
                         }
                         Err(e) => {
-                            println!(
-                                "La conexion ha fallado. Intenta conectarte nuevamente {}.",
-                                e
-                            );
+                            println!("The conection failed. Please try again {}.", e);
                             self.username.clear();
                             self.password.clear();
                             self.ip.clear();
@@ -229,6 +230,72 @@ impl MyApp {
             });
         });
     }
+
+    fn configure_cameras(&mut self) {
+        if CamerasConfig::count_cameras() > 0 {
+            CamerasConfig::get_cameras().iter().for_each(|camera| {
+                let location = camera.get_location();
+                let camera_view = CameraView {
+                    image: self.map.camera_icon.clone(),
+                    radius: ImagesPluginData::new(
+                        self.map.camera_radius.texture.clone(),
+                        self.map.zoom_level,
+                        self.map.camera_radius.y_scale,
+                    ),
+                    position: Position::from_lon_lat(location.long, location.lat),
+                    clicked: false,
+                };
+                self.map.cameras.insert(camera.get_id(), camera_view);
+
+                if let Some(monitoring_app) = &mut self.monitoring_app {
+                    let _ = monitoring_app.load_existing_camera_system(camera.clone());
+                }
+            });
+        }
+    }
+
+    fn configure_central_drones(&mut self) {
+        if DronesCentralConfig::count_centrals() > 0 {
+            println!("pin100");
+            DronesCentralConfig::get_centrals()
+                .iter()
+                .for_each(|central| {
+                    let location = central.get_location();
+                    let drone_center_view = drone_center_view::DroneCenterView {
+                        image: self.map.drone_center_icon.clone(),
+                        position: Position::from_lon_lat(location.long, location.lat),
+                        clicked: false,
+                    };
+
+                    self.map.drone_centers.push(drone_center_view);
+
+                    if let Some(monitoring_app) = &mut self.monitoring_app {
+                        let _ = monitoring_app.load_existing_drone_center(central.location);
+                    }
+                });
+        }
+    }
+
+    fn configure_drones(&mut self) {
+        if DronesCentralConfig::count_drones() > 0 {
+            DronesCentralConfig::get_drones()
+                .iter()
+                .for_each(|drone: &(Location, u32)| {
+                    let location = drone.0;
+                    let drone_view = drone_view::DroneView {
+                        image: self.map.drone_icon.clone(),
+                        position: Position::from_lon_lat(location.long, location.lat),
+                        clicked: false,
+                    };
+                    self.map.drones.insert(drone.1, drone_view);
+
+                    if let Some(monitoring_app) = &mut self.monitoring_app {
+                        let _ = monitoring_app.load_existing_drone(location, drone.1);
+                    }
+                });
+        }
+    }
+
     /// Muestra el mapa
     /// Si se presiona el boton de zoom, se actualiza el zoom level
     /// Carga las diferentes ventanas de camaras, incidentes, drones y centros de drones
