@@ -19,7 +19,10 @@ mod tests {
     use std::{
         io::Write,
         net::{TcpListener, TcpStream},
-        sync::{mpsc::{self, channel}, Arc, Condvar, Mutex},
+        sync::{
+            mpsc::{self, channel},
+            Arc, Condvar, Mutex,
+        },
         thread,
     };
 
@@ -70,7 +73,14 @@ mod tests {
         let (tx, _) = channel();
         let (disconnect_from_broker_sender, _) = channel();
         if let Ok((stream, _)) = listener.accept() {
-            result = Client::handle_message(connack, &mut pending_messages, sender, tx, disconnect_from_broker_sender, "monitoreo".to_string());
+            result = Client::handle_message(
+                connack,
+                &mut pending_messages,
+                sender,
+                tx,
+                disconnect_from_broker_sender,
+                "monitoreo".to_string(),
+            );
         }
 
         assert_eq!(result.unwrap(), ClientReturn::ConnackReceived);

@@ -213,7 +213,7 @@ impl Broker {
                                 Ok(stream) => stream,
                                 Err(_) => return Err(ProtocolError::StreamError),
                             };
-                            let result = match self_clone.handle_client(stream_clone) {
+                            match self_clone.handle_client(stream_clone) {
                                 Ok(_) => Ok(()),
 
                                 Err(err) => {
@@ -244,8 +244,7 @@ impl Broker {
 
                                     Err(err)
                                 }
-                            };
-                            result
+                            }
                         }
                     });
                 }
