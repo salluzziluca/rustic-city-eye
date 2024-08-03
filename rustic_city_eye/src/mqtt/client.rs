@@ -133,6 +133,9 @@ impl Client {
         let (sender, receiver) = mpsc::channel();
         let sender_clone = sender.clone();
         let (disconnect_from_broker_sender, disconnect_from_broker_receiver) = mpsc::channel();
+        //let (disconnect_from_client_sender, disconnect_from_client_receiver) = mpsc::channel();
+        let (disconnect_from_client_sender_two, disconnect_from_client_receiver_two) =
+            mpsc::channel();
 
         let receiver_channel_ref = Arc::clone(&self.receiver_channel);
         let (pending_id_messages_sender, pending_id_messages_receiver) = mpsc::channel();
@@ -154,17 +157,28 @@ impl Client {
                                 }
                             };
                         }
-                        StreamOperation::ShutdownStream => {
-                            match stream.shutdown(Shutdown::Both) {
+                        StreamOperation::WriteAndDisconnect(message) => {
+                            match message.write_to(&mut stream) {
                                 Ok(_) => {
+                                    // disconnect_from_client_sender.send(()).unwrap();
+                                    disconnect_from_client_sender_two.send(()).unwrap();
                                     break;
-                                },
+                                }
                                 Err(e) => {
-                                    eprintln!("{}", ProtocolError::ShutdownError(e.to_string()));
+                                    eprintln!("{}", e);
                                     break;
-                                },
-                            }
+                                }
+                            };
                         }
+                        StreamOperation::ShutdownStream => match stream.shutdown(Shutdown::Both) {
+                            Ok(_) => {
+                                break;
+                            }
+                            Err(e) => {
+                                eprintln!("{}", ProtocolError::ShutdownError(e.to_string()));
+                                break;
+                            }
+                        },
                         _ => {}
                     }
                 }
@@ -175,6 +189,19 @@ impl Client {
             let mut stream = stream_clone_two.try_clone().unwrap();
 
             loop {
+                // if disconnect_from_client_receiver.try_recv().is_ok() {
+                //     // match stream.shutdown(Shutdown::Both) {
+                //     //     Ok(_) => {
+                //     //         break;
+                //     //     }
+                //     //     Err(e) => {
+                //     //         eprintln!("{}", ProtocolError::ShutdownError(e.to_string()));
+                //     //         break;
+                //     //     }
+                //     // }
+                //     break;
+                // }
+
                 match BrokerMessage::read_from(&mut stream) {
                     Ok(message) => match message {
                         BrokerMessage::Disconnect {
@@ -228,14 +255,10 @@ impl Client {
                             session_expiry_interval,
                         );
 
-                        match sender.send(StreamOperation::WriteClientMessage(disconnect)) {
-                            Ok(_) => match pending_id_messages_sender.send(packet_id) {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    eprintln!("{}", ProtocolError::SendError(e.to_string()));
-                                    break;
-                                }
-                            },
+                        match sender.send(StreamOperation::WriteAndDisconnect(disconnect)) {
+                            Ok(_) => {
+                                break;
+                            }
                             Err(e) => {
                                 eprintln!("{}", ProtocolError::SendError(e.to_string()));
                                 break;
@@ -342,6 +365,10 @@ impl Client {
                 let mut pending_messages: Vec<u16> = Vec::new();
 
                 loop {
+                    if disconnect_from_client_receiver_two.try_recv().is_ok() {
+                        break;
+                    }
+
                     if let Ok(packet) = pending_id_messages_receiver.try_recv() {
                         if !pending_messages.contains(&packet) {
                             pending_messages.push(packet);
@@ -422,8 +449,10 @@ impl Client {
                                     Ok(_) => {
                                         sender_clone.send(StreamOperation::ShutdownStream).unwrap();
                                         disconnect_from_broker_sender.send(()).unwrap();
-                                    },
-                                    Err(e) => println!("Error al enviar disconnect al sistema: {:?}", e),
+                                    }
+                                    Err(e) => {
+                                        println!("Error al enviar disconnect al sistema: {:?}", e)
+                                    }
                                 };
                                 break;
                             }

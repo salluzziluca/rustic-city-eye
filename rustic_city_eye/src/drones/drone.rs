@@ -11,7 +11,7 @@ use super::{drone_config::DroneConfig, drone_error::DroneError, drone_state::Dro
 use crate::{
     monitoring::incident::Incident,
     mqtt::{
-        client::{Client, ClientTrait},
+        client::Client,
         client_message::{ClientMessage, Connect},
         disconnect_config::DisconnectConfig,
         messages_config::{self, MessagesConfig},
