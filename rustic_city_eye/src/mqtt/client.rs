@@ -15,7 +15,7 @@ use crate::{
     utils::threadpool::ThreadPool,
 };
 
-use super::{client_message, client_return::ClientReturn, error::ClientError, stream_operation::StreamOperation};
+use super::{client_message, client_return::ClientReturn, stream_operation::StreamOperation};
 
 pub trait ClientTrait {
     fn client_run(&mut self) -> Result<(), ProtocolError>;
@@ -128,7 +128,11 @@ impl Client {
             Err(_) => return Err(ProtocolError::StreamError),
         };
 
+        let client_id_clone = self.client_id.clone();
+
         let (sender, receiver) = mpsc::channel();
+        let sender_clone = sender.clone();
+        let (disconnect_from_broker_sender, disconnect_from_broker_receiver) = mpsc::channel();
 
         let receiver_channel_ref = Arc::clone(&self.receiver_channel);
         let (pending_id_messages_sender, pending_id_messages_receiver) = mpsc::channel();
@@ -150,6 +154,17 @@ impl Client {
                                 }
                             };
                         }
+                        StreamOperation::ShutdownStream => {
+                            match stream.shutdown(Shutdown::Both) {
+                                Ok(_) => {
+                                    break;
+                                },
+                                Err(e) => {
+                                    eprintln!("{}", ProtocolError::ShutdownError(e.to_string()));
+                                    break;
+                                },
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -161,13 +176,34 @@ impl Client {
 
             loop {
                 match BrokerMessage::read_from(&mut stream) {
-                    Ok(message) => message_from_stream_sender.send(message).unwrap(),
+                    Ok(message) => match message {
+                        BrokerMessage::Disconnect {
+                            reason_code,
+                            session_expiry_interval,
+                            reason_string,
+                            user_properties,
+                        } => {
+                            let disconnect = BrokerMessage::Disconnect {
+                                reason_code,
+                                session_expiry_interval,
+                                reason_string,
+                                user_properties,
+                            };
+                            message_from_stream_sender.send(disconnect).unwrap();
+                            break;
+                        }
+                        _ => message_from_stream_sender.send(message).unwrap(),
+                    },
                     Err(_) => break,
                 }
             }
         });
 
         let _handle_incoming_messages = threadpool.execute(move || loop {
+            if disconnect_from_broker_receiver.try_recv().is_ok() {
+                break;
+            }
+
             let lock = match receiver_channel_ref.lock() {
                 Ok(lock) => lock,
                 Err(_) => break,
@@ -180,42 +216,45 @@ impl Client {
                 let message = message_config.parse_message(packet_id);
 
                 match message {
-                    ClientMessage::Disconnect { reason_code: _, session_expiry_interval, reason_string, client_id } => {
-                        let disconnect = Client::handle_disconnect(&client_id, &reason_string, session_expiry_interval);
+                    ClientMessage::Disconnect {
+                        reason_code: _,
+                        session_expiry_interval,
+                        reason_string,
+                        client_id,
+                    } => {
+                        let disconnect = Client::handle_disconnect(
+                            &client_id,
+                            &reason_string,
+                            session_expiry_interval,
+                        );
 
                         match sender.send(StreamOperation::WriteClientMessage(disconnect)) {
-                            Ok(_) => {
-                                match pending_id_messages_sender.send(packet_id) {
-                                    Ok(_) => {},
-                                    Err(e) => {
-                                        eprintln!("{}", ProtocolError::SendError(e.to_string()));
-                                        break;
-                                    },
+                            Ok(_) => match pending_id_messages_sender.send(packet_id) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    eprintln!("{}", ProtocolError::SendError(e.to_string()));
+                                    break;
                                 }
                             },
                             Err(e) => {
                                 eprintln!("{}", ProtocolError::SendError(e.to_string()));
                                 break;
-                            },
+                            }
                         }
                     }
-                    _ => {
-                        match sender.send(StreamOperation::WriteClientMessage(message)) {
-                            Ok(_) => {
-                                match pending_id_messages_sender.send(packet_id) {
-                                    Ok(_) => {},
-                                    Err(e) => {
-                                        eprintln!("{}", ProtocolError::SendError(e.to_string()));
-                                        break;
-                                    },
-                                }
-                            },
+                    _ => match sender.send(StreamOperation::WriteClientMessage(message)) {
+                        Ok(_) => match pending_id_messages_sender.send(packet_id) {
+                            Ok(_) => {}
                             Err(e) => {
                                 eprintln!("{}", ProtocolError::SendError(e.to_string()));
                                 break;
-                            },
+                            }
+                        },
+                        Err(e) => {
+                            eprintln!("{}", ProtocolError::SendError(e.to_string()));
+                            break;
                         }
-                    }
+                    },
                 }
 
                 // match message {
@@ -294,21 +333,21 @@ impl Client {
                 //         }
                 //     }
                 //     _ => {}
-               // }
+                // }
             }
         });
 
         if let Some(sender_to_client) = sender_to_client_channel_clone {
             let _handle_reading_messages = threadpool.execute(move || {
                 let mut pending_messages: Vec<u16> = Vec::new();
-    
+
                 loop {
                     if let Ok(packet) = pending_id_messages_receiver.try_recv() {
                         if !pending_messages.contains(&packet) {
                             pending_messages.push(packet);
                         }
                     }
-    
+
                     if let Ok(message) = message_from_stream_receiver.try_recv() {
                         match message {
                             BrokerMessage::PublishDelivery {
@@ -330,19 +369,63 @@ impl Client {
                                     payload,
                                 }) {
                                     Ok(_) => {}
-                                    Err(e) => println!("Error al enviar publish al sistema: {:?}", e),
+                                    Err(e) => {
+                                        println!("Error al enviar publish al sistema: {:?}", e)
+                                    }
                                 }
                             }
-                            BrokerMessage::Puback { packet_id_msb, packet_id_lsb, reason_code: _ } => {
-                                Client::process_packet_id_response(&mut pending_messages, packet_id_msb, packet_id_lsb);
-
+                            BrokerMessage::Puback {
+                                packet_id_msb,
+                                packet_id_lsb,
+                                reason_code: _,
+                            } => {
+                                Client::process_packet_id_response(
+                                    &mut pending_messages,
+                                    packet_id_msb,
+                                    packet_id_lsb,
+                                );
                             }
-                            BrokerMessage::Suback { packet_id_msb, packet_id_lsb, reason_code: _ } => {
-                                Client::process_packet_id_response(&mut pending_messages, packet_id_msb, packet_id_lsb);
-
+                            BrokerMessage::Suback {
+                                packet_id_msb,
+                                packet_id_lsb,
+                                reason_code: _,
+                            } => {
+                                Client::process_packet_id_response(
+                                    &mut pending_messages,
+                                    packet_id_msb,
+                                    packet_id_lsb,
+                                );
                             }
-                            BrokerMessage::Unsuback { packet_id_msb, packet_id_lsb, reason_code: _ } => {
-                                Client::process_packet_id_response(&mut pending_messages, packet_id_msb, packet_id_lsb);
+                            BrokerMessage::Unsuback {
+                                packet_id_msb,
+                                packet_id_lsb,
+                                reason_code: _,
+                            } => {
+                                Client::process_packet_id_response(
+                                    &mut pending_messages,
+                                    packet_id_msb,
+                                    packet_id_lsb,
+                                );
+                            }
+                            BrokerMessage::Disconnect {
+                                reason_code,
+                                session_expiry_interval,
+                                reason_string,
+                                user_properties: _,
+                            } => {
+                                match sender_to_client.send(ClientMessage::Disconnect {
+                                    reason_code,
+                                    session_expiry_interval,
+                                    reason_string,
+                                    client_id: client_id_clone,
+                                }) {
+                                    Ok(_) => {
+                                        sender_clone.send(StreamOperation::ShutdownStream).unwrap();
+                                        disconnect_from_broker_sender.send(()).unwrap();
+                                    },
+                                    Err(e) => println!("Error al enviar disconnect al sistema: {:?}", e),
+                                };
+                                break;
                             }
                             _ => {}
                         }
@@ -360,8 +443,7 @@ impl Client {
     pub fn handle_disconnect(
         client_id: &str,
         reason: &str,
-        session_expiry_interval: u32
-        // mut stream: TcpStream,
+        session_expiry_interval: u32, // mut stream: TcpStream,
     ) -> ClientMessage {
         let reason_code: u8;
         let reason_string: String;
@@ -390,7 +472,11 @@ impl Client {
         }
     }
 
-    fn process_packet_id_response(pending_messages: &mut Vec<u16>, packet_id_msb: u8, packet_id_lsb: u8) {
+    fn process_packet_id_response(
+        pending_messages: &mut Vec<u16>,
+        packet_id_msb: u8,
+        packet_id_lsb: u8,
+    ) {
         pending_messages.retain(|&pending_message| {
             let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
             !(packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb)
