@@ -18,6 +18,7 @@ pub mod mqtt {
 
     pub mod disconnect_config;
     pub mod messages_config;
+    pub mod stream_operation;
     pub mod subscribe_config;
 
     pub mod broker_message;
