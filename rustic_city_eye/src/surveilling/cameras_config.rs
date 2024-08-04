@@ -85,10 +85,19 @@ impl CamerasConfig {
     /// Remueve una cámara con el id dado del archivo cameras.json
     pub fn remove_camera_from_file(id: u32) -> Result<(), Box<dyn std::error::Error>> {
         let path = "./src/surveilling/cameras.json".to_string();
-        if !CamerasConfig::camera_exists(id) {
+        if std::fs::metadata(&path).is_err() {
             return Ok(());
         }
-        std::fs::remove_file(path)?;
+
+        let file = File::open(path.clone())?;
+        let mut cameras_config: CamerasConfig = serde_json::from_reader(file)?;
+
+        if let Some(index) = cameras_config.cameras.iter().position(|x| x.id == id) {
+            cameras_config.cameras.remove(index);
+            let json = serde_json::to_string(&cameras_config)?;
+            std::fs::write(path, json)?;
+        }
+
         Ok(())
     }
 
