@@ -29,12 +29,12 @@ pub trait ClientTrait {
     fn disconnect_client(&self) -> Result<(), ProtocolError>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Client {
     receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
 
     // stream es el socket que se conecta al broker
-    stream: TcpStream,
+    stream: Arc<TcpStream>,
 
     // las subscriptions es un vector de topics a los que el cliente está subscrito
     pub subscriptions: Arc<Mutex<Vec<String>>>,
@@ -93,7 +93,7 @@ impl Client {
                             let client_id = connect.client_id;
                             Ok(Client {
                                 receiver_channel: Arc::new(Mutex::new(receiver_channel)),
-                                stream,
+                                stream: Arc::new(stream),
                                 subscriptions: Arc::new(Mutex::new(Vec::new())),
                                 packets_ids: Arc::new(Mutex::new(Vec::new())),
                                 sender_channel: Some(sender_channel),
@@ -114,7 +114,7 @@ impl Client {
     }
 
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
-        let threadpool = ThreadPool::new(5);
+        let threadpool = ThreadPool::new(10);
 
         let stream_clone = match self.stream.try_clone() {
             Ok(stream) => stream,
@@ -130,7 +130,7 @@ impl Client {
         let (sender, receiver) = mpsc::channel();
         let sender_clone = sender.clone();
         let (disconnect_from_broker_sender, disconnect_from_broker_receiver) = mpsc::channel();
-        //let (disconnect_from_client_sender, disconnect_from_client_receiver) = mpsc::channel();
+        let (disconnect_from_client_sender, disconnect_from_client_receiver) = mpsc::channel();
         let (disconnect_from_client_sender_two, disconnect_from_client_receiver_two) =
             mpsc::channel();
         let (puback_notify_sender, puback_notify_receiver) = mpsc::channel();
@@ -142,11 +142,7 @@ impl Client {
         let sender_to_client_channel_clone = self.sender_channel.clone();
 
         let _handle_stream_operations = threadpool.execute(move || {
-            let _ = Client::handle_stream_operations(
-                stream_clone,
-                receiver,
-                disconnect_from_client_sender_two,
-            );
+            let _ = Client::handle_stream_operations(stream_clone, receiver);
         });
 
         let _handle_stream_readings = threadpool.execute(move || {
@@ -154,6 +150,7 @@ impl Client {
                 stream_clone_two,
                 message_from_stream_sender,
                 puback_notify_sender,
+                disconnect_from_client_receiver,
             );
         });
 
@@ -165,6 +162,8 @@ impl Client {
                 disconnect_from_broker_receiver,
                 subscriptions_ref,
                 puback_notify_receiver,
+                disconnect_from_client_sender,
+                disconnect_from_client_sender_two,
             );
         });
 
@@ -187,7 +186,6 @@ impl Client {
     fn handle_stream_operations(
         mut stream: TcpStream,
         receiver: Receiver<StreamOperation>,
-        _disconnect_from_client_sender: Sender<()>,
     ) -> Result<(), ProtocolError> {
         loop {
             if let Ok(command) = receiver.recv() {
@@ -202,17 +200,20 @@ impl Client {
                         };
                     }
                     StreamOperation::WriteAndDisconnect(message) => {
-                        println!("message {:?}", message);
-                        // match message.write_to(&mut stream) {
-                        //     Ok(_) => {
-                        //         disconnect_from_client_sender.send(()).unwrap();
-                        //         break;
-                        //     }
-                        //     Err(e) => {
-                        //         eprintln!("{}", e);
-                        //         return Err(e);
-                        //     }
-                        // };
+                        match message.write_to(&mut stream) {
+                            Ok(_) => {
+                                match stream.shutdown(Shutdown::Both) {
+                                    Ok(_) => break,
+                                    Err(e) => {
+                                        return Err(ProtocolError::ShutdownError(e.to_string()));
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("{}", e);
+                                return Err(e);
+                            }
+                        };
                     }
                     StreamOperation::ShutdownStream => match stream.shutdown(Shutdown::Both) {
                         Ok(_) => {
@@ -233,33 +234,40 @@ impl Client {
         mut stream: TcpStream,
         message_from_stream_sender: Sender<BrokerMessage>,
         puback_notify_sender: Sender<bool>,
+        disconnect_from_client_receiver: Receiver<()>,
     ) -> Result<(), ProtocolError> {
-        while let Ok(message) = BrokerMessage::read_from(&mut stream) {
-            match message {
-                BrokerMessage::Disconnect {
-                    reason_code,
-                    session_expiry_interval,
-                    reason_string,
-                    user_properties,
-                } => {
-                    let disconnect = BrokerMessage::Disconnect {
+        loop {
+            if disconnect_from_client_receiver.try_recv().is_ok() {
+                break;
+            }
+
+            if let Ok(message) = BrokerMessage::read_from(&mut stream) {
+                match message {
+                    BrokerMessage::Disconnect {
                         reason_code,
                         session_expiry_interval,
                         reason_string,
                         user_properties,
-                    };
-                    message_from_stream_sender.send(disconnect).unwrap();
-                    break;
+                    } => {
+                        let disconnect = BrokerMessage::Disconnect {
+                            reason_code,
+                            session_expiry_interval,
+                            reason_string,
+                            user_properties,
+                        };
+                        message_from_stream_sender.send(disconnect).unwrap();
+                        break;
+                    }
+                    BrokerMessage::Puback {
+                        packet_id_msb: _,
+                        packet_id_lsb: _,
+                        reason_code: _,
+                    } => {
+                        message_from_stream_sender.send(message).unwrap();
+                        puback_notify_sender.send(true).unwrap();
+                    }
+                    _ => message_from_stream_sender.send(message).unwrap(),
                 }
-                BrokerMessage::Puback {
-                    packet_id_msb: _,
-                    packet_id_lsb: _,
-                    reason_code: _,
-                } => {
-                    message_from_stream_sender.send(message).unwrap();
-                    puback_notify_sender.send(true).unwrap();
-                }
-                _ => message_from_stream_sender.send(message).unwrap(),
             }
         }
         Ok(())
@@ -279,6 +287,8 @@ impl Client {
         disconnect_from_broker_receiver: Receiver<()>,
         subscriptions_ref: Arc<Mutex<Vec<String>>>,
         puback_notify_receiver: Receiver<bool>,
+        disconnect_from_client_sender: Sender<()>,
+        disconnect_from_client_sender_two: Sender<()>,
     ) -> Result<(), ProtocolError> {
         loop {
             if disconnect_from_broker_receiver.try_recv().is_ok() {
@@ -425,10 +435,13 @@ impl Client {
                         client_id,
                     } => {
                         let disconnect = Client::handle_disconnect(
-                            &client_id,
-                            &reason_string,
+                            client_id,
+                            reason_string,
                             session_expiry_interval,
                         );
+
+                        disconnect_from_client_sender.send(()).unwrap();
+                        disconnect_from_client_sender_two.send(()).unwrap();
 
                         match sender.send(StreamOperation::WriteAndDisconnect(disconnect)) {
                             Ok(_) => {
@@ -604,13 +617,13 @@ impl Client {
     /// Recibe un string que indica la razón de la desconexión y construye el Disconnect packet correspondiente
     /// segun el str reason recibido.
     fn handle_disconnect(
-        client_id: &str,
-        reason: &str,
+        client_id: String,
+        reason: String,
         session_expiry_interval: u32,
     ) -> ClientMessage {
         let reason_code: u8;
         let reason_string: String;
-        match reason {
+        match reason.as_str() {
             "normal" => {
                 reason_code = 0x00;
                 reason_string =
@@ -702,148 +715,14 @@ impl ClientTrait for Client {
 
         // writer.flush().map_err(|_| ProtocolError::WriteError)?;
 
-        match self.stream.shutdown(Shutdown::Both) {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                println!("Client: Error while shutting down stream: {:?}", e);
-                Err(ProtocolError::ShutdownError(e.to_string()))
-            }
-        }
-    }
-}
-
-/// Lee del stream un mensaje y lo procesa
-/// Devuelve un ClientReturn con informacion del mensaje recibido
-/// O ProtocolError en caso de error
-pub fn handle_message(
-    // mut stream: TcpStream,
-    message_from_stream_receiver: Receiver<BrokerMessage>,
-    pending_messages: Vec<u16>,
-    sender: Sender<bool>,
-    sender_chanell: Sender<ClientMessage>,
-    client_id: String,
-) -> Result<ClientReturn, ProtocolError> {
-    if let Ok(message) = message_from_stream_receiver.try_recv() {
-        match message {
-            BrokerMessage::Connack {
-                session_present: _,
-                reason_code: _,
-                properties: _,
-            } => {
-                println!("Recibí un Connack");
-                Ok(ClientReturn::ConnackReceived)
-            }
-            BrokerMessage::Puback {
-                packet_id_msb,
-                packet_id_lsb,
-                reason_code: _,
-            } => {
-                for pending_message in &pending_messages {
-                    let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
-                    if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {}
-                }
-                match sender.send(true) {
-                    Ok(_) => Ok(ClientReturn::PubackRecieved),
-                    Err(e) => Err(ProtocolError::ChanellError(e.to_string())),
-                }
-            }
-            BrokerMessage::Disconnect {
-                reason_code,
-                session_expiry_interval,
-                reason_string,
-                user_properties: _,
-            } => {
-                println!(
-                    "Recibí un Disconnect, razon de desconexión: {:?}",
-                    reason_string
-                );
-
-                match sender_chanell.send(ClientMessage::Disconnect {
-                    reason_code,
-                    session_expiry_interval,
-                    reason_string,
-                    client_id,
-                }) {
-                    Ok(_) => {}
-                    Err(e) => println!("Error al enviar Disconnect al sistema: {:?}", e),
-                }
-
-                Ok(ClientReturn::DisconnectRecieved)
-            }
-            BrokerMessage::Suback {
-                packet_id_msb,
-                packet_id_lsb,
-                reason_code: _,
-            } => {
-                for pending_message in &pending_messages {
-                    let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
-
-                    if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {
-                        println!("suback con id {} {} recibido", packet_id_msb, packet_id_lsb);
-                    }
-                }
-
-                Ok(ClientReturn::SubackRecieved)
-            }
-            BrokerMessage::PublishDelivery {
-                packet_id,
-                topic_name,
-                qos,
-                retain_flag,
-                dup_flag,
-                properties,
-                payload,
-            } => {
-                match sender_chanell.send(ClientMessage::Publish {
-                    packet_id,
-                    topic_name,
-                    qos,
-                    retain_flag,
-                    dup_flag,
-                    properties,
-                    payload,
-                }) {
-                    Ok(_) => {}
-                    Err(e) => println!("Error al enviar publish al sistema: {:?}", e),
-                }
-
-                Ok(ClientReturn::PublishDeliveryRecieved)
-            }
-            BrokerMessage::Unsuback {
-                packet_id_msb,
-                packet_id_lsb,
-                reason_code: _,
-            } => {
-                for pending_message in &pending_messages {
-                    let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
-                    if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {
-                        println!(
-                            "Unsuback con id {} {} recibido",
-                            packet_id_msb, packet_id_lsb
-                        );
-                    }
-                }
-
-                println!("Recibi un mensaje {:?}", message);
-                Ok(ClientReturn::UnsubackRecieved)
-            }
-            BrokerMessage::Pingresp => {
-                println!("Recibi un mensaje {:?}", message);
-                Ok(ClientReturn::PingrespRecieved)
-            }
-            BrokerMessage::Auth {
-                reason_code: _,
-                authentication_method: _,
-                authentication_data: _,
-                reason_string: _,
-                user_properties: _,
-            } => {
-                println!("recibi un auth!");
-                Ok(ClientReturn::AuthRecieved)
-            }
-        }
-    } else {
-        Err(ProtocolError::StreamError)
+        // match self.stream.shutdown(Shutdown::Both) {
+        //     Ok(_) => Ok(()),
+        //     Err(e) => {
+        //         println!("Client: Error while shutting down stream: {:?}", e);
+        //         Err(ProtocolError::ShutdownError(e.to_string()))
+        //     }
+        // }
+        Ok(())
     }
 }
 

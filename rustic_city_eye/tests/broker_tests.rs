@@ -104,7 +104,6 @@ mod tests {
     //         assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
     //     }
 
-    
     //     // vuelvo a enviar el connect con el mismo id
     //     // let connect_propierties = ConnectProperties {
     //     //     session_expiry_interval: 1,
