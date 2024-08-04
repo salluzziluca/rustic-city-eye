@@ -210,6 +210,7 @@ impl MyApp {
                     self.correct_port = !self.port.is_empty();
                     match MonitoringApp::new(args) {
                         Ok(mut monitoring_app) => {
+                            println!("zoom level: {:?}  ", self.map.zoom_level.to_string());
                             let _ = monitoring_app.run_client();
                             self.monitoring_app = Some(monitoring_app);
                             self.connected = true;
@@ -240,27 +241,18 @@ impl MyApp {
     }
 
     fn configure_cameras(&mut self) {
+        println!("zoom level: {:?}  ", self.map.zoom_level.to_string());
         if CamerasConfig::count_cameras() > 0 {
             CamerasConfig::get_cameras().iter().for_each(|camera| {
                 let location = camera.get_location();
                 let camera_view = CameraView {
                     image: self.map.camera_icon.clone(),
-                    radius: ImagesPluginData::new(
-                        self.map.camera_radius.texture.clone(),
-                        self.map.zoom_level,
-                        self.map.camera_radius.y_scale,
-                        
-                    ),
+                    radius: self.map.camera_radius.clone(),
                     position: Position::from_lon_lat(location.long, location.lat),
                     clicked: false,
-                    active_radius: ImagesPluginData::new(
-                        self.map.camera_radius.texture.clone(),
-                        self.map.zoom_level,
-                        self.map.camera_radius.y_scale,
-                        
-                    ),
+                    active_radius:self.map.active_camera_radius.clone(),
 
-                    active: false,
+                    active: !camera.get_sleep_mode(),
                 };
                 self.map.cameras.insert(camera.get_id(), camera_view);
 
