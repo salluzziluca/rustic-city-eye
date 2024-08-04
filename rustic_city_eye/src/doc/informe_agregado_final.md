@@ -27,9 +27,9 @@ Primer Cuatrimestre de 2024.
 # Introducción
 
 Para este agregados, tuvimos que incorporar la tecnologia de reconocimiento de imagenes al sistema central de camaras desarrollado en nuestro proyecto de Agentes 
-Autonomos de Prevencion. Esta tecnologia incorpora una inteligencia artificial que nos permite interpretar y comprender el contenido de imagenes digitales, utilizando algoritmos de aprendizaje automatico como las redes neuronales convolucionales, para identificar y clasificar objetos, y tambien para identificar caracteristicas visuales de nuestras imagenes.
+Autonomos de Prevencion. Esta tecnologia incorpora una inteligencia artificial que nos permite interpretar y comprender el contenido de imagenes digitales, utilizando algoritmos de aprendizaje automatico como las redes neuronales convolucionales para identificar y clasificar objetos, asi como para identificar caracteristicas visuales de nuestras imagenes.
 
-Las aplicaciones de seguridad y vigilancia suelen servirse de esta tecnologia, debido a que podemos detectar ciertos eventos u objetos a traves de nuestros dispositivos de seguridad, y tomar medidas al respecto. Para nuestra aplicacion, tuvimos que hacer capaz al sistema central de camaras de procesar imagenes para detectar potenciales incidentes en la via publica(por ejemplo incendios, accidentes de transito, etc). Luego de detectar un incidente en las imagenes, el sistema de camaras debe hacer uso del sistema de mensajeria para publicar un mensaje que describa este incidente y, en consecuencia, generar el incidente correspondiente y poner en marcha el circuito de resolucion de incidentes implementado en el proyecto. 
+Las aplicaciones de seguridad y vigilancia suelen servirse de esta tecnologia, debido a su capacidad de detectar ciertos eventos u objetos a traves de nuestros dispositivos de seguridad, y tomar medidas al respecto. Para nuestra aplicacion, tuvimos que hacer capaz al sistema central de camaras de procesar imagenes para detectar potenciales incidentes en la via publica(por ejemplo incendios, accidentes de transito, etc). Luego de detectar un incidente en las imagenes, el sistema de camaras debe hacer uso del sistema de mensajeria para publicar un mensaje que describa este incidente y, en consecuencia, generar el incidente correspondiente y poner en marcha el circuito de resolucion de incidentes implementado en el proyecto. 
 
 
 # Proveedor de Infraestructura en la nube
@@ -48,15 +48,23 @@ Para servirnos de un modelo y una infraestructura previamente preprocesados y en
 
 ### Analisis de Costos y performance
 
+Para evaluar los costos y el rendimiento del sistema, realizamos un análisis basado en el número de solicitudes de procesamiento de imágenes que el sistema de cámaras puede realizar en condiciones de funcionamiento continuo.
+
+#### Estimación de Carga del Sistema
 Supongamos que el sistema de cámaras realiza un promedio de 10 solicitudes por minuto en funcionamiento continuo. Esto equivale a:
 
 - Solicitudes por hora: 10 solicitudes/minuto * 60 minutos/hora = 600 solicitudes/hora
 - Solicitudes por día: 600 solicitudes/hora * 24 horas/día = 14,400 solicitudes/día
 - Solicitudes por mes: 14,400 solicitudes/día * 30 días/mes = 432,000 solicitudes/mes
+#### Costos del Servicio
+El servicio de Google Vision AI tiene un costo promedio de $1.50 por cada 1000 imágenes a procesar. Por lo tanto, calculamos el costo mensual del sistema de la siguiente manera:
 
-El servicio de Google tiene un costo promedio de $1.50 por cada 1000 imagenes a procesar. Por lo que haciendo ese numero de peticiones al mes, tendriamos un total de $646.50/mes.
+Costo mensual: (432,000 solicitudes/mes) / 1000 * $1.50 = $648/mes
+#### Performance del Servicio
+El servicio de Google Vision AI es rápido en el procesamiento de peticiones, con un tiempo de respuesta promedio de 0.35 a 0.6 segundos por solicitud. Esta rapidez es fundamental para nuestra aplicación, ya que permite detectar incidentes en tiempo real y actuar en consecuencia.
 
-El servicio es rapido a la hora de hacerle peticiones, en promedio se tarda de 0.35 a 0.6 segundos. Teniendo en cuenta el costo total, y el alto rendimiento que esta IA posee, creemos que es una gran opcion para la deteccion de incidentes en el contexto de nuestra aplicacion.
+#### Análisis de Viabilidad
+Dado el costo total y el alto rendimiento del servicio, consideramos que Google Vision AI es una excelente opción para la detección de incidentes en el contexto de nuestra aplicación. La capacidad de procesamiento en tiempo real y el costo razonable lo convierten en una solución viable y efectiva para nuestras necesidades.
 
 ## Uso del proveedor
 
@@ -74,9 +82,11 @@ En este caso, el modelo nos indica que la imagen contiene un perro(con un score 
 
 Para detectar incidentes, optamos por utilizar dos filtros que nos provee la API: `LABEL_DETECTION` y `SAFE_SEARCH_DETECTION`: la primera nos permite detectar etiquetas sobre la imagen, y la segunda nos permite detectar imagenes con contenido explicito(sirviendonos del detector que Google tiene integrado). Tambien, hemos modificado la cantidad maxima de resultados que nos da el modelo(por defecto son 10), y lo que hemos hecho fue setearlos con 50 resultados para label_detection, y con 10 para safe_search_detection.
 
+--- 
+
 El clasificador de imagenes que hemos declarado funciona de la siguiente manera para etiquetar las imagenes: se le provee un path hacia una imagen local, y se pasa a codificarla en base 64(haciendo uso del crate externo `Base64`), luego se realiza la request a la API, haciendo uso de un Client del crate externo `reqwest` en modo Blocking: esto nos permite manejar peticiones HTTP de manera sincronica, ya que va a bloquear el thread en ejecucion hasta que reciba una response. Las requests van a serializarse, y las responses van a deserializarse, obteniendo asi un vector de tuplas `(String, f64)`: el String corresponde a la etiqueta, y el f64 corresponde al score de esa etiqueta.
 
-Al obtener el vector de etiquetas con sus respectivos scores, se pasa a detectar posibles incidentes, y es que si alguna de esas etiquetas contiene una palabra clave para detectar incidentes(puede ser por ejemplo la palabra `Fire`), se indica que un incidente fue detectado.  
+Al obtener el vector de etiquetas con sus respectivos scores, se pasa a detectar posibles incidentes, si alguna de esas etiquetas contiene una palabra clave para detectar incidentes(puede ser por ejemplo la palabra `Fire`), se indica que un incidente fue detectado.  
 ![alt text](./assets/image.png)
 
 # MultiThreading
