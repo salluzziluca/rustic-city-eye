@@ -1,5 +1,10 @@
+use std::fs;
+
 use egui::{Align2, RichText, Ui, Window};
-use rustic_city_eye::{monitoring::monitoring_app::MonitoringApp, utils::location::Location};
+use rustic_city_eye::{
+    monitoring::monitoring_app::MonitoringApp, surveilling::cameras_config::CamerasConfig,
+    utils::location::Location,
+};
 use walkers::MapMemory;
 
 use crate::{
@@ -201,6 +206,16 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, _monitoring_app: &mut Monitor
                     .button(RichText::new("🗑").heading().color(egui::Color32::RED))
                     .clicked()
                 {
+                    for (id, camera) in map.cameras.iter() {
+                        if camera.clicked {
+                            println!("Removing camera {}", id);
+                            //delete the dir rustic_city_eye/src/surveilling/cameras./id
+                            fs::remove_dir_all(format!("src/surveilling/cameras./{}", id)).unwrap();
+                            CamerasConfig::remove_camera_from_file(*id).unwrap();
+
+                            break;
+                        }
+                    }
                     map.cameras.retain(|_id, camera| !camera.clicked);
 
                     map.incidents.retain(|incident| !incident.clicked);
