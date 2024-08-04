@@ -6,7 +6,9 @@ pub struct CameraView {
     pub image: ImagesPluginData,
     pub position: Position,
     pub radius: ImagesPluginData,
+    pub active_radius: ImagesPluginData,
     pub clicked: bool,
+    pub active: bool,
 }
 
 impl CameraView {

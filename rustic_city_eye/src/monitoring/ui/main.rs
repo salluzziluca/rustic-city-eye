@@ -7,7 +7,7 @@ mod windows;
 
 use camera_view::CameraView;
 use eframe::{run_native, App, CreationContext, NativeOptions};
-use egui::{CentralPanel, RichText, TextStyle, TopBottomPanel};
+use egui::{CentralPanel, Key, RichText, TextStyle, TopBottomPanel, Vec2};
 use incident_view::IncidentView;
 use plugins::*;
 use rustic_city_eye::{
@@ -16,7 +16,10 @@ use rustic_city_eye::{
     surveilling::{camera::Camera, cameras_config::CamerasConfig},
     utils::location::Location,
 };
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::{Arc, Mutex},
+};
 use walkers::{sources::OpenStreetMap, HttpTiles, Map, MapMemory, Position, Texture, Tiles};
 
 use windows::*;
@@ -43,13 +46,27 @@ struct MyMap {
 }
 impl MyMap {
     /// Actualiza la posicion de los drones en el mapa
-    fn update_drones(&mut self, new_drone_locations: HashMap<u32, Location>) {
-        for (id, location) in new_drone_locations {
-            if let Some(drone) = self.drones.get_mut(&id) {
-                drone.position = Position::from_lon_lat(location.long, location.lat);
+    fn update_drones(
+        &mut self,
+        updated_locations: Arc<Mutex<VecDeque<(u32, Location, Location)>>>,
+    ) {
+        if let Ok(mut new_drone_locations) = updated_locations.try_lock() {
+            if !new_drone_locations.is_empty() {
+                println!("new_drone_locations: {:?}", new_drone_locations);
             }
+            while let Some((id, location, target_location)) = new_drone_locations.pop_front() {
+                if let Some(drone) = self.drones.get_mut(&id) {
+                    drone.position = Position::from_lon_lat(location.long, location.lat);
+                    drone.target_position =
+                        Position::from_lon_lat(target_location.long, target_location.lat);
+                }
+            }
+        };
+        for drone in self.drones.values_mut() {
+            drone.move_towards();
         }
     }
+
     /// Actualiza la posicion de las camaras en el mapa
     /// Si la camara esta en modo sleep, se muestra con un radio azul
     /// Si la camara esta activa, se muestra con un radio rojo
@@ -57,19 +74,7 @@ impl MyMap {
     fn update_cameras(&mut self, new_cameras: HashMap<u32, Camera>) {
         for (id, camera) in new_cameras {
             if let Some(camera_view) = self.cameras.get_mut(&id) {
-                if !camera.get_sleep_mode() {
-                    camera_view.radius = ImagesPluginData::new(
-                        self.active_camera_radius.texture.clone(),
-                        self.zoom_level,
-                        self.active_camera_radius.y_scale,
-                    );
-                } else {
-                    camera_view.radius = ImagesPluginData::new(
-                        self.camera_radius.texture.clone(),
-                        self.zoom_level,
-                        self.camera_radius.y_scale,
-                    );
-                }
+                camera_view.active = !camera.get_sleep_mode();
             }
         }
     }
@@ -187,14 +192,18 @@ impl MyApp {
                         .font(TextStyle::Body),
                 );
 
-                if ui.button("Submit").clicked() {
+                ui.add_space(20.0);
+                if ui
+                    .add_sized(Vec2::new(200.0, 50.0), egui::Button::new("Submit"))
+                    .clicked() |
+                    ctx.input(|i| i.key_pressed(Key::Enter))
+                {
                     let args = vec![
                         self.username.clone(),
                         self.password.clone(),
                         self.ip.clone(),
                         self.port.clone(),
                     ];
-
                     self.correct_username = !self.username.is_empty();
                     self.correct_password = !self.password.is_empty();
                     self.correct_ip = !self.ip.is_empty();
@@ -217,9 +226,8 @@ impl MyApp {
                         }
                     };
                 }
-            })
+            });
         });
-
         TopBottomPanel::bottom("credits_panel").show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.label(
@@ -241,9 +249,18 @@ impl MyApp {
                         self.map.camera_radius.texture.clone(),
                         self.map.zoom_level,
                         self.map.camera_radius.y_scale,
+                        
                     ),
                     position: Position::from_lon_lat(location.long, location.lat),
                     clicked: false,
+                    active_radius: ImagesPluginData::new(
+                        self.map.camera_radius.texture.clone(),
+                        self.map.zoom_level,
+                        self.map.camera_radius.y_scale,
+                        
+                    ),
+
+                    active: false,
                 };
                 self.map.cameras.insert(camera.get_id(), camera_view);
 
@@ -286,6 +303,7 @@ impl MyApp {
                         image: self.map.drone_icon.clone(),
                         position: Position::from_lon_lat(location.long, location.lat),
                         clicked: false,
+                        target_position: Position::from_lon_lat(location.long, location.lat),
                     };
                     self.map.drones.insert(drone.1, drone_view);
 
@@ -314,7 +332,6 @@ impl MyApp {
         CentralPanel::default().show(ctx, |ui| {
             let last_clicked = self.map.click_watcher.clicked_at;
 
-            // Dereference the Box<dyn Tiles> to access the underlying type
             let tiles_ref: &mut dyn Tiles = &mut *self.map.tiles;
             ui.add(
                 Map::new(
@@ -347,7 +364,7 @@ impl MyApp {
             zoom(ui, &mut self.map.map_memory, &mut self.map.zoom_level);
 
             if let Some(monitoring_app) = &mut self.monitoring_app {
-                let new_locations = monitoring_app.get_active_drones();
+                let new_locations = monitoring_app.get_updated_drones();
                 self.map.update_drones(new_locations);
                 let new_cameras = monitoring_app.get_cameras();
                 self.map.update_cameras(new_cameras);
@@ -373,6 +390,7 @@ impl App for MyApp {
         } else {
             self.handle_map(ctx, _frame);
         }
+        ctx.request_repaint();
     }
 }
 /// Funcion que se encarga de inicializar la aplicacion con sus texturas
@@ -440,7 +458,7 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
             drone_icon,
             drone_centers: vec![],
             drone_center_icon,
-            zoom_level: 1.0,
+            zoom_level: 0.5,
         },
         monitoring_app: None,
         correct_username: true,
