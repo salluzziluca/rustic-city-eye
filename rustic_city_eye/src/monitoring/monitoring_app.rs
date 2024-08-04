@@ -1,7 +1,6 @@
 //! Se conecta mediante TCP a la dirección asignada por los args que le ingresan
 //! en su constructor.
-
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -59,9 +58,7 @@ pub struct MonitoringApp {
     receive_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
 
     /// Aqui se tienen los Drones activos y su localizacion en el mapa.
-    active_drones: Arc<Mutex<HashMap<u32, (Location, Location)>>>,
-
-    updated_drones: Arc<Mutex<VecDeque<(u32, Location, Location)>>>,
+    active_drones: Arc<Mutex<HashMap<u32, Location>>>,
 
     /// Aqui se tienen a todas las camaras del sistema.
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
@@ -107,7 +104,6 @@ impl MonitoringApp {
             drone_system,
             receive_from_client: Arc::new(Mutex::new(rx2)),
             active_drones: Arc::new(Mutex::new(HashMap::new())),
-            updated_drones: Arc::new(Mutex::new(VecDeque::new())),
             cameras: Arc::new(Mutex::new(HashMap::new())),
             connected: Arc::new(Mutex::new(true)),
         })
@@ -236,7 +232,7 @@ impl MonitoringApp {
     /// la UI al captar este cambio, nos envia al menu principal y la aplicacion de monitoreo se cierra.
     fn handle_update_entities(&self) -> Result<(), ProtocolError> {
         let receive_from_client_ref = Arc::clone(&self.receive_from_client);
-        let updated_drones_clone = Arc::clone(&self.updated_drones);
+        let active_drones_clone = Arc::clone(&self.active_drones);
         let cameras_clone = Arc::clone(&self.cameras);
         let incidents_clone = Arc::clone(&self.incidents);
         let connected_clone = Arc::clone(&self.connected);
@@ -244,14 +240,15 @@ impl MonitoringApp {
         thread::spawn(move || loop {
             let receiver_clone: Arc<Mutex<Receiver<ClientMessage>>> =
                 Arc::clone(&receive_from_client_ref);
-            let updated_drones_clone = Arc::clone(&updated_drones_clone);
+            let active_drones_clone: Arc<Mutex<HashMap<u32, Location>>> =
+                Arc::clone(&active_drones_clone);
             let cameras_clone = Arc::clone(&cameras_clone);
             let incidents_clone = Arc::clone(&incidents_clone);
             let connected_clone = Arc::clone(&connected_clone);
 
             if !update_entities(
                 receiver_clone,
-                updated_drones_clone,
+                active_drones_clone,
                 cameras_clone,
                 incidents_clone,
             ) {
@@ -398,12 +395,12 @@ impl MonitoringApp {
         }
     }
 
-    pub fn get_updated_drones(&self) -> Arc<Mutex<VecDeque<(u32, Location, Location)>>> {
-        // match self.updated_drones.lock() {
-        //     Ok(updated_drones) => updated_drones.clone(),
-        //     Err(_) => VecDeque::new(),
-        // }
-        self.updated_drones.clone()
+    /// Retorna los Drones activos en el sistema.
+    pub fn get_active_drones(&self) -> HashMap<u32, Location> {
+        match self.active_drones.lock() {
+            Ok(active_drones) => active_drones.clone(),
+            Err(_) => HashMap::new(),
+        }
     }
 
     /// Retorna las camaras activas en el sistema.
@@ -467,7 +464,7 @@ impl MonitoringApp {
 ///   y aquellos que no fueron a resolver el incidente dejaran de ir a resolverlo, y volveran a patrullar en su area.
 pub fn update_entities(
     recieve_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
-    updated_drones: Arc<Mutex<VecDeque<(u32, Location, Location)>>>,
+    active_drones: Arc<Mutex<HashMap<u32, Location>>>,
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
     incidents: Arc<Mutex<Vec<(Incident, u8)>>>,
 ) -> bool {
@@ -489,24 +486,13 @@ pub fn update_entities(
             } => {
                 match topic_name.as_str() {
                     "drone_locations" => {
-                        println!("Monitoring: Drone location received");
-                        // let mut active_drones: std::sync::MutexGuard<
-                        //     HashMap<u32, (Location, Location)>,
-                        // > = match active_drones.try_lock() {
-                        //     Ok(active_drones) => active_drones,
-                        //     Err(_) => return true,
-                        // };
-                        let mut updated_drones: std::sync::MutexGuard<
-                            VecDeque<(u32, Location, Location)>,
-                        > = match updated_drones.try_lock() {
-                            Ok(updated_drones) => updated_drones,
-                            Err(_) => return true,
-                        };
-                        if let PayloadTypes::DroneLocation(id, drone_locationn, target_location) =
-                            payload
-                        {
-                            // active_drones.insert(id, (drone_locationn, target_location));
-                            updated_drones.push_back((id, drone_locationn, target_location));
+                        let mut active_drones: std::sync::MutexGuard<HashMap<u32, Location>> =
+                            match active_drones.try_lock() {
+                                Ok(active_drones) => active_drones,
+                                Err(_) => return true,
+                            };
+                        if let PayloadTypes::DroneLocation(id, drone_locationn) = payload {
+                            active_drones.insert(id, drone_locationn);
                         }
                     }
                     "camera_update" => {
