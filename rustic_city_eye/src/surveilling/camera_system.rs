@@ -30,7 +30,7 @@ use crate::{
     },
 };
 
-const AREA_DE_ALCANCE: f64 = 0.0012;
+const AREA_DE_ALCANCE: f64 = 0.0025;
 const NIVEL_DE_PROXIMIDAD_MAXIMO: f64 = AREA_DE_ALCANCE;
 const PATH: &str = "src/surveilling/cameras.";
 const TIME_INTERVAL_IN_SECS: u64 = 1;
@@ -319,6 +319,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         });
         Ok(())
     }
+
     /// Busca dentro de un path relativo hacia el directorio donde se guardan las imagenes de una camara determinada
     /// el direntry del mismo.
     fn get_relative_path_to_camera(path: &str) -> Option<&str> {

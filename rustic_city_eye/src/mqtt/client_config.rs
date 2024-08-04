@@ -138,26 +138,26 @@ impl ClientConfig {
         }
     }
 
-    // pub fn remove_all_subscriptions_from_file(
-    //     client_id: String,
-    // ) -> Result<(), Box<dyn std::error::Error>> {
-    //     let path = format!("./src/mqtt/clients/{}.json", client_id);
-    //     let file = std::fs::File::open(path.clone())?;
-    //     let mut client_config: ClientConfig = serde_json::from_reader(file)?;
-    //     client_config.subscriptions = Vec::new();
-    //     let json = serde_json::to_string(&client_config)?;
-    //     std::fs::write(path, json)?;
-    //     Ok(())
-    // }
+    pub fn remove_all_subscriptions_from_file(
+        client_id: String,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        let file = std::fs::File::open(path.clone())?;
+        let mut client_config: ClientConfig = serde_json::from_reader(file)?;
+        client_config.subscriptions = Vec::new();
+        let json = serde_json::to_string(&client_config)?;
+        std::fs::write(path, json)?;
+        Ok(())
+    }
 
-    // pub fn get_client_subscriptions(
-    //     client_id: String,
-    // ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    //     let path = format!("./src/mqtt/clients/{}.json", client_id);
-    //     let file = std::fs::File::open(path.clone())?;
-    //     let client_config: ClientConfig = serde_json::from_reader(file)?;
-    //     Ok(client_config.subscriptions)
-    // }
+    pub fn get_client_subscriptions(
+        client_id: String,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        let file = std::fs::File::open(path.clone())?;
+        let client_config: ClientConfig = serde_json::from_reader(file)?;
+        Ok(client_config.subscriptions)
+    }
 
     pub fn add_offline_message(
         client_id: String,

@@ -65,10 +65,7 @@ pub fn cameras(
     let mut images_vec = vec![];
 
     for camera in cameras.values_mut() {
-        let mut radius = match camera.active {
-            true => Image::new(camera.active_radius.texture.clone(), camera.position),
-            false => Image::new(camera.radius.texture.clone(), camera.position),
-        };
+        let mut radius = Image::new(camera.radius.texture.clone(), camera.position);
         radius.scale(
             camera.radius.x_scale * zoom_level,
             camera.radius.y_scale * zoom_level,
