@@ -2,8 +2,8 @@ use std::fs;
 
 use egui::{Align2, RichText, Ui, Window};
 use rustic_city_eye::{
-    monitoring::monitoring_app::MonitoringApp, surveilling::cameras_config::CamerasConfig,
-    utils::location::Location,
+    drones::drones_central_config::DronesCentralConfig, monitoring::monitoring_app::MonitoringApp,
+    surveilling::cameras_config::CamerasConfig, utils::location::Location,
 };
 use walkers::MapMemory;
 
@@ -213,6 +213,14 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, _monitoring_app: &mut Monitor
                             fs::remove_dir_all(format!("src/surveilling/cameras./{}", id)).unwrap();
                             CamerasConfig::remove_camera_from_file(*id).unwrap();
 
+                            break;
+                        }
+                    }
+
+                    for (id, drone) in map.drones.iter() {
+                        if drone.clicked {
+                            println!("Removing drone {}", id);
+                            DronesCentralConfig::remove_drone_from_json(*id).unwrap();
                             break;
                         }
                     }
