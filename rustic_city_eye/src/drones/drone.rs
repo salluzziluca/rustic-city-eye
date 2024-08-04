@@ -1042,7 +1042,7 @@ mod tests {
 
             let location = location::Location::new(latitude, longitude);
             let center_location = location::Location::new(0.0, 0.0);
-            let mut drone = Drone::new(
+            let drone = Drone::new(
                 1,
                 location,
                 center_location,
@@ -1051,7 +1051,6 @@ mod tests {
                 disconnect_receiver,
             )
             .unwrap();
-            let target_location = location::Location::new(0.001, 0.001);
             let radius = 0.005;
             // let _ = drone.drone_movement(target_location);
 
@@ -1240,10 +1239,6 @@ mod tests {
             drone.location = Location {
                 lat: 0.0,
                 long: 0.0,
-            };
-            let target_location = Location {
-                lat: 1.0,
-                long: 1.0,
             };
             let drone_arc = Arc::new(Mutex::new(drone));
             for _ in 0..14 {

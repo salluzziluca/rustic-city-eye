@@ -303,7 +303,7 @@ impl MyApp {
                         image: self.map.drone_icon.clone(),
                         position: Position::from_lon_lat(location.long, location.lat),
                         clicked: false,
-                        target_position: todo!(),
+                        target_position: Position::from_lon_lat(location.long, location.lat),
                     };
                     self.map.drones.insert(drone.1, drone_view);
 
