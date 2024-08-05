@@ -115,6 +115,7 @@ impl ImagesPluginData {
         }
     }
 }
+
 impl MyApp {
     /// Muestra el formulario de inicio de sesion
     /// Si se presiona el boton de submit, se intenta conectar al servidor
@@ -123,10 +124,27 @@ impl MyApp {
     fn handle_form(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         CentralPanel::default().show(ctx, |ui| {
             ui.vertical_centered(|ui| {
+                ui.add_space(30.0);
+
+                ui.add(
+                    egui::Image::new(egui::include_image!("../assets/eyeicon.png"))
+                        .max_width(250.0)
+                        .rounding(10.0),
+                );
+
+                ui.label(
+                    RichText::new("RUSTIC CITY EYE")
+                        .size(30.0)
+                        .color(egui::Color32::WHITE),
+                );
+
+                ui.add_space(30.0);
+
                 ui.label(
                     RichText::new("Username")
-                        .size(20.0)
-                        .color(egui::Color32::WHITE),
+                        .size(15.0)
+                        .color(egui::Color32::WHITE)
+                        .monospace(),
                 );
 
                 if self.correct_username {
@@ -136,15 +154,15 @@ impl MyApp {
                 }
                 ui.add(
                     egui::TextEdit::singleline(&mut self.username)
-                        .min_size(egui::vec2(100.0, 20.0))
-                        .text_color(egui::Color32::WHITE)
-                        .font(TextStyle::Body),
+                        .min_size(egui::vec2(150.0, 15.0))
+                        .text_color(egui::Color32::WHITE),
                 );
 
                 ui.label(
                     RichText::new("Password")
-                        .size(20.0)
-                        .color(egui::Color32::WHITE),
+                        .size(15.0)
+                        .color(egui::Color32::WHITE)
+                        .monospace(),
                 );
 
                 if self.correct_password {
@@ -154,12 +172,17 @@ impl MyApp {
                 }
                 ui.add(
                     egui::TextEdit::singleline(&mut self.password)
-                        .min_size(egui::vec2(100.0, 20.0))
+                        .min_size(egui::vec2(150.0, 15.0))
                         .text_color(egui::Color32::WHITE)
-                        .font(TextStyle::Body),
+                        .password(true),
                 );
 
-                ui.label(RichText::new("IP").size(20.0).color(egui::Color32::WHITE));
+                ui.label(
+                    RichText::new("IP")
+                        .size(15.0)
+                        .color(egui::Color32::WHITE)
+                        .monospace(),
+                );
 
                 if self.correct_ip {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::BLACK;
@@ -168,54 +191,39 @@ impl MyApp {
                 }
                 ui.add(
                     egui::TextEdit::singleline(&mut self.ip)
-                        .min_size(egui::vec2(100.0, 20.0))
+                        .min_size(egui::vec2(150.0, 15.0))
                         .text_color(egui::Color32::WHITE)
-                        .font(TextStyle::Body),
+                        .font(TextStyle::Body)
+                        .hint_text("127.0.0.1"),
                 );
 
-                ui.label(RichText::new("Port").size(20.0).color(egui::Color32::WHITE));
+                ui.label(
+                    RichText::new("Port")
+                        .size(15.0)
+                        .color(egui::Color32::WHITE)
+                        .monospace(),
+                );
 
                 if self.correct_port {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::BLACK;
                 } else {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::RED;
                 }
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.port)
-                        .min_size(egui::vec2(100.0, 20.0))
-                        .text_color(egui::Color32::WHITE)
-                        .font(TextStyle::Body),
-                );
+
+                let port_edit = egui::TextEdit::singleline(&mut self.port)
+                    .min_size(egui::vec2(150.0, 15.0))
+                    .text_color(egui::Color32::WHITE)
+                    .font(TextStyle::Body)
+                    .hint_text("5000");
+
+                if ui.add(port_edit).lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    self.submit();
+                }
+
+                ui.add_space(15.0);
 
                 if ui.button("Submit").clicked() {
-                    let args = vec![
-                        self.username.clone(),
-                        self.password.clone(),
-                        self.ip.clone(),
-                        self.port.clone(),
-                    ];
-
-                    self.correct_username = !self.username.is_empty();
-                    self.correct_password = !self.password.is_empty();
-                    self.correct_ip = !self.ip.is_empty();
-                    self.correct_port = !self.port.is_empty();
-                    match MonitoringApp::new(args) {
-                        Ok(mut monitoring_app) => {
-                            let _ = monitoring_app.run_client();
-                            self.monitoring_app = Some(monitoring_app);
-                            self.connected = true;
-                            self.configure_cameras();
-                            self.configure_central_drones();
-                            self.configure_drones();
-                        }
-                        Err(e) => {
-                            println!("The conection failed. Please try again {}.", e);
-                            self.username.clear();
-                            self.password.clear();
-                            self.ip.clear();
-                            self.port.clear();
-                        }
-                    };
+                    self.submit();
                 }
             })
         });
@@ -223,12 +231,43 @@ impl MyApp {
         TopBottomPanel::bottom("credits_panel").show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.label(
-                    RichText::new("rustic_city_eye 1C 2024 - Carranza Demarchi Giacobbe Salluzzi")
+                    RichText::new("Carranza - Demarchi - Giacobbe - Salluzzi")
                         .size(15.0)
                         .color(egui::Color32::GRAY),
                 );
             });
         });
+    }
+
+    fn submit(&mut self) {
+        let args = vec![
+            self.username.clone(),
+            self.password.clone(),
+            self.ip.clone(),
+            self.port.clone(),
+        ];
+
+        self.correct_username = !self.username.is_empty();
+        self.correct_password = !self.password.is_empty();
+        self.correct_ip = !self.ip.is_empty();
+        self.correct_port = !self.port.is_empty();
+        match MonitoringApp::new(args) {
+            Ok(mut monitoring_app) => {
+                let _ = monitoring_app.run_client();
+                self.monitoring_app = Some(monitoring_app);
+                self.connected = true;
+                self.configure_cameras();
+                self.configure_central_drones();
+                self.configure_drones();
+            }
+            Err(e) => {
+                println!("The connection failed. Please try again {}.", e);
+                self.username.clear();
+                self.password.clear();
+                self.ip.clear();
+                self.port.clear();
+            }
+        };
     }
 
     fn configure_cameras(&mut self) {
