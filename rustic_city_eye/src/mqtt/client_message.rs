@@ -257,7 +257,7 @@ impl Connect {
         Err(ProtocolError::MissingWillMessageProperties)
     }
 
-    pub fn write_to(&self, writer: &mut dyn Write) -> Result<(), ProtocolError> {
+    pub fn write_to(&self, mut writer: impl Write) -> Result<(), ProtocolError> {
         //fixed header
         let byte_1: u8 = 0x10_u8.to_le(); //00010000
         writer
@@ -266,7 +266,7 @@ impl Connect {
 
         //protocol name
         let protocol_name = "MQTT";
-        write_string(writer, protocol_name)?;
+        write_string(&mut writer, protocol_name)?;
 
         //protocol version
         let protocol_version: u8 = 0x05;
@@ -308,8 +308,8 @@ impl Connect {
             .map_err(|_e| ProtocolError::WriteError)?;
 
         //keep alive
-        write_u16(writer, &self.keep_alive)?;
-        write_string(writer, &self.client_id)?;
+        write_u16(&mut writer, &self.keep_alive)?;
+        write_string(&mut writer, &self.client_id)?;
 
         if let (Some(will_properties), Some(last_will_topic), Some(last_will_message)) = (
             self.will_properties.clone(),
@@ -317,31 +317,31 @@ impl Connect {
             self.last_will_message.clone(),
         ) {
             if self.last_will_flag {
-                will_properties.write_to(writer)?;
-                write_string(writer, &last_will_topic)?;
-                write_string(writer, &last_will_message)?;
+                will_properties.write_to(&mut writer)?;
+                write_string(&mut writer, &last_will_topic)?;
+                write_string(&mut writer, &last_will_message)?;
             }
         }
 
         if let Some(username) = self.username.as_ref() {
             if !username.is_empty() {
-                write_string(writer, username)?;
+                write_string(&mut writer, username)?;
             }
         }
 
         if let Some(password) = self.password.as_ref() {
             if !password.is_empty() {
-                write_bin_vec(writer, password)?;
+                write_bin_vec(&mut writer, password)?;
             }
         }
 
-        self.properties.write_to(writer)?;
+        self.properties.write_to(&mut writer)?;
 
         Ok(())
     }
 
-    pub fn read_from(stream: &mut impl Read) -> Result<Connect, Error> {
-        let protocol_name = read_string(stream)?;
+    pub fn read_from(mut stream: impl Read) -> Result<Connect, Error> {
+        let protocol_name = read_string(&mut stream)?;
 
         if protocol_name != "MQTT" {
             return Err(Error::new(
@@ -350,7 +350,7 @@ impl Connect {
             ));
         }
         //protocol version
-        let protocol_version = read_u8(stream)?;
+        let protocol_version = read_u8(&mut stream)?;
 
         if protocol_version != PROTOCOL_VERSION {
             return Err(Error::new(
@@ -359,41 +359,41 @@ impl Connect {
             ));
         }
         //connect flags
-        let connect_flags = read_u8(stream)?;
+        let connect_flags = read_u8(&mut stream)?;
         let clean_start = (connect_flags & (1 << 1)) != 0;
         let last_will_flag = (connect_flags & (1 << 2)) != 0;
         let last_will_qos = (connect_flags >> 3) & 0b11;
         let last_will_retain = (connect_flags & (1 << 5)) != 0;
 
         //keep alive
-        let keep_alive = read_u16(stream)?;
+        let keep_alive = read_u16(&mut stream)?;
         //payload
         //client ID
-        let client_id = read_string(stream)?;
+        let client_id = read_string(&mut stream)?;
 
         let mut last_will_topic = String::new();
         let mut will_message = String::new();
 
-        let will_properties = WillProperties::read_from(stream)?;
+        let will_properties = WillProperties::read_from(&mut stream)?;
         if last_will_flag {
-            last_will_topic = read_string(stream)?;
-            will_message = read_string(stream)?;
+            last_will_topic = read_string(&mut stream)?;
+            will_message = read_string(&mut stream)?;
         }
 
         let hay_user = (connect_flags & (1 << 7)) != 0;
         let mut user = String::new();
         if hay_user {
-            user = read_string(stream)?;
+            user = read_string(&mut stream)?;
         }
 
         let hay_pass = (connect_flags & (1 << 6)) != 0;
         let mut pass = Vec::new();
         if hay_pass {
-            pass = read_bin_vec(stream)?;
+            pass = read_bin_vec(&mut stream)?;
         }
 
         //properties
-        let properties: ConnectProperties = ConnectProperties::read_from(stream)?;
+        let properties: ConnectProperties = ConnectProperties::read_from(&mut stream)?;
 
         Ok(Connect {
             clean_start,
@@ -413,7 +413,7 @@ impl Connect {
 }
 
 impl ClientMessage {
-    pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), ProtocolError> {
+    pub fn write_to(&self, stream: impl Write) -> Result<(), ProtocolError> {
         let mut writer = BufWriter::new(stream);
         match self {
             ClientMessage::Connect(connect) => {
@@ -570,7 +570,7 @@ impl ClientMessage {
 
     fn write_first_packet_byte(
         &self,
-        writer: &mut BufWriter<&mut dyn Write>,
+        writer: &mut BufWriter<impl Write>,
     ) -> Result<(), ProtocolError> {
         match self {
             ClientMessage::Connect { .. } => {
@@ -675,7 +675,7 @@ impl ClientMessage {
 
     fn write_packet_properties(
         &self,
-        mut writer: &mut BufWriter<&mut dyn Write>,
+        mut writer: &mut BufWriter<impl Write>,
     ) -> Result<(), ProtocolError> {
         match self {
             ClientMessage::Connect { .. } => Ok(()),
@@ -805,7 +805,7 @@ impl ClientMessage {
         }
     }
 
-    pub fn read_from(stream: &mut impl Read) -> Result<ClientMessage, Error> {
+    pub fn read_from(mut stream: impl Read) -> Result<ClientMessage, Error> {
         let mut header = [0u8; 1];
         stream.read_exact(&mut header)?;
 
@@ -834,18 +834,18 @@ impl ClientMessage {
             0x10 => {
                 //leo el protocol name
 
-                let connect = Connect::read_from(stream)?;
+                let connect = Connect::read_from(&mut stream)?;
 
                 Ok(ClientMessage::Connect(connect))
             }
             0x30 => {
                 println!("Reading publish message");
 
-                let packet_id = read_u16(stream)?;
-                let topic_name = read_string(stream)?;
-                let properties = PublishProperties::read_from(stream)?;
+                let packet_id = read_u16(&mut stream)?;
+                let topic_name = read_string(&mut stream)?;
+                let properties = PublishProperties::read_from(&mut stream)?;
 
-                let payload = PayloadTypes::read_from(stream)?;
+                let payload = PayloadTypes::read_from(&mut stream)?;
 
                 Ok(ClientMessage::Publish {
                     packet_id,
@@ -858,13 +858,13 @@ impl ClientMessage {
                 })
             }
             0x82 => {
-                let packet_id = read_u16(stream)?;
+                let packet_id = read_u16(&mut stream)?;
 
-                let properties = SubscribeProperties::read_properties(stream)?;
+                let properties = SubscribeProperties::read_properties(&mut stream)?;
 
                 let payload = Subscription {
-                    topic: read_string(stream)?,
-                    client_id: read_string(stream)?,
+                    topic: read_string(&mut stream)?,
+                    client_id: read_string(&mut stream)?,
                 };
 
                 Ok(ClientMessage::Subscribe {
@@ -874,13 +874,13 @@ impl ClientMessage {
                 })
             }
             0xA2 => {
-                let packet_id = read_u16(stream)?;
+                let packet_id = read_u16(&mut stream)?;
 
-                let properties = SubscribeProperties::read_properties(stream)?;
+                let properties = SubscribeProperties::read_properties(&mut stream)?;
 
                 let payload = Subscription {
-                    topic: read_string(stream)?,
-                    client_id: read_string(stream)?,
+                    topic: read_string(&mut stream)?,
+                    client_id: read_string(&mut stream)?,
                 };
 
                 Ok(ClientMessage::Unsubscribe {
@@ -890,26 +890,26 @@ impl ClientMessage {
                 })
             }
             0xE0 => {
-                let reason_code = read_u8(stream)?;
-                let session_expiry_interval_id = read_u8(stream)?;
+                let reason_code = read_u8(&mut stream)?;
+                let session_expiry_interval_id = read_u8(&mut stream)?;
                 if session_expiry_interval_id != SESSION_EXPIRY_INTERVAL_ID {
                     return Err(Error::new(
                         std::io::ErrorKind::Other,
                         "Invalid session expiry interval id",
                     ));
                 }
-                let session_expiry_interval = read_u32(stream)?;
+                let session_expiry_interval = read_u32(&mut stream)?;
 
-                let reason_string_id = read_u8(stream)?;
+                let reason_string_id = read_u8(&mut stream)?;
                 if reason_string_id != REASON_STRING_ID {
                     return Err(Error::new(
                         std::io::ErrorKind::Other,
                         "Invalid reason string id",
                     ));
                 }
-                let reason_string = read_string(stream)?;
+                let reason_string = read_string(&mut stream)?;
 
-                let client_id = read_string(stream)?;
+                let client_id = read_string(&mut stream)?;
 
                 Ok(ClientMessage::Disconnect {
                     reason_code,
@@ -920,29 +920,29 @@ impl ClientMessage {
             }
             0xC0 => Ok(ClientMessage::Pingreq),
             0xF0 => {
-                let reason_code = read_u8(stream)?;
+                let reason_code = read_u8(&mut stream)?;
                 let mut authentication_method: Option<String> = None;
                 let mut authentication_data: Option<Vec<u8>> = None;
                 let mut reason_string: Option<String> = None;
                 let mut user_properties: Option<Vec<(String, String)>> = None;
 
                 let mut count = 0;
-                while let Ok(property_id) = read_u8(stream) {
+                while let Ok(property_id) = read_u8(&mut stream) {
                     match property_id {
                         0x15 => {
-                            let value = read_string(stream)?;
+                            let value = read_string(&mut stream)?;
                             authentication_method = Some(value);
                         }
                         0x16 => {
-                            let value = read_bin_vec(stream)?;
+                            let value = read_bin_vec(&mut stream)?;
                             authentication_data = Some(value);
                         }
                         0x26 => {
-                            let value = read_tuple_vec(stream)?;
+                            let value = read_tuple_vec(&mut stream)?;
                             user_properties = Some(value);
                         }
                         0x1F => {
-                            let value = read_string(stream)?;
+                            let value = read_string(&mut stream)?;
                             reason_string = Some(value);
                         }
                         _ => {

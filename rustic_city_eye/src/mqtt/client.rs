@@ -1,6 +1,5 @@
 use rand::Rng;
 use std::{
-    io::Write,
     net::{Shutdown, TcpStream},
     sync::{
         mpsc::{self, Receiver, Sender},
@@ -40,15 +39,12 @@ pub struct Client {
     receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
 
     // stream es el socket que se conecta al broker
-    stream: Arc<Mutex<TcpStream>>,
-
-    // las subscriptions es un vector de topics a los que el cliente está subscrito
-    pub subscriptions: Arc<Mutex<Vec<String>>>,
+    stream: Arc<TcpStream>,
 
     // client_id es el identificador del cliente
     pub client_id: String,
 
-    pub packets_ids: Arc<Mutex<Vec<u16>>>,
+    packets_ids: Arc<Vec<u16>>,
 
     sender_channel: Option<Sender<ClientMessage>>,
 }
@@ -70,24 +66,21 @@ impl Client {
         connect: client_message::Connect,
         sender_channel: Sender<ClientMessage>,
     ) -> Result<Client, ProtocolError> {
-        let stream = match TcpStream::connect(address) {
-            Ok(stream) => Arc::new(Mutex::new(stream)),
+        let mut stream = match TcpStream::connect(address) {
+            Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::ConectionError),
         };
-        let mut stream_lock = match stream.lock() {
-            Ok(stream) => stream,
-            Err(_) => return Err(ProtocolError::StreamError),
-        };
+
         let connect_message = ClientMessage::Connect(connect.clone());
 
         println!("Enviando connect message to broker");
 
-        match connect_message.write_to(&mut *stream_lock) {
+        match connect_message.write_to(&mut stream) {
             Ok(()) => println!("Connect message enviado"),
             Err(_) => println!("Error al enviar connect message"),
         }
 
-        if let Ok(message) = BrokerMessage::read_from(&mut *stream_lock) {
+        if let Ok(message) = BrokerMessage::read_from(&mut stream) {
             match message {
                 BrokerMessage::Connack {
                     session_present: _,
@@ -95,8 +88,6 @@ impl Client {
                     properties: _,
                 } => {
                     println!("Recibí un Connack");
-                    let stream_clone = Arc::clone(&stream);
-
                     match reason_code {
                         0x00_u8 => {
                             println!("Conexion exitosa!");
@@ -104,9 +95,8 @@ impl Client {
                             let client_id = connect.client_id;
                             Ok(Client {
                                 receiver_channel: Arc::new(Mutex::new(receiver_channel)),
-                                stream: stream_clone,
-                                subscriptions: Arc::new(Mutex::new(Vec::new())),
-                                packets_ids: Arc::new(Mutex::new(Vec::new())),
+                                stream: Arc::new(stream),
+                                packets_ids: Arc::new(Vec::new()),
                                 sender_channel: Some(sender_channel),
                                 client_id,
                             })
@@ -127,7 +117,7 @@ impl Client {
     /// Publica un mensaje en un topic determinado.
     pub fn publish_message(
         message: ClientMessage,
-        mut stream: TcpStream,
+        stream: Arc<TcpStream>,
         packet_id: u16,
     ) -> Result<u16, ClientError> {
         //chequeo si el mensaje es de tipo publish
@@ -141,7 +131,7 @@ impl Client {
             properties: _,
         } = message.clone()
         {
-            match message.write_to(&mut stream) {
+            match message.write_to(&*stream) {
                 Ok(()) => {
                     println!("envio publish con topic_name: {:?}", topic_name);
                     Ok(packet_id)
@@ -156,9 +146,9 @@ impl Client {
     pub fn subscribe(
         message: ClientMessage,
         packet_id: u16,
-        mut stream: TcpStream,
+        stream: Arc<TcpStream>,
     ) -> Result<u16, ClientError> {
-        match message.write_to(&mut stream) {
+        match message.write_to(&*stream) {
             Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
@@ -166,24 +156,24 @@ impl Client {
 
     pub fn unsubscribe(
         message: ClientMessage,
-        mut stream: TcpStream,
+        stream: Arc<TcpStream>,
         packet_id: u16,
     ) -> Result<u16, ClientError> {
-        match message.write_to(&mut stream) {
+        match message.write_to(&*stream) {
             Ok(()) => Ok(packet_id),
             Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
 
-    ///recibe un string que indica la razón de la desconexión y un stream y envia un disconnect message al broker
+    /// Recibe un string que indica la razón de la desconexión y un stream y envia un disconnect message al broker
     /// segun el str reason recibido, modifica el reason_code y el reason_string del mensaje
     ///
     /// devuelve el packet_id del mensaje enviado o un ClientError en caso de error
     pub fn handle_disconnect(
         client_id: String,
         reason: &str,
-        mut stream: TcpStream,
-    ) -> Result<(), ClientError> {
+        session_expiry_interval: u32,
+    ) -> ClientMessage {
         let reason_code: u8;
         let reason_string: String;
         match reason {
@@ -203,16 +193,12 @@ impl Client {
                     .to_string();
             }
         }
-        let disconnect = ClientMessage::Disconnect {
+
+        ClientMessage::Disconnect {
             reason_code,
-            session_expiry_interval: 0,
+            session_expiry_interval,
             reason_string,
             client_id,
-        };
-
-        match disconnect.write_to(&mut stream) {
-            Ok(()) => Ok(()),
-            Err(_) => Err(ClientError::new("Error al enviar mensaje")),
         }
     }
 
@@ -234,46 +220,29 @@ impl Client {
     ///
     /// El thread de lectura (read_messages) se encarga de leer los mensajes que le llegan del broker.
     pub fn client_run(&mut self) -> Result<(), ProtocolError> {
-        let (write_sender, recieve_receiver) = mpsc::channel();
-        let (reciever_sender, write_receiver) = mpsc::channel();
+        let threadpool = ThreadPool::new(5);
+
+        let stream_write_half = Arc::clone(&self.stream);
+        let stream_read_half = Arc::clone(&self.stream);
+        let stream_ref = Arc::clone(&self.stream);
+
+        let (pending_id_messages_sender, pending_id_messages_receiver) = mpsc::channel();
+        let (puback_notify_sender, puback_notify_receiver) = mpsc::channel();
 
         let receiver_channel = self.receiver_channel.clone();
 
-        let desconectar = false;
-        let stream_lock = match self.stream.lock() {
-            Ok(stream) => stream,
-            Err(_) => return Err(ProtocolError::StreamError),
-        };
-
-        let stream_clone_one = match stream_lock.try_clone() {
-            Ok(stream) => stream,
-            Err(_) => return Err(ProtocolError::StreamError),
-        };
-        let stream_clone_two = match stream_lock.try_clone() {
-            Ok(stream) => stream,
-            Err(_) => return Err(ProtocolError::StreamError),
-        };
-        let stream_clone_three = match stream_lock.try_clone() {
-            Ok(stream) => stream,
-            Err(_) => return Err(ProtocolError::StreamError),
-        };
-
-        let threadpool = ThreadPool::new(5);
-
-        let subscriptions_clone = self.subscriptions.clone();
         let (disconnect_sender, disconnect_receiver) = mpsc::channel();
         let client_id_clone = self.client_id.clone();
+        let packet_ids_ref = Arc::clone(&self.packets_ids);
 
-        let cloned_self = self.clone();
         let _write_messages = threadpool.execute(move || {
-            cloned_self.write_messages(
-                stream_clone_one,
+            Client::write_messages(
+                stream_write_half,
                 receiver_channel,
-                desconectar,
-                write_sender,
-                subscriptions_clone,
-                write_receiver,
+                pending_id_messages_sender,
+                puback_notify_receiver,
                 disconnect_receiver,
+                packet_ids_ref,
             )
         });
 
@@ -281,15 +250,15 @@ impl Client {
         if let Some(sender_channel) = sender_channel_clone {
             let _read_messages = threadpool.execute(move || {
                 match Client::receive_messages(
-                    stream_clone_two,
-                    recieve_receiver,
-                    reciever_sender,
+                    stream_read_half,
+                    pending_id_messages_receiver,
+                    puback_notify_sender,
                     sender_channel,
                     disconnect_sender,
                     client_id_clone,
                 ) {
                     Ok(_) => {
-                        stream_clone_three.shutdown(Shutdown::Both).map_err(|_| {
+                        stream_ref.shutdown(Shutdown::Both).map_err(|_| {
                             ProtocolError::ShutdownError("Error al cerrar el stream".to_string())
                         })?;
                         Ok(())
@@ -303,9 +272,9 @@ impl Client {
     }
 
     pub fn receive_messages(
-        stream: TcpStream,
-        receiver: Receiver<u16>,
-        sender: Sender<bool>,
+        stream: Arc<TcpStream>,
+        pending_id_messages_receiver: Receiver<u16>,
+        puback_notify_sender: Sender<bool>,
         sender_channel: Sender<ClientMessage>,
         disconnect_sender: Sender<bool>,
         client_id: String,
@@ -313,44 +282,166 @@ impl Client {
         let mut pending_messages = Vec::new();
 
         loop {
-            if let Ok(packet) = receiver.try_recv() {
+            if let Ok(packet) = pending_id_messages_receiver.try_recv() {
                 if !pending_messages.contains(&packet) {
                     pending_messages.push(packet);
                 }
             }
 
-            if let Ok(stream_clone) = stream.try_clone() {
-                match handle_message(
-                    stream_clone,
+            if let Ok(message) = BrokerMessage::read_from(&*stream) {
+                match Client::handle_message(
+                    message,
                     pending_messages.clone(),
-                    sender.clone(),
+                    puback_notify_sender.clone(),
                     sender_channel.clone(),
                     client_id.clone(),
                 ) {
-                    Ok(return_val) => {
-                        if return_val == ClientReturn::DisconnectRecieved {
+                    Ok(return_value) => {
+                        if return_value == ClientReturn::DisconnectRecieved {
                             disconnect_sender.send(true).expect("Error al desconectar");
                             return Ok(());
                         }
                     }
-                    Err(err) => {
-                        return Err(err);
+                    Err(err) => return Err(err),
+                }
+            }
+        }
+    }
+
+    /// Lee del stream un mensaje y lo procesa
+    /// Devuelve un ClientReturn con informacion del mensaje recibido
+    /// O ProtocolError en caso de error
+    pub fn handle_message(
+        message: BrokerMessage,
+        pending_messages: Vec<u16>,
+        puback_notify_sender: Sender<bool>,
+        sender_channel: Sender<ClientMessage>,
+        client_id: String,
+    ) -> Result<ClientReturn, ProtocolError> {
+        match message {
+            BrokerMessage::Connack {
+                session_present: _,
+                reason_code: _,
+                properties: _,
+            } => {
+                println!("Recibí un Connack");
+                Ok(ClientReturn::ConnackReceived)
+            }
+            BrokerMessage::Puback {
+                packet_id_msb,
+                packet_id_lsb,
+                reason_code: _,
+            } => {
+                for pending_message in &pending_messages {
+                    let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
+                    if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {}
+                }
+                match puback_notify_sender.send(true) {
+                    Ok(_) => Ok(ClientReturn::PubackRecieved),
+                    Err(e) => Err(ProtocolError::ChanellError(e.to_string())),
+                }
+            }
+            BrokerMessage::Disconnect {
+                reason_code,
+                session_expiry_interval,
+                reason_string,
+                user_properties: _,
+            } => {
+                println!(
+                    "Recibí un Disconnect, razon de desconexión: {:?}",
+                    reason_string
+                );
+
+                match sender_channel.send(ClientMessage::Disconnect {
+                    reason_code,
+                    session_expiry_interval,
+                    reason_string,
+                    client_id,
+                }) {
+                    Ok(_) => {}
+                    Err(e) => println!("Error al enviar Disconnect al sistema: {:?}", e),
+                }
+
+                Ok(ClientReturn::DisconnectRecieved)
+            }
+            BrokerMessage::Suback {
+                packet_id_msb,
+                packet_id_lsb,
+                reason_code: _,
+            } => {
+                for pending_message in &pending_messages {
+                    let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
+
+                    if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {
+                        println!("suback con id {} {} recibido", packet_id_msb, packet_id_lsb);
                     }
                 }
-            } else {
-                println!("Error al clonar el stream");
+
+                Ok(ClientReturn::SubackRecieved)
+            }
+            BrokerMessage::PublishDelivery {
+                packet_id,
+                topic_name,
+                qos,
+                retain_flag,
+                dup_flag,
+                properties,
+                payload,
+            } => {
+                match sender_channel.send(ClientMessage::Publish {
+                    packet_id,
+                    topic_name,
+                    qos,
+                    retain_flag,
+                    dup_flag,
+                    properties,
+                    payload,
+                }) {
+                    Ok(_) => {}
+                    Err(e) => println!("Error al enviar publish al sistema: {:?}", e),
+                }
+
+                Ok(ClientReturn::PublishDeliveryRecieved)
+            }
+            BrokerMessage::Unsuback {
+                packet_id_msb,
+                packet_id_lsb,
+                reason_code: _,
+            } => {
+                for pending_message in &pending_messages {
+                    let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
+                    if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {
+                        println!(
+                            "Unsuback con id {} {} recibido",
+                            packet_id_msb, packet_id_lsb
+                        );
+                    }
+                }
+
+                println!("Recibi un mensaje {:?}", message);
+                Ok(ClientReturn::UnsubackRecieved)
+            }
+            BrokerMessage::Pingresp => {
+                println!("Recibi un mensaje {:?}", message);
+                Ok(ClientReturn::PingrespRecieved)
+            }
+            BrokerMessage::Auth {
+                reason_code: _,
+                authentication_method: _,
+                authentication_data: _,
+                reason_string: _,
+                user_properties: _,
+            } => {
+                println!("Recibi un auth!");
+                Ok(ClientReturn::AuthRecieved)
             }
         }
     }
 
     pub fn disconnect_client(&mut self) -> Result<(), ProtocolError> {
         self.sender_channel = None;
-        let lock = match self.stream.lock() {
-            Ok(lock) => lock,
-            Err(_) => return Err(ProtocolError::StreamError),
-        };
 
-        match lock.shutdown(Shutdown::Both) {
+        match self.stream.shutdown(Shutdown::Both) {
             Ok(_) => Ok(()),
             Err(e) => {
                 println!("Client: Error while shutting down stream: {:?}", e);
@@ -365,255 +456,141 @@ impl Client {
     /// Si el mensaje es un publish con qos 1, se envia el mensaje y se espera un puback. Si no se recibe, espera 0.5 segundos y reenvia el mensaje. aumentando en 1 el dup_flag, indicando que es al vez numero n que se envia el publish.
     #[allow(clippy::too_many_arguments)]
     fn write_messages(
-        &self,
-        stream: TcpStream,
+        stream: Arc<TcpStream>,
         receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
-        mut desconectar: bool,
-        sender: Sender<u16>,
-        subscriptions_clone: Arc<Mutex<Vec<String>>>,
-        receiver: Receiver<bool>,
+        pending_id_messages_sender: Sender<u16>,
+        puback_notify_receiver: Receiver<bool>,
         disconnect_receiver: Receiver<bool>,
+        packet_ids: Arc<Vec<u16>>,
     ) -> Result<(), ProtocolError> {
-        while !desconectar {
-            loop {
-                if let Ok(disconnect_status) = disconnect_receiver.try_recv() {
-                    if disconnect_status {
-                        return Ok(());
-                    }
+        loop {
+            if let Ok(disconnect_status) = disconnect_receiver.try_recv() {
+                if disconnect_status {
+                    return Ok(());
                 }
+            }
 
-                let lock = match receiver_channel.lock() {
-                    Ok(lock) => lock,
-                    Err(_) => return Err(ProtocolError::StreamError),
-                };
-                if let Ok(message_config) = lock.recv() {
-                    let packet_id = self.assign_packet_id();
+            let lock = match receiver_channel.lock() {
+                Ok(lock) => lock,
+                Err(_) => return Err(ProtocolError::StreamError),
+            };
+            if let Ok(message_config) = lock.recv() {
+                let packet_id = Client::get_packet_id(packet_ids.to_vec());
+                let message = message_config.parse_message(packet_id);
 
-                    let message = message_config.parse_message(packet_id);
-
-                    match message {
-                        ClientMessage::Connect { 0: _ } => todo!(),
-                        ClientMessage::Publish {
+                match message {
+                    ClientMessage::Publish {
+                        packet_id,
+                        topic_name,
+                        qos,
+                        retain_flag,
+                        payload,
+                        dup_flag,
+                        properties,
+                    } => {
+                        let publish = ClientMessage::Publish {
                             packet_id,
-                            topic_name,
+                            topic_name: topic_name.clone(),
                             qos,
                             retain_flag,
-                            payload,
+                            payload: payload.clone(),
                             dup_flag,
-                            properties,
-                        } => match stream.try_clone() {
-                            Ok(stream_clone) => {
-                                let publish = ClientMessage::Publish {
-                                    packet_id,
-                                    topic_name: topic_name.clone(),
-                                    qos,
-                                    retain_flag,
-                                    payload: payload.clone(),
-                                    dup_flag,
-                                    properties: properties.clone(),
-                                };
-
-                                if let Ok(packet_id) = Client::publish_message(
-                                    publish,
-                                    match stream_clone.try_clone() {
-                                        Ok(stream) => stream,
-                                        Err(_) => return Err(ProtocolError::StreamError),
-                                    },
-                                    packet_id,
-                                ) {
+                            properties: properties.clone(),
+                        };
+                        match publish.write_to(&*stream) {
+                            Ok(_) => match pending_id_messages_sender.send(packet_id) {
+                                Ok(_) => {
                                     if qos == 1 {
-                                        let stream_clone = match stream_clone.try_clone() {
-                                            Ok(stream) => stream,
-                                            Err(_) => return Err(ProtocolError::StreamError),
-                                        };
-                                        match sender.send(packet_id) {
-                                            Ok(_) => {
-                                                if let Ok(puback_recieved) = receiver.try_recv() {
-                                                    if !puback_recieved {
-                                                        //reenviar el msj con un dup_flag + 1
+                                        loop {
+                                            thread::sleep(Duration::from_millis(20));
 
-                                                        thread::sleep(Duration::from_millis(500));
-                                                        let publish = ClientMessage::Publish {
-                                                            packet_id,
-                                                            topic_name,
-                                                            qos,
-                                                            retain_flag,
-                                                            payload,
-                                                            dup_flag: dup_flag + 1,
-                                                            properties,
-                                                        };
-                                                        match Client::publish_message(
-                                                            publish,
-                                                            stream_clone,
-                                                            packet_id,
-                                                        ) {
-                                                            Ok(_) => {
-                                                                println!("Reenviando mensaje con dup_flag + 1")
-                                                            }
-                                                            Err(_) => {
-                                                                println!(
-                                                                    "Error al reenviar mensaje"
-                                                                )
+                                            if let Ok(puback) = puback_notify_receiver.try_recv() {
+                                                if !puback {
+                                                    let publish = ClientMessage::Publish {
+                                                        packet_id,
+                                                        topic_name: topic_name.clone(),
+                                                        qos,
+                                                        retain_flag,
+                                                        payload: payload.clone(),
+                                                        dup_flag: dup_flag + 1,
+                                                        properties: properties.clone(),
+                                                    };
+
+                                                    match publish.write_to(&*stream) {
+                                                        Ok(_) => {
+                                                            match pending_id_messages_sender
+                                                                .send(packet_id)
+                                                            {
+                                                                Ok(_) => {}
+                                                                Err(e) => {
+                                                                    return Err(
+                                                                        ProtocolError::SendError(
+                                                                            e.to_string(),
+                                                                        ),
+                                                                    )
+                                                                }
                                                             }
                                                         }
+                                                        Err(e) => {
+                                                            return Err(ProtocolError::SendError(
+                                                                e.to_string(),
+                                                            ))
+                                                        }
                                                     }
+                                                } else {
+                                                    break;
                                                 }
-                                            }
-                                            Err(_) => {
-                                                println!(
-                                                "Error al enviar packet_id de puback al receiver"
-                                            )
                                             }
                                         }
                                     }
                                 }
-                            }
-                            Err(_) => {
-                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
-                            }
-                        },
-                        ClientMessage::Subscribe {
-                            packet_id,
-                            properties,
-                            payload,
-                        } => match stream.try_clone() {
-                            Ok(stream_clone) => {
-                                let subscribe = ClientMessage::Subscribe {
-                                    packet_id,
-                                    properties,
-                                    payload: payload.clone(),
-                                };
-
-                                if let Ok(stream) = stream_clone.try_clone() {
-                                    if let Ok(packet_id) =
-                                        Client::subscribe(subscribe, packet_id, stream)
-                                    {
-                                        match sender.send(packet_id) {
-                                            Ok(_) => {
-                                                let topic_new = payload.topic.to_string();
-                                                match subscriptions_clone.lock() {
-                                                    Ok(mut guard) => {
-                                                        guard.push(topic_new);
-                                                    }
-                                                    Err(_) => {
-                                                        return Err::<(), ProtocolError>(
-                                                            ProtocolError::StreamError,
-                                                        );
-                                                    }
-                                                }
-                                            }
-                                            Err(_) => {
-                                                return Err::<(), ProtocolError>(
-                                                    ProtocolError::StreamError,
-                                                );
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
+                                Err(e) => {
+                                    return Err(ProtocolError::SendError(e.to_string()));
                                 }
+                            },
+                            Err(e) => {
+                                return Err(ProtocolError::SendError(e.to_string()));
                             }
-                            Err(_) => {
-                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
-                            }
-                        },
-                        ClientMessage::Unsubscribe {
-                            packet_id,
-                            properties,
-                            payload,
-                        } => match stream.try_clone() {
-                            Ok(stream_clone) => {
-                                let unsubscribe = ClientMessage::Unsubscribe {
-                                    packet_id,
-                                    properties,
-                                    payload: payload.clone(),
-                                };
-
-                                if let Ok(stream) = stream_clone.try_clone() {
-                                    if let Ok(packet_id) =
-                                        Client::unsubscribe(unsubscribe, stream, packet_id)
-                                    {
-                                        match sender.send(packet_id) {
-                                            Ok(_) => {
-                                                let topic_new = payload.topic.to_string();
-                                                match subscriptions_clone.lock() {
-                                                    Ok(mut guard) => {
-                                                        guard.retain(|x| x != &topic_new);
-                                                    }
-                                                    Err(_) => {
-                                                        return Err::<(), ProtocolError>(
-                                                            ProtocolError::StreamError,
-                                                        );
-                                                    }
-                                                }
-                                            }
-                                            Err(_) => {
-                                                return Err::<(), ProtocolError>(
-                                                    ProtocolError::StreamError,
-                                                );
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
-                                }
-                            }
-                            Err(_) => {
-                                return Err::<(), ProtocolError>(ProtocolError::StreamError);
-                            }
-                        },
-                        ClientMessage::Disconnect {
-                            reason_code: _,
-                            session_expiry_interval: _,
-                            reason_string: _,
-                            client_id,
-                        } => {
-                            match stream.try_clone() {
-                                Ok(stream_clone) => {
-                                    let reason = "normal";
-
-                                    if let Ok(()) =
-                                        Client::handle_disconnect(client_id, reason, stream_clone)
-                                    {
-                                        desconectar = true;
-                                        break;
-                                    }
-                                }
-                                Err(_) => {
-                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
-                                }
-                            }
-                            break;
-                        }
-                        ClientMessage::Pingreq => {
-                            match stream.try_clone() {
-                                Ok(mut stream_clone) => {
-                                    let pingreq = ClientMessage::Pingreq;
-                                    match pingreq.write_to(&mut stream_clone) {
-                                        //chequear esto
-                                        Ok(()) => println!("Pingreq enviado"),
-                                        Err(_) => println!("Error al enviar pingreq"),
-                                    }
-                                }
-                                Err(_) => {
-                                    return Err::<(), ProtocolError>(ProtocolError::StreamError);
-                                }
-                            }
-                        }
-                        ClientMessage::Auth {
-                            reason_code: _,
-                            authentication_method: _,
-                            authentication_data: _,
-                            reason_string: _,
-                            user_properties: _,
-                        } => {
-                            println!("auth enviado");
                         }
                     }
+                    ClientMessage::Disconnect {
+                        reason_code: _,
+                        session_expiry_interval,
+                        reason_string,
+                        client_id,
+                    } => {
+                        let disconnect = Client::handle_disconnect(
+                            client_id,
+                            &reason_string,
+                            session_expiry_interval,
+                        );
+
+                        match disconnect.write_to(&*stream) {
+                            Ok(_) => match pending_id_messages_sender.send(packet_id) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    return Err(ProtocolError::SendError(e.to_string()));
+                                },
+                            }
+                            Err(e) => {
+                                return Err(ProtocolError::SendError(e.to_string()));
+                            },
+                        }
+                    }
+                    _ => match message.write_to(&*stream) {
+                        Ok(_) => match pending_id_messages_sender.send(packet_id) {
+                            Ok(_) => {}
+                            Err(e) => {
+                                return Err(ProtocolError::SendError(e.to_string()));
+                            }
+                        },
+                        Err(e) => {
+                            return Err(ProtocolError::SendError(e.to_string()));
+                        }
+                    },
                 }
             }
         }
-        Ok(())
     }
 
     pub fn get_publish_end_channel(
@@ -623,13 +600,27 @@ impl Client {
         self.receiver_channel.clone()
     }
 
-    ///Asigna un id random
-    pub fn assign_packet_id(&self) -> u16 {
+    // ///Asigna un id random
+    // pub fn assign_packet_id(&self) -> u16 {
+    //     let mut rng = rand::thread_rng();
+    //     let mut packet_ids = match self.packets_ids.lock() {
+    //         Ok(packet_ids) => packet_ids,
+    //         Err(_) => return 0,
+    //     };
+
+    //     let mut packet_id: u16;
+    //     loop {
+    //         packet_id = rng.gen();
+    //         if packet_id != 0 && !packet_ids.contains(&packet_id) {
+    //             packet_ids.push(packet_id);
+    //             break;
+    //         }
+    //     }
+    //     packet_id
+    // }
+
+    pub fn get_packet_id(mut packet_ids: Vec<u16>) -> u16 {
         let mut rng = rand::thread_rng();
-        let mut packet_ids = match self.packets_ids.lock() {
-            Ok(packet_ids) => packet_ids,
-            Err(_) => return 0,
-        };
 
         let mut packet_id: u16;
         loop {
@@ -652,7 +643,7 @@ impl ClientTrait for Client {
         Box::new(self.clone())
     }
     fn assign_packet_id(&self) -> u16 {
-        self.assign_packet_id()
+        Client::get_packet_id(self.packets_ids.to_vec())
     }
 
     fn get_publish_end_channel(
@@ -666,16 +657,7 @@ impl ClientTrait for Client {
     }
 
     fn disconnect_client(&self) -> Result<(), ProtocolError> {
-        let mut lock = match self.stream.lock() {
-            Ok(lock) => lock,
-            Err(_) => return Err(ProtocolError::StreamError),
-        };
-
-        let writer = &mut lock;
-
-        writer.flush().map_err(|_| ProtocolError::WriteError)?;
-
-        match lock.shutdown(Shutdown::Both) {
+        match self.stream.shutdown(Shutdown::Both) {
             Ok(_) => Ok(()),
             Err(e) => {
                 println!("Client: Error while shutting down stream: {:?}", e);
@@ -689,13 +671,13 @@ impl ClientTrait for Client {
 /// Devuelve un ClientReturn con informacion del mensaje recibido
 /// O ProtocolError en caso de error
 pub fn handle_message(
-    mut stream: TcpStream,
+    stream: Arc<TcpStream>,
     pending_messages: Vec<u16>,
     sender: Sender<bool>,
     sender_chanell: Sender<ClientMessage>,
     client_id: String,
 ) -> Result<ClientReturn, ProtocolError> {
-    if let Ok(message) = BrokerMessage::read_from(&mut stream) {
+    if let Ok(message) = BrokerMessage::read_from(&*stream) {
         match message {
             BrokerMessage::Connack {
                 session_present: _,
