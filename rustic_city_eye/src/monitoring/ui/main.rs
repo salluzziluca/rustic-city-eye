@@ -37,7 +37,7 @@ struct MyMap {
     incidents: Vec<incident_view::IncidentView>,
     drones: HashMap<u32, drone_view::DroneView>,
     drone_icon: ImagesPluginData,
-    drone_centers: Vec<drone_center_view::DroneCenterView>,
+    drone_centers: HashMap<u32, drone_center_view::DroneCenterView>,
     drone_center_icon: ImagesPluginData,
     zoom_level: f32,
 }
@@ -267,7 +267,9 @@ impl MyApp {
                         clicked: false,
                     };
 
-                    self.map.drone_centers.push(drone_center_view);
+                    self.map
+                        .drone_centers
+                        .insert(central.get_id(), drone_center_view);
 
                     if let Some(monitoring_app) = &mut self.monitoring_app {
                         let _ = monitoring_app.load_existing_drone_center(central.location);
@@ -438,7 +440,7 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
             active_camera_radius: red_circle_icon,
             drones: HashMap::new(),
             drone_icon,
-            drone_centers: vec![],
+            drone_centers: HashMap::new(),
             drone_center_icon,
             zoom_level: 1.0,
         },

@@ -113,12 +113,15 @@ pub fn add_drone_center_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Mo
                 if ui.button(RichText::new("📡").heading()).clicked() {
                     if let Some(position) = map.click_watcher.clicked_at {
                         let location = Location::new(position.lat(), position.lon());
-                        monitoring_app.add_drone_center(location);
-                        map.drone_centers.push(DroneCenterView {
-                            image: map.drone_center_icon.clone(),
-                            position,
-                            clicked: false,
-                        });
+                        let id = monitoring_app.add_drone_center(location);
+                        map.drone_centers.insert(
+                            id,
+                            DroneCenterView {
+                                image: map.drone_center_icon.clone(),
+                                position,
+                                clicked: false,
+                            },
+                        );
                     }
                 }
             });
@@ -224,6 +227,15 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, _monitoring_app: &mut Monitor
                             break;
                         }
                     }
+
+                    for (id, drone_center) in map.drone_centers.iter() {
+                        if drone_center.clicked {
+                            println!("Removing drone center {}", id);
+                            DronesCentralConfig::remove_central_from_json(*id).unwrap();
+
+                            break;
+                        }
+                    }
                     map.cameras.retain(|_id, camera| !camera.clicked);
 
                     map.incidents.retain(|incident| !incident.clicked);
@@ -231,7 +243,7 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, _monitoring_app: &mut Monitor
                     map.drones.retain(|_id, drone| !drone.clicked);
 
                     map.drone_centers
-                        .retain(|drone_center| !drone_center.clicked);
+                        .retain(|_id, drone_center| !drone_center.clicked);
                 }
             });
         });
