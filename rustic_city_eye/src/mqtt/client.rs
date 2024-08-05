@@ -116,14 +116,8 @@ impl Client {
     pub fn run_client(&mut self) -> Result<(), ProtocolError> {
         let threadpool = ThreadPool::new(10);
 
-        let stream_clone = match self.stream.try_clone() {
-            Ok(stream) => stream,
-            Err(_) => return Err(ProtocolError::StreamError),
-        };
-        let stream_clone_two = match self.stream.try_clone() {
-            Ok(stream) => stream,
-            Err(_) => return Err(ProtocolError::StreamError),
-        };
+        let stream_write_half = Arc::clone(&self.stream);
+        let stream_read_half = Arc::clone(&self.stream);
 
         let client_id_clone = self.client_id.clone();
 
@@ -142,12 +136,12 @@ impl Client {
         let sender_to_client_channel_clone = self.sender_channel.clone();
 
         let _handle_stream_operations = threadpool.execute(move || {
-            let _ = Client::handle_stream_operations(stream_clone, receiver);
+            let _ = Client::handle_stream_operations(stream_write_half, receiver);
         });
 
         let _handle_stream_readings = threadpool.execute(move || {
             let _ = Client::handle_stream_readings(
-                stream_clone_two,
+                stream_read_half,
                 message_from_stream_sender,
                 puback_notify_sender,
                 disconnect_from_client_receiver,
@@ -184,14 +178,14 @@ impl Client {
     }
 
     fn handle_stream_operations(
-        mut stream: TcpStream,
+        stream: Arc<TcpStream>,
         receiver: Receiver<StreamOperation>,
     ) -> Result<(), ProtocolError> {
         loop {
             if let Ok(command) = receiver.recv() {
                 match command {
                     StreamOperation::WriteClientMessage(message) => {
-                        match message.write_to(&mut stream) {
+                        match message.write_to(&*stream) {
                             Ok(_) => {}
                             Err(e) => {
                                 eprintln!("{}", e);
@@ -200,7 +194,7 @@ impl Client {
                         };
                     }
                     StreamOperation::WriteAndDisconnect(message) => {
-                        match message.write_to(&mut stream) {
+                        match message.write_to(&*stream) {
                             Ok(_) => {
                                 match stream.shutdown(Shutdown::Both) {
                                     Ok(_) => break,
@@ -231,7 +225,7 @@ impl Client {
     }
 
     pub fn handle_stream_readings(
-        mut stream: TcpStream,
+        stream: Arc<TcpStream>,
         message_from_stream_sender: Sender<BrokerMessage>,
         puback_notify_sender: Sender<bool>,
         disconnect_from_client_receiver: Receiver<()>,
@@ -241,7 +235,7 @@ impl Client {
                 break;
             }
 
-            if let Ok(message) = BrokerMessage::read_from(&mut stream) {
+            if let Ok(message) = BrokerMessage::read_from(&*stream) {
                 match message {
                     BrokerMessage::Disconnect {
                         reason_code,
@@ -1179,6 +1173,8 @@ mod tests {
         let handle = thread::spawn({
             let receiver_channel = Arc::clone(&receiver_channel);
             let subscriptions = Arc::clone(&subscriptions);
+            let (disconnect_from_client_sender, _) = mpsc::channel();
+            let (disconnect_from_client_sender_two, _) = mpsc::channel();
 
             move || {
                 Client::handle_incoming_messages(
@@ -1188,6 +1184,8 @@ mod tests {
                     disconnect_receiver,
                     subscriptions,
                     puback_notify_receiver,
+                    disconnect_from_client_sender,
+                    disconnect_from_client_sender_two
                 )
             }
         });
