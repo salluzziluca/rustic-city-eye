@@ -176,7 +176,7 @@ impl Drone {
     ) -> Result<(), DroneError> {
         let subscribe_properties =
             SubscribeProperties::new(1, connect_config.properties.user_properties);
-        let topics = vec!["incident", "attending_incident"];
+        let topics = vec!["incident", "attending_incident", "single_drone_disconnect"];
 
         for topic_name in topics {
             Self::subscribe_to_topic(
@@ -487,7 +487,6 @@ impl Drone {
                     return Err(DroneError::LockError(e.to_string()));
                 }
             };
-
             let mut self_cloned = drone_ref.lock().expect("Error locking drone");
 
             match message {
@@ -575,6 +574,26 @@ impl Drone {
                                 self_cloned.incidents.retain(|(i, _)| i != &incident);
                             }
                             self_cloned.drone_state = DroneState::Waiting;
+                        }
+                    }
+                    _ => continue,
+                },
+                ClientMessage::Publish {
+                    topic_name,
+                    payload: PayloadTypes::SingleDroneDisconnect(payload),
+                    ..
+                } => match topic_name.as_str() {
+                    "single_drone_disconnect" => {
+                        if payload.get_id() == self_cloned.id {
+                            println!("ME DESCONECTOOOOOO");
+                            match disconnect_sender.send(()) {
+                                Ok(_) => (),
+                                Err(e) => return Err(DroneError::SendError(e.to_string())),
+                            };
+                            match disconnect_sender_two.send(()) {
+                                Ok(_) => (),
+                                Err(e) => return Err(DroneError::SendError(e.to_string())),
+                            };
                         }
                     }
                     _ => continue,

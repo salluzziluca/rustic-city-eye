@@ -384,7 +384,6 @@ impl Broker {
                 "Topic not found".to_string(),
             ))?;
         let users = topic.get_users_from_topic();
-
         for user in users {
             match self.send_message_to_user(&user, &mensaje) {
                 Ok(_) => (),

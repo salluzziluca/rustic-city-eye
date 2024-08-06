@@ -24,6 +24,7 @@ use crate::surveilling::{camera::Camera, camera_system::CameraSystem};
 use crate::utils::incident_payload::IncidentPayload;
 use crate::utils::location::Location;
 use crate::utils::payload_types::PayloadTypes;
+use crate::utils::single_disconnect_payload::SingleDisconnectPayload;
 
 /// Es capaz de recibir la carga de incidentes por parte del usuario(que lo hace desde la interfaz grafica)
 /// y notificar a la red ante la aparicion de un incidente nuevo y los cambios de estado del mismo.
@@ -409,6 +410,27 @@ impl MonitoringApp {
             Ok(cameras) => cameras.clone(),
             Err(_) => HashMap::new(),
         }
+    }
+    //envia un publish del con payload single_drone_disconnect y con el id del drone en el payload
+    pub fn disconnect_drone_by_id(&mut self, client_id: u32) -> Result<(), ProtocolError> {
+        let publish_config = PublishConfig::read_config(
+            "src/monitoring/publish_single_drone_disconnect_config.json",
+            PayloadTypes::SingleDroneDisconnect(SingleDisconnectPayload::new(client_id)),
+        )?;
+        let sent_to_client_channel = match self.send_to_client_channel.lock() {
+            Ok(sent_to_client_channel) => sent_to_client_channel,
+            Err(_) => return Err(ProtocolError::LockError),
+        };
+
+        match sent_to_client_channel.send(Box::new(publish_config)) {
+            Ok(_) => {
+                println!("Single disconnect published successfully");
+            }
+            Err(e) => {
+                println!("Error publishing incident {}", e);
+            }
+        }
+        Ok(())
     }
 
     /// Desconecta a los clientes de la MonitoringApp, del CameraSystem, y de los Drones(esto

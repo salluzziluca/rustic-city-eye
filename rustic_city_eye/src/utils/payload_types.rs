@@ -13,10 +13,14 @@ use crate::{
         incident_payload::IncidentPayload,
         location::Location,
         reader::{read_string, read_u8},
+        single_disconnect_payload::SingleDisconnectPayload,
     },
 };
 
-use super::writer::{write_string, write_u8};
+use super::{
+    reader::read_u32,
+    writer::{write_string, write_u8},
+};
 
 /// Aqui se definen los distintos tipos de payload que va a soportar nuestra aplicacion.
 /// La idea es que implemente el trait de Payload, de forma tal que sepa escribirse sobre un stream dado.
@@ -28,6 +32,7 @@ pub enum PayloadTypes {
     LocationPayload(Location),
     CamerasUpdatePayload(Vec<Camera>),
     DroneLocation(u32, Location),
+    SingleDroneDisconnect(SingleDisconnectPayload),
 }
 
 impl Payload for PayloadTypes {
@@ -76,6 +81,12 @@ impl Payload for PayloadTypes {
             }
             PayloadTypes::AttendingIncident(payload) => {
                 write_u8(stream, &6)?;
+                payload.write_to(stream)?;
+
+                Ok(())
+            }
+            PayloadTypes::SingleDroneDisconnect(payload) => {
+                write_u8(stream, &7)?;
                 payload.write_to(stream)?;
 
                 Ok(())
@@ -200,6 +211,11 @@ impl PayloadTypes {
                 let incident = Incident::new(location);
                 PayloadTypes::AttendingIncident(IncidentPayload::new(incident))
             }
+            7 => {
+                let id = read_u32(stream)?;
+
+                PayloadTypes::SingleDroneDisconnect(SingleDisconnectPayload::new(id))
+            }
             _ => {
                 return Err(Error::new(
                     ErrorKind::InvalidData,
@@ -213,6 +229,8 @@ impl PayloadTypes {
 
 #[cfg(test)]
 mod tests {
+    use crate::utils;
+
     use super::*;
     use std::io::{Cursor, Read};
 
@@ -275,5 +293,18 @@ mod tests {
         let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
 
         assert_eq!(payload, payload);
+    }
+
+    #[test]
+    fn test_single_drone_disconnect() {
+        let disc_payload = SingleDisconnectPayload::new(1);
+        let payload = PayloadTypes::SingleDroneDisconnect(disc_payload.clone());
+
+        let mut cursor = Cursor::new(Vec::new());
+        payload.write_to(&mut cursor).unwrap();
+        cursor.set_position(0);
+
+        let read_payload = PayloadTypes::read_from(&mut cursor).unwrap();
+        assert_eq!(read_payload, payload);
     }
 }
