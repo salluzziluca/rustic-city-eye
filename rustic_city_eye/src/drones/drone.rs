@@ -459,6 +459,7 @@ impl Drone {
     /// attending_incident.
     /// A su vez, recibe aquellas notificaciones de todos los Drones que esten yendo a resolver el incidente, y van a jugar una carrera:
     /// los primeros 2 Drones que lleguen, se podran a resolver el incidente, y los demas pasaran a ignorar este incidente y volveran a patrullar.
+    /// Si recibe un mensaje del tipo single_drone_disconnect, y el id enviado  es igual al suyo, se desconecta.
 
     #[allow(clippy::type_complexity)]
     fn handle_message_reception_from_client(

@@ -411,7 +411,7 @@ impl MonitoringApp {
             Err(_) => HashMap::new(),
         }
     }
-    //envia un publish del con payload single_drone_disconnect y con el id del drone en el payload
+    //envia un publish del con topic single_drone_disconnect y con el id del drone en el payload
     pub fn disconnect_drone_by_id(&mut self, client_id: u32) -> Result<(), ProtocolError> {
         let publish_config = PublishConfig::read_config(
             "src/monitoring/publish_single_drone_disconnect_config.json",

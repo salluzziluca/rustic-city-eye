@@ -2,10 +2,8 @@ use std::fs;
 
 use egui::{Align2, RichText, Ui, Window};
 use rustic_city_eye::{
-    drones::drones_central_config::DronesCentralConfig,
-    monitoring::monitoring_app::{self, MonitoringApp},
-    surveilling::cameras_config::CamerasConfig,
-    utils::location::Location,
+    drones::drones_central_config::DronesCentralConfig, monitoring::monitoring_app::MonitoringApp,
+    surveilling::cameras_config::CamerasConfig, utils::location::Location,
 };
 use walkers::MapMemory;
 
@@ -199,6 +197,8 @@ pub fn add_disconnect_window(
 }
 /// Se añade una ventana para eliminar entidades del sistema de monitoreo
 /// Al tocar el boton, se eliminan laa entidad que ha sido seleccionada en el mapa.
+/// Luego, se las elimina del json de persistencia y se envia un mensaje de desconexion
+/// mediante el sistema de monitoreo a la entidad correspondiente.
 pub fn add_remove_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut MonitoringApp) {
     Window::new("Remove")
         .collapsible(false)
