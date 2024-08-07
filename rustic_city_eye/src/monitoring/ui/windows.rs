@@ -217,7 +217,7 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitori
                             //delete the dir rustic_city_eye/src/surveilling/cameras./id
                             fs::remove_dir_all(format!("src/surveilling/cameras./{}", id)).unwrap();
                             CamerasConfig::remove_camera_from_file(*id).unwrap();
-
+                            monitoring_app.disconnect_camera_by_id(*id).unwrap();
                             break;
                         }
                     }

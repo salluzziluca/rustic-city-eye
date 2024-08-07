@@ -4,3 +4,4 @@ incident_resolved
 camera_update
 attending_incident
 single_drone_disconnect
+single_camera_disconnect

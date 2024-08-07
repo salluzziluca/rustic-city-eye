@@ -33,6 +33,7 @@ pub enum PayloadTypes {
     CamerasUpdatePayload(Vec<Camera>),
     DroneLocation(u32, Location),
     SingleDroneDisconnect(SingleDisconnectPayload),
+    SingleCameraDisconnect(SingleDisconnectPayload),
 }
 
 impl Payload for PayloadTypes {
@@ -87,6 +88,12 @@ impl Payload for PayloadTypes {
             }
             PayloadTypes::SingleDroneDisconnect(payload) => {
                 write_u8(stream, &7)?;
+                payload.write_to(stream)?;
+
+                Ok(())
+            }
+            PayloadTypes::SingleCameraDisconnect(payload) => {
+                write_u8(stream, &8)?;
                 payload.write_to(stream)?;
 
                 Ok(())
@@ -216,6 +223,11 @@ impl PayloadTypes {
 
                 PayloadTypes::SingleDroneDisconnect(SingleDisconnectPayload::new(id))
             }
+            8 => {
+                let id = read_u32(stream)?;
+
+                PayloadTypes::SingleCameraDisconnect(SingleDisconnectPayload::new(id))
+            }
             _ => {
                 return Err(Error::new(
                     ErrorKind::InvalidData,
@@ -298,6 +310,19 @@ mod tests {
     fn test_single_drone_disconnect() {
         let disc_payload = SingleDisconnectPayload::new(1);
         let payload = PayloadTypes::SingleDroneDisconnect(disc_payload.clone());
+
+        let mut cursor = Cursor::new(Vec::new());
+        payload.write_to(&mut cursor).unwrap();
+        cursor.set_position(0);
+
+        let read_payload = PayloadTypes::read_from(&mut cursor).unwrap();
+        assert_eq!(read_payload, payload);
+    }
+
+    #[test]
+    fn test_single_camera_disconnect() {
+        let disc_payload = SingleDisconnectPayload::new(1);
+        let payload = PayloadTypes::SingleCameraDisconnect(disc_payload.clone());
 
         let mut cursor = Cursor::new(Vec::new());
         payload.write_to(&mut cursor).unwrap();
