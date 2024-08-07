@@ -229,7 +229,6 @@ impl PayloadTypes {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils;
 
     use super::*;
     use std::io::{Cursor, Read};
