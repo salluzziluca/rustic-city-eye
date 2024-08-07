@@ -197,7 +197,9 @@ pub fn add_disconnect_window(
 }
 /// Se añade una ventana para eliminar entidades del sistema de monitoreo
 /// Al tocar el boton, se eliminan laa entidad que ha sido seleccionada en el mapa.
-pub fn add_remove_window(ui: &Ui, map: &mut MyMap, _monitoring_app: &mut MonitoringApp) {
+/// Luego, se las elimina del json de persistencia y se envia un mensaje de desconexion
+/// mediante el sistema de monitoreo a la entidad correspondiente.
+pub fn add_remove_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut MonitoringApp) {
     Window::new("Remove")
         .collapsible(false)
         .resizable(false)
@@ -229,10 +231,12 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, _monitoring_app: &mut Monitor
                     for (id, drone) in map.drones.iter() {
                         if drone.clicked {
                             println!("Removing drone {}", id);
+
                             match DronesCentralConfig::remove_drone_from_json(*id) {
                                 Ok(_) => println!("Drone removed"),
                                 Err(e) => println!("Error removing drone: {}", e),
                             }
+                            monitoring_app.disconnect_drone_by_id(*id).unwrap();
                             break;
                         }
                     }
