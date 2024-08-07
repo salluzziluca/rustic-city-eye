@@ -4,7 +4,10 @@ use std::{
     io::{stdin, BufRead, BufReader},
     net::{Shutdown, TcpListener, TcpStream},
     process::exit,
-    sync::{mpsc, Arc, Mutex, RwLock},
+    sync::{
+        mpsc::{self, Sender},
+        Arc, Mutex, RwLock,
+    },
     thread,
 };
 
@@ -43,7 +46,7 @@ pub struct Broker {
 
     /// Contiene los clientes conectados al broker.
     #[allow(clippy::type_complexity)]
-    clients_ids: Arc<RwLock<HashMap<String, (Option<TcpStream>, Option<LastWill>)>>>,
+    clients_ids: Arc<RwLock<HashMap<String, (Option<Arc<TcpStream>>, Option<LastWill>)>>>,
 
     /// Los clientes se guardan en un HashMap en el cual
     /// las claves son los client_ids, y los valores son
@@ -154,6 +157,17 @@ impl Broker {
         Ok(readings)
     }
 
+    /// Intenta crear el binding en el address indicado. Retorna un ProtocolError en caso de fallar.
+    fn bind_to_address(address: &str) -> Result<TcpListener, ProtocolError> {
+        match TcpListener::bind(address) {
+            Ok(listener) => {
+                println!("Broker escuchando en {}", address);
+                Ok(listener)
+            }
+            Err(e) => Err(ProtocolError::BindingError(e.to_string())),
+        }
+    }
+
     /// Ejecuta el servidor.
     /// Crea un enlace en la dirección del broker y, para
     /// cada conexión entrante, crea un hilo para manejar el nuevo cliente.
@@ -186,66 +200,85 @@ impl Broker {
         loop {
             match listener.accept() {
                 Ok((stream, _)) => {
-                    let topics_clone = self.topics.clone();
+                    //let topics_clone = self.topics.clone();
                     let self_clone = self.clone();
 
-                    let client_id = Arc::new(String::new());
-                    let (_id_sender, id_receiver) = mpsc::channel();
-                    threadpool.execute({
-                        let mut client_id: Arc<String> = Arc::clone(&client_id);
+                    //let client_id = Arc::new(String::new());
+                    let stream = Arc::new(stream);
+                    let stream_write_half = Arc::clone(&stream);
+                    let stream_read_half = Arc::clone(&stream);
 
-                        move || loop {
-                            if let Ok(id) = id_receiver.try_recv() {
-                                let client_id_guard = Arc::make_mut(&mut client_id);
-                                *client_id_guard = id;
-                                break;
+                    let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
+                    let (stream_error_notifier_sender, _stream_error_notifier_receiver) =
+                        mpsc::channel();
+                    let (disconnect_notifier_sender, disconnect_notifier_receiver) = mpsc::channel();
+
+                    let _handle_read_messages = threadpool.execute(move || loop {
+                        let stream_ref = Arc::clone(&stream);
+
+                        if let Ok(message) = ClientMessage::read_from(&*stream_read_half) {
+                            match self_clone.handle_message(
+                                message,
+                                &message_to_write_sender,
+                                stream_ref,
+                            ) {
+                                Ok(return_val) => {
+                                    if return_val == ProtocolReturn::DisconnectRecieved {
+                                        disconnect_notifier_sender.send(()).unwrap();
+                                        return Ok(());
+                                    }
+                                }
+                                Err(err) => {
+                                    stream_error_notifier_sender.send(err).unwrap();
+                                    return Err(ProtocolError::StreamError);
+                                }
                             }
                         }
                     });
-                    threadpool.execute({
-                        let client_id = Arc::clone(&client_id);
-                        let clients_ids_clone = Arc::clone(&self.clients_ids);
-                        let clients_ids_clone2 = Arc::clone(&clients_ids_clone);
-                        let self_ref = Arc::new(self.clone());
 
-                        move || {
-                            let stream_clone = match stream.try_clone() {
-                                Ok(stream) => stream,
-                                Err(_) => return Err(ProtocolError::StreamError),
-                            };
-                            let result = match self_clone.handle_client(stream_clone) {
-                                Ok(_) => Ok(()),
+                    let _handle_write_messages = threadpool.execute(move || {
+                        //let self_ref = Arc::new(self.clone());
+                        loop {
+                            if disconnect_notifier_receiver.try_recv().is_ok() {
+                                break;
+                            }
 
-                                Err(err) => {
-                                    if err == ProtocolError::StreamError
-                                        || err == ProtocolError::AbnormalDisconnection
-                                    {
-                                        let client_id_guard = client_id;
-                                        #[allow(clippy::type_complexity)]
-                                    let clients_ids_guard: std::sync::RwLockReadGuard<
-                                        HashMap<String, (Option<TcpStream>, Option<LastWill>)>,
-                                    > = match clients_ids_clone2.read() {
-                                        Ok(clients_ids_guard) => clients_ids_guard,
-                                        Err(_) => return Err(err),
-                                    };
-                                        if let Some((_, will_message)) =
-                                            clients_ids_guard.get(&*client_id_guard)
-                                        {
-                                            let will_message = match will_message {
-                                                Some(will_message) => will_message,
-                                                None => return Err(err),
-                                            };
-                                            let self_clone2 = self_ref.clone();
-                                            self_clone2
-                                                .clone()
-                                                .send_last_will(will_message, topics_clone);
-                                        }
+                            //todo: will message
+                            // if let Ok(err) = stream_error_notifier_receiver.try_recv() {
+                            //     if err == ProtocolError::StreamError
+                            //         || err == ProtocolError::AbnormalDisconnection
+                            //     {
+                            //         let client_id_guard = client_id;
+                            //         #[allow(clippy::type_complexity)]
+                            //         let clients_ids_guard = match clients_ids_clone.read() {
+                            //             Ok(clients_ids_guard) => clients_ids_guard,
+                            //             Err(_) => break,
+                            //         };
+                            //         if let Some((_, will_message)) =
+                            //             clients_ids_guard.get(&*client_id_guard)
+                            //         {
+                            //             let will_message = match will_message {
+                            //                 Some(will_message) => will_message,
+                            //                 None => break,
+                            //             };
+                            //             // let self_clone2 = self_ref.clone();
+                            //             // self_clone2
+                            //             //     .clone()
+                            //             //     .send_last_will(will_message, topics_clone);
+                            //         }
+                            //     }
+                            // }
+
+                            if let Ok(message) = message_to_write_receiver.try_recv() {
+                                println!("mensaje {:?}", message);
+                                match message.write_to(&*stream_write_half) {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        eprintln!("{}", e);
+                                        break;
                                     }
-
-                                    Err(err)
                                 }
-                            };
-                            result
+                            }
                         }
                     });
                 }
@@ -281,44 +314,6 @@ impl Broker {
             }
         }
         Ok(())
-    }
-
-    /// Intenta crear el binding en el address indicado. Retorna un ProtocolError en caso de fallar.
-    fn bind_to_address(address: &str) -> Result<TcpListener, ProtocolError> {
-        match TcpListener::bind(address) {
-            Ok(listener) => {
-                println!("Broker escuchando en {}", address);
-                Ok(listener)
-            }
-            Err(e) => Err(ProtocolError::BindingError(e.to_string())),
-        }
-    }
-
-    pub fn handle_client(&self, tcp_stream: TcpStream) -> Result<(), ProtocolError> {
-        loop {
-            let cloned_stream = match tcp_stream.try_clone() {
-                Ok(stream) => stream,
-                Err(_) => {
-                    return Err(ProtocolError::StreamError);
-                }
-            };
-
-            match cloned_stream.peek(&mut [0]) {
-                Ok(_) => {}
-                Err(_) => return Err(ProtocolError::AbnormalDisconnection),
-            }
-
-            match self.handle_messages(cloned_stream) {
-                Ok(return_val) => {
-                    if return_val == ProtocolReturn::DisconnectRecieved {
-                        return Ok(());
-                    }
-                }
-                Err(err) => {
-                    return Err(err);
-                }
-            }
-        }
     }
 
     /// Convierte un mensaje del cliente a un mensaje del broker.
@@ -516,27 +511,24 @@ impl Broker {
     /// Lee del stream un mensaje y lo procesa
     /// Devuelve un ProtocolReturn con informacion del mensaje recibido
     /// O ProtocolError en caso de error
-    #[allow(clippy::type_complexity)]
-    pub fn handle_messages(&self, mut stream: TcpStream) -> Result<ProtocolReturn, ProtocolError> {
+    pub fn handle_message(
+        &self,
+        message: ClientMessage,
+        message_to_write_sender: &Sender<BrokerMessage>,
+        client_stream_ref: Arc<TcpStream>,
+    ) -> Result<ProtocolReturn, ProtocolError> {
         let topics = self.topics.clone();
         let packets = self.packets.clone();
         let clients_auth_info = self.clients_auth_info.clone();
 
-        let mensaje = match ClientMessage::read_from(&mut stream) {
-            Ok(mensaje) => mensaje,
-            Err(_) => {
-                return Err(ProtocolError::StreamError);
-            }
-        };
-
-        match mensaje {
+        match message {
             ClientMessage::Connect { 0: connect } => {
                 println!("Connect received");
 
-                let cloned_stream = match stream.try_clone() {
-                    Ok(stream) => stream,
-                    Err(_) => return Err(ProtocolError::StreamError),
-                };
+                // let cloned_stream = match stream.try_clone() {
+                //     Ok(stream) => stream,
+                //     Err(_) => return Err(ProtocolError::StreamError),
+                // };
 
                 let will_message = connect.clone().give_will_message();
 
@@ -568,7 +560,7 @@ impl Broker {
                 if let Ok(mut clients) = self.clients_ids.write() {
                     clients.insert(
                         connect.client_id.clone(),
-                        (Some(cloned_stream), will_message),
+                        (Some(client_stream_ref), will_message),
                     );
                 } else {
                     return Err(ProtocolError::WriteError);
@@ -611,7 +603,7 @@ impl Broker {
                     properties,
                 };
                 println!("Sending Connack");
-                match connack.write_to(&mut stream) {
+                match message_to_write_sender.send(connack) {
                     Ok(_) => return Ok(ProtocolReturn::ConnackSent),
                     Err(err) => {
                         println!("{:?}", err);
@@ -651,7 +643,7 @@ impl Broker {
                         reason_code,
                     };
                     println!("Enviando un Puback");
-                    match puback.write_to(&mut stream) {
+                    match message_to_write_sender.send(puback) {
                         Ok(_) => {
                             println!("Puback enviado");
                             return Ok(ProtocolReturn::PubackSent);
@@ -690,7 +682,7 @@ impl Broker {
                     reason_code,
                 };
                 println!("Sending Suback");
-                match suback.write_to(&mut stream) {
+                match message_to_write_sender.send(suback) {
                     Ok(_) => {
                         println!("Suback sent");
                         let _ = ClientConfig::add_new_subscription(
@@ -732,7 +724,7 @@ impl Broker {
                 };
 
                 println!("Enviando un Unsuback");
-                match unsuback.write_to(&mut stream) {
+                match message_to_write_sender.send(unsuback) {
                     Ok(_) => {
                         println!("Unsuback enviado");
                         let _ = ClientConfig::remove_subscription(
@@ -770,7 +762,7 @@ impl Broker {
                 println!("Recibí un Pingreq");
                 let pingresp = BrokerMessage::Pingresp;
                 println!("Enviando un Pingresp");
-                match pingresp.write_to(&mut stream) {
+                match message_to_write_sender.send(pingresp) {
                     Ok(_) => {
                         println!("Pingresp enviado");
                         return Ok(ProtocolReturn::PingrespSent);
@@ -817,7 +809,7 @@ impl Broker {
                         };
                         println!("Parece que intentaste autenticarte con un metodo no soportado por el broker :(");
 
-                        match connack.write_to(&mut stream) {
+                        match message_to_write_sender.send(connack) {
                             Ok(_) => return Ok(ProtocolReturn::ConnackSent),
                             Err(err) => {
                                 println!("{:?}", err);

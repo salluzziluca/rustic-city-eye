@@ -570,11 +570,11 @@ impl Client {
                                 Ok(_) => {}
                                 Err(e) => {
                                     return Err(ProtocolError::SendError(e.to_string()));
-                                },
-                            }
+                                }
+                            },
                             Err(e) => {
                                 return Err(ProtocolError::SendError(e.to_string()));
-                            },
+                            }
                         }
                     }
                     _ => match message.write_to(&*stream) {
