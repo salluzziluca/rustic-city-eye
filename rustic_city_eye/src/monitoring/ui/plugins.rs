@@ -142,13 +142,13 @@ pub fn drones(
 }
 
 pub fn drone_centers(
-    drone_centers: &mut Vec<DroneCenterView>,
+    drone_centers: &mut HashMap<u32, DroneCenterView>,
     zoom_level: f32,
     last_clicked: Option<Position>,
 ) -> impl Plugin {
     let mut images_vec = vec![];
 
-    for drone_center in drone_centers {
+    for drone_center in drone_centers.values_mut() {
         let mut image = Image::new(drone_center.image.texture.clone(), drone_center.position);
 
         if drone_center.select(last_clicked) {

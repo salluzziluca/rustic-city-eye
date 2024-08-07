@@ -2,8 +2,8 @@ use std::fs;
 
 use egui::{Align2, RichText, Ui, Window};
 use rustic_city_eye::{
-    monitoring::monitoring_app::MonitoringApp, surveilling::cameras_config::CamerasConfig,
-    utils::location::Location,
+    drones::drones_central_config::DronesCentralConfig, monitoring::monitoring_app::MonitoringApp,
+    surveilling::cameras_config::CamerasConfig, utils::location::Location,
 };
 use walkers::MapMemory;
 
@@ -113,12 +113,15 @@ pub fn add_drone_center_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Mo
                 if ui.button(RichText::new("📡").heading()).clicked() {
                     if let Some(position) = map.click_watcher.clicked_at {
                         let location = Location::new(position.lat(), position.lon());
-                        monitoring_app.add_drone_center(location);
-                        map.drone_centers.push(DroneCenterView {
-                            image: map.drone_center_icon.clone(),
-                            position,
-                            clicked: false,
-                        });
+                        let id = monitoring_app.add_drone_center(location);
+                        map.drone_centers.insert(
+                            id,
+                            DroneCenterView {
+                                image: map.drone_center_icon.clone(),
+                                position,
+                                clicked: false,
+                            },
+                        );
                     }
                 }
             });
@@ -194,7 +197,9 @@ pub fn add_disconnect_window(
 }
 /// Se añade una ventana para eliminar entidades del sistema de monitoreo
 /// Al tocar el boton, se eliminan laa entidad que ha sido seleccionada en el mapa.
-pub fn add_remove_window(ui: &Ui, map: &mut MyMap, _monitoring_app: &mut MonitoringApp) {
+/// Luego, se las elimina del json de persistencia y se envia un mensaje de desconexion
+/// mediante el sistema de monitoreo a la entidad correspondiente.
+pub fn add_remove_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut MonitoringApp) {
     Window::new("Remove")
         .collapsible(false)
         .resizable(false)
@@ -216,6 +221,24 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, _monitoring_app: &mut Monitor
                             break;
                         }
                     }
+
+                    for (id, drone) in map.drones.iter() {
+                        if drone.clicked {
+                            println!("Removing drone {}", id);
+                            DronesCentralConfig::remove_drone_from_json(*id).unwrap();
+                            monitoring_app.disconnect_drone_by_id(*id).unwrap();
+                            break;
+                        }
+                    }
+
+                    for (id, drone_center) in map.drone_centers.iter() {
+                        if drone_center.clicked {
+                            println!("Removing drone center {}", id);
+                            DronesCentralConfig::remove_central_from_json(*id).unwrap();
+
+                            break;
+                        }
+                    }
                     map.cameras.retain(|_id, camera| !camera.clicked);
 
                     map.incidents.retain(|incident| !incident.clicked);
@@ -223,7 +246,7 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, _monitoring_app: &mut Monitor
                     map.drones.retain(|_id, drone| !drone.clicked);
 
                     map.drone_centers
-                        .retain(|drone_center| !drone_center.clicked);
+                        .retain(|_id, drone_center| !drone_center.clicked);
                 }
             });
         });
