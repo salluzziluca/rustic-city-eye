@@ -37,6 +37,7 @@ pub enum ProtocolError {
     InvalidCommand(String),
     AnnotationError(String),
     ArcMutexError(String),
+    ServerConfigError(String),
 }
 
 impl fmt::Display for ProtocolError {
@@ -86,6 +87,9 @@ impl fmt::Display for ProtocolError {
             }
             ProtocolError::InvalidCommand(ref err) => {
                 write!(f, "Comando invalido: {}", err)
+            }
+            ProtocolError::ServerConfigError(ref err) => {
+                write!(f, "Configuracion invalida: {}", err)
             }
             ProtocolError::ChanellError(ref err) => {
                 write!(

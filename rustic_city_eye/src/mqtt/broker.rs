@@ -11,6 +11,9 @@ use std::{
     thread,
 };
 
+use rustls::{ServerConfig, ServerConnection, StreamOwned};
+use rustls_pemfile::{certs, private_key};
+
 use crate::mqtt::{
     broker_message::BrokerMessage,
     client_config::ClientConfig,
@@ -46,12 +49,24 @@ pub struct Broker {
 
     /// Contiene los clientes conectados al broker.
     #[allow(clippy::type_complexity)]
-    clients_ids: Arc<RwLock<HashMap<String, (Option<Arc<TcpStream>>, Option<LastWill>)>>>,
+    clients_ids: Arc<
+        RwLock<
+            HashMap<
+                String,
+                (
+                    Option<Arc<StreamOwned<ServerConnection, TcpStream>>>,
+                    Option<LastWill>,
+                ),
+            >,
+        >,
+    >,
 
     /// Los clientes se guardan en un HashMap en el cual
     /// las claves son los client_ids, y los valores son
     /// tuplas que contienen el username y password.
     clients_auth_info: HashMap<String, (String, Vec<u8>)>,
+
+    pub server_config: Arc<ServerConfig>,
 }
 
 impl Broker {
@@ -64,12 +79,37 @@ impl Broker {
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let packets = Arc::new(RwLock::new(HashMap::new()));
 
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+        let certs = match certs(&mut BufReader::new(
+            &mut File::open("./src/mqtt/certs/cert.pem").unwrap(),
+        ))
+        .collect::<Result<Vec<_>, _>>()
+        {
+            Ok(c) => c,
+            Err(e) => return Err(ProtocolError::ServerConfigError(e.to_string())),
+        };
+
+        let private_key = private_key(&mut BufReader::new(
+            &mut File::open("./src/mqtt/certs/private_key.pem").unwrap(),
+        ))
+        .unwrap()
+        .unwrap();
+
+        let server_config = match ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(certs, private_key)
+        {
+            Ok(config) => config,
+            Err(e) => return Err(ProtocolError::ServerConfigError(e.to_string())),
+        };
+
         Ok(Broker {
             address,
             topics,
             clients_auth_info,
             packets,
             clients_ids,
+            server_config: Arc::new(server_config),
         })
     }
 
@@ -200,23 +240,33 @@ impl Broker {
         loop {
             match listener.accept() {
                 Ok((stream, _)) => {
-                    //let topics_clone = self.topics.clone();
+                    let server_connection = match ServerConnection::new(self.server_config.clone())
+                    {
+                        Ok(c) => c,
+                        Err(e) => {
+                            eprintln!("{}", e);
+                            return Err(ProtocolError::StreamError);
+                        }
+                    };
+
+                    let tls_stream = StreamOwned::new(server_connection, stream);
+                    let stream = Arc::new(tls_stream);
+
                     let self_clone = self.clone();
 
-                    //let client_id = Arc::new(String::new());
-                    let stream = Arc::new(stream);
                     let stream_write_half = Arc::clone(&stream);
                     let stream_read_half = Arc::clone(&stream);
 
                     let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
                     let (stream_error_notifier_sender, _stream_error_notifier_receiver) =
                         mpsc::channel();
-                    let (disconnect_notifier_sender, disconnect_notifier_receiver) = mpsc::channel();
+                    let (disconnect_notifier_sender, disconnect_notifier_receiver) =
+                        mpsc::channel();
 
                     let _handle_read_messages = threadpool.execute(move || loop {
                         let stream_ref = Arc::clone(&stream);
 
-                        if let Ok(message) = ClientMessage::read_from(&*stream_read_half) {
+                        if let Ok(message) = ClientMessage::read_from(stream_read_half.get_ref()) {
                             match self_clone.handle_message(
                                 message,
                                 &message_to_write_sender,
@@ -237,10 +287,19 @@ impl Broker {
                     });
 
                     let _handle_write_messages = threadpool.execute(move || {
-                        //let self_ref = Arc::new(self.clone());
                         loop {
                             if disconnect_notifier_receiver.try_recv().is_ok() {
                                 break;
+                            }
+
+                            if let Ok(message) = message_to_write_receiver.try_recv() {
+                                match message.write_to(stream_write_half.get_ref()) {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        eprintln!("{}", e);
+                                        break;
+                                    }
+                                }
                             }
 
                             //todo: will message
@@ -268,17 +327,6 @@ impl Broker {
                             //         }
                             //     }
                             // }
-
-                            if let Ok(message) = message_to_write_receiver.try_recv() {
-                                println!("mensaje {:?}", message);
-                                match message.write_to(&*stream_write_half) {
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        eprintln!("{}", e);
-                                        break;
-                                    }
-                                }
-                            }
                         }
                     });
                 }
@@ -354,7 +402,7 @@ impl Broker {
     ) -> Result<(), bool> {
         let clients = self.clients_ids.read().map_err(|_| false)?;
         if let Some((Some(stream), _)) = clients.get(&user.client_id) {
-            message.write_to(&**stream).map_err(|_| true)?;
+            message.write_to(stream.get_ref()).map_err(|_| true)?;
             println!("Mensaje enviado a {}", user.client_id);
             Ok(())
         } else {
@@ -396,7 +444,7 @@ impl Broker {
                 }
             }
         }
-        Ok(0x80_u8) // Unspecified Error reason code
+        Ok(0x00_u8) // Unspecified Error reason code
     }
 
     /// Maneja la subscripcion de un cliente a un topic.
@@ -514,7 +562,7 @@ impl Broker {
         &self,
         message: ClientMessage,
         message_to_write_sender: &Sender<BrokerMessage>,
-        client_stream_ref: Arc<TcpStream>,
+        client_stream_ref: Arc<StreamOwned<ServerConnection, TcpStream>>,
     ) -> Result<ProtocolReturn, ProtocolError> {
         let topics = self.topics.clone();
         let packets = self.packets.clone();
@@ -523,11 +571,6 @@ impl Broker {
         match message {
             ClientMessage::Connect { 0: connect } => {
                 println!("Connect received");
-
-                // let cloned_stream = match stream.try_clone() {
-                //     Ok(stream) => stream,
-                //     Err(_) => return Err(ProtocolError::StreamError),
-                // };
 
                 let will_message = connect.clone().give_will_message();
 
@@ -566,7 +609,7 @@ impl Broker {
                 }
 
                 let connect_clone = connect.clone();
-                let _connack_reason_code = match authenticate_client(
+                let reason_code = match authenticate_client(
                     connect_clone.properties.authentication_method,
                     connect_clone.client_id,
                     connect_clone.username,
@@ -598,7 +641,7 @@ impl Broker {
                 };
                 let connack = BrokerMessage::Connack {
                     session_present: false,
-                    reason_code: 0,
+                    reason_code,
                     properties,
                 };
                 println!("Sending Connack");
@@ -837,21 +880,16 @@ impl Broker {
                     user_properties: Vec::new(),
                 };
 
-                match stream.try_clone() {
-                    Ok(mut cloned_stream) => {
-                        match disconnect.write_to(&mut cloned_stream) {
-                            Ok(_) => {
-                                println!("Disconnect sent to {}", client_id);
-                            }
-                            Err(e) => return Err(ProtocolError::UnspecifiedError(e.to_string())),
-                        }
+                match disconnect.write_to(stream.get_ref()) {
+                    Ok(_) => {
+                        println!("Disconnect sent to {}", client_id);
+                    }
+                    Err(e) => return Err(ProtocolError::UnspecifiedError(e.to_string())),
+                }
 
-                        match cloned_stream.shutdown(Shutdown::Both) {
-                            Ok(_) => {
-                                println!("Stream closed");
-                            }
-                            Err(e) => return Err(ProtocolError::UnspecifiedError(e.to_string())),
-                        }
+                match stream.get_ref().shutdown(Shutdown::Both) {
+                    Ok(_) => {
+                        println!("Stream closed");
                     }
                     Err(e) => return Err(ProtocolError::UnspecifiedError(e.to_string())),
                 }
@@ -904,8 +942,7 @@ pub fn authenticate_client(
 mod tests {
 
     use super::*;
-    use std::io::{Cursor, Write};
-    use std::thread;
+    use std::io::Cursor;
 
     #[test]
     fn test_01_getting_starting_topics_ok() -> Result<(), ProtocolError> {
@@ -986,101 +1023,5 @@ mod tests {
         assert!(broker.process_input_command(cursor_two).is_err());
 
         Ok(())
-    }
-
-    // #[test]
-    // fn test_01_creating_broker_config_ok() -> std::io::Result<()> {
-    //     let topics = match Broker::get_broker_starting_topics("./src/monitoring/topics.txt") {
-    //         Ok(topics) => topics,
-    //         Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::Other, "Error")),
-    //     };
-    //     let clients_auth_info = match Broker::process_clients_file("./src/monitoring/clients.txt") {
-    //         Ok(clients_auth_info) => clients_auth_info,
-    //         Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::Other, "Error")),
-    //     };
-
-    //     let mut expected_topics = HashMap::new();
-    //     let mut expected_clients = HashMap::new();
-
-    //     expected_topics.insert("accidente".to_string(), Topic::new());
-    //     expected_topics.insert("mensajes para juan".to_string(), Topic::new());
-    //     expected_topics.insert("messi".to_string(), Topic::new());
-    //     expected_topics.insert("fulbito".to_string(), Topic::new());
-    //     expected_topics.insert("incidente".to_string(), Topic::new());
-
-    //     expected_clients.insert(
-    //         "monitoring_app".to_string(),
-    //         (
-    //             "monitoreo".to_string(),
-    //             "monitoreando_la_vida2004".to_string().into_bytes(),
-    //         ),
-    //     );
-
-    //     expected_clients.insert(
-    //         "camera_system".to_string(),
-    //         (
-    //             "sistema_camaras".to_string(),
-    //             "CamareandoCamaritasForever".to_string().into_bytes(),
-    //         ),
-    //     );
-
-    //     let topics_to_check = vec![
-    //         "accidente",
-    //         "mensajes para juan",
-    //         "messi",
-    //         "fulbito",
-    //         "incidente",
-    //     ];
-
-    //     for topic in topics_to_check {
-    //         assert!(topics.contains_key(topic));
-    //     }
-
-    //     assert_eq!(expected_clients, clients_auth_info);
-
-    //     Ok(())
-    // }
-
-    #[test]
-    fn test_handle_client() {
-        // Set up a listener on a local port.
-        let listener = match TcpListener::bind("127.0.0.1:0") {
-            Ok(listener) => listener,
-            Err(_) => return,
-        };
-        let addr = match listener.local_addr() {
-            Ok(addr) => addr,
-            Err(_) => return,
-        };
-
-        // Spawn a thread to simulate a client.
-        thread::spawn(move || {
-            let mut stream = match TcpStream::connect(addr) {
-                Ok(stream) => stream,
-                Err(_) => return,
-            };
-            if stream.write_all(b"Hello, world!").is_ok() {}
-        });
-
-        // Write a ClientMessage to the stream.
-        // You'll need to replace this with a real ClientMessage.
-        let mut result: Result<(), ProtocolError> = Err(ProtocolError::UnspecifiedError(
-            "Error al leer mensaje".to_string(),
-        ));
-        let broker = match Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]) {
-            Ok(broker) => broker,
-            Err(_) => return,
-        };
-
-        // Accept the connection and pass the stream to the function.
-        if let Ok((stream, _)) = listener.accept() {
-            // Perform your assertions here
-            result = broker.handle_client(stream);
-        }
-
-        // Check that the function returned Ok.
-        // You might want to add more checks here, depending on what
-        // handle_client is supposed to do.
-        assert!(result.is_err());
     }
 }

@@ -2,9 +2,8 @@
 mod tests {
     use rustic_city_eye::monitoring::incident::Incident;
     use rustic_city_eye::mqtt::broker::Broker;
-    use rustic_city_eye::mqtt::client_message::{self, Connect};
-    use rustic_city_eye::mqtt::connect::connect_properties::ConnectProperties;
-    use rustic_city_eye::mqtt::connect::will_properties::WillProperties;
+    use rustic_city_eye::mqtt::broker_message::BrokerMessage;
+    use rustic_city_eye::mqtt::client_message;
     use rustic_city_eye::mqtt::publish::publish_properties::{PublishProperties, TopicProperties};
     use rustic_city_eye::mqtt::subscribe_properties::SubscribeProperties;
     use rustic_city_eye::mqtt::subscription::Subscription;
@@ -14,32 +13,77 @@ mod tests {
     };
     use rustic_city_eye::utils::incident_payload;
     use rustic_city_eye::utils::{location::Location, payload_types::PayloadTypes};
+    use rustls::{
+        ClientConfig, ClientConnection, KeyLogFile, RootCertStore, ServerConnection, StreamOwned,
+    };
 
-    use std::io::Write;
+    use std::fs::File;
+    use std::io::{BufReader, Write};
     use std::net::{TcpListener, TcpStream};
+    use std::sync::{mpsc, Arc};
     use std::thread;
 
     #[test]
-    fn test_mensaje_invalido_da_error() {
+    fn test_mensaje_invalido_da_error() -> Result<(), ProtocolError> {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
 
         thread::spawn(move || {
-            let mut stream = TcpStream::connect(addr).unwrap();
+            let stream = TcpStream::connect(addr).unwrap();
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+            let mut root_store = RootCertStore::empty();
+            let cert_file = &mut BufReader::new(File::open("./src/mqtt/certs/cert.pem").unwrap());
+            root_store.add_parsable_certificates(
+                rustls_pemfile::certs(cert_file).map(|result| result.unwrap()),
+            );
 
-            stream.write_all("Hola".as_bytes()).unwrap();
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
+
+            config.key_log = Arc::new(KeyLogFile::new());
+
+            let server_name = "rustic_city_eye".try_into().unwrap();
+            let conn = ClientConnection::new(Arc::new(config), server_name).expect("me rompi");
+
+            let tls_stream = StreamOwned::new(conn, stream);
+            let tls_stream = Arc::new(tls_stream);
+
+            tls_stream.get_ref().write_all("Hola".as_bytes()).unwrap();
         });
-
-        let mut result: Result<ProtocolReturn, ProtocolError> = Err(
-            ProtocolError::UnspecifiedError("Error no especificado".to_string()),
-        );
 
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream);
-        }
+            let server_connection = match ServerConnection::new(broker.server_config.clone()) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return Err(ProtocolError::StreamError);
+                }
+            };
 
-        assert!(result.is_err());
+            let tls_stream = StreamOwned::new(server_connection, stream);
+            let stream = Arc::new(tls_stream);
+
+            let (message_to_write_sender, _) = mpsc::channel();
+            let stream_ref = Arc::clone(&stream);
+
+            loop {
+                match ClientMessage::read_from(stream.get_ref()) {
+                    Ok(message) => {
+                        let result =
+                            broker.handle_message(message, &message_to_write_sender, stream_ref);
+                        println!("Message {:?} received", result);
+                        return Ok(())
+                    }
+                    Err(err) => {
+                        eprintln!("Error {}", err);
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     #[test]
@@ -52,124 +96,244 @@ mod tests {
             client_message::Connect::read_connect_config("./src/monitoring/connect_config.json")
                 .unwrap();
 
-        let connect = ClientMessage::Connect(connect_config.clone());
+        let connect = ClientMessage::Connect(connect_config);
 
         thread::spawn(move || {
-            let mut stream = TcpStream::connect(addr).unwrap();
-            let mut buffer = vec![];
-            connect.write_to(&mut buffer).unwrap();
-            stream.write_all(&buffer).unwrap();
-        });
+            let stream = TcpStream::connect(addr).unwrap();
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+            let mut root_store = RootCertStore::empty();
+            let cert_file = &mut BufReader::new(File::open("./src/mqtt/certs/cert.pem").unwrap());
+            root_store.add_parsable_certificates(
+                rustls_pemfile::certs(cert_file).map(|result| result.unwrap()),
+            );
 
-        let mut result: Result<ProtocolReturn, ProtocolError> = Err(
-            ProtocolError::UnspecifiedError("Error no especificado".to_string()),
-        );
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
+
+            config.key_log = Arc::new(KeyLogFile::new());
+
+            let server_name = "rustic_city_eye".try_into().unwrap();
+            let conn = ClientConnection::new(Arc::new(config), server_name).expect("me rompi");
+
+            let tls_stream = StreamOwned::new(conn, stream);
+            let tls_stream = Arc::new(tls_stream);
+
+            connect.write_to(tls_stream.get_ref()).unwrap();
+        });
 
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = match broker.handle_messages(stream) {
-                Ok(r) => Ok(r),
-                Err(e) => return Err(e),
+            let server_connection = match ServerConnection::new(broker.server_config.clone()) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return Err(ProtocolError::StreamError);
+                }
             };
+
+            let tls_stream = StreamOwned::new(server_connection, stream);
+            let stream = Arc::new(tls_stream);
+
+            let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
+            let stream_ref = Arc::clone(&stream);
+
+            thread::spawn(move || {
+                loop {
+                    if let Ok(message) = message_to_write_receiver.try_recv() {
+                        match message {
+                            BrokerMessage::Connack { session_present: _, reason_code, properties: _ } => {
+                                assert_eq!(reason_code, 0x00_u8);
+                            }
+                            _ => {
+                                assert!(false, "Assertion failed: No se recibio un Connack");
+                            }
+                        }
+                        break;
+                    }
+                }
+            });
+
+            loop {
+                match ClientMessage::read_from(stream.get_ref()) {
+                    Ok(message) => {
+                        let result =
+                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                        println!("Message {:?} received", result);
+                        assert_eq!(result, ProtocolReturn::ConnackSent);
+                        return Ok(())
+                    }
+                    Err(err) => {
+                        eprintln!("Error {}", err);
+                        break;
+                    }
+                }
+            }
         }
-
-        assert_eq!(result, Ok(ProtocolReturn::ConnackSent));
-
         Ok(())
     }
 
-    // #[test]
-    // fn test_envio_connect_con_id_repetido_y_desconecta() {
-    //     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    //     let addr = listener.local_addr().unwrap();
+    #[test]
+    fn test_envio_connect_con_id_repetido_y_desconecta() -> Result<(), ProtocolError> {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
 
-    //     let connect_config =
-    //         client_message::Connect::read_connect_config("./src/monitoring/connect_config.json")
-    //             .unwrap();
+        let connect_config =
+            client_message::Connect::read_connect_config("./src/monitoring/connect_config.json")
+                .unwrap();
 
-    //     let connect = ClientMessage::Connect(connect_config.clone());
+        let connect = ClientMessage::Connect(connect_config);
+        let second_connect = connect.clone();
 
-    //     thread::spawn(move || {
-    //         let mut stream = TcpStream::connect(addr).unwrap();
-    //         let mut buffer = vec![];
-    //         connect.write_to(&mut buffer).unwrap();
-    //         stream.write_all(&buffer).unwrap();
-    //     });
+        thread::spawn(move || {
+            let stream = TcpStream::connect(addr).unwrap();
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+            let mut root_store = RootCertStore::empty();
+            let cert_file = &mut BufReader::new(File::open("./src/mqtt/certs/cert.pem").unwrap());
+            root_store.add_parsable_certificates(
+                rustls_pemfile::certs(cert_file).map(|result| result.unwrap()),
+            );
 
-    //     let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
 
-    //     let mut result: Result<ProtocolReturn, ProtocolError> = Err(
-    //         ProtocolError::UnspecifiedError("Error no especificado".to_string()),
-    //     );
-    //     if let Ok((stream, _)) = listener.accept() {
-    //         result = broker.handle_messages(stream);
-    //     }
+            config.key_log = Arc::new(KeyLogFile::new());
 
-    //     assert!(result.is_ok());
-    //     assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
+            let server_name = "rustic_city_eye".try_into().unwrap();
+            let conn = ClientConnection::new(Arc::new(config), server_name).expect("me rompi");
 
-    //     // vuelvo a enviar el connect con el mismo id
-    //     let connect_propierties = ConnectProperties {
-    //         session_expiry_interval: 1,
-    //         receive_maximum: 2,
-    //         maximum_packet_size: 10,
-    //         topic_alias_maximum: 99,
-    //         request_response_information: true,
-    //         request_problem_information: false,
-    //         user_properties: vec![
-    //             ("Hola".to_string(), "Mundo".to_string()),
-    //             ("Chau".to_string(), "Mundo".to_string()),
-    //         ],
-    //         authentication_method: "test".to_string(),
-    //         authentication_data: vec![1_u8, 2_u8, 3_u8, 4_u8, 5_u8],
-    //     };
-    //     let will_properties = WillProperties::new(
-    //         120,
-    //         1,
-    //         30,
-    //         "plain".to_string(),
-    //         "topic".to_string(),
-    //         vec![1, 2, 3, 4, 5],
-    //         vec![("propiedad".to_string(), "valor".to_string())],
-    //     );
+            let tls_stream = StreamOwned::new(conn, stream);
+            let tls_stream = Arc::new(tls_stream);
 
-    //     let connect = Connect::new(
-    //         true,
-    //         true,
-    //         1,
-    //         true,
-    //         35,
-    //         connect_propierties,
-    //         "monitoring_app".to_string(),
-    //         will_properties,
-    //         "topic".to_string(),
-    //         "chauchis".to_string(),
-    //         "prueba".to_string(),
-    //         "".to_string(),
-    //     );
+            connect.write_to(tls_stream.get_ref()).unwrap();
+        });
 
-    //     let connect = ClientMessage::Connect(connect);
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
+        if let Ok((stream, _)) = listener.accept() {
+            let server_connection = match ServerConnection::new(broker.server_config.clone()) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return Err(ProtocolError::StreamError);
+                }
+            };
 
-    //     thread::spawn(move || {
-    //         let mut stream = TcpStream::connect(addr).unwrap();
-    //         let mut buffer = vec![];
-    //         connect.write_to(&mut buffer).unwrap();
-    //         stream.write_all(&buffer).unwrap();
-    //     });
+            let tls_stream = StreamOwned::new(server_connection, stream);
+            let stream = Arc::new(tls_stream);
 
-    //     let mut result: Result<ProtocolReturn, ProtocolError> = Err(
-    //         ProtocolError::UnspecifiedError("Error no especificado".to_string()),
-    //     );
-    //     if let Ok((stream_clone, _)) = listener.accept() {
-    //         result = broker.handle_messages(stream_clone);
-    //     }
+            let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
+            let stream_ref = Arc::clone(&stream);
 
-    //     assert!(result.is_ok());
-    //     assert_eq!(result.unwrap(), ProtocolReturn::DisconnectSent);
-    // }
+            thread::spawn(move || {
+                loop {
+                    if let Ok(message) = message_to_write_receiver.try_recv() {
+                        match message {
+                            BrokerMessage::Connack { session_present: _, reason_code, properties: _ } => {
+                                assert_eq!(reason_code, 0x00_u8);
+                            }
+                            _ => {
+                                assert!(false, "Assertion failed: No se recibio un Connack");
+                            }
+                        }
+                        break;
+                    }
+                }
+            });
+
+            loop {
+                match ClientMessage::read_from(stream.get_ref()) {
+                    Ok(message) => {
+                        let result =
+                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                        println!("Message {:?} received", result);
+                        assert_eq!(result, ProtocolReturn::ConnackSent);
+                        return Ok(())
+                    }
+                    Err(err) => {
+                        eprintln!("Error {}", err);
+                        break;
+                    }
+                }
+            }
+        }
+
+        thread::spawn(move || {
+            let stream = TcpStream::connect(addr).unwrap();
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+            let mut root_store = RootCertStore::empty();
+            let cert_file = &mut BufReader::new(File::open("./src/mqtt/certs/cert.pem").unwrap());
+            root_store.add_parsable_certificates(
+                rustls_pemfile::certs(cert_file).map(|result| result.unwrap()),
+            );
+
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
+
+            config.key_log = Arc::new(KeyLogFile::new());
+
+            let server_name = "rustic_city_eye".try_into().unwrap();
+            let conn = ClientConnection::new(Arc::new(config), server_name).expect("me rompi");
+
+            let tls_stream = StreamOwned::new(conn, stream);
+            let tls_stream = Arc::new(tls_stream);
+
+            second_connect.write_to(tls_stream.get_ref()).unwrap();
+        });
+
+        if let Ok((stream, _)) = listener.accept() {
+            let server_connection = match ServerConnection::new(broker.server_config.clone()) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return Err(ProtocolError::StreamError);
+                }
+            };
+
+            let tls_stream = StreamOwned::new(server_connection, stream);
+            let stream = Arc::new(tls_stream);
+
+            let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
+            let stream_ref = Arc::clone(&stream);
+
+            thread::spawn(move || {
+                loop {
+                    if let Ok(message) = message_to_write_receiver.try_recv() {
+                        match message {
+                            BrokerMessage::Connack { session_present: _, reason_code, properties: _ } => {
+                                assert_eq!(reason_code, 0x00_u8);
+                            }
+                            _ => {
+                                assert!(false, "Assertion failed: No se recibio un Connack");
+                            }
+                        }
+                        break;
+                    }
+                }
+            });
+
+            loop {
+                match ClientMessage::read_from(stream.get_ref()) {
+                    Ok(message) => {
+                        let result =
+                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                        println!("Message {:?} received", result);
+                        assert_eq!(result, ProtocolReturn::DisconnectSent);
+                        return Ok(())
+                    }
+                    Err(err) => {
+                        eprintln!("Error {}", err);
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
 
     #[test]
-    fn test_subscribe() {
+    fn test_subscribe() -> Result<(), ProtocolError> {
         // Set up a listener on a local port.
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
@@ -177,7 +341,7 @@ mod tests {
         let properties =
             SubscribeProperties::new(1, vec![("propiedad".to_string(), "valor".to_string())]);
 
-        let payload = Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string());
+        let payload = Subscription::new("incident".to_string(), "kvtr33".to_string());
 
         let sub = ClientMessage::Subscribe {
             packet_id: 1,
@@ -186,25 +350,84 @@ mod tests {
         };
 
         thread::spawn(move || {
-            let mut stream = TcpStream::connect(addr).unwrap();
-            let mut buffer = vec![];
-            sub.write_to(&mut buffer).unwrap();
-            stream.write_all(&buffer).unwrap();
+            let stream = TcpStream::connect(addr).unwrap();
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+            let mut root_store = RootCertStore::empty();
+            let cert_file = &mut BufReader::new(File::open("./src/mqtt/certs/cert.pem").unwrap());
+            root_store.add_parsable_certificates(
+                rustls_pemfile::certs(cert_file).map(|result| result.unwrap()),
+            );
+
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
+
+            config.key_log = Arc::new(KeyLogFile::new());
+
+            let server_name = "rustic_city_eye".try_into().unwrap();
+            let conn = ClientConnection::new(Arc::new(config), server_name).expect("me rompi");
+
+            let tls_stream = StreamOwned::new(conn, stream);
+            let tls_stream = Arc::new(tls_stream);
+
+            sub.write_to(tls_stream.get_ref()).unwrap();
         });
 
-        let mut result: Result<ProtocolReturn, ProtocolError> = Err(
-            ProtocolError::UnspecifiedError("Error no especificado".to_string()),
-        );
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
 
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream);
+            let server_connection = match ServerConnection::new(broker.server_config.clone()) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return Err(ProtocolError::StreamError);
+                }
+            };
+
+            let tls_stream = StreamOwned::new(server_connection, stream);
+            let stream = Arc::new(tls_stream);
+
+            let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
+            let stream_ref = Arc::clone(&stream);
+
+            thread::spawn(move || {
+                loop {
+                    if let Ok(message) = message_to_write_receiver.try_recv() {
+                        match message {
+                            BrokerMessage::Suback { packet_id_msb: _, packet_id_lsb: _, reason_code } => {
+                                assert_eq!(reason_code, 0x00_u8);
+                            }
+                            _ => {
+                                assert!(false, "Assertion failed: No se recibio un Suback");
+                            }
+                        }
+                        break;
+                    }
+                }
+            });
+
+            loop {
+                match ClientMessage::read_from(stream.get_ref()) {
+                    Ok(message) => {
+                        let result =
+                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                        println!("{:?}", result);
+                        assert_eq!(result, ProtocolReturn::SubackSent);
+                        return Ok(())
+                    }
+                    Err(err) => {
+                        eprintln!("Error {}", err);
+                        break;
+                    }
+                }
+            }
         }
 
-        assert_eq!(result.unwrap(), ProtocolReturn::SubackSent);
+        Ok(())
     }
+
     #[test]
-    fn test_publish() {
+    fn test_publish() -> Result<(), ProtocolError> {
         // Set up a listener on a local port.
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
@@ -235,26 +458,82 @@ mod tests {
             properties,
         };
         thread::spawn(move || {
-            let mut stream = TcpStream::connect(addr).unwrap();
-            let mut buffer = vec![];
-            publish.write_to(&mut buffer).unwrap();
-            stream.write_all(&buffer).unwrap();
-        });
+            let stream = TcpStream::connect(addr).unwrap();
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+            let mut root_store = RootCertStore::empty();
+            let cert_file = &mut BufReader::new(File::open("./src/mqtt/certs/cert.pem").unwrap());
+            root_store.add_parsable_certificates(
+                rustls_pemfile::certs(cert_file).map(|result| result.unwrap()),
+            );
 
-        let mut result: Result<ProtocolReturn, ProtocolError> = Err(
-            ProtocolError::UnspecifiedError("Error no especificado".to_string()),
-        );
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
+
+            config.key_log = Arc::new(KeyLogFile::new());
+
+            let server_name = "rustic_city_eye".try_into().unwrap();
+            let conn = ClientConnection::new(Arc::new(config), server_name).expect("me rompi");
+
+            let tls_stream = StreamOwned::new(conn, stream);
+            let tls_stream = Arc::new(tls_stream);
+
+            publish.write_to(tls_stream.get_ref()).unwrap();
+        });
 
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream);
-        }
+            let server_connection = match ServerConnection::new(broker.server_config.clone()) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return Err(ProtocolError::StreamError);
+                }
+            };
 
-        assert_eq!(result.unwrap(), ProtocolReturn::PubackSent);
+            let tls_stream = StreamOwned::new(server_connection, stream);
+            let stream = Arc::new(tls_stream);
+
+            let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
+            let stream_ref = Arc::clone(&stream);
+
+            thread::spawn(move || {
+                loop {
+                    if let Ok(message) = message_to_write_receiver.try_recv() {
+                        match message {
+                            BrokerMessage::Puback { packet_id_msb: _, packet_id_lsb: _, reason_code } => {
+                                assert_eq!(reason_code, 0x00_u8);
+                            }
+                            _ => {
+                                assert!(false, "Assertion failed: No se recibio un Puback");
+                            }
+                        }
+                        break;
+                    }
+                }
+            });
+
+            loop {
+                match ClientMessage::read_from(stream.get_ref()) {
+                    Ok(message) => {
+                        let result =
+                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                        println!("{:?}", result);
+                        assert_eq!(result, ProtocolReturn::PubackSent);
+                        return Ok(())
+                    }
+                    Err(err) => {
+                        eprintln!("Error {}", err);
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     #[test]
-    fn test_publish_qos0() {
+    fn test_publish_qos0() -> Result<(), ProtocolError> {
         // Set up a listener on a local port.
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
@@ -285,63 +564,171 @@ mod tests {
             properties,
         };
         thread::spawn(move || {
-            let mut stream = TcpStream::connect(addr).unwrap();
-            let mut buffer = vec![];
-            publish.write_to(&mut buffer).unwrap();
-            stream.write_all(&buffer).unwrap();
+            let stream = TcpStream::connect(addr).unwrap();
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+            let mut root_store = RootCertStore::empty();
+            let cert_file = &mut BufReader::new(File::open("./src/mqtt/certs/cert.pem").unwrap());
+            root_store.add_parsable_certificates(
+                rustls_pemfile::certs(cert_file).map(|result| result.unwrap()),
+            );
+
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
+
+            config.key_log = Arc::new(KeyLogFile::new());
+
+            let server_name = "rustic_city_eye".try_into().unwrap();
+            let conn = ClientConnection::new(Arc::new(config), server_name).expect("me rompi");
+
+            let tls_stream = StreamOwned::new(conn, stream);
+            let tls_stream = Arc::new(tls_stream);
+
+            publish.write_to(tls_stream.get_ref()).unwrap();
         });
 
-        let mut result: Result<ProtocolReturn, ProtocolError> = Err(
-            ProtocolError::UnspecifiedError("Error no especificado".to_string()),
-        );
-
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
-
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream);
-        }
+            let server_connection = match ServerConnection::new(broker.server_config.clone()) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return Err(ProtocolError::StreamError);
+                }
+            };
 
-        assert_eq!(result.unwrap(), ProtocolReturn::NoAckSent);
+            let tls_stream = StreamOwned::new(server_connection, stream);
+            let stream = Arc::new(tls_stream);
+
+            let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
+            let stream_ref = Arc::clone(&stream);
+
+            thread::spawn(move || {
+                loop {
+                    if let Ok(message) = message_to_write_receiver.try_recv() {
+                        match message {
+                            _ => {
+                                assert!(true);
+                            }
+                        }
+                        break;
+                    }
+                }
+            });
+
+            loop {
+                match ClientMessage::read_from(stream.get_ref()) {
+                    Ok(message) => {
+                        let result =
+                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                        println!("{:?}", result);
+                        assert_eq!(result, ProtocolReturn::NoAckSent);
+                        return Ok(())
+                    }
+                    Err(err) => {
+                        eprintln!("Error {}", err);
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     #[test]
-    fn test_unsubcribe() {
+    fn test_unsubcribe() -> Result<(), ProtocolError> {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
 
         let properties =
             SubscribeProperties::new(1, vec![("propiedad".to_string(), "valor".to_string())]);
 
-        let payload = Subscription::new("mensajes para juan".to_string(), "kvtr33".to_string());
+        let payload = Subscription::new("incident".to_string(), "kvtr33".to_string());
 
-        let sub = ClientMessage::Unsubscribe {
+        let unsub = ClientMessage::Unsubscribe {
             packet_id: 1,
             properties,
             payload,
         };
 
         thread::spawn(move || {
-            let mut stream = TcpStream::connect(addr).unwrap();
-            let mut buffer = vec![];
-            sub.write_to(&mut buffer).unwrap();
-            stream.write_all(&buffer).unwrap();
+            let stream = TcpStream::connect(addr).unwrap();
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+            let mut root_store = RootCertStore::empty();
+            let cert_file = &mut BufReader::new(File::open("./src/mqtt/certs/cert.pem").unwrap());
+            root_store.add_parsable_certificates(
+                rustls_pemfile::certs(cert_file).map(|result| result.unwrap()),
+            );
+
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
+
+            config.key_log = Arc::new(KeyLogFile::new());
+
+            let server_name = "rustic_city_eye".try_into().unwrap();
+            let conn = ClientConnection::new(Arc::new(config), server_name).expect("me rompi");
+
+            let tls_stream = StreamOwned::new(conn, stream);
+            let tls_stream = Arc::new(tls_stream);
+
+            unsub.write_to(tls_stream.get_ref()).unwrap();
         });
 
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
 
-        let mut result: Result<ProtocolReturn, ProtocolError> = Err(
-            ProtocolError::UnspecifiedError("Error no especificado".to_string()),
-        );
-
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream);
-        }
+            let server_connection = match ServerConnection::new(broker.server_config.clone()) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return Err(ProtocolError::StreamError);
+                }
+            };
 
-        assert_eq!(result.unwrap(), ProtocolReturn::UnsubackSent);
+            let tls_stream = StreamOwned::new(server_connection, stream);
+            let stream = Arc::new(tls_stream);
+
+            let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
+            let stream_ref = Arc::clone(&stream);
+
+            thread::spawn(move || {
+                loop {
+                    if let Ok(message) = message_to_write_receiver.try_recv() {
+                        match message {
+                            BrokerMessage::Unsuback { packet_id_msb: _, packet_id_lsb: _, reason_code } => {
+                                assert_eq!(reason_code, 0x00_u8);
+                            }
+                            _ => {
+                                assert!(false, "Assertion failed: No se recibio un Unsuback");
+                            }
+                        }
+                        break;
+                    }
+                }
+            });
+
+            loop {
+                match ClientMessage::read_from(stream.get_ref()) {
+                    Ok(message) => {
+                        let result =
+                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                        println!("{:?}", result);
+                        assert_eq!(result, ProtocolReturn::UnsubackSent);
+                        return Ok(())
+                    }
+                    Err(err) => {
+                        eprintln!("Error {}", err);
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     #[test]
-    fn test_disconnect() {
+    fn test_disconnect() -> Result<(), ProtocolError> {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         let disconnect = ClientMessage::Disconnect {
@@ -350,49 +737,162 @@ mod tests {
             reason_string: "pasaron_cosas".to_string(),
             client_id: "kvtr33".to_string(),
         };
+        
         thread::spawn(move || {
-            let mut stream = TcpStream::connect(addr).unwrap();
-            let mut buffer = vec![];
-            disconnect.write_to(&mut buffer).unwrap();
-            stream.write_all(&buffer).unwrap();
+            let stream = TcpStream::connect(addr).unwrap();
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+            let mut root_store = RootCertStore::empty();
+            let cert_file = &mut BufReader::new(File::open("./src/mqtt/certs/cert.pem").unwrap());
+            root_store.add_parsable_certificates(
+                rustls_pemfile::certs(cert_file).map(|result| result.unwrap()),
+            );
+
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
+
+            config.key_log = Arc::new(KeyLogFile::new());
+
+            let server_name = "rustic_city_eye".try_into().unwrap();
+            let conn = ClientConnection::new(Arc::new(config), server_name).expect("me rompi");
+
+            let tls_stream = StreamOwned::new(conn, stream);
+            let tls_stream = Arc::new(tls_stream);
+
+            disconnect.write_to(tls_stream.get_ref()).unwrap();
         });
 
-        let mut result: Result<ProtocolReturn, ProtocolError> = Err(
-            ProtocolError::UnspecifiedError("Error no especificado".to_string()),
-        );
-
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
-        if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream);
-        }
 
-        assert_eq!(result.unwrap(), ProtocolReturn::DisconnectRecieved);
+        if let Ok((stream, _)) = listener.accept() {
+            let server_connection = match ServerConnection::new(broker.server_config.clone()) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return Err(ProtocolError::StreamError);
+                }
+            };
+
+            let tls_stream = StreamOwned::new(server_connection, stream);
+            let stream = Arc::new(tls_stream);
+
+            let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
+            let stream_ref = Arc::clone(&stream);
+
+            thread::spawn(move || {
+                loop {
+                    if let Ok(message) = message_to_write_receiver.try_recv() {
+                        match message {
+                            BrokerMessage::Disconnect { reason_code, session_expiry_interval: _, reason_string: _, user_properties: _ } => {
+                                assert_eq!(reason_code, 0x00_u8);
+                            }
+                            _ => {
+                                assert!(false, "Assertion failed: No se recibio un Unsuback");
+                            }
+                        }
+                        break;
+                    }
+                }
+            });
+
+            loop {
+                match ClientMessage::read_from(stream.get_ref()) {
+                    Ok(message) => {
+                        let result =
+                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                        println!("{:?}", result);
+                        assert_eq!(result, ProtocolReturn::DisconnectRecieved);
+                        return Ok(())
+                    }
+                    Err(err) => {
+                        eprintln!("Error {}", err);
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     #[test]
-    fn test_pingreq() {
+    fn test_pingreq() -> Result<(), ProtocolError> {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr: std::net::SocketAddr = listener.local_addr().unwrap();
 
         let pingreq = ClientMessage::Pingreq;
 
         thread::spawn(move || {
-            let mut stream = TcpStream::connect(addr).unwrap();
-            let mut buffer = vec![];
-            pingreq.write_to(&mut buffer).unwrap();
-            stream.write_all(&buffer).unwrap();
+            let stream = TcpStream::connect(addr).unwrap();
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+            let mut root_store = RootCertStore::empty();
+            let cert_file = &mut BufReader::new(File::open("./src/mqtt/certs/cert.pem").unwrap());
+            root_store.add_parsable_certificates(
+                rustls_pemfile::certs(cert_file).map(|result| result.unwrap()),
+            );
+
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
+
+            config.key_log = Arc::new(KeyLogFile::new());
+
+            let server_name = "rustic_city_eye".try_into().unwrap();
+            let conn = ClientConnection::new(Arc::new(config), server_name).expect("me rompi");
+
+            let tls_stream = StreamOwned::new(conn, stream);
+            let tls_stream = Arc::new(tls_stream);
+
+            pingreq.write_to(tls_stream.get_ref()).unwrap();
         });
 
-        let mut result: Result<ProtocolReturn, ProtocolError> = Err(
-            ProtocolError::UnspecifiedError("Error no especificado".to_string()),
-        );
-
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
-        if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream);
-        }
 
-        assert_eq!(result.unwrap(), ProtocolReturn::PingrespSent);
+        if let Ok((stream, _)) = listener.accept() {
+            let server_connection = match ServerConnection::new(broker.server_config.clone()) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return Err(ProtocolError::StreamError);
+                }
+            };
+
+            let tls_stream = StreamOwned::new(server_connection, stream);
+            let stream = Arc::new(tls_stream);
+
+            let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
+            let stream_ref = Arc::clone(&stream);
+
+            thread::spawn(move || {
+                loop {
+                    if let Ok(message) = message_to_write_receiver.try_recv() {
+                        match message {
+                            BrokerMessage::Pingresp => assert!(true),
+                            _ => {
+                                assert!(false, "Assertion failed: No se recibio un Unsuback");
+                            }
+                        }
+                        break;
+                    }
+                }
+            });
+
+            loop {
+                match ClientMessage::read_from(stream.get_ref()) {
+                    Ok(message) => {
+                        let result =
+                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                        println!("{:?}", result);
+                        assert_eq!(result, ProtocolReturn::PingrespSent);
+                        return Ok(())
+                    }
+                    Err(err) => {
+                        eprintln!("Error {}", err);
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     #[test]
@@ -409,90 +909,165 @@ mod tests {
         let connect = ClientMessage::Connect(connect_config.clone());
 
         thread::spawn(move || {
-            let mut stream = TcpStream::connect(addr).unwrap();
-            let mut buffer = vec![];
-            connect.write_to(&mut buffer).unwrap();
-            stream.write_all(&buffer).unwrap();
+            let stream = TcpStream::connect(addr).unwrap();
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+            let mut root_store = RootCertStore::empty();
+            let cert_file = &mut BufReader::new(File::open("./src/mqtt/certs/cert.pem").unwrap());
+            root_store.add_parsable_certificates(
+                rustls_pemfile::certs(cert_file).map(|result| result.unwrap()),
+            );
+
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
+
+            config.key_log = Arc::new(KeyLogFile::new());
+
+            let server_name = "rustic_city_eye".try_into().unwrap();
+            let conn = ClientConnection::new(Arc::new(config), server_name).expect("me rompi");
+
+            let tls_stream = StreamOwned::new(conn, stream);
+            let tls_stream = Arc::new(tls_stream);
+
+            connect.write_to(tls_stream.get_ref()).unwrap();
         });
 
-        let mut result: Result<ProtocolReturn, ProtocolError> = Err(
-            ProtocolError::UnspecifiedError("Error no especificado".to_string()),
-        );
-
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
+
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream);
+            let server_connection = match ServerConnection::new(broker.server_config.clone()) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return Err(ProtocolError::StreamError);
+                }
+            };
+
+            let tls_stream = StreamOwned::new(server_connection, stream);
+            let stream = Arc::new(tls_stream);
+
+            let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
+            let stream_ref = Arc::clone(&stream);
+
+            thread::spawn(move || {
+                loop {
+                    if let Ok(message) = message_to_write_receiver.try_recv() {
+                        match message {
+                            BrokerMessage::Connack { session_present: _, reason_code, properties: _ } => {
+                                assert_eq!(reason_code, 0x8C_u8);
+                            }
+                            _ => {
+                                assert!(false, "Assertion failed: No se recibio un Unsuback");
+                            }
+                        }
+                        break;
+                    }
+                }
+            });
+
+            loop {
+                match ClientMessage::read_from(stream.get_ref()) {
+                    Ok(message) => {
+                        let result =
+                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                        println!("{:?}", result);
+                        assert_eq!(result, ProtocolReturn::ConnackSent);
+                        return Ok(())
+                    }
+                    Err(err) => {
+                        eprintln!("Error {}", err);
+                        break;
+                    }
+                }
+            }
         }
-
-        assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
-
         Ok(())
     }
 
     #[test]
-    fn connect_disconnect_connect() {
+    fn connect_disconnect_connect() -> Result<(), ProtocolError> {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
 
-        let connect_propierties = ConnectProperties {
-            session_expiry_interval: 1,
-            receive_maximum: 2,
-            maximum_packet_size: 10,
-            topic_alias_maximum: 99,
-            request_response_information: true,
-            request_problem_information: false,
-            user_properties: vec![
-                ("Hola".to_string(), "Mundo".to_string()),
-                ("Chau".to_string(), "Mundo".to_string()),
-            ],
-            authentication_method: "test".to_string(),
-            authentication_data: vec![1_u8, 2_u8, 3_u8, 4_u8, 5_u8],
-        };
+        let connect_config =
+            client_message::Connect::read_connect_config("./src/monitoring/connect_config.json")
+                .unwrap();
 
-        let will_properties = WillProperties::new(
-            120,
-            1,
-            30,
-            "plain".to_string(),
-            "topic".to_string(),
-            vec![1, 2, 3, 4, 5],
-            vec![("propiedad".to_string(), "valor".to_string())],
-        );
-
-        let connect = Connect::new(
-            true,
-            true,
-            1,
-            true,
-            35,
-            connect_propierties,
-            "kvtr33".to_string(),
-            will_properties,
-            "topic".to_string(),
-            "chauchis".to_string(),
-            "prueba".to_string(),
-            "".to_string(),
-        );
-
-        let connect = ClientMessage::Connect(connect);
+        let connect = ClientMessage::Connect(connect_config);
+        let second_connect = connect.clone();
 
         thread::spawn(move || {
-            let mut stream = TcpStream::connect(addr).unwrap();
-            let mut buffer = vec![];
-            connect.write_to(&mut buffer).unwrap();
-            stream.write_all(&buffer).unwrap();
+            let stream = TcpStream::connect(addr).unwrap();
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+            let mut root_store = RootCertStore::empty();
+            let cert_file = &mut BufReader::new(File::open("./src/mqtt/certs/cert.pem").unwrap());
+            root_store.add_parsable_certificates(
+                rustls_pemfile::certs(cert_file).map(|result| result.unwrap()),
+            );
+
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
+
+            config.key_log = Arc::new(KeyLogFile::new());
+
+            let server_name = "rustic_city_eye".try_into().unwrap();
+            let conn = ClientConnection::new(Arc::new(config), server_name).expect("me rompi");
+
+            let tls_stream = StreamOwned::new(conn, stream);
+            let tls_stream = Arc::new(tls_stream);
+
+            connect.write_to(tls_stream.get_ref()).unwrap();
         });
 
-        let mut result: Result<ProtocolReturn, ProtocolError> = Err(
-            ProtocolError::UnspecifiedError("Error no especificado".to_string()),
-        );
         let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
-
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream);
-        }
+            let server_connection = match ServerConnection::new(broker.server_config.clone()) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return Err(ProtocolError::StreamError);
+                }
+            };
 
-        assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
+            let tls_stream = StreamOwned::new(server_connection, stream);
+            let stream = Arc::new(tls_stream);
+
+            let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
+            let stream_ref = Arc::clone(&stream);
+
+            thread::spawn(move || {
+                loop {
+                    if let Ok(message) = message_to_write_receiver.try_recv() {
+                        match message {
+                            BrokerMessage::Connack { session_present: _, reason_code, properties: _ } => {
+                                assert_eq!(reason_code, 0x00_u8);
+                            }
+                            _ => {
+                                assert!(false, "Assertion failed: No se recibio un Connack");
+                            }
+                        }
+                        break;
+                    }
+                }
+            });
+
+            loop {
+                match ClientMessage::read_from(stream.get_ref()) {
+                    Ok(message) => {
+                        let result =
+                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                        println!("Message {:?} received", result);
+                        assert_eq!(result, ProtocolReturn::ConnackSent);
+                        return Ok(())
+                    }
+                    Err(err) => {
+                        eprintln!("Error {}", err);
+                        break;
+                    }
+                }
+            }
+        }
 
         // desconecto
 
@@ -500,83 +1075,157 @@ mod tests {
             reason_code: 1,
             session_expiry_interval: 1,
             reason_string: "desconecto_normal".to_string(),
-            client_id: "kvtr33".to_string(),
+            client_id: "monitoreo".to_string(),
         };
 
         thread::spawn(move || {
-            let mut stream = TcpStream::connect(addr).unwrap();
-            let mut buffer = vec![];
-            disconnect.write_to(&mut buffer).unwrap();
-            stream.write_all(&buffer).unwrap();
+            let stream = TcpStream::connect(addr).unwrap();
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+            let mut root_store = RootCertStore::empty();
+            let cert_file = &mut BufReader::new(File::open("./src/mqtt/certs/cert.pem").unwrap());
+            root_store.add_parsable_certificates(
+                rustls_pemfile::certs(cert_file).map(|result| result.unwrap()),
+            );
+
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
+
+            config.key_log = Arc::new(KeyLogFile::new());
+
+            let server_name = "rustic_city_eye".try_into().unwrap();
+            let conn = ClientConnection::new(Arc::new(config), server_name).expect("me rompi");
+
+            let tls_stream = StreamOwned::new(conn, stream);
+            let tls_stream = Arc::new(tls_stream);
+
+            disconnect.write_to(tls_stream.get_ref()).unwrap();
         });
 
-        let mut result: Result<ProtocolReturn, ProtocolError> = Err(
-            ProtocolError::UnspecifiedError("Error no especificado".to_string()),
-        );
-        if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream);
-        }
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
 
-        assert_eq!(result.unwrap(), ProtocolReturn::DisconnectRecieved);
+        if let Ok((stream, _)) = listener.accept() {
+            let server_connection = match ServerConnection::new(broker.server_config.clone()) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return Err(ProtocolError::StreamError);
+                }
+            };
+
+            let tls_stream = StreamOwned::new(server_connection, stream);
+            let stream = Arc::new(tls_stream);
+
+            let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
+            let stream_ref = Arc::clone(&stream);
+
+            thread::spawn(move || {
+                loop {
+                    if let Ok(message) = message_to_write_receiver.try_recv() {
+                        match message {
+                            BrokerMessage::Disconnect { reason_code, session_expiry_interval: _, reason_string: _, user_properties: _ } => {
+                                assert_eq!(reason_code, 0x00_u8);
+                            }
+                            _ => {
+                                assert!(false, "Assertion failed: No se recibio un Unsuback");
+                            }
+                        }
+                        break;
+                    }
+                }
+            });
+
+            loop {
+                match ClientMessage::read_from(stream.get_ref()) {
+                    Ok(message) => {
+                        let result =
+                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                        println!("{:?}", result);
+                        assert_eq!(result, ProtocolReturn::DisconnectRecieved);
+                        return Ok(())
+                    }
+                    Err(err) => {
+                        eprintln!("Error {}", err);
+                        break;
+                    }
+                }
+            }
+        }
 
         // vuelvo a conectar
-        let connect_propierties = ConnectProperties {
-            session_expiry_interval: 1,
-            receive_maximum: 2,
-            maximum_packet_size: 10,
-            topic_alias_maximum: 99,
-            request_response_information: true,
-            request_problem_information: false,
-            user_properties: vec![
-                ("Hola".to_string(), "Mundo".to_string()),
-                ("Chau".to_string(), "Mundo".to_string()),
-            ],
-            authentication_method: "test".to_string(),
-            authentication_data: vec![1_u8, 2_u8, 3_u8, 4_u8, 5_u8],
-        };
-
-        let will_properties = WillProperties::new(
-            120,
-            1,
-            30,
-            "plain".to_string(),
-            "topic".to_string(),
-            vec![1, 2, 3, 4, 5],
-            vec![("propiedad".to_string(), "valor".to_string())],
-        );
-
-        let connect = Connect::new(
-            true,
-            true,
-            1,
-            true,
-            35,
-            connect_propierties,
-            "kvtr33".to_string(),
-            will_properties,
-            "topic".to_string(),
-            "chauchis".to_string(),
-            "prueba".to_string(),
-            "".to_string(),
-        );
-
-        let connect = ClientMessage::Connect(connect);
-
         thread::spawn(move || {
-            let mut stream = TcpStream::connect(addr).unwrap();
-            let mut buffer = vec![];
-            connect.write_to(&mut buffer).unwrap();
-            stream.write_all(&buffer).unwrap();
+            let stream = TcpStream::connect(addr).unwrap();
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+            let mut root_store = RootCertStore::empty();
+            let cert_file = &mut BufReader::new(File::open("./src/mqtt/certs/cert.pem").unwrap());
+            root_store.add_parsable_certificates(
+                rustls_pemfile::certs(cert_file).map(|result| result.unwrap()),
+            );
+
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(root_store)
+                .with_no_client_auth();
+
+            config.key_log = Arc::new(KeyLogFile::new());
+
+            let server_name = "rustic_city_eye".try_into().unwrap();
+            let conn = ClientConnection::new(Arc::new(config), server_name).expect("me rompi");
+
+            let tls_stream = StreamOwned::new(conn, stream);
+            let tls_stream = Arc::new(tls_stream);
+
+            second_connect.write_to(tls_stream.get_ref()).unwrap();
         });
 
-        let mut result: Result<ProtocolReturn, ProtocolError> = Err(
-            ProtocolError::UnspecifiedError("Error no especificado".to_string()),
-        );
-
+        let broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()]).unwrap();
         if let Ok((stream, _)) = listener.accept() {
-            result = broker.handle_messages(stream);
+            let server_connection = match ServerConnection::new(broker.server_config.clone()) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return Err(ProtocolError::StreamError);
+                }
+            };
+
+            let tls_stream = StreamOwned::new(server_connection, stream);
+            let stream = Arc::new(tls_stream);
+
+            let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
+            let stream_ref = Arc::clone(&stream);
+
+            thread::spawn(move || {
+                loop {
+                    if let Ok(message) = message_to_write_receiver.try_recv() {
+                        match message {
+                            BrokerMessage::Connack { session_present: _, reason_code, properties: _ } => {
+                                assert_eq!(reason_code, 0x00_u8);
+                            }
+                            _ => {
+                                assert!(false, "Assertion failed: No se recibio un Connack");
+                            }
+                        }
+                        break;
+                    }
+                }
+            });
+
+            loop {
+                match ClientMessage::read_from(stream.get_ref()) {
+                    Ok(message) => {
+                        let result =
+                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                        println!("Message {:?} received", result);
+                        assert_eq!(result, ProtocolReturn::ConnackSent);
+                        return Ok(())
+                    }
+                    Err(err) => {
+                        eprintln!("Error {}", err);
+                        break;
+                    }
+                }
+            }
         }
 
-        assert_eq!(result.unwrap(), ProtocolReturn::ConnackSent);
+        Ok(())
     }
 }

@@ -185,6 +185,10 @@ impl Connect {
         }
     }
 
+    pub fn get_client_id(&self) -> &str {
+        &self.client_id
+    }
+
     /// Devuelve, en caso de que haya, un last will. Si el will flag está seteado en false, devuelve None
     pub fn give_will_message(self) -> Option<LastWill> {
         if !self.last_will_flag {

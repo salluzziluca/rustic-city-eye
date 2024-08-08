@@ -1,5 +1,8 @@
 use rand::Rng;
+use rustls::{ClientConfig, ClientConnection, KeyLogFile, RootCertStore, StreamOwned};
 use std::{
+    fs::File,
+    io::BufReader,
     net::{Shutdown, TcpStream},
     sync::{
         mpsc::{self, Receiver, Sender},
@@ -39,7 +42,7 @@ pub struct Client {
     receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
 
     // stream es el socket que se conecta al broker
-    stream: Arc<TcpStream>,
+    stream: Arc<StreamOwned<ClientConnection, TcpStream>>,
 
     // client_id es el identificador del cliente
     pub client_id: String,
@@ -66,21 +69,41 @@ impl Client {
         connect: client_message::Connect,
         sender_channel: Sender<ClientMessage>,
     ) -> Result<Client, ProtocolError> {
-        let mut stream = match TcpStream::connect(address) {
+        let stream = match TcpStream::connect(address) {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::ConectionError),
         };
 
-        let connect_message = ClientMessage::Connect(connect.clone());
+        let client_id = connect.get_client_id().to_string();
+        let connect_message = ClientMessage::Connect(connect);
+
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+        let mut root_store = RootCertStore::empty();
+        let cert_file = &mut BufReader::new(File::open("./src/mqtt/certs/cert.pem").unwrap());
+        root_store.add_parsable_certificates(
+            rustls_pemfile::certs(cert_file).map(|result| result.unwrap()),
+        );
+
+        let mut config = ClientConfig::builder()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
+
+        config.key_log = Arc::new(KeyLogFile::new());
+
+        let server_name = "rustic_city_eye".try_into().unwrap();
+        let conn = ClientConnection::new(Arc::new(config), server_name).expect("me rompi");
+
+        let tls_stream = StreamOwned::new(conn, stream);
+        let tls_stream = Arc::new(tls_stream);
 
         println!("Enviando connect message to broker");
 
-        match connect_message.write_to(&mut stream) {
+        match connect_message.write_to(tls_stream.get_ref()) {
             Ok(()) => println!("Connect message enviado"),
             Err(_) => println!("Error al enviar connect message"),
         }
 
-        if let Ok(message) = BrokerMessage::read_from(&mut stream) {
+        if let Ok(message) = BrokerMessage::read_from(tls_stream.get_ref()) {
             match message {
                 BrokerMessage::Connack {
                     session_present: _,
@@ -92,10 +115,9 @@ impl Client {
                         0x00_u8 => {
                             println!("Conexion exitosa!");
 
-                            let client_id = connect.client_id;
                             Ok(Client {
                                 receiver_channel: Arc::new(Mutex::new(receiver_channel)),
-                                stream: Arc::new(stream),
+                                stream: tls_stream,
                                 packets_ids: Arc::new(Vec::new()),
                                 sender_channel: Some(sender_channel),
                                 client_id,
@@ -258,7 +280,7 @@ impl Client {
                     client_id_clone,
                 ) {
                     Ok(_) => {
-                        stream_ref.shutdown(Shutdown::Both).map_err(|_| {
+                        stream_ref.get_ref().shutdown(Shutdown::Both).map_err(|_| {
                             ProtocolError::ShutdownError("Error al cerrar el stream".to_string())
                         })?;
                         Ok(())
@@ -272,7 +294,7 @@ impl Client {
     }
 
     pub fn receive_messages(
-        stream: Arc<TcpStream>,
+        stream: Arc<StreamOwned<ClientConnection, TcpStream>>,
         pending_id_messages_receiver: Receiver<u16>,
         puback_notify_sender: Sender<bool>,
         sender_channel: Sender<ClientMessage>,
@@ -288,7 +310,7 @@ impl Client {
                 }
             }
 
-            if let Ok(message) = BrokerMessage::read_from(&*stream) {
+            if let Ok(message) = BrokerMessage::read_from(stream.get_ref()) {
                 match Client::handle_message(
                     message,
                     pending_messages.clone(),
@@ -441,7 +463,7 @@ impl Client {
     pub fn disconnect_client(&mut self) -> Result<(), ProtocolError> {
         self.sender_channel = None;
 
-        match self.stream.shutdown(Shutdown::Both) {
+        match self.stream.get_ref().shutdown(Shutdown::Both) {
             Ok(_) => Ok(()),
             Err(e) => {
                 println!("Client: Error while shutting down stream: {:?}", e);
@@ -456,7 +478,7 @@ impl Client {
     /// Si el mensaje es un publish con qos 1, se envia el mensaje y se espera un puback. Si no se recibe, espera 0.5 segundos y reenvia el mensaje. aumentando en 1 el dup_flag, indicando que es al vez numero n que se envia el publish.
     #[allow(clippy::too_many_arguments)]
     fn write_messages(
-        stream: Arc<TcpStream>,
+        stream: Arc<StreamOwned<ClientConnection, TcpStream>>,
         receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
         pending_id_messages_sender: Sender<u16>,
         puback_notify_receiver: Receiver<bool>,
@@ -497,7 +519,7 @@ impl Client {
                             dup_flag,
                             properties: properties.clone(),
                         };
-                        match publish.write_to(&*stream) {
+                        match publish.write_to(stream.get_ref()) {
                             Ok(_) => match pending_id_messages_sender.send(packet_id) {
                                 Ok(_) => {
                                     if qos == 1 {
@@ -516,7 +538,7 @@ impl Client {
                                                         properties: properties.clone(),
                                                     };
 
-                                                    match publish.write_to(&*stream) {
+                                                    match publish.write_to(stream.get_ref()) {
                                                         Ok(_) => {
                                                             match pending_id_messages_sender
                                                                 .send(packet_id)
@@ -565,7 +587,7 @@ impl Client {
                             session_expiry_interval,
                         );
 
-                        match disconnect.write_to(&*stream) {
+                        match disconnect.write_to(stream.get_ref()) {
                             Ok(_) => match pending_id_messages_sender.send(packet_id) {
                                 Ok(_) => {}
                                 Err(e) => {
@@ -577,7 +599,7 @@ impl Client {
                             }
                         }
                     }
-                    _ => match message.write_to(&*stream) {
+                    _ => match message.write_to(stream.get_ref()) {
                         Ok(_) => match pending_id_messages_sender.send(packet_id) {
                             Ok(_) => {}
                             Err(e) => {
@@ -599,25 +621,6 @@ impl Client {
     {
         self.receiver_channel.clone()
     }
-
-    // ///Asigna un id random
-    // pub fn assign_packet_id(&self) -> u16 {
-    //     let mut rng = rand::thread_rng();
-    //     let mut packet_ids = match self.packets_ids.lock() {
-    //         Ok(packet_ids) => packet_ids,
-    //         Err(_) => return 0,
-    //     };
-
-    //     let mut packet_id: u16;
-    //     loop {
-    //         packet_id = rng.gen();
-    //         if packet_id != 0 && !packet_ids.contains(&packet_id) {
-    //             packet_ids.push(packet_id);
-    //             break;
-    //         }
-    //     }
-    //     packet_id
-    // }
 
     pub fn get_packet_id(mut packet_ids: Vec<u16>) -> u16 {
         let mut rng = rand::thread_rng();
@@ -657,7 +660,7 @@ impl ClientTrait for Client {
     }
 
     fn disconnect_client(&self) -> Result<(), ProtocolError> {
-        match self.stream.shutdown(Shutdown::Both) {
+        match self.stream.get_ref().shutdown(Shutdown::Both) {
             Ok(_) => Ok(()),
             Err(e) => {
                 println!("Client: Error while shutting down stream: {:?}", e);

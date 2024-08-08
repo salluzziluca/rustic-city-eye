@@ -138,7 +138,7 @@ impl ClientConfig {
         }
     }
 
-    pub fn remove_all_subscriptions_from_file(
+    pub fn _remove_all_subscriptions_from_file(
         client_id: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let path = format!("./src/mqtt/clients/{}.json", client_id);
@@ -150,7 +150,7 @@ impl ClientConfig {
         Ok(())
     }
 
-    pub fn get_client_subscriptions(
+    pub fn _get_client_subscriptions(
         client_id: String,
     ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
         let path = format!("./src/mqtt/clients/{}.json", client_id);
