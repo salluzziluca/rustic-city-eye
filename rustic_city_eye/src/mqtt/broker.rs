@@ -918,6 +918,7 @@ pub fn authenticate_client(
     let mut connack_reason_code = 0x00_u8; //success :D
 
     match authentication_method.as_str() {
+        "no-auth" => {}
         "password-based" => {
             match clients_auth_info.get(&client_id) {
                 Some(value) => {
