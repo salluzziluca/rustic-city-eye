@@ -1,1 +1,1 @@
-{"drones":[],"drone_centers":[]}
+{"drones":[[{"long":-58.36973541478552,"lat":-34.61679001613853},0]],"drone_centers":[[0,{"long":-58.36973541478552,"lat":-34.61679001613853},"src/drones/drone_config.json","127.0.0.1:5000"]]}
