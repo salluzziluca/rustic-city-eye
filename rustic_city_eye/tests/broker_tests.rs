@@ -74,7 +74,7 @@ mod tests {
                         let result =
                             broker.handle_message(message, &message_to_write_sender, stream_ref);
                         println!("Message {:?} received", result);
-                        return Ok(())
+                        return Ok(());
                     }
                     Err(err) => {
                         eprintln!("Error {}", err);
@@ -138,19 +138,21 @@ mod tests {
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
 
-            thread::spawn(move || {
-                loop {
-                    if let Ok(message) = message_to_write_receiver.try_recv() {
-                        match message {
-                            BrokerMessage::Connack { session_present: _, reason_code, properties: _ } => {
-                                assert_eq!(reason_code, 0x00_u8);
-                            }
-                            _ => {
-                                assert!(false, "Assertion failed: No se recibio un Connack");
-                            }
+            thread::spawn(move || loop {
+                if let Ok(message) = message_to_write_receiver.try_recv() {
+                    match message {
+                        BrokerMessage::Connack {
+                            session_present: _,
+                            reason_code,
+                            properties: _,
+                        } => {
+                            assert_eq!(reason_code, 0x00_u8);
                         }
-                        break;
+                        _ => {
+                            assert!(false, "Assertion failed: No se recibio un Connack");
+                        }
                     }
+                    break;
                 }
             });
 
@@ -161,7 +163,7 @@ mod tests {
                             broker.handle_message(message, &message_to_write_sender, stream_ref)?;
                         println!("Message {:?} received", result);
                         assert_eq!(result, ProtocolReturn::ConnackSent);
-                        return Ok(())
+                        return Ok(());
                     }
                     Err(err) => {
                         eprintln!("Error {}", err);
@@ -225,19 +227,21 @@ mod tests {
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
 
-            thread::spawn(move || {
-                loop {
-                    if let Ok(message) = message_to_write_receiver.try_recv() {
-                        match message {
-                            BrokerMessage::Connack { session_present: _, reason_code, properties: _ } => {
-                                assert_eq!(reason_code, 0x00_u8);
-                            }
-                            _ => {
-                                assert!(false, "Assertion failed: No se recibio un Connack");
-                            }
+            thread::spawn(move || loop {
+                if let Ok(message) = message_to_write_receiver.try_recv() {
+                    match message {
+                        BrokerMessage::Connack {
+                            session_present: _,
+                            reason_code,
+                            properties: _,
+                        } => {
+                            assert_eq!(reason_code, 0x00_u8);
                         }
-                        break;
+                        _ => {
+                            assert!(false, "Assertion failed: No se recibio un Connack");
+                        }
                     }
+                    break;
                 }
             });
 
@@ -248,7 +252,7 @@ mod tests {
                             broker.handle_message(message, &message_to_write_sender, stream_ref)?;
                         println!("Message {:?} received", result);
                         assert_eq!(result, ProtocolReturn::ConnackSent);
-                        return Ok(())
+                        return Ok(());
                     }
                     Err(err) => {
                         eprintln!("Error {}", err);
@@ -297,19 +301,21 @@ mod tests {
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
 
-            thread::spawn(move || {
-                loop {
-                    if let Ok(message) = message_to_write_receiver.try_recv() {
-                        match message {
-                            BrokerMessage::Connack { session_present: _, reason_code, properties: _ } => {
-                                assert_eq!(reason_code, 0x00_u8);
-                            }
-                            _ => {
-                                assert!(false, "Assertion failed: No se recibio un Connack");
-                            }
+            thread::spawn(move || loop {
+                if let Ok(message) = message_to_write_receiver.try_recv() {
+                    match message {
+                        BrokerMessage::Connack {
+                            session_present: _,
+                            reason_code,
+                            properties: _,
+                        } => {
+                            assert_eq!(reason_code, 0x00_u8);
                         }
-                        break;
+                        _ => {
+                            assert!(false, "Assertion failed: No se recibio un Connack");
+                        }
                     }
+                    break;
                 }
             });
 
@@ -320,7 +326,7 @@ mod tests {
                             broker.handle_message(message, &message_to_write_sender, stream_ref)?;
                         println!("Message {:?} received", result);
                         assert_eq!(result, ProtocolReturn::DisconnectSent);
-                        return Ok(())
+                        return Ok(());
                     }
                     Err(err) => {
                         eprintln!("Error {}", err);
@@ -390,19 +396,21 @@ mod tests {
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
 
-            thread::spawn(move || {
-                loop {
-                    if let Ok(message) = message_to_write_receiver.try_recv() {
-                        match message {
-                            BrokerMessage::Suback { packet_id_msb: _, packet_id_lsb: _, reason_code } => {
-                                assert_eq!(reason_code, 0x00_u8);
-                            }
-                            _ => {
-                                assert!(false, "Assertion failed: No se recibio un Suback");
-                            }
+            thread::spawn(move || loop {
+                if let Ok(message) = message_to_write_receiver.try_recv() {
+                    match message {
+                        BrokerMessage::Suback {
+                            packet_id_msb: _,
+                            packet_id_lsb: _,
+                            reason_code,
+                        } => {
+                            assert_eq!(reason_code, 0x00_u8);
                         }
-                        break;
+                        _ => {
+                            assert!(false, "Assertion failed: No se recibio un Suback");
+                        }
                     }
+                    break;
                 }
             });
 
@@ -413,7 +421,7 @@ mod tests {
                             broker.handle_message(message, &message_to_write_sender, stream_ref)?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::SubackSent);
-                        return Ok(())
+                        return Ok(());
                     }
                     Err(err) => {
                         eprintln!("Error {}", err);
@@ -497,19 +505,21 @@ mod tests {
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
 
-            thread::spawn(move || {
-                loop {
-                    if let Ok(message) = message_to_write_receiver.try_recv() {
-                        match message {
-                            BrokerMessage::Puback { packet_id_msb: _, packet_id_lsb: _, reason_code } => {
-                                assert_eq!(reason_code, 0x00_u8);
-                            }
-                            _ => {
-                                assert!(false, "Assertion failed: No se recibio un Puback");
-                            }
+            thread::spawn(move || loop {
+                if let Ok(message) = message_to_write_receiver.try_recv() {
+                    match message {
+                        BrokerMessage::Puback {
+                            packet_id_msb: _,
+                            packet_id_lsb: _,
+                            reason_code,
+                        } => {
+                            assert_eq!(reason_code, 0x00_u8);
                         }
-                        break;
+                        _ => {
+                            assert!(false, "Assertion failed: No se recibio un Puback");
+                        }
                     }
+                    break;
                 }
             });
 
@@ -520,7 +530,7 @@ mod tests {
                             broker.handle_message(message, &message_to_write_sender, stream_ref)?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::PubackSent);
-                        return Ok(())
+                        return Ok(());
                     }
                     Err(err) => {
                         eprintln!("Error {}", err);
@@ -603,16 +613,14 @@ mod tests {
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
 
-            thread::spawn(move || {
-                loop {
-                    if let Ok(message) = message_to_write_receiver.try_recv() {
-                        match message {
-                            _ => {
-                                assert!(true);
-                            }
+            thread::spawn(move || loop {
+                if let Ok(message) = message_to_write_receiver.try_recv() {
+                    match message {
+                        _ => {
+                            assert!(true);
                         }
-                        break;
                     }
+                    break;
                 }
             });
 
@@ -623,7 +631,7 @@ mod tests {
                             broker.handle_message(message, &message_to_write_sender, stream_ref)?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::NoAckSent);
-                        return Ok(())
+                        return Ok(());
                     }
                     Err(err) => {
                         eprintln!("Error {}", err);
@@ -692,19 +700,21 @@ mod tests {
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
 
-            thread::spawn(move || {
-                loop {
-                    if let Ok(message) = message_to_write_receiver.try_recv() {
-                        match message {
-                            BrokerMessage::Unsuback { packet_id_msb: _, packet_id_lsb: _, reason_code } => {
-                                assert_eq!(reason_code, 0x00_u8);
-                            }
-                            _ => {
-                                assert!(false, "Assertion failed: No se recibio un Unsuback");
-                            }
+            thread::spawn(move || loop {
+                if let Ok(message) = message_to_write_receiver.try_recv() {
+                    match message {
+                        BrokerMessage::Unsuback {
+                            packet_id_msb: _,
+                            packet_id_lsb: _,
+                            reason_code,
+                        } => {
+                            assert_eq!(reason_code, 0x00_u8);
                         }
-                        break;
+                        _ => {
+                            assert!(false, "Assertion failed: No se recibio un Unsuback");
+                        }
                     }
+                    break;
                 }
             });
 
@@ -715,7 +725,7 @@ mod tests {
                             broker.handle_message(message, &message_to_write_sender, stream_ref)?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::UnsubackSent);
-                        return Ok(())
+                        return Ok(());
                     }
                     Err(err) => {
                         eprintln!("Error {}", err);
@@ -737,7 +747,7 @@ mod tests {
             reason_string: "pasaron_cosas".to_string(),
             client_id: "kvtr33".to_string(),
         };
-        
+
         thread::spawn(move || {
             let stream = TcpStream::connect(addr).unwrap();
             let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
@@ -779,19 +789,22 @@ mod tests {
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
 
-            thread::spawn(move || {
-                loop {
-                    if let Ok(message) = message_to_write_receiver.try_recv() {
-                        match message {
-                            BrokerMessage::Disconnect { reason_code, session_expiry_interval: _, reason_string: _, user_properties: _ } => {
-                                assert_eq!(reason_code, 0x00_u8);
-                            }
-                            _ => {
-                                assert!(false, "Assertion failed: No se recibio un Unsuback");
-                            }
+            thread::spawn(move || loop {
+                if let Ok(message) = message_to_write_receiver.try_recv() {
+                    match message {
+                        BrokerMessage::Disconnect {
+                            reason_code,
+                            session_expiry_interval: _,
+                            reason_string: _,
+                            user_properties: _,
+                        } => {
+                            assert_eq!(reason_code, 0x00_u8);
                         }
-                        break;
+                        _ => {
+                            assert!(false, "Assertion failed: No se recibio un Unsuback");
+                        }
                     }
+                    break;
                 }
             });
 
@@ -802,7 +815,7 @@ mod tests {
                             broker.handle_message(message, &message_to_write_sender, stream_ref)?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::DisconnectRecieved);
-                        return Ok(())
+                        return Ok(());
                     }
                     Err(err) => {
                         eprintln!("Error {}", err);
@@ -862,17 +875,15 @@ mod tests {
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
 
-            thread::spawn(move || {
-                loop {
-                    if let Ok(message) = message_to_write_receiver.try_recv() {
-                        match message {
-                            BrokerMessage::Pingresp => assert!(true),
-                            _ => {
-                                assert!(false, "Assertion failed: No se recibio un Unsuback");
-                            }
+            thread::spawn(move || loop {
+                if let Ok(message) = message_to_write_receiver.try_recv() {
+                    match message {
+                        BrokerMessage::Pingresp => assert!(true),
+                        _ => {
+                            assert!(false, "Assertion failed: No se recibio un Unsuback");
                         }
-                        break;
                     }
+                    break;
                 }
             });
 
@@ -883,7 +894,7 @@ mod tests {
                             broker.handle_message(message, &message_to_write_sender, stream_ref)?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::PingrespSent);
-                        return Ok(())
+                        return Ok(());
                     }
                     Err(err) => {
                         eprintln!("Error {}", err);
@@ -949,19 +960,21 @@ mod tests {
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
 
-            thread::spawn(move || {
-                loop {
-                    if let Ok(message) = message_to_write_receiver.try_recv() {
-                        match message {
-                            BrokerMessage::Connack { session_present: _, reason_code, properties: _ } => {
-                                assert_eq!(reason_code, 0x8C_u8);
-                            }
-                            _ => {
-                                assert!(false, "Assertion failed: No se recibio un Unsuback");
-                            }
+            thread::spawn(move || loop {
+                if let Ok(message) = message_to_write_receiver.try_recv() {
+                    match message {
+                        BrokerMessage::Connack {
+                            session_present: _,
+                            reason_code,
+                            properties: _,
+                        } => {
+                            assert_eq!(reason_code, 0x8C_u8);
                         }
-                        break;
+                        _ => {
+                            assert!(false, "Assertion failed: No se recibio un Unsuback");
+                        }
                     }
+                    break;
                 }
             });
 
@@ -972,7 +985,7 @@ mod tests {
                             broker.handle_message(message, &message_to_write_sender, stream_ref)?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::ConnackSent);
-                        return Ok(())
+                        return Ok(());
                     }
                     Err(err) => {
                         eprintln!("Error {}", err);
@@ -1036,19 +1049,21 @@ mod tests {
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
 
-            thread::spawn(move || {
-                loop {
-                    if let Ok(message) = message_to_write_receiver.try_recv() {
-                        match message {
-                            BrokerMessage::Connack { session_present: _, reason_code, properties: _ } => {
-                                assert_eq!(reason_code, 0x00_u8);
-                            }
-                            _ => {
-                                assert!(false, "Assertion failed: No se recibio un Connack");
-                            }
+            thread::spawn(move || loop {
+                if let Ok(message) = message_to_write_receiver.try_recv() {
+                    match message {
+                        BrokerMessage::Connack {
+                            session_present: _,
+                            reason_code,
+                            properties: _,
+                        } => {
+                            assert_eq!(reason_code, 0x00_u8);
                         }
-                        break;
+                        _ => {
+                            assert!(false, "Assertion failed: No se recibio un Connack");
+                        }
                     }
+                    break;
                 }
             });
 
@@ -1059,7 +1074,7 @@ mod tests {
                             broker.handle_message(message, &message_to_write_sender, stream_ref)?;
                         println!("Message {:?} received", result);
                         assert_eq!(result, ProtocolReturn::ConnackSent);
-                        return Ok(())
+                        return Ok(());
                     }
                     Err(err) => {
                         eprintln!("Error {}", err);
@@ -1119,19 +1134,22 @@ mod tests {
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
 
-            thread::spawn(move || {
-                loop {
-                    if let Ok(message) = message_to_write_receiver.try_recv() {
-                        match message {
-                            BrokerMessage::Disconnect { reason_code, session_expiry_interval: _, reason_string: _, user_properties: _ } => {
-                                assert_eq!(reason_code, 0x00_u8);
-                            }
-                            _ => {
-                                assert!(false, "Assertion failed: No se recibio un Unsuback");
-                            }
+            thread::spawn(move || loop {
+                if let Ok(message) = message_to_write_receiver.try_recv() {
+                    match message {
+                        BrokerMessage::Disconnect {
+                            reason_code,
+                            session_expiry_interval: _,
+                            reason_string: _,
+                            user_properties: _,
+                        } => {
+                            assert_eq!(reason_code, 0x00_u8);
                         }
-                        break;
+                        _ => {
+                            assert!(false, "Assertion failed: No se recibio un Unsuback");
+                        }
                     }
+                    break;
                 }
             });
 
@@ -1142,7 +1160,7 @@ mod tests {
                             broker.handle_message(message, &message_to_write_sender, stream_ref)?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::DisconnectRecieved);
-                        return Ok(())
+                        return Ok(());
                     }
                     Err(err) => {
                         eprintln!("Error {}", err);
@@ -1193,19 +1211,21 @@ mod tests {
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
 
-            thread::spawn(move || {
-                loop {
-                    if let Ok(message) = message_to_write_receiver.try_recv() {
-                        match message {
-                            BrokerMessage::Connack { session_present: _, reason_code, properties: _ } => {
-                                assert_eq!(reason_code, 0x00_u8);
-                            }
-                            _ => {
-                                assert!(false, "Assertion failed: No se recibio un Connack");
-                            }
+            thread::spawn(move || loop {
+                if let Ok(message) = message_to_write_receiver.try_recv() {
+                    match message {
+                        BrokerMessage::Connack {
+                            session_present: _,
+                            reason_code,
+                            properties: _,
+                        } => {
+                            assert_eq!(reason_code, 0x00_u8);
                         }
-                        break;
+                        _ => {
+                            assert!(false, "Assertion failed: No se recibio un Connack");
+                        }
                     }
+                    break;
                 }
             });
 
@@ -1216,7 +1236,7 @@ mod tests {
                             broker.handle_message(message, &message_to_write_sender, stream_ref)?;
                         println!("Message {:?} received", result);
                         assert_eq!(result, ProtocolReturn::ConnackSent);
-                        return Ok(())
+                        return Ok(());
                     }
                     Err(err) => {
                         eprintln!("Error {}", err);

@@ -354,6 +354,7 @@ impl Client {
                 packet_id_lsb,
                 reason_code: _,
             } => {
+                println!("Puback received");
                 for pending_message in &pending_messages {
                     let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
                     if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {}
@@ -391,6 +392,7 @@ impl Client {
                 packet_id_lsb,
                 reason_code: _,
             } => {
+                println!("Suback received");
                 for pending_message in &pending_messages {
                     let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
 
@@ -410,6 +412,7 @@ impl Client {
                 properties,
                 payload,
             } => {
+                println!("Publish received");
                 match sender_channel.send(ClientMessage::Publish {
                     packet_id,
                     topic_name,
@@ -430,6 +433,7 @@ impl Client {
                 packet_id_lsb,
                 reason_code: _,
             } => {
+                println!("Unsuback received");
                 for pending_message in &pending_messages {
                     let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
                     if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {
@@ -439,12 +443,10 @@ impl Client {
                         );
                     }
                 }
-
-                println!("Recibi un mensaje {:?}", message);
                 Ok(ClientReturn::UnsubackRecieved)
             }
             BrokerMessage::Pingresp => {
-                println!("Recibi un mensaje {:?}", message);
+                println!("Pingresp received");
                 Ok(ClientReturn::PingrespRecieved)
             }
             BrokerMessage::Auth {
@@ -454,7 +456,7 @@ impl Client {
                 reason_string: _,
                 user_properties: _,
             } => {
-                println!("Recibi un auth!");
+                println!("Auth received");
                 Ok(ClientReturn::AuthRecieved)
             }
         }
