@@ -32,7 +32,7 @@ const TWO_PI: f64 = 2.0 * PI;
 const COORDINATE_SCALE_FACTOR: f64 = 100.0;
 const FULL_BATTERY: i64 = 100;
 const ANGLE_SCALING_FACTOR: f64 = 0.6; // este valor hace que en cada tick los drones avancen mas o menos
-
+const REQUIRED_DRONES_TO_SOLVE_INCIDENT: i8 = 2;
 #[derive(Debug, Clone)]
 #[allow(clippy::type_complexity)]
 pub struct Drone {
@@ -519,16 +519,13 @@ impl Drone {
                 } => match topic_name.as_str() {
                     "attending_incident" => {
                         let mut to_remove = Vec::new();
-                        if payload.get_incident().get_location() != self_cloned.target_location {
-                            continue;
-                        }
+                        // if payload.get_incident().get_location() != self_cloned.location {
                         for (incident, count) in self_cloned.incidents.iter_mut() {
                             if incident.get_location() == payload.get_incident().get_location() {
                                 *count += 1;
                                 println!("drones atendiendo incidente: {:?}", count);
-                                if *count == 2 {
+                                if *count == REQUIRED_DRONES_TO_SOLVE_INCIDENT {
                                     println!("timestamp ANTES: {:?}", Utc::now());
-                                    sleep(Duration::from_secs(10));
                                     to_remove.push(incident.clone());
 
                                     let incident_payload = IncidentPayload::new(Incident::new(
