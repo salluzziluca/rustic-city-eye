@@ -879,7 +879,9 @@ impl Broker {
         Ok(())
     }
 }
-
+///Se encarga de la autenticacion del cliente.
+/// Si el metodo es password-based, se devuelve un Ok con un ProtocolReturn::AuthRecieved.
+/// Si el metodo no es soportado, se devuelve un connack con el reason code 0x8C.(bad auth method)
 fn handle_auth(
     authentication_method: String,
     user_properties: Vec<(String, String)>,
