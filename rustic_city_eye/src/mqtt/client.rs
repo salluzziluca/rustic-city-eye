@@ -411,15 +411,7 @@ impl Client {
                 packet_id_lsb,
                 reason_code: _,
             } => {
-                for pending_message in &pending_messages {
-                    let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
-                    if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {
-                        println!(
-                            "Unsuback con id {} {} recibido",
-                            packet_id_msb, packet_id_lsb
-                        );
-                    }
-                }
+                handle_unsuback(pending_messages, packet_id_msb, packet_id_lsb);
                 Ok(ClientReturn::UnsubackRecieved)
             }
             BrokerMessage::Pingresp => Ok(ClientReturn::PingrespRecieved),
@@ -607,6 +599,18 @@ impl Client {
             }
         }
         packet_id
+    }
+}
+
+fn handle_unsuback(pending_messages: Vec<u16>, packet_id_msb: u8, packet_id_lsb: u8) {
+    for pending_message in &pending_messages {
+        let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
+        if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {
+            println!(
+                "Unsuback con id {} {} recibido",
+                packet_id_msb, packet_id_lsb
+            );
+        }
     }
 }
 
