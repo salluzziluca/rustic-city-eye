@@ -475,69 +475,19 @@ impl Client {
                         dup_flag,
                         properties,
                     } => {
-                        let publish = ClientMessage::Publish {
+                        if let Some(value) = write_publish(
                             packet_id,
-                            topic_name: topic_name.clone(),
+                            topic_name,
                             qos,
                             retain_flag,
-                            payload: payload.clone(),
+                            payload,
                             dup_flag,
-                            properties: properties.clone(),
-                        };
-                        match publish.write_to(stream.get_ref()) {
-                            Ok(_) => match pending_id_messages_sender.send(packet_id) {
-                                Ok(_) => {
-                                    if qos == 1 {
-                                        loop {
-                                            thread::sleep(Duration::from_millis(20));
-
-                                            if let Ok(puback) = puback_notify_receiver.try_recv() {
-                                                if !puback {
-                                                    let publish = ClientMessage::Publish {
-                                                        packet_id,
-                                                        topic_name: topic_name.clone(),
-                                                        qos,
-                                                        retain_flag,
-                                                        payload: payload.clone(),
-                                                        dup_flag: dup_flag + 1,
-                                                        properties: properties.clone(),
-                                                    };
-
-                                                    match publish.write_to(stream.get_ref()) {
-                                                        Ok(_) => {
-                                                            match pending_id_messages_sender
-                                                                .send(packet_id)
-                                                            {
-                                                                Ok(_) => {}
-                                                                Err(e) => {
-                                                                    return Err(
-                                                                        ProtocolError::SendError(
-                                                                            e.to_string(),
-                                                                        ),
-                                                                    )
-                                                                }
-                                                            }
-                                                        }
-                                                        Err(e) => {
-                                                            return Err(ProtocolError::SendError(
-                                                                e.to_string(),
-                                                            ))
-                                                        }
-                                                    }
-                                                } else {
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                Err(e) => {
-                                    return Err(ProtocolError::SendError(e.to_string()));
-                                }
-                            },
-                            Err(e) => {
-                                return Err(ProtocolError::SendError(e.to_string()));
-                            }
+                            properties,
+                            &stream,
+                            &pending_id_messages_sender,
+                            &puback_notify_receiver,
+                        ) {
+                            return value;
                         }
                     }
                     ClientMessage::Disconnect {
@@ -600,6 +550,78 @@ impl Client {
         }
         packet_id
     }
+}
+/// Recibe todos los campos necesarios para la escritura por stream de un mensaje Publish.
+/// En caso de que este tenga una QoS == 1 y no se reiba un Puback, se reenvia el mensaje hasta recibirlo
+fn write_publish(
+    packet_id: u16,
+    topic_name: String,
+    qos: usize,
+    retain_flag: usize,
+    payload: crate::utils::payload_types::PayloadTypes,
+    dup_flag: usize,
+    properties: super::publish::publish_properties::PublishProperties,
+    stream: &Arc<StreamOwned<ClientConnection, TcpStream>>,
+    pending_id_messages_sender: &Sender<u16>,
+    puback_notify_receiver: &Receiver<bool>,
+) -> Option<Result<(), ProtocolError>> {
+    let publish = ClientMessage::Publish {
+        packet_id,
+        topic_name: topic_name.clone(),
+        qos,
+        retain_flag,
+        payload: payload.clone(),
+        dup_flag,
+        properties: properties.clone(),
+    };
+    match publish.write_to(stream.get_ref()) {
+        Ok(_) => match pending_id_messages_sender.send(packet_id) {
+            Ok(_) => {
+                if qos == 1 {
+                    loop {
+                        thread::sleep(Duration::from_millis(20));
+
+                        if let Ok(puback) = puback_notify_receiver.try_recv() {
+                            if !puback {
+                                let publish = ClientMessage::Publish {
+                                    packet_id,
+                                    topic_name: topic_name.clone(),
+                                    qos,
+                                    retain_flag,
+                                    payload: payload.clone(),
+                                    dup_flag: dup_flag + 1,
+                                    properties: properties.clone(),
+                                };
+
+                                match publish.write_to(stream.get_ref()) {
+                                    Ok(_) => match pending_id_messages_sender.send(packet_id) {
+                                        Ok(_) => {}
+                                        Err(e) => {
+                                            return Some(Err(ProtocolError::SendError(
+                                                e.to_string(),
+                                            )))
+                                        }
+                                    },
+                                    Err(e) => {
+                                        return Some(Err(ProtocolError::SendError(e.to_string())))
+                                    }
+                                }
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                return Some(Err(ProtocolError::SendError(e.to_string())));
+            }
+        },
+        Err(e) => {
+            return Some(Err(ProtocolError::SendError(e.to_string())));
+        }
+    }
+    None
 }
 
 fn handle_unsuback(pending_messages: Vec<u16>, packet_id_msb: u8, packet_id_lsb: u8) {
