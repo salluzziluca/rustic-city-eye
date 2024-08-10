@@ -13,10 +13,14 @@ use crate::{
         incident_payload::IncidentPayload,
         location::Location,
         reader::{read_string, read_u8},
+        single_disconnect_payload::SingleDisconnectPayload,
     },
 };
 
-use super::writer::{write_string, write_u8};
+use super::{
+    reader::read_u32,
+    writer::{write_string, write_u8},
+};
 
 /// Aqui se definen los distintos tipos de payload que va a soportar nuestra aplicacion.
 /// La idea es que implemente el trait de Payload, de forma tal que sepa escribirse sobre un stream dado.
@@ -27,7 +31,8 @@ pub enum PayloadTypes {
     WillPayload(String),
     LocationPayload(Location),
     CamerasUpdatePayload(Vec<Camera>),
-    DroneLocation(u32, Location, Location),
+    DroneLocation(u32, Location),
+    SingleDroneDisconnect(SingleDisconnectPayload),
 }
 
 impl Payload for PayloadTypes {
@@ -66,18 +71,22 @@ impl Payload for PayloadTypes {
 
                 Ok(())
             }
-            PayloadTypes::DroneLocation(drone_id, location, target_location) => {
+            PayloadTypes::DroneLocation(drone_id, location) => {
                 write_u8(stream, &5)?;
                 write_string(stream, &drone_id.to_string())?;
                 write_string(stream, &location.get_latitude().to_string())?;
                 write_string(stream, &location.get_longitude().to_string())?;
-                write_string(stream, &target_location.get_latitude().to_string())?;
-                write_string(stream, &target_location.get_longitude().to_string())?;
 
                 Ok(())
             }
             PayloadTypes::AttendingIncident(payload) => {
                 write_u8(stream, &6)?;
+                payload.write_to(stream)?;
+
+                Ok(())
+            }
+            PayloadTypes::SingleDroneDisconnect(payload) => {
+                write_u8(stream, &7)?;
                 payload.write_to(stream)?;
 
                 Ok(())
@@ -170,32 +179,9 @@ impl PayloadTypes {
                     }
                 };
 
-                let taget_longitude_string = read_string(stream)?;
-                let target_long = match taget_longitude_string.parse::<f64>() {
-                    Ok(long) => long,
-                    Err(_) => {
-                        return Err(Error::new(
-                            ErrorKind::InvalidData,
-                            "Error while reading payload".to_string(),
-                        ))
-                    }
-                };
-
-                let target_latitude_string = read_string(stream)?;
-                let target_lat = match target_latitude_string.parse::<f64>() {
-                    Ok(lat) => lat,
-                    Err(_) => {
-                        return Err(Error::new(
-                            ErrorKind::InvalidData,
-                            "Error while reading payload".to_string(),
-                        ))
-                    }
-                };
-
                 let location = Location::new(lat, long);
-                let target_location = Location::new(target_lat, target_long);
 
-                PayloadTypes::DroneLocation(drone_id, location, target_location)
+                PayloadTypes::DroneLocation(drone_id, location)
             }
             6 => {
                 let longitude_string = read_string(stream)?;
@@ -225,6 +211,11 @@ impl PayloadTypes {
                 let incident = Incident::new(location);
                 PayloadTypes::AttendingIncident(IncidentPayload::new(incident))
             }
+            7 => {
+                let id = read_u32(stream)?;
+
+                PayloadTypes::SingleDroneDisconnect(SingleDisconnectPayload::new(id))
+            }
             _ => {
                 return Err(Error::new(
                     ErrorKind::InvalidData,
@@ -238,6 +229,7 @@ impl PayloadTypes {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use std::io::{Cursor, Read};
 
@@ -300,5 +292,18 @@ mod tests {
         let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
 
         assert_eq!(payload, payload);
+    }
+
+    #[test]
+    fn test_single_drone_disconnect() {
+        let disc_payload = SingleDisconnectPayload::new(1);
+        let payload = PayloadTypes::SingleDroneDisconnect(disc_payload.clone());
+
+        let mut cursor = Cursor::new(Vec::new());
+        payload.write_to(&mut cursor).unwrap();
+        cursor.set_position(0);
+
+        let read_payload = PayloadTypes::read_from(&mut cursor).unwrap();
+        assert_eq!(read_payload, payload);
     }
 }
