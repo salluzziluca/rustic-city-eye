@@ -369,20 +369,13 @@ impl Client {
                 reason_string,
                 user_properties: _,
             } => {
-                println!(
-                    "Recibí un Disconnect, razon de desconexión: {:?}",
-                    reason_string
-                );
-
-                match sender_channel.send(ClientMessage::Disconnect {
+                handle_disconnect(
+                    reason_string,
+                    &sender_channel,
                     reason_code,
                     session_expiry_interval,
-                    reason_string,
                     client_id,
-                }) {
-                    Ok(_) => {}
-                    Err(e) => println!("Error al enviar Disconnect al sistema: {:?}", e),
-                }
+                );
 
                 Ok(ClientReturn::DisconnectRecieved)
             }
@@ -441,18 +434,14 @@ impl Client {
                 }
                 Ok(ClientReturn::UnsubackRecieved)
             }
-            BrokerMessage::Pingresp => {
-                Ok(ClientReturn::PingrespRecieved)
-            }
+            BrokerMessage::Pingresp => Ok(ClientReturn::PingrespRecieved),
             BrokerMessage::Auth {
                 reason_code: _,
                 authentication_method: _,
                 authentication_data: _,
                 reason_string: _,
                 user_properties: _,
-            } => {
-                Ok(ClientReturn::AuthRecieved)
-            }
+            } => Ok(ClientReturn::AuthRecieved),
         }
     }
 
@@ -630,6 +619,29 @@ impl Client {
             }
         }
         packet_id
+    }
+}
+
+fn handle_disconnect(
+    reason_string: String,
+    sender_channel: &Sender<ClientMessage>,
+    reason_code: u8,
+    session_expiry_interval: u32,
+    client_id: String,
+) {
+    println!(
+        "Recibí un Disconnect, razon de desconexión: {:?}",
+        reason_string
+    );
+
+    match sender_channel.send(ClientMessage::Disconnect {
+        reason_code,
+        session_expiry_interval,
+        reason_string,
+        client_id,
+    }) {
+        Ok(_) => {}
+        Err(e) => println!("Error al enviar Disconnect al sistema: {:?}", e),
     }
 }
 
