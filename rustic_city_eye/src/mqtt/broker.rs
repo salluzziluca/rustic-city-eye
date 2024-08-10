@@ -784,19 +784,9 @@ impl Broker {
                 reason_string,
                 client_id,
             } => {
-                println!(
-                    "Recibí un Disconnect, razon de desconexión: {:?}",
-                    reason_string
-                );
-
-                // elimino el client_id de clients_ids
-                if let Ok(mut lock) = self.clients_ids.write() {
-                    lock.remove(&client_id);
-                } else {
-                    return Err(ProtocolError::WriteError);
+                if let Some(value) = self.handle_disconnect(reason_string, client_id) {
+                    return value;
                 }
-
-                _ = ClientConfig::change_client_state(client_id.clone(), false);
 
                 return Ok(ProtocolReturn::DisconnectRecieved);
             }
@@ -864,6 +854,27 @@ impl Broker {
         Err(ProtocolError::UnspecifiedError(
             "Error al recibir mensaje".to_string(),
         ))
+    }
+
+    fn handle_disconnect(
+        &self,
+        reason_string: String,
+        client_id: String,
+    ) -> Option<Result<ProtocolReturn, ProtocolError>> {
+        println!(
+            "Recibí un Disconnect, razon de desconexión: {:?}",
+            reason_string
+        );
+        if let Ok(mut lock) = self.clients_ids.write() {
+            lock.remove(&client_id);
+        } else {
+            return Some(Err(ProtocolError::WriteError));
+        }
+        _ = ClientConfig::change_client_state(client_id.clone(), false);
+
+        // elimino el client_id de clients_ids
+
+        None
     }
 
     pub fn broker_exit(&self) -> Result<(), ProtocolError> {
