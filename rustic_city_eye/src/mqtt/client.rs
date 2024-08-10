@@ -353,16 +353,12 @@ impl Client {
                 packet_id_msb,
                 packet_id_lsb,
                 reason_code: _,
-            } => {
-                for pending_message in &pending_messages {
-                    let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
-                    if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {}
-                }
-                match puback_notify_sender.send(true) {
-                    Ok(_) => Ok(ClientReturn::PubackRecieved),
-                    Err(e) => Err(ProtocolError::ChanellError(e.to_string())),
-                }
-            }
+            } => handle_puback(
+                &pending_messages,
+                packet_id_msb,
+                packet_id_lsb,
+                puback_notify_sender,
+            ),
             BrokerMessage::Disconnect {
                 reason_code,
                 session_expiry_interval,
@@ -384,13 +380,7 @@ impl Client {
                 packet_id_lsb,
                 reason_code: _,
             } => {
-                for pending_message in &pending_messages {
-                    let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
-
-                    if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {
-                        println!("suback con id {} {} recibido", packet_id_msb, packet_id_lsb);
-                    }
-                }
+                handle_suback(&pending_messages, packet_id_msb, packet_id_lsb);
 
                 Ok(ClientReturn::SubackRecieved)
             }
@@ -403,7 +393,8 @@ impl Client {
                 properties,
                 payload,
             } => {
-                match sender_channel.send(ClientMessage::Publish {
+                handle_publish_delivery(
+                    sender_channel,
                     packet_id,
                     topic_name,
                     qos,
@@ -411,10 +402,7 @@ impl Client {
                     dup_flag,
                     properties,
                     payload,
-                }) {
-                    Ok(_) => {}
-                    Err(e) => println!("Error al enviar publish al sistema: {:?}", e),
-                }
+                );
 
                 Ok(ClientReturn::PublishDeliveryRecieved)
             }
@@ -619,6 +607,56 @@ impl Client {
             }
         }
         packet_id
+    }
+}
+
+fn handle_publish_delivery(
+    sender_channel: Sender<ClientMessage>,
+    packet_id: u16,
+    topic_name: String,
+    qos: usize,
+    retain_flag: usize,
+    dup_flag: usize,
+    properties: super::publish::publish_properties::PublishProperties,
+    payload: crate::utils::payload_types::PayloadTypes,
+) {
+    match sender_channel.send(ClientMessage::Publish {
+        packet_id,
+        topic_name,
+        qos,
+        retain_flag,
+        dup_flag,
+        properties,
+        payload,
+    }) {
+        Ok(_) => {}
+        Err(e) => println!("Error al enviar publish al sistema: {:?}", e),
+    }
+}
+
+fn handle_suback(pending_messages: &Vec<u16>, packet_id_msb: u8, packet_id_lsb: u8) {
+    for pending_message in pending_messages {
+        let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
+
+        if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {
+            println!("suback con id {} {} recibido", packet_id_msb, packet_id_lsb);
+        }
+    }
+}
+
+fn handle_puback(
+    pending_messages: &Vec<u16>,
+    packet_id_msb: u8,
+    packet_id_lsb: u8,
+    puback_notify_sender: Sender<bool>,
+) -> Result<ClientReturn, ProtocolError> {
+    for pending_message in pending_messages {
+        let packet_id_bytes: [u8; 2] = pending_message.to_be_bytes();
+        if packet_id_bytes[0] == packet_id_msb && packet_id_bytes[1] == packet_id_lsb {}
+    }
+    match puback_notify_sender.send(true) {
+        Ok(_) => Ok(ClientReturn::PubackRecieved),
+        Err(e) => Err(ProtocolError::ChanellError(e.to_string())),
     }
 }
 
