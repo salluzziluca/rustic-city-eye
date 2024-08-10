@@ -809,45 +809,14 @@ impl Broker {
                 reason_string,
                 user_properties,
             } => {
-                println!("Recibi un auth");
-
-                match authentication_method.as_str() {
-                    "password-based" => return Ok(ProtocolReturn::AuthRecieved),
-                    _ => {
-                        let properties = ConnackProperties {
-                            session_expiry_interval: 0,
-                            receive_maximum: 0,
-                            maximum_packet_size: 0,
-                            topic_alias_maximum: 0,
-                            user_properties,
-                            authentication_method,
-                            authentication_data,
-                            assigned_client_identifier: "none".to_string(),
-                            maximum_qos: true,
-                            reason_string,
-                            wildcard_subscription_available: false,
-                            subscription_identifier_available: false,
-                            shared_subscription_available: false,
-                            server_keep_alive: 0,
-                            response_information: "none".to_string(),
-                            server_reference: "none".to_string(),
-                            retain_available: false,
-                        };
-
-                        let connack = BrokerMessage::Connack {
-                            session_present: false,
-                            reason_code: 0x8C, //Bad auth method
-                            properties,
-                        };
-                        println!("Parece que intentaste autenticarte con un metodo no soportado por el broker :(");
-
-                        match message_to_write_sender.send(connack) {
-                            Ok(_) => return Ok(ProtocolReturn::ConnackSent),
-                            Err(err) => {
-                                println!("{:?}", err);
-                            }
-                        }
-                    }
+                if let Some(value) = handle_auth(
+                    authentication_method,
+                    user_properties,
+                    authentication_data,
+                    reason_string,
+                    message_to_write_sender,
+                ) {
+                    return value;
                 }
             }
         }
@@ -909,6 +878,58 @@ impl Broker {
 
         Ok(())
     }
+}
+
+fn handle_auth(
+    authentication_method: String,
+    user_properties: Vec<(String, String)>,
+    authentication_data: Vec<u8>,
+    reason_string: String,
+    message_to_write_sender: &Sender<BrokerMessage>,
+) -> Option<Result<ProtocolReturn, ProtocolError>> {
+    println!("Recibi un auth");
+
+    match authentication_method.as_str() {
+        "password-based" => return Some(Ok(ProtocolReturn::AuthRecieved)),
+        _ => {
+            let properties = ConnackProperties {
+                session_expiry_interval: 0,
+                receive_maximum: 0,
+                maximum_packet_size: 0,
+                topic_alias_maximum: 0,
+                user_properties,
+                authentication_method,
+                authentication_data,
+                assigned_client_identifier: "none".to_string(),
+                maximum_qos: true,
+                reason_string,
+                wildcard_subscription_available: false,
+                subscription_identifier_available: false,
+                shared_subscription_available: false,
+                server_keep_alive: 0,
+                response_information: "none".to_string(),
+                server_reference: "none".to_string(),
+                retain_available: false,
+            };
+
+            let connack = BrokerMessage::Connack {
+                session_present: false,
+                reason_code: 0x8C, //Bad auth method
+                properties,
+            };
+            println!(
+                "Parece que intentaste autenticarte con un metodo no soportado por el broker :("
+            );
+
+            match message_to_write_sender.send(connack) {
+                Ok(_) => return Some(Ok(ProtocolReturn::ConnackSent)),
+                Err(err) => {
+                    println!("{:?}", err);
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Aca se realiza la autenticacion del cliente. Solo se debe llamar apenas llega un packet del tipo
