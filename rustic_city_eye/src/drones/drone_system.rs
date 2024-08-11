@@ -1,7 +1,7 @@
 use egui::ahash::HashMap;
 
 use crate::drones::drone_center::DroneCenter;
-use crate::drones::drones_central_config::DronesCentralConfig;
+use crate::monitoring::persistence::Persistence;
 use crate::mqtt::protocol_error::ProtocolError;
 use crate::utils::location::Location;
 
@@ -69,7 +69,7 @@ impl DroneSystem {
         );
 
         self.drone_centers.insert(id, drone_center);
-        let _ = DronesCentralConfig::add_central_to_json(
+        let _ = Persistence::add_central_to_file(
             id,
             location,
             self.drone_config_path.to_string(),
@@ -110,7 +110,7 @@ impl DroneSystem {
         };
 
         let id = drone_center.add_drone(location)?;
-        let _ = DronesCentralConfig::add_drone_to_json(location, id);
+        let _ = Persistence::add_drone_to_file(location, id);
         Ok(id)
     }
 }

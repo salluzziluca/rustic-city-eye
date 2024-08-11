@@ -11,9 +11,8 @@ use egui::{CentralPanel, RichText, TextStyle, TopBottomPanel};
 use incident_view::IncidentView;
 use plugins::*;
 use rustic_city_eye::{
-    drones::drones_central_config::DronesCentralConfig,
-    monitoring::{incident::Incident, monitoring_app::MonitoringApp},
-    surveilling::{camera::Camera, cameras_config::CamerasConfig},
+    monitoring::{incident::Incident, monitoring_app::MonitoringApp, persistence::Persistence},
+    surveilling::camera::Camera,
     utils::location::Location,
 };
 use std::collections::HashMap;
@@ -259,6 +258,7 @@ impl MyApp {
                 self.configure_cameras();
                 self.configure_central_drones();
                 self.configure_drones();
+                self.configure_incidents();
             }
             Err(e) => {
                 println!("The connection failed. Please try again {}.", e);
@@ -270,9 +270,10 @@ impl MyApp {
         };
     }
 
+    /// Carga las camaras del archivo de persistencia
     fn configure_cameras(&mut self) {
-        if CamerasConfig::count_cameras() > 0 {
-            CamerasConfig::get_cameras().iter().for_each(|camera| {
+        if Persistence::count_element("cameras".to_string()) > 0 {
+            Persistence::get_cameras().iter().for_each(|camera| {
                 let location = camera.get_location();
                 let camera_view = CameraView {
                     image: self.map.camera_icon.clone(),
@@ -293,33 +294,32 @@ impl MyApp {
         }
     }
 
+    /// Carga los centros de drones del archivo de persistencia
     fn configure_central_drones(&mut self) {
-        if DronesCentralConfig::count_centrals() > 0 {
-            println!("pin100");
-            DronesCentralConfig::get_centrals()
-                .iter()
-                .for_each(|central| {
-                    let location = central.get_location();
-                    let drone_center_view = drone_center_view::DroneCenterView {
-                        image: self.map.drone_center_icon.clone(),
-                        position: Position::from_lon_lat(location.long, location.lat),
-                        clicked: false,
-                    };
+        if Persistence::count_element("drone_centers".to_string()) > 0 {
+            Persistence::get_centrals().iter().for_each(|central| {
+                let location = central.get_location();
+                let drone_center_view = drone_center_view::DroneCenterView {
+                    image: self.map.drone_center_icon.clone(),
+                    position: Position::from_lon_lat(location.long, location.lat),
+                    clicked: false,
+                };
 
-                    self.map
-                        .drone_centers
-                        .insert(central.get_id(), drone_center_view);
+                self.map
+                    .drone_centers
+                    .insert(central.get_id(), drone_center_view);
 
-                    if let Some(monitoring_app) = &mut self.monitoring_app {
-                        let _ = monitoring_app.load_existing_drone_center(central.location);
-                    }
-                });
+                if let Some(monitoring_app) = &mut self.monitoring_app {
+                    let _ = monitoring_app.load_existing_drone_center(central.location);
+                }
+            });
         }
     }
 
+    /// Carga los drones del archivo de persistencia
     fn configure_drones(&mut self) {
-        if DronesCentralConfig::count_drones() > 0 {
-            DronesCentralConfig::get_drones()
+        if Persistence::count_element("drones".to_string()) > 0 {
+            Persistence::get_drones()
                 .iter()
                 .for_each(|drone: &(Location, u32)| {
                     let location = drone.0;
@@ -334,6 +334,24 @@ impl MyApp {
                         let _ = monitoring_app.load_existing_drone(location, drone.1);
                     }
                 });
+        }
+    }
+
+    /// Carga los incidentes del archivo de persistencia
+    fn configure_incidents(&mut self) {
+        if Persistence::count_element("incidents".to_string()) > 0 {
+            Persistence::get_incidents().iter().for_each(|location| {
+                let incident_view = IncidentView {
+                    image: self.map.incident_icon.clone(),
+                    position: Position::from_lon_lat(location.long, location.lat),
+                    clicked: false,
+                };
+                self.map.incidents.push(incident_view);
+
+                if let Some(monitoring_app) = &mut self.monitoring_app {
+                    let _ = monitoring_app.load_existing_incident(*location);
+                }
+            });
         }
     }
 

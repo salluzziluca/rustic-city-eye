@@ -8,6 +8,7 @@ use std::thread;
 use crate::drones::drone_system::DroneSystem;
 use crate::monitoring::incident::Incident;
 
+use crate::monitoring::persistence::Persistence;
 use crate::mqtt::client::ClientTrait;
 use crate::mqtt::client_message::Connect;
 use crate::mqtt::disconnect_config::DisconnectConfig;
@@ -315,12 +316,13 @@ impl MonitoringApp {
             Err(_) => return Err(ProtocolError::LockError),
         };
 
-        incidents.push((incident.clone(), 0));
+        let lenght = incidents.len();
+        incidents.push((incident.clone(), lenght as u8));
 
-        let incident_payload = IncidentPayload::new(incident);
+        let incident_payload = IncidentPayload::new(incident.clone());
         let publish_config = PublishConfig::read_config(
             "src/monitoring/publish_incident_config.json",
-            PayloadTypes::IncidentLocation(incident_payload),
+            PayloadTypes::IncidentLocation(incident_payload.clone()),
         )?;
 
         let send_to_client_channel = match self.send_to_client_channel.lock() {
@@ -330,7 +332,41 @@ impl MonitoringApp {
 
         match send_to_client_channel.send(Box::new(publish_config)) {
             Ok(_) => {
-                println!("Incidente published successfully");
+                println!("Incident published successfully");
+                let _ = Persistence::add_incident_to_file(location);
+                Ok(())
+            }
+            Err(e) => {
+                println!("Error publishing incident {}", e);
+                Err(ProtocolError::PublishError)
+            }
+        }
+    }
+
+    pub fn load_existing_incident(&mut self, location: Location) -> Result<(), ProtocolError> {
+        let incident = Incident::new(location);
+        let mut incidents = match self.incidents.lock() {
+            Ok(incidents) => incidents,
+            Err(_) => return Err(ProtocolError::LockError),
+        };
+
+        let lenght = incidents.len();
+        incidents.push((incident.clone(), lenght as u8));
+
+        let incident_payload = IncidentPayload::new(incident.clone());
+        let publish_config = PublishConfig::read_config(
+            "src/monitoring/publish_incident_config.json",
+            PayloadTypes::IncidentLocation(incident_payload.clone()),
+        )?;
+
+        let send_to_client_channel = match self.send_to_client_channel.lock() {
+            Ok(send_to_client_channel) => send_to_client_channel,
+            Err(_) => return Err(ProtocolError::LockError),
+        };
+
+        match send_to_client_channel.send(Box::new(publish_config)) {
+            Ok(_) => {
+                println!("Incident published successfully");
                 Ok(())
             }
             Err(e) => {
@@ -546,6 +582,9 @@ pub fn update_entities(
                             }
 
                             incidents.retain(|(inc, _)| !to_remove.contains(inc));
+                            for inc in to_remove {
+                                let _ = Persistence::remove_incident_from_file(inc.get_location());
+                            }
                         }
                     }
                     "incident" => {
