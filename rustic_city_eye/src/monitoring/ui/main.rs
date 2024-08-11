@@ -11,7 +11,7 @@ use egui::{CentralPanel, RichText, TextStyle, TopBottomPanel};
 use incident_view::IncidentView;
 use plugins::*;
 use rustic_city_eye::{
-    monitoring::{persistence::Persistence, incident::Incident, monitoring_app::MonitoringApp},
+    monitoring::{incident::Incident, monitoring_app::MonitoringApp, persistence::Persistence},
     surveilling::camera::Camera,
     utils::location::Location,
 };
@@ -258,6 +258,7 @@ impl MyApp {
                 self.configure_cameras();
                 self.configure_central_drones();
                 self.configure_drones();
+                self.configure_incidents();
             }
             Err(e) => {
                 println!("The connection failed. Please try again {}.", e);
@@ -294,25 +295,22 @@ impl MyApp {
 
     fn configure_central_drones(&mut self) {
         if Persistence::count_centrals() > 0 {
-            println!("pin100");
-            Persistence::get_centrals()
-                .iter()
-                .for_each(|central| {
-                    let location = central.get_location();
-                    let drone_center_view = drone_center_view::DroneCenterView {
-                        image: self.map.drone_center_icon.clone(),
-                        position: Position::from_lon_lat(location.long, location.lat),
-                        clicked: false,
-                    };
+            Persistence::get_centrals().iter().for_each(|central| {
+                let location = central.get_location();
+                let drone_center_view = drone_center_view::DroneCenterView {
+                    image: self.map.drone_center_icon.clone(),
+                    position: Position::from_lon_lat(location.long, location.lat),
+                    clicked: false,
+                };
 
-                    self.map
-                        .drone_centers
-                        .insert(central.get_id(), drone_center_view);
+                self.map
+                    .drone_centers
+                    .insert(central.get_id(), drone_center_view);
 
-                    if let Some(monitoring_app) = &mut self.monitoring_app {
-                        let _ = monitoring_app.load_existing_drone_center(central.location);
-                    }
-                });
+                if let Some(monitoring_app) = &mut self.monitoring_app {
+                    let _ = monitoring_app.load_existing_drone_center(central.location);
+                }
+            });
         }
     }
 
@@ -333,6 +331,23 @@ impl MyApp {
                         let _ = monitoring_app.load_existing_drone(location, drone.1);
                     }
                 });
+        }
+    }
+
+    fn configure_incidents(&mut self) {
+        if Persistence::count_incidents() > 0 {
+            Persistence::get_incidents().iter().for_each(|location| {
+                let incident_view = IncidentView {
+                    image: self.map.incident_icon.clone(),
+                    position: Position::from_lon_lat(location.long, location.lat),
+                    clicked: false,
+                };
+                self.map.incidents.push(incident_view);
+
+                if let Some(monitoring_app) = &mut self.monitoring_app {
+                    let _ = monitoring_app.load_existing_incident(*location);
+                }
+            });
         }
     }
 

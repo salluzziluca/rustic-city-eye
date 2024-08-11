@@ -1,8 +1,9 @@
 use std::fs;
 
 use egui::{Align2, RichText, Ui, Window};
-use rustic_city_eye::{ monitoring::{persistence::Persistence, monitoring_app::MonitoringApp},
-     utils::location::Location,
+use rustic_city_eye::{
+    monitoring::{monitoring_app::MonitoringApp, persistence::Persistence},
+    utils::location::Location,
 };
 use walkers::MapMemory;
 
@@ -84,7 +85,13 @@ pub fn add_incident_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monito
                 if ui.button(RichText::new("🚨").heading()).clicked() {
                     if let Some(position) = map.click_watcher.clicked_at {
                         let location = Location::new(position.lat(), position.lon());
-                        let _ = monitoring_app.add_incident(location);
+                        let _ = match monitoring_app.add_incident(location){
+                            Ok(result) => result,
+                            Err(e) => {
+                                println!("Error adding incident: {}", e);
+                                return;
+                            }
+                        };
 
                         map.incidents.push(IncidentView {
                             image: map.incident_icon.clone(),
