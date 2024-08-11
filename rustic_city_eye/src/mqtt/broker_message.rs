@@ -89,7 +89,7 @@ pub enum BrokerMessage {
 }
 #[allow(dead_code)]
 impl BrokerMessage {
-    pub fn write_to(&self, stream: &mut dyn Write) -> Result<(), ProtocolError> {
+    pub fn write_to(&self, stream: impl Write) -> Result<(), ProtocolError> {
         let mut writer = BufWriter::new(stream);
         match self {
             BrokerMessage::Connack {
@@ -298,22 +298,22 @@ impl BrokerMessage {
         }
     }
 
-    pub fn read_from(stream: &mut dyn Read) -> Result<BrokerMessage, Error> {
+    pub fn read_from(mut stream: impl Read) -> Result<BrokerMessage, Error> {
         let mut header = [0u8; 1];
         stream.read_exact(&mut header)?;
         let header = u8::from_le_bytes(header);
 
         match header {
             0x00 => {
-                let packet_id_msb = read_u8(stream)?;
-                let packet_id_lsb = read_u8(stream)?;
-                let topic_name = read_string(stream)?;
-                let qos = read_u8(stream)? as usize;
-                let retain_flag = read_u8(stream)? as usize;
-                let payload = PayloadTypes::read_from(stream)?;
+                let packet_id_msb = read_u8(&mut stream)?;
+                let packet_id_lsb = read_u8(&mut stream)?;
+                let topic_name = read_string(&mut stream)?;
+                let qos = read_u8(&mut stream)? as usize;
+                let retain_flag = read_u8(&mut stream)? as usize;
+                let payload = PayloadTypes::read_from(&mut stream)?;
 
-                let dup_flag = read_u8(stream)? as usize;
-                let properties = PublishProperties::read_from(stream)?;
+                let dup_flag = read_u8(&mut stream)? as usize;
+                let properties = PublishProperties::read_from(&mut stream)?;
 
                 Ok(BrokerMessage::PublishDelivery {
                     packet_id: u16::from_be_bytes([packet_id_msb, packet_id_lsb]),
@@ -326,9 +326,9 @@ impl BrokerMessage {
                 })
             }
             0x20 => {
-                let session_present = read_bool(stream)?;
-                let reason_code = read_u8(stream)?;
-                let properties = ConnackProperties::read_from(stream)?;
+                let session_present = read_bool(&mut stream)?;
+                let reason_code = read_u8(&mut stream)?;
+                let properties = ConnackProperties::read_from(&mut stream)?;
                 Ok(BrokerMessage::Connack {
                     session_present,
                     reason_code,
@@ -336,9 +336,9 @@ impl BrokerMessage {
                 })
             }
             0x40 => {
-                let packet_id_msb = read_u8(stream)?;
-                let packet_id_lsb = read_u8(stream)?;
-                let reason_code = read_u8(stream)?;
+                let packet_id_msb = read_u8(&mut stream)?;
+                let packet_id_lsb = read_u8(&mut stream)?;
+                let reason_code = read_u8(&mut stream)?;
 
                 Ok(BrokerMessage::Puback {
                     packet_id_msb,
@@ -347,9 +347,9 @@ impl BrokerMessage {
                 })
             }
             0x90 => {
-                let packet_id_msb = read_u8(stream)?;
-                let packet_id_lsb = read_u8(stream)?;
-                let reason_code = read_u8(stream)?;
+                let packet_id_msb = read_u8(&mut stream)?;
+                let packet_id_lsb = read_u8(&mut stream)?;
+                let reason_code = read_u8(&mut stream)?;
                 Ok(BrokerMessage::Suback {
                     packet_id_msb,
                     packet_id_lsb,
@@ -357,9 +357,9 @@ impl BrokerMessage {
                 })
             }
             0xB0 => {
-                let packet_id_msb = read_u8(stream)?;
-                let packet_id_lsb = read_u8(stream)?;
-                let reason_code = read_u8(stream)?;
+                let packet_id_msb = read_u8(&mut stream)?;
+                let packet_id_lsb = read_u8(&mut stream)?;
+                let reason_code = read_u8(&mut stream)?;
 
                 Ok(BrokerMessage::Unsuback {
                     packet_id_msb,
@@ -368,33 +368,33 @@ impl BrokerMessage {
                 })
             }
             0xE0 => {
-                let reason_code = read_u8(stream)?;
-                let session_expiry_interval_id = read_u8(stream)?;
+                let reason_code = read_u8(&mut stream)?;
+                let session_expiry_interval_id = read_u8(&mut stream)?;
                 if session_expiry_interval_id != SESSION_EXPIRY_INTERVAL_ID {
                     return Err(Error::new(
                         std::io::ErrorKind::Other,
                         "Invalid session expiry interval id",
                     ));
                 }
-                let session_expiry_interval = read_u32(stream)?;
+                let session_expiry_interval = read_u32(&mut stream)?;
 
-                let reason_string_id = read_u8(stream)?;
+                let reason_string_id = read_u8(&mut stream)?;
                 if reason_string_id != REASON_STRING_ID {
                     return Err(Error::new(
                         std::io::ErrorKind::Other,
                         "Invalid reason string id",
                     ));
                 }
-                let reason_string = read_string(stream)?;
+                let reason_string = read_string(&mut stream)?;
 
-                let user_property_id = read_u8(stream)?;
+                let user_property_id = read_u8(&mut stream)?;
                 if user_property_id != USER_PROPERTY_ID {
                     return Err(Error::new(
                         std::io::ErrorKind::Other,
                         "Invalid user property id",
                     ));
                 }
-                let user_properties = read_string_pairs(stream)?;
+                let user_properties = read_string_pairs(&mut stream)?;
 
                 Ok(BrokerMessage::Disconnect {
                     reason_code,
@@ -405,29 +405,29 @@ impl BrokerMessage {
             }
             0xD0 => Ok(BrokerMessage::Pingresp),
             0xF0 => {
-                let reason_code = read_u8(stream)?;
+                let reason_code = read_u8(&mut stream)?;
                 let mut authentication_method: Option<String> = None;
                 let mut authentication_data: Option<Vec<u8>> = None;
                 let mut reason_string: Option<String> = None;
                 let mut user_properties: Option<Vec<(String, String)>> = None;
 
                 let mut count = 0;
-                while let Ok(property_id) = read_u8(stream) {
+                while let Ok(property_id) = read_u8(&mut stream) {
                     match property_id {
                         0x15 => {
-                            let value = read_string(stream)?;
+                            let value = read_string(&mut stream)?;
                             authentication_method = Some(value);
                         }
                         0x16 => {
-                            let value = read_bin_vec(stream)?;
+                            let value = read_bin_vec(&mut stream)?;
                             authentication_data = Some(value);
                         }
                         0x26 => {
-                            let value = read_tuple_vec(stream)?;
+                            let value = read_tuple_vec(&mut stream)?;
                             user_properties = Some(value);
                         }
                         0x1F => {
-                            let value = read_string(stream)?;
+                            let value = read_string(&mut stream)?;
                             reason_string = Some(value);
                         }
                         _ => {

@@ -17,7 +17,7 @@
                 "chau"
             ]
         ],
-        "authentication_method": "password-based",
+        "authentication_method": "no-auth",
         "authentication_data": [
             1,
             2,
