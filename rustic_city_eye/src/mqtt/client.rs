@@ -119,7 +119,9 @@ impl Client {
         }
     }
 
-    fn build_tls_stream(stream: TcpStream) -> Result<Arc<StreamOwned<ClientConnection, TcpStream>>, ProtocolError> {
+    fn build_tls_stream(
+        stream: TcpStream,
+    ) -> Result<Arc<StreamOwned<ClientConnection, TcpStream>>, ProtocolError> {
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
         let mut root_store = RootCertStore::empty();
         let mut cert_file = Client::open_file("./src/mqtt/certs/cert.pem")?;

@@ -72,8 +72,12 @@ mod tests {
             loop {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
-                        let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx);
+                        let result = broker.handle_message(
+                            message,
+                            &message_to_write_sender,
+                            stream_ref,
+                            tx,
+                        );
                         println!("Message {:?} received", result);
                         return Ok(());
                     }
@@ -158,19 +162,21 @@ mod tests {
                 }
             });
 
-            thread::spawn(move || {
-                loop {
-                    if rx.try_recv().is_ok() {
-                        break;
-                    }
+            thread::spawn(move || loop {
+                if rx.try_recv().is_ok() {
+                    break;
                 }
             });
 
             loop {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
-                        let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                        let result = broker.handle_message(
+                            message,
+                            &message_to_write_sender,
+                            stream_ref,
+                            tx,
+                        )?;
                         println!("Message {:?} received", result);
                         assert_eq!(result, ProtocolReturn::ConnackSent);
                         return Ok(());
@@ -259,8 +265,12 @@ mod tests {
             loop {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
-                        let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                        let result = broker.handle_message(
+                            message,
+                            &message_to_write_sender,
+                            stream_ref,
+                            tx,
+                        )?;
                         println!("Message {:?} received", result);
                         assert_eq!(result, ProtocolReturn::ConnackSent);
                         return Ok(());
@@ -331,19 +341,21 @@ mod tests {
                 }
             });
 
-            thread::spawn(move || {
-                loop {
-                    if rx.try_recv().is_ok() {
-                        break;
-                    }
+            thread::spawn(move || loop {
+                if rx.try_recv().is_ok() {
+                    break;
                 }
             });
 
             loop {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
-                        let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                        let result = broker.handle_message(
+                            message,
+                            &message_to_write_sender,
+                            stream_ref,
+                            tx,
+                        )?;
                         println!("Message {:?} received", result);
                         assert_eq!(result, ProtocolReturn::DisconnectSent);
                         return Ok(());
@@ -438,8 +450,12 @@ mod tests {
             loop {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
-                        let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                        let result = broker.handle_message(
+                            message,
+                            &message_to_write_sender,
+                            stream_ref,
+                            tx,
+                        )?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::SubackSent);
                         return Ok(());
@@ -548,8 +564,12 @@ mod tests {
             loop {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
-                        let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                        let result = broker.handle_message(
+                            message,
+                            &message_to_write_sender,
+                            stream_ref,
+                            tx,
+                        )?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::PubackSent);
                         return Ok(());
@@ -650,8 +670,12 @@ mod tests {
             loop {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
-                        let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                        let result = broker.handle_message(
+                            message,
+                            &message_to_write_sender,
+                            stream_ref,
+                            tx,
+                        )?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::NoAckSent);
                         return Ok(());
@@ -745,8 +769,12 @@ mod tests {
             loop {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
-                        let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                        let result = broker.handle_message(
+                            message,
+                            &message_to_write_sender,
+                            stream_ref,
+                            tx,
+                        )?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::UnsubackSent);
                         return Ok(());
@@ -836,8 +864,12 @@ mod tests {
             loop {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
-                        let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                        let result = broker.handle_message(
+                            message,
+                            &message_to_write_sender,
+                            stream_ref,
+                            tx,
+                        )?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::DisconnectRecieved);
                         return Ok(());
@@ -916,8 +948,12 @@ mod tests {
             loop {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
-                        let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                        let result = broker.handle_message(
+                            message,
+                            &message_to_write_sender,
+                            stream_ref,
+                            tx,
+                        )?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::PingrespSent);
                         return Ok(());
@@ -1008,8 +1044,12 @@ mod tests {
             loop {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
-                        let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                        let result = broker.handle_message(
+                            message,
+                            &message_to_write_sender,
+                            stream_ref,
+                            tx,
+                        )?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::ConnackSent);
                         return Ok(());
@@ -1095,19 +1135,21 @@ mod tests {
                 }
             });
 
-            thread::spawn(move || {
-                loop {
-                    if rx.try_recv().is_ok() {
-                        break;
-                    }
+            thread::spawn(move || loop {
+                if rx.try_recv().is_ok() {
+                    break;
                 }
             });
 
             loop {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
-                        let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                        let result = broker.handle_message(
+                            message,
+                            &message_to_write_sender,
+                            stream_ref,
+                            tx,
+                        )?;
                         println!("Message {:?} received", result);
                         assert_eq!(result, ProtocolReturn::ConnackSent);
                         return Ok(());
@@ -1193,8 +1235,12 @@ mod tests {
             loop {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
-                        let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                        let result = broker.handle_message(
+                            message,
+                            &message_to_write_sender,
+                            stream_ref,
+                            tx,
+                        )?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::DisconnectRecieved);
                         return Ok(());
@@ -1266,20 +1312,22 @@ mod tests {
                     break;
                 }
             });
-            
-            thread::spawn(move || {
-                loop {
-                    if rx.try_recv().is_ok() {
-                        break;
-                    }
+
+            thread::spawn(move || loop {
+                if rx.try_recv().is_ok() {
+                    break;
                 }
             });
 
             loop {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
-                        let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                        let result = broker.handle_message(
+                            message,
+                            &message_to_write_sender,
+                            stream_ref,
+                            tx,
+                        )?;
                         println!("Message {:?} received", result);
                         assert_eq!(result, ProtocolReturn::ConnackSent);
                         return Ok(());
