@@ -11,7 +11,10 @@ use std::{
     thread,
 };
 
-use rustls::{ServerConfig, ServerConnection, StreamOwned};
+use rustls::{
+    pki_types::{CertificateDer, PrivateKeyDer},
+    ServerConfig, ServerConnection, StreamOwned,
+};
 use rustls_pemfile::{certs, private_key};
 
 use crate::mqtt::{
@@ -61,11 +64,13 @@ pub struct Broker {
         >,
     >,
 
-    /// Los clientes se guardan en un HashMap en el cual
+    /// Los datos de autenticacion de los clientes se guardan en un HashMap, en el cual
     /// las claves son los client_ids, y los valores son
     /// tuplas que contienen el username y password.
     clients_auth_info: HashMap<String, (String, Vec<u8>)>,
 
+    /// Esta es la configuracion que el Broker usa para crear las conexiones
+    /// con TLS. ServerConfig es un struct proveniente del crate rustls.
     pub server_config: Arc<ServerConfig>,
 }
 
@@ -79,29 +84,10 @@ impl Broker {
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let packets = Arc::new(RwLock::new(HashMap::new()));
 
-        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
-        let certs = match certs(&mut BufReader::new(
-            &mut File::open("./src/mqtt/certs/cert.pem").unwrap(),
-        ))
-        .collect::<Result<Vec<_>, _>>()
-        {
-            Ok(c) => c,
-            Err(e) => return Err(ProtocolError::ServerConfigError(e.to_string())),
-        };
-
-        let private_key = private_key(&mut BufReader::new(
-            &mut File::open("./src/mqtt/certs/private_key.pem").unwrap(),
-        ))
-        .unwrap()
-        .unwrap();
-
-        let server_config = match ServerConfig::builder()
-            .with_no_client_auth()
-            .with_single_cert(certs, private_key)
-        {
-            Ok(config) => config,
-            Err(e) => return Err(ProtocolError::ServerConfigError(e.to_string())),
-        };
+        let server_config = Broker::set_server_config(
+            "./src/mqtt/certs/cert.pem",
+            "./src/mqtt/certs/private_key.pem",
+        )?;
 
         Ok(Broker {
             address,
@@ -111,6 +97,57 @@ impl Broker {
             clients_ids,
             server_config: Arc::new(server_config),
         })
+    }
+
+    fn set_server_config(
+        certs_file_path: &str,
+        private_key_file_path: &str,
+    ) -> Result<ServerConfig, ProtocolError> {
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+        let certs = Broker::get_certs(certs_file_path)?;
+
+        let private_key = Broker::get_private_key(private_key_file_path)?;
+
+        match ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(certs, private_key)
+        {
+            Ok(config) => Ok(config),
+            Err(e) => Err(ProtocolError::ServerConfigError(e.to_string())),
+        }
+    }
+
+    fn open_file(file_path: &str) -> Result<BufReader<File>, ProtocolError> {
+        let file = match File::open(file_path) {
+            Ok(file) => file,
+            Err(e) => return Err(ProtocolError::OpenFileError(e.to_string())),
+        };
+
+        Ok(BufReader::new(file))
+    }
+
+    fn get_certs(file_path: &str) -> Result<Vec<CertificateDer<'static>>, ProtocolError> {
+        let mut file = Broker::open_file(file_path)?;
+
+        match certs(&mut file).collect::<Result<Vec<_>, _>>() {
+            Ok(c) => Ok(c),
+            Err(e) => return Err(ProtocolError::ServerConfigError(e.to_string())),
+        }
+    }
+
+    fn get_private_key(file_path: &str) -> Result<PrivateKeyDer<'static>, ProtocolError> {
+        let mut file = Broker::open_file(file_path)?;
+
+        match private_key(&mut file) {
+            Ok(k) => {
+                if let Some(key) = k {
+                    Ok(key)
+                } else {
+                    return Err(ProtocolError::ReadingPrivateKeyError);
+                }
+            }
+            Err(e) => Err(ProtocolError::ServerConfigError(e.to_string())),
+        }
     }
 
     fn process_starting_args(args: Vec<String>) -> Result<String, ProtocolError> {
@@ -240,17 +277,7 @@ impl Broker {
         loop {
             match listener.accept() {
                 Ok((stream, _)) => {
-                    let server_connection = match ServerConnection::new(self.server_config.clone())
-                    {
-                        Ok(c) => c,
-                        Err(e) => {
-                            eprintln!("{}", e);
-                            return Err(ProtocolError::StreamError);
-                        }
-                    };
-
-                    let tls_stream = StreamOwned::new(server_connection, stream);
-                    let stream = Arc::new(tls_stream);
+                    let stream = self.build_tls_stream(stream)?;
 
                     let self_clone = self.clone();
 
@@ -267,69 +294,55 @@ impl Broker {
 
                     let (client_id_sender, client_id_receiver) = mpsc::channel();
 
-                    let _handle_read_messages = threadpool.execute(move || loop {
-                        let stream_ref = Arc::clone(&stream);
+                    let _handle_read_messages = threadpool.execute(move || {
+                        let _ = self_clone.handle_read_messages(
+                            stream_read_half,
+                            &message_to_write_sender,
+                            client_id_sender,
+                            disconnect_notifier_sender,
+                            stream_error_notifier_sender,
+                        );
+                    });
 
-                        if let Ok(message) = ClientMessage::read_from(stream_read_half.get_ref()) {
-                            match self_clone.handle_message(
-                                message,
-                                &message_to_write_sender,
-                                stream_ref,
-                                client_id_sender.clone(),
-                            ) {
-                                Ok(return_val) => {
-                                    if return_val == ProtocolReturn::DisconnectRecieved {
-                                        disconnect_notifier_sender.send(()).unwrap();
-                                        return Ok(());
-                                    }
-                                }
-                                Err(err) => {
-                                    stream_error_notifier_sender.send(err).unwrap();
-                                    return Err(ProtocolError::StreamError);
+                    let _handle_write_messages = threadpool.execute(move || loop {
+                        if disconnect_notifier_receiver.try_recv().is_ok() {
+                            break;
+                        }
+
+                        if let Ok(message) = message_to_write_receiver.try_recv() {
+                            match message.write_to(stream_write_half.get_ref()) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    eprintln!("{}", e);
+                                    break;
                                 }
                             }
                         }
-                    });
 
-                    let _handle_write_messages = threadpool.execute(move || {
-                        loop {
-                            if disconnect_notifier_receiver.try_recv().is_ok() {
-                                break;
-                            }
-
-                            if let Ok(message) = message_to_write_receiver.try_recv() {
-                                match message.write_to(stream_write_half.get_ref()) {
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        eprintln!("{}", e);
-                                        break;
-                                    }
-                                }
-                            }
-
-                            if let Ok(err) = stream_error_notifier_receiver.try_recv() {
-                                if let Ok(client_id) = client_id_receiver.try_recv() {
-                                    if err == ProtocolError::StreamError
-                                        || err == ProtocolError::AbnormalDisconnection
+                        if let Ok(err) = stream_error_notifier_receiver.try_recv() {
+                            if let Ok(client_id) = client_id_receiver.try_recv() {
+                                if err == ProtocolError::StreamError
+                                    || err == ProtocolError::AbnormalDisconnection
+                                {
+                                    let clients_ids_guard = match clients_ids.read() {
+                                        Ok(clients_ids_guard) => clients_ids_guard,
+                                        Err(_) => break,
+                                    };
+                                    if let Some((_, will_message)) =
+                                        clients_ids_guard.get(&*client_id)
                                     {
-                                        let clients_ids_guard = match clients_ids.read() {
-                                            Ok(clients_ids_guard) => clients_ids_guard,
-                                            Err(_) => break,
+                                        let will_message = match will_message {
+                                            Some(will_message) => {
+                                                Broker::get_last_will_message(will_message)
+                                            }
+                                            None => break,
                                         };
-                                        if let Some((_, will_message)) =
-                                            clients_ids_guard.get(&*client_id)
-                                        {
-                                            let will_message = match will_message {
-                                                Some(will_message) => Broker::get_last_will_message(will_message),
-                                                None => break,
-                                            };
 
-                                            match will_message.write_to(stream_write_half.get_ref()) {
-                                                Ok(_) => {}
-                                                Err(e) => {
-                                                    eprintln!("{}", e);
-                                                    break;
-                                                }
+                                        match will_message.write_to(stream_write_half.get_ref()) {
+                                            Ok(_) => {}
+                                            Err(e) => {
+                                                eprintln!("{}", e);
+                                                break;
                                             }
                                         }
                                     }
@@ -339,6 +352,54 @@ impl Broker {
                     });
                 }
                 Err(_) => return Err(ProtocolError::StreamError),
+            }
+        }
+    }
+
+    fn build_tls_stream(
+        &self,
+        stream: TcpStream,
+    ) -> Result<Arc<StreamOwned<ServerConnection, TcpStream>>, ProtocolError> {
+        match ServerConnection::new(self.server_config.clone()) {
+            Ok(c) => Ok(Arc::new(StreamOwned::new(c, stream))),
+            Err(e) => {
+                eprintln!("{}", e);
+                return Err(ProtocolError::StreamError);
+            }
+        }
+    }
+
+    fn handle_read_messages(
+        &self,
+        stream: Arc<StreamOwned<ServerConnection, TcpStream>>,
+        message_to_write_sender: &Sender<BrokerMessage>,
+        client_id_sender: Sender<String>,
+        disconnect_notifier_sender: Sender<()>,
+        stream_error_notifier_sender: Sender<ProtocolError>,
+    ) -> Result<(), ProtocolError> {
+        loop {
+            let stream_ref = Arc::clone(&stream);
+
+            if let Ok(message) = ClientMessage::read_from(stream.get_ref()) {
+                match self.handle_message(
+                    message,
+                    &message_to_write_sender,
+                    stream_ref,
+                    client_id_sender.clone(),
+                ) {
+                    Ok(return_val) => {
+                        if return_val == ProtocolReturn::DisconnectRecieved {
+                            match disconnect_notifier_sender.send(()) {
+                                Ok(_) => return Ok(()),
+                                Err(e) => return Err(ProtocolError::SendError(e.to_string())),
+                            }
+                        }
+                    }
+                    Err(err) => match stream_error_notifier_sender.send(err) {
+                        Ok(_) => return Ok(()),
+                        Err(e) => return Err(ProtocolError::SendError(e.to_string())),
+                    },
+                }
             }
         }
     }
@@ -604,7 +665,7 @@ impl Broker {
                 if let Err(e) = ClientConfig::create_client_log_in_json(connect.client_id.clone()) {
                     return Err(ProtocolError::UnspecifiedError(e.to_string()));
                 }
-                
+
                 let connect_clone = connect.clone();
                 let reason_code = match authenticate_client(
                     connect_clone.properties.authentication_method,
@@ -626,7 +687,7 @@ impl Broker {
                     } else {
                         return Err(ProtocolError::WriteError);
                     }
-    
+
                     client_id_sender.send(connect.client_id.clone()).unwrap();
                 }
 

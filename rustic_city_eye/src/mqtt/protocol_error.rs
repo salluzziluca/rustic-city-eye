@@ -38,6 +38,8 @@ pub enum ProtocolError {
     AnnotationError(String),
     ArcMutexError(String),
     ServerConfigError(String),
+    OpenFileError(String),
+    ReadingPrivateKeyError,
 }
 
 impl fmt::Display for ProtocolError {
@@ -46,6 +48,9 @@ impl fmt::Display for ProtocolError {
             ProtocolError::ConectionError => write!(f, "Error al conectar al broker."),
             ProtocolError::ReadingConfigFileError => {
                 write!(f, "Error al leer el archivo de configuracion del connect.")
+            }
+            ProtocolError::ReadingPrivateKeyError => {
+                write!(f, "Error: No private key found.")
             }
             ProtocolError::NotReceivedMessageError => {
                 write!(f, "Error: no ha llegado ningun mensaje.")
@@ -103,6 +108,9 @@ impl fmt::Display for ProtocolError {
             }
             ProtocolError::DroneError(ref err) => {
                 write!(f, "Error de protocolo: {}", err)
+            }
+            ProtocolError::OpenFileError(ref err) => {
+                write!(f, "Error opening file: {}", err)
             }
             ProtocolError::ShutdownError(ref err) => {
                 write!(f, "Error de protocolo: {}", err)
