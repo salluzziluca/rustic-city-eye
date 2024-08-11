@@ -15,7 +15,10 @@ use rustic_city_eye::{
     surveilling::camera::Camera,
     utils::location::Location,
 };
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::{Arc, Mutex},
+};
 use walkers::{sources::OpenStreetMap, HttpTiles, Map, MapMemory, Position, Texture, Tiles};
 
 use windows::*;
@@ -42,33 +45,38 @@ struct MyMap {
 }
 impl MyMap {
     /// Actualiza la posicion de los drones en el mapa
-    fn update_drones(&mut self, new_drone_locations: HashMap<u32, Location>) {
-        for (id, location) in new_drone_locations {
-            if let Some(drone) = self.drones.get_mut(&id) {
-                drone.position = Position::from_lon_lat(location.long, location.lat);
+    fn update_drones(
+        &mut self,
+        updated_locations: Arc<Mutex<VecDeque<(u32, Location, Location)>>>,
+    ) {
+        if let Ok(mut new_drone_locations) = updated_locations.try_lock() {
+            if !new_drone_locations.is_empty() {
+                println!("new_drone_locations: {:?}", new_drone_locations);
             }
+            while let Some((id, location, target_location)) = new_drone_locations.pop_front() {
+                if let Some(drone) = self.drones.get_mut(&id) {
+                    drone.position = Position::from_lon_lat(location.long, location.lat);
+                    drone.target_position =
+                        Position::from_lon_lat(target_location.long, target_location.lat);
+                }
+            }
+        };
+        for drone in self.drones.values_mut() {
+            drone.move_towards();
         }
     }
+
     /// Actualiza la posicion de las camaras en el mapa
     /// Si la camara esta en modo sleep, se muestra con un radio azul
     /// Si la camara esta activa, se muestra con un radio rojo
     ///
     fn update_cameras(&mut self, new_cameras: HashMap<u32, Camera>) {
+        if !new_cameras.is_empty() {
+            println!("new_cameras: {:?}", new_cameras);
+        }
         for (id, camera) in new_cameras {
             if let Some(camera_view) = self.cameras.get_mut(&id) {
-                if !camera.get_sleep_mode() {
-                    camera_view.radius = ImagesPluginData::new(
-                        self.active_camera_radius.texture.clone(),
-                        self.zoom_level,
-                        self.active_camera_radius.y_scale,
-                    );
-                } else {
-                    camera_view.radius = ImagesPluginData::new(
-                        self.camera_radius.texture.clone(),
-                        self.zoom_level,
-                        self.camera_radius.y_scale,
-                    );
-                }
+                camera_view.active = !camera.get_sleep_mode();
             }
         }
     }
@@ -114,7 +122,6 @@ impl ImagesPluginData {
         }
     }
 }
-
 impl MyApp {
     /// Muestra el formulario de inicio de sesion
     /// Si se presiona el boton de submit, se intenta conectar al servidor
@@ -169,6 +176,7 @@ impl MyApp {
                 } else {
                     ui.visuals_mut().extreme_bg_color = egui::Color32::RED;
                 }
+
                 ui.add(
                     egui::TextEdit::singleline(&mut self.password)
                         .min_size(egui::vec2(150.0, 15.0))
@@ -219,14 +227,14 @@ impl MyApp {
                     self.submit();
                 }
 
-                ui.add_space(15.0);
-
+                ui.add_space(20.0);
+                
                 if ui.button("Submit").clicked() {
                     self.submit();
                 }
-            })
+                
+            });
         });
-
         TopBottomPanel::bottom("credits_panel").show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.label(
@@ -245,13 +253,13 @@ impl MyApp {
             self.ip.clone(),
             self.port.clone(),
         ];
-
         self.correct_username = !self.username.is_empty();
         self.correct_password = !self.password.is_empty();
         self.correct_ip = !self.ip.is_empty();
         self.correct_port = !self.port.is_empty();
         match MonitoringApp::new(args) {
             Ok(mut monitoring_app) => {
+                println!("zoom level: {:?}  ", self.map.zoom_level.to_string());
                 let _ = monitoring_app.run_client();
                 self.monitoring_app = Some(monitoring_app);
                 self.connected = true;
@@ -261,13 +269,80 @@ impl MyApp {
                 self.configure_incidents();
             }
             Err(e) => {
-                println!("The connection failed. Please try again {}.", e);
+                println!("The conection failed. Please try again {}.", e);
                 self.username.clear();
                 self.password.clear();
                 self.ip.clear();
                 self.port.clear();
             }
         };
+    }
+
+    /// Muestra el mapa
+    /// Si se presiona el boton de zoom, se actualiza el zoom level
+    /// Carga las diferentes ventanas de camaras, incidentes, drones y centros de drones
+    fn handle_map(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
+        if let Some(monitoring_app) = &self.monitoring_app {
+            let lock = monitoring_app.connected.lock().unwrap();
+            if !*lock {
+                self.connected = false;
+                self.username.clear();
+                self.password.clear();
+                self.ip.clear();
+                self.port.clear();
+            }
+        }
+
+        CentralPanel::default().show(ctx, |ui| {
+            let last_clicked = self.map.click_watcher.clicked_at;
+
+            let tiles_ref: &mut dyn Tiles = &mut *self.map.tiles;
+            ui.add(
+                Map::new(
+                    Some(tiles_ref),
+                    &mut self.map.map_memory,
+                    Position::from_lon_lat(-58.368925, -34.61716),
+                )
+                .with_plugin(&mut self.map.click_watcher)
+                .with_plugin(cameras(
+                    &mut self.map.cameras,
+                    self.map.zoom_level,
+                    last_clicked,
+                ))
+                .with_plugin(incidents(
+                    &mut self.map.incidents,
+                    self.map.zoom_level,
+                    last_clicked,
+                ))
+                .with_plugin(drones(
+                    &mut self.map.drones,
+                    self.map.zoom_level,
+                    last_clicked,
+                ))
+                .with_plugin(drone_centers(
+                    &mut self.map.drone_centers,
+                    self.map.zoom_level,
+                    last_clicked,
+                )),
+            );
+            zoom(ui, &mut self.map.map_memory, &mut self.map.zoom_level);
+
+            if let Some(monitoring_app) = &mut self.monitoring_app {
+                let new_locations = monitoring_app.get_updated_drones();
+                self.map.update_drones(new_locations);
+                let new_cameras = monitoring_app.get_cameras();
+                self.map.update_cameras(new_cameras);
+
+                let incidents = monitoring_app.get_incidents();
+                self.map.update_incidents(incidents);
+                add_camera_window(ui, &mut self.map, monitoring_app);
+                add_incident_window(ui, &mut self.map, monitoring_app);
+                add_drone_window(ui, &mut self.map, monitoring_app);
+                add_drone_center_window(ui, &mut self.map, monitoring_app);
+                add_disconnect_window(ui, &mut self.map, monitoring_app, &mut self.connected);
+                add_remove_window(ui, &mut self.map, monitoring_app)
+            }
+        });
     }
 
     /// Carga las camaras del archivo de persistencia
@@ -277,11 +352,9 @@ impl MyApp {
                 let location = camera.get_location();
                 let camera_view = CameraView {
                     image: self.map.camera_icon.clone(),
-                    radius: ImagesPluginData::new(
-                        self.map.camera_radius.texture.clone(),
-                        self.map.zoom_level,
-                        self.map.camera_radius.y_scale,
-                    ),
+                    radius: self.map.camera_radius.clone(),
+                    active_radius: self.map.active_camera_radius.clone(),
+                    active: !camera.get_sleep_mode(),
                     position: Position::from_lon_lat(location.long, location.lat),
                     clicked: false,
                 };
@@ -327,6 +400,7 @@ impl MyApp {
                         image: self.map.drone_icon.clone(),
                         position: Position::from_lon_lat(location.long, location.lat),
                         clicked: false,
+                        target_position: Position::from_lon_lat(location.long, location.lat),
                     };
                     self.map.drones.insert(drone.1, drone_view);
 
@@ -354,74 +428,6 @@ impl MyApp {
             });
         }
     }
-
-    /// Muestra el mapa
-    /// Si se presiona el boton de zoom, se actualiza el zoom level
-    /// Carga las diferentes ventanas de camaras, incidentes, drones y centros de drones
-    fn handle_map(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
-        if let Some(monitoring_app) = &self.monitoring_app {
-            let lock = monitoring_app.connected.lock().unwrap();
-            if !*lock {
-                self.connected = false;
-                self.username.clear();
-                self.password.clear();
-                self.ip.clear();
-                self.port.clear();
-            }
-        }
-
-        CentralPanel::default().show(ctx, |ui| {
-            let last_clicked = self.map.click_watcher.clicked_at;
-
-            // Dereference the Box<dyn Tiles> to access the underlying type
-            let tiles_ref: &mut dyn Tiles = &mut *self.map.tiles;
-            ui.add(
-                Map::new(
-                    Some(tiles_ref),
-                    &mut self.map.map_memory,
-                    Position::from_lon_lat(-58.368925, -34.61716),
-                )
-                .with_plugin(&mut self.map.click_watcher)
-                .with_plugin(cameras(
-                    &mut self.map.cameras,
-                    self.map.zoom_level,
-                    last_clicked,
-                ))
-                .with_plugin(incidents(
-                    &mut self.map.incidents,
-                    self.map.zoom_level,
-                    last_clicked,
-                ))
-                .with_plugin(drones(
-                    &mut self.map.drones,
-                    self.map.zoom_level,
-                    last_clicked,
-                ))
-                .with_plugin(drone_centers(
-                    &mut self.map.drone_centers,
-                    self.map.zoom_level,
-                    last_clicked,
-                )),
-            );
-            zoom(ui, &mut self.map.map_memory, &mut self.map.zoom_level);
-
-            if let Some(monitoring_app) = &mut self.monitoring_app {
-                let new_locations = monitoring_app.get_active_drones();
-                self.map.update_drones(new_locations);
-                let new_cameras = monitoring_app.get_cameras();
-                self.map.update_cameras(new_cameras);
-
-                let incidents = monitoring_app.get_incidents();
-                self.map.update_incidents(incidents);
-                add_camera_window(ui, &mut self.map, monitoring_app);
-                add_incident_window(ui, &mut self.map, monitoring_app);
-                add_drone_window(ui, &mut self.map, monitoring_app);
-                add_drone_center_window(ui, &mut self.map, monitoring_app);
-                add_disconnect_window(ui, &mut self.map, monitoring_app, &mut self.connected);
-                add_remove_window(ui, &mut self.map, monitoring_app)
-            }
-        });
-    }
 }
 
 impl App for MyApp {
@@ -432,6 +438,7 @@ impl App for MyApp {
         } else {
             self.handle_map(ctx, _frame);
         }
+        ctx.request_repaint();
     }
 }
 /// Funcion que se encarga de inicializar la aplicacion con sus texturas
@@ -499,7 +506,7 @@ fn create_my_app(cc: &CreationContext<'_>) -> Box<dyn App> {
             drone_icon,
             drone_centers: HashMap::new(),
             drone_center_icon,
-            zoom_level: 1.0,
+            zoom_level: 0.5,
         },
         monitoring_app: None,
         correct_username: true,
