@@ -218,7 +218,7 @@ impl ImageClassifier {
             let description_lower = annotation.description.to_lowercase();
 
             for keyword in &self.incident_keywords {
-                if description_lower.contains(&keyword.to_lowercase()) {
+                if description_lower.contains(&keyword.to_lowercase()) && annotation.score > 0.5 {
                     results.push((annotation.description.clone(), annotation.score));
                     break;
                 }

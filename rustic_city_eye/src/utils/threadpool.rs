@@ -158,7 +158,7 @@ mod tests {
 
         let receiver1 = pool.execute(move || {
             tx1.send("Message from thread 1").unwrap();
-            rx2.recv().unwrap();
+            rx2.recv().unwrap()
         });
 
         let receiver2 = pool.execute(move || {
@@ -166,9 +166,9 @@ mod tests {
             tx2.send(format!("Thread 2 received: {}", message)).unwrap();
         });
 
-        receiver1.recv().unwrap();
+        let response1 = receiver1.recv().unwrap();
         receiver2.recv().unwrap();
 
-        // assert_eq!(response1,() );
+        assert_eq!(response1, "Thread 2 received: Message from thread 1");
     }
 }
