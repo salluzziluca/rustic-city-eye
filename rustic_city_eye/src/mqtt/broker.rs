@@ -254,14 +254,18 @@ impl Broker {
 
                     let self_clone = self.clone();
 
+                    let clients_ids = Arc::clone(&self.clients_ids);
+
                     let stream_write_half = Arc::clone(&stream);
                     let stream_read_half = Arc::clone(&stream);
 
                     let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
-                    let (stream_error_notifier_sender, _stream_error_notifier_receiver) =
+                    let (stream_error_notifier_sender, stream_error_notifier_receiver) =
                         mpsc::channel();
                     let (disconnect_notifier_sender, disconnect_notifier_receiver) =
                         mpsc::channel();
+
+                    let (client_id_sender, client_id_receiver) = mpsc::channel();
 
                     let _handle_read_messages = threadpool.execute(move || loop {
                         let stream_ref = Arc::clone(&stream);
@@ -271,6 +275,7 @@ impl Broker {
                                 message,
                                 &message_to_write_sender,
                                 stream_ref,
+                                client_id_sender.clone(),
                             ) {
                                 Ok(return_val) => {
                                     if return_val == ProtocolReturn::DisconnectRecieved {
@@ -302,31 +307,34 @@ impl Broker {
                                 }
                             }
 
-                            //todo: will message
-                            // if let Ok(err) = stream_error_notifier_receiver.try_recv() {
-                            //     if err == ProtocolError::StreamError
-                            //         || err == ProtocolError::AbnormalDisconnection
-                            //     {
-                            //         let client_id_guard = client_id;
-                            //         #[allow(clippy::type_complexity)]
-                            //         let clients_ids_guard = match clients_ids_clone.read() {
-                            //             Ok(clients_ids_guard) => clients_ids_guard,
-                            //             Err(_) => break,
-                            //         };
-                            //         if let Some((_, will_message)) =
-                            //             clients_ids_guard.get(&*client_id_guard)
-                            //         {
-                            //             let will_message = match will_message {
-                            //                 Some(will_message) => will_message,
-                            //                 None => break,
-                            //             };
-                            //             // let self_clone2 = self_ref.clone();
-                            //             // self_clone2
-                            //             //     .clone()
-                            //             //     .send_last_will(will_message, topics_clone);
-                            //         }
-                            //     }
-                            // }
+                            if let Ok(err) = stream_error_notifier_receiver.try_recv() {
+                                if let Ok(client_id) = client_id_receiver.try_recv() {
+                                    if err == ProtocolError::StreamError
+                                        || err == ProtocolError::AbnormalDisconnection
+                                    {
+                                        let clients_ids_guard = match clients_ids.read() {
+                                            Ok(clients_ids_guard) => clients_ids_guard,
+                                            Err(_) => break,
+                                        };
+                                        if let Some((_, will_message)) =
+                                            clients_ids_guard.get(&*client_id)
+                                        {
+                                            let will_message = match will_message {
+                                                Some(will_message) => Broker::get_last_will_message(will_message),
+                                                None => break,
+                                            };
+
+                                            match will_message.write_to(stream_write_half.get_ref()) {
+                                                Ok(_) => {}
+                                                Err(e) => {
+                                                    eprintln!("{}", e);
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     });
                 }
@@ -526,7 +534,7 @@ impl Broker {
     /// Si hay un delay en el envio del mensaje (delay_interval), se encarga de esperar el tiempo correspondiente.
     ///
     /// Convierte el mensaje en un Publish y lo envia al broker.
-    fn send_last_will(&self, will_message: &LastWill, topics: HashMap<String, Topic>) {
+    fn get_last_will_message(will_message: &LastWill) -> ClientMessage {
         let properties = will_message.get_properties();
         let interval = properties.get_last_will_delay_interval();
         thread::sleep(std::time::Duration::from_secs(interval as u64));
@@ -537,7 +545,7 @@ impl Broker {
 
         let will_payload = PayloadTypes::WillPayload(message.to_string());
 
-        let will_publish = ClientMessage::Publish {
+        ClientMessage::Publish {
             packet_id: 0,
             topic_name: will_topic.to_string(),
             qos: will_qos as usize,
@@ -548,10 +556,6 @@ impl Broker {
                 .get_properties()
                 .clone()
                 .to_publish_properties(),
-        };
-        match self.handle_publish(will_publish, topics, will_topic.to_string()) {
-            Ok(_) => (),
-            Err(_) => println!("Error al enviar el Last Will"),
         }
     }
 
@@ -563,6 +567,7 @@ impl Broker {
         message: ClientMessage,
         message_to_write_sender: &Sender<BrokerMessage>,
         client_stream_ref: Arc<StreamOwned<ServerConnection, TcpStream>>,
+        client_id_sender: Sender<String>,
     ) -> Result<ProtocolReturn, ProtocolError> {
         let topics = self.topics.clone();
         let packets = self.packets.clone();
@@ -599,15 +604,7 @@ impl Broker {
                 if let Err(e) = ClientConfig::create_client_log_in_json(connect.client_id.clone()) {
                     return Err(ProtocolError::UnspecifiedError(e.to_string()));
                 }
-                if let Ok(mut clients) = self.clients_ids.write() {
-                    clients.insert(
-                        connect.client_id.clone(),
-                        (Some(client_stream_ref), will_message),
-                    );
-                } else {
-                    return Err(ProtocolError::WriteError);
-                }
-
+                
                 let connect_clone = connect.clone();
                 let reason_code = match authenticate_client(
                     connect_clone.properties.authentication_method,
@@ -619,6 +616,19 @@ impl Broker {
                     Ok(r) => r,
                     Err(e) => return Err(e),
                 };
+
+                if reason_code == 0x00_u8 {
+                    if let Ok(mut clients) = self.clients_ids.write() {
+                        clients.insert(
+                            connect.client_id.clone(),
+                            (Some(client_stream_ref), will_message),
+                        );
+                    } else {
+                        return Err(ProtocolError::WriteError);
+                    }
+    
+                    client_id_sender.send(connect.client_id.clone()).unwrap();
+                }
 
                 let properties = ConnackProperties {
                     session_expiry_interval: 0,

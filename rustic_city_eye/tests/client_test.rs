@@ -23,10 +23,7 @@ mod tests {
         fs::File,
         io::BufReader,
         net::{TcpListener, TcpStream},
-        sync::{
-            mpsc,
-            Arc,
-        },
+        sync::{mpsc, Arc},
         thread,
     };
 
@@ -226,11 +223,9 @@ mod tests {
                 break;
             }
 
-            thread::spawn(move || {
-                loop {
-                    if puback_notify_receiver.try_recv().is_ok() {
-                        break;
-                    }
+            thread::spawn(move || loop {
+                if puback_notify_receiver.try_recv().is_ok() {
+                    break;
                 }
             });
         }
@@ -245,7 +240,7 @@ mod tests {
             reason_string: "pasaron_cosas".to_string(),
             user_properties: vec![("propiedad".to_string(), "valor".to_string())],
         };
-        
+
         let listener = TcpListener::bind("127.0.0.1:5003").unwrap();
         thread::spawn(move || {
             let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
@@ -324,11 +319,9 @@ mod tests {
                 break;
             }
 
-            thread::spawn(move || {
-                loop {
-                    if receive_channel.try_recv().is_ok() {
-                        break;
-                    }
+            thread::spawn(move || loop {
+                if receive_channel.try_recv().is_ok() {
+                    break;
                 }
             });
         }
@@ -343,7 +336,7 @@ mod tests {
             packet_id_lsb: 1,
             reason_code: 3,
         };
-        
+
         let listener = TcpListener::bind("127.0.0.1:5004").unwrap();
         thread::spawn(move || {
             let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
@@ -454,7 +447,7 @@ mod tests {
             dup_flag: 4,
             properties: publish_propreties,
         };
-        
+
         let listener = TcpListener::bind("127.0.0.1:5005").unwrap();
         thread::spawn(move || {
             let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
@@ -533,11 +526,9 @@ mod tests {
                 break;
             }
 
-            thread::spawn(move || {
-                loop {
-                    if receiver_channel.try_recv().is_ok() {
-                        break;
-                    }
+            thread::spawn(move || loop {
+                if receiver_channel.try_recv().is_ok() {
+                    break;
                 }
             });
         }
@@ -552,7 +543,7 @@ mod tests {
             packet_id_lsb: 1,
             reason_code: 1,
         };
-        
+
         let listener = TcpListener::bind("127.0.0.1:5001").unwrap();
         thread::spawn(move || {
             let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
@@ -638,7 +629,7 @@ mod tests {
     #[test]
     fn test_recibir_pingresp() -> Result<(), ProtocolError> {
         let pingresp = BrokerMessage::Pingresp;
-        
+
         let listener = TcpListener::bind("127.0.0.1:5006").unwrap();
         thread::spawn(move || {
             let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
