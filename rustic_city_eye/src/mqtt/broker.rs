@@ -130,7 +130,7 @@ impl Broker {
 
         match certs(&mut file).collect::<Result<Vec<_>, _>>() {
             Ok(c) => Ok(c),
-            Err(e) => return Err(ProtocolError::ServerConfigError(e.to_string())),
+            Err(e) => Err(ProtocolError::ServerConfigError(e.to_string())),
         }
     }
 
@@ -142,7 +142,7 @@ impl Broker {
                 if let Some(key) = k {
                     Ok(key)
                 } else {
-                    return Err(ProtocolError::ReadingPrivateKeyError);
+                    Err(ProtocolError::ReadingPrivateKeyError)
                 }
             }
             Err(e) => Err(ProtocolError::ServerConfigError(e.to_string())),
@@ -283,10 +283,10 @@ impl Broker {
     /// Para manejar un nuevo Client, se utilizan dos threads: uno de lectura, y otro de escritura.
     /// El Broker estara constantemente esperando por mensajes que lleguen a traves del Stream, y una vez que llegan,
     /// el thread de lectura se comunica con el de escritura a traves de un channel para controlar la comunicacion.
-    /// 
+    ///
     /// En el thread de escritura se toma el mensaje leido, se conforma el packet de respuesta, y se lo envia a traves del mismo
     /// Stream.
-    /// 
+    ///
     /// Ambos threads terminaran en caso de error, o en caso de recibir un packet Disconnect de parte del Client.
     fn handle_client(
         &self,
@@ -329,11 +329,12 @@ impl Broker {
         Ok(())
     }
 
+    #[allow(clippy::type_complexity)]
     /// Aqui se maneja el enviado de mensajes de parte del Broker a los distintos Clients.
-    /// 
+    ///
     /// Se recibe un packet a traves de un channel, se conforma el packet en respuesta a ese mensaje, y se
     /// lo envia a traves del Stream con el Client.
-    /// 
+    ///
     /// En caso de recibir una notificacion para desconectarse, se corta el loop y por consiguiente el thread de escritura.
     /// En caso de haber un error, se enviara el last will message del Client.
     fn handle_write_messages(
@@ -426,15 +427,15 @@ impl Broker {
             Ok(c) => Ok(Arc::new(StreamOwned::new(c, stream))),
             Err(e) => {
                 eprintln!("{}", e);
-                return Err(ProtocolError::StreamError);
+                Err(ProtocolError::StreamError)
             }
         }
     }
 
-    /// Constantemente se estara leyendo el Stream para encontrar los packets que envia el Client. 
+    /// Constantemente se estara leyendo el Stream para encontrar los packets que envia el Client.
     /// En caso de recibir un mensaje nuevo, se lo envia a traves de un channel al thread de escritura
     /// para asi poder conformar una respuesta.
-    /// 
+    ///
     /// En caso de recibir un Disconnect, se envia la notificacion al thread de escritura, y este termina con su ejecucion.
     fn handle_read_messages(
         &self,
@@ -450,7 +451,7 @@ impl Broker {
             if let Ok(message) = ClientMessage::read_from(stream.get_ref()) {
                 match self.handle_message(
                     message,
-                    &message_to_write_sender,
+                    message_to_write_sender,
                     stream_ref,
                     client_id_sender.clone(),
                 ) {
@@ -962,8 +963,7 @@ impl Broker {
     ) -> Option<Result<ProtocolReturn, ProtocolError>> {
         println!(
             "Disconnect received from Client {:?} with reason: {:?}",
-            client_id,
-            reason_string
+            client_id, reason_string
         );
         if let Ok(mut lock) = self.clients_ids.write() {
             lock.remove(&client_id);

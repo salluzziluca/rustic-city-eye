@@ -119,6 +119,8 @@ impl Client {
         }
     }
 
+    /// A partir de un TcpStream y de las certificaciones del Servidor, se conforma un TLS Stream del crate de
+    /// rustls, que nos permite encriptar el Stream con TLS.
     fn build_tls_stream(
         stream: TcpStream,
     ) -> Result<Arc<StreamOwned<ClientConnection, TcpStream>>, ProtocolError> {
@@ -151,10 +153,7 @@ impl Client {
         Ok(BufReader::new(file))
     }
 
-    /// Recibe un string que indica la razón de la desconexión y un stream y envia un disconnect message al broker
-    /// segun el str reason recibido, modifica el reason_code y el reason_string del mensaje
-    ///
-    /// devuelve el packet_id del mensaje enviado o un ClientError en caso de error
+    /// A partir de una razon de desconexion, se conforma correctamente un packet de Disconnect.
     pub fn handle_disconnect(
         client_id: String,
         reason: &str,
@@ -357,15 +356,11 @@ impl Client {
                 properties,
                 payload,
             } => {
+                let publish = ClientMessage::Publish { packet_id, topic_name, qos, retain_flag, payload, dup_flag, properties };
+
                 handle_publish_delivery(
                     sender_channel,
-                    packet_id,
-                    topic_name,
-                    qos,
-                    retain_flag,
-                    dup_flag,
-                    properties,
-                    payload,
+                    publish
                 );
 
                 Ok(ClientReturn::PublishDeliveryRecieved)
@@ -415,6 +410,7 @@ impl Client {
         packet_ids: Arc<Vec<u16>>,
     ) -> Result<(), ProtocolError> {
         loop {
+            let stream_ref = Arc::clone(&stream);
             if let Ok(disconnect_status) = disconnect_receiver.try_recv() {
                 if disconnect_status {
                     return Ok(());
@@ -439,14 +435,19 @@ impl Client {
                         dup_flag,
                         properties,
                     } => {
-                        if let Some(value) = write_publish(
+                        let publish = ClientMessage::Publish {
                             packet_id,
-                            topic_name,
+                            topic_name: topic_name.clone(),
                             qos,
                             retain_flag,
-                            payload,
+                            payload: payload.clone(),
                             dup_flag,
-                            properties,
+                            properties: properties.clone(),
+                        };
+                        if let Some(value) = write_publish(
+                            publish,
+                            packet_id,
+                            qos,
                             &stream,
                             &pending_id_messages_sender,
                             &puback_notify_receiver,
@@ -466,31 +467,42 @@ impl Client {
                             session_expiry_interval,
                         );
 
-                        match disconnect.write_to(stream.get_ref()) {
-                            Ok(_) => match pending_id_messages_sender.send(packet_id) {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    return Err(ProtocolError::SendError(e.to_string()));
-                                }
-                            },
-                            Err(e) => {
-                                return Err(ProtocolError::SendError(e.to_string()));
-                            }
-                        }
+                        Client::write_message_to_stream(
+                            stream_ref,
+                            pending_id_messages_sender.clone(),
+                            None,
+                            disconnect,
+                        )?
                     }
-                    _ => match message.write_to(stream.get_ref()) {
-                        Ok(_) => match pending_id_messages_sender.send(packet_id) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                return Err(ProtocolError::SendError(e.to_string()));
-                            }
-                        },
-                        Err(e) => {
-                            return Err(ProtocolError::SendError(e.to_string()));
-                        }
-                    },
+                    _ => Client::write_message_to_stream(
+                        stream_ref,
+                        pending_id_messages_sender.clone(),
+                        Some(packet_id),
+                        message,
+                    )?,
                 }
             }
+        }
+    }
+
+    fn write_message_to_stream(
+        stream: Arc<StreamOwned<ClientConnection, TcpStream>>,
+        pending_id_messages_sender: Sender<u16>,
+        packet_id: Option<u16>,
+        message: ClientMessage,
+    ) -> Result<(), ProtocolError> {
+        match message.write_to(stream.get_ref()) {
+            Ok(_) => {
+                if let Some(id) = packet_id {
+                    match pending_id_messages_sender.send(id) {
+                        Ok(_) => Ok(()),
+                        Err(e) => Err(ProtocolError::SendError(e.to_string())),
+                    }
+                } else {
+                    Ok(())
+                }
+            }
+            Err(e) => Err(ProtocolError::SendError(e.to_string())),
         }
     }
 
@@ -518,26 +530,14 @@ impl Client {
 /// Recibe todos los campos necesarios para la escritura por stream de un mensaje Publish.
 /// En caso de que este tenga una QoS == 1 y no se reiba un Puback, se reenvia el mensaje hasta recibirlo
 fn write_publish(
+    publish: ClientMessage,
     packet_id: u16,
-    topic_name: String,
     qos: usize,
-    retain_flag: usize,
-    payload: crate::utils::payload_types::PayloadTypes,
-    dup_flag: usize,
-    properties: super::publish::publish_properties::PublishProperties,
     stream: &Arc<StreamOwned<ClientConnection, TcpStream>>,
     pending_id_messages_sender: &Sender<u16>,
     puback_notify_receiver: &Receiver<bool>,
 ) -> Option<Result<(), ProtocolError>> {
-    let publish = ClientMessage::Publish {
-        packet_id,
-        topic_name: topic_name.clone(),
-        qos,
-        retain_flag,
-        payload: payload.clone(),
-        dup_flag,
-        properties: properties.clone(),
-    };
+    
     match publish.write_to(stream.get_ref()) {
         Ok(_) => match pending_id_messages_sender.send(packet_id) {
             Ok(_) => {
@@ -547,16 +547,6 @@ fn write_publish(
 
                         if let Ok(puback) = puback_notify_receiver.try_recv() {
                             if !puback {
-                                let publish = ClientMessage::Publish {
-                                    packet_id,
-                                    topic_name: topic_name.clone(),
-                                    qos,
-                                    retain_flag,
-                                    payload: payload.clone(),
-                                    dup_flag: dup_flag + 1,
-                                    properties: properties.clone(),
-                                };
-
                                 match publish.write_to(stream.get_ref()) {
                                     Ok(_) => match pending_id_messages_sender.send(packet_id) {
                                         Ok(_) => {}
@@ -602,23 +592,9 @@ fn handle_unsuback(pending_messages: Vec<u16>, packet_id_msb: u8, packet_id_lsb:
 
 fn handle_publish_delivery(
     sender_channel: Sender<ClientMessage>,
-    packet_id: u16,
-    topic_name: String,
-    qos: usize,
-    retain_flag: usize,
-    dup_flag: usize,
-    properties: super::publish::publish_properties::PublishProperties,
-    payload: crate::utils::payload_types::PayloadTypes,
+    publish: ClientMessage
 ) {
-    match sender_channel.send(ClientMessage::Publish {
-        packet_id,
-        topic_name,
-        qos,
-        retain_flag,
-        dup_flag,
-        properties,
-        payload,
-    }) {
+    match sender_channel.send(publish) {
         Ok(_) => {}
         Err(e) => println!("Error al enviar publish al sistema: {:?}", e),
     }
