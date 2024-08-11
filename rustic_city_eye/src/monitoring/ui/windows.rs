@@ -1,9 +1,8 @@
 use std::fs;
 
 use egui::{Align2, RichText, Ui, Window};
-use rustic_city_eye::{
-    drones::drones_central_config::DronesCentralConfig, monitoring::monitoring_app::MonitoringApp,
-    surveilling::cameras_config::CamerasConfig, utils::location::Location,
+use rustic_city_eye::{ monitoring::{persistence::Persistence, monitoring_app::MonitoringApp},
+     utils::location::Location,
 };
 use walkers::MapMemory;
 
@@ -219,7 +218,7 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitori
                                 Ok(_) => println!("Camera removed"),
                                 Err(e) => println!("Error removing camera: {}", e),
                             }
-                            match CamerasConfig::remove_camera_from_file(*id) {
+                            match Persistence::remove_camera_from_file(*id) {
                                 Ok(_) => println!("Camera removed"),
                                 Err(e) => println!("Error removing camera: {}", e),
                             }
@@ -232,7 +231,7 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitori
                         if drone.clicked {
                             println!("Removing drone {}", id);
 
-                            match DronesCentralConfig::remove_drone_from_json(*id) {
+                            match Persistence::remove_drone_from_json(*id) {
                                 Ok(_) => println!("Drone removed"),
                                 Err(e) => println!("Error removing drone: {}", e),
                             }
@@ -244,7 +243,7 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitori
                     for (id, drone_center) in map.drone_centers.iter() {
                         if drone_center.clicked {
                             println!("Removing drone center {}", id);
-                            match DronesCentralConfig::remove_central_from_json(*id) {
+                            match Persistence::remove_central_from_json(*id) {
                                 Ok(_) => println!("Drone center removed"),
                                 Err(e) => println!("Error removing drone center: {}", e),
                             }

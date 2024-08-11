@@ -11,9 +11,8 @@ use egui::{CentralPanel, RichText, TextStyle, TopBottomPanel};
 use incident_view::IncidentView;
 use plugins::*;
 use rustic_city_eye::{
-    drones::drones_central_config::DronesCentralConfig,
-    monitoring::{incident::Incident, monitoring_app::MonitoringApp},
-    surveilling::{camera::Camera, cameras_config::CamerasConfig},
+    monitoring::{persistence::Persistence, incident::Incident, monitoring_app::MonitoringApp},
+    surveilling::camera::Camera,
     utils::location::Location,
 };
 use std::collections::HashMap;
@@ -271,8 +270,8 @@ impl MyApp {
     }
 
     fn configure_cameras(&mut self) {
-        if CamerasConfig::count_cameras() > 0 {
-            CamerasConfig::get_cameras().iter().for_each(|camera| {
+        if Persistence::count_cameras() > 0 {
+            Persistence::get_cameras().iter().for_each(|camera| {
                 let location = camera.get_location();
                 let camera_view = CameraView {
                     image: self.map.camera_icon.clone(),
@@ -294,9 +293,9 @@ impl MyApp {
     }
 
     fn configure_central_drones(&mut self) {
-        if DronesCentralConfig::count_centrals() > 0 {
+        if Persistence::count_centrals() > 0 {
             println!("pin100");
-            DronesCentralConfig::get_centrals()
+            Persistence::get_centrals()
                 .iter()
                 .for_each(|central| {
                     let location = central.get_location();
@@ -318,8 +317,8 @@ impl MyApp {
     }
 
     fn configure_drones(&mut self) {
-        if DronesCentralConfig::count_drones() > 0 {
-            DronesCentralConfig::get_drones()
+        if Persistence::count_drones() > 0 {
+            Persistence::get_drones()
                 .iter()
                 .for_each(|drone: &(Location, u32)| {
                     let location = drone.0;
