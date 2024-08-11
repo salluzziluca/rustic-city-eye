@@ -138,7 +138,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         }
 
         let camera = Camera::new(location, id)?;
-        let _ = Persistence::add_camera_to_json(camera.clone());
+        let _ = Persistence::add_camera_to_file(camera.clone());
         println!("Camera System creates camera with id: {:?}", id);
         cameras.insert(id, camera);
 

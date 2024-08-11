@@ -333,7 +333,7 @@ impl MonitoringApp {
         match send_to_client_channel.send(Box::new(publish_config)) {
             Ok(_) => {
                 println!("Incident published successfully");
-                let _ = Persistence::add_incident_to_json(location);
+                let _ = Persistence::add_incident_to_file(location);
                 Ok(())
             }
             Err(e) => {
@@ -581,8 +581,13 @@ pub fn update_entities(
                                     to_remove.push(incident.clone());
                                 }
                             }
-
+                            
                             incidents.retain(|(inc, _)| !to_remove.contains(inc));
+                            for inc in to_remove{
+                                let _ = Persistence::remove_incident_from_file(inc.get_location());
+                            }
+
+                            
                         }
                     }
                     "incident" => {

@@ -74,7 +74,7 @@ impl Persistence {
     }
 
     /// Agrega una cámara al archivo 
-    pub fn add_camera_to_json(camera: Camera) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn add_camera_to_file(camera: Camera) -> Result<(), Box<dyn std::error::Error>> {
         let path = "./src/monitoring/persistence.json".to_string();
 
         if std::fs::metadata(&path).is_err() {
@@ -208,7 +208,7 @@ impl Persistence {
     }
 
     /// Agrega un centro de drones al archivo drones_central_config.json
-    pub fn add_central_to_json(
+    pub fn add_central_to_file(
         id: u32,
         location: Location,
         config_path: String,
@@ -235,7 +235,7 @@ impl Persistence {
     }
 
     /// Elimina un centro de drones con el id dado del archivo drones_central_config.json
-    pub fn remove_central_from_json(id: u32) -> Result<(), DroneError> {
+    pub fn remove_central_from_file(id: u32) -> Result<(), DroneError> {
         let path = "./src/monitoring/persistence.json".to_string();
         if !Persistence::central_exists(id) {
             return Ok(());
@@ -338,7 +338,7 @@ impl Persistence {
     }
 
     /// Agrega un dron al archivo drones_central_config.json
-    pub fn add_drone_to_json(location: Location, id: u32) -> Result<(), DroneError> {
+    pub fn add_drone_to_file(location: Location, id: u32) -> Result<(), DroneError> {
         let path = "./src/monitoring/persistence.json".to_string();
         if std::fs::metadata(&path).is_err() {
             let drones_central_config = Persistence::new();
@@ -382,7 +382,7 @@ impl Persistence {
     }
 
     /// Elimina un dron con el id dado del archivo drones_central_config.json
-    pub fn remove_drone_from_json(id: u32) -> Result<(), DroneError> {
+    pub fn remove_drone_from_file(id: u32) -> Result<(), DroneError> {
         let path = "./src/monitoring/persistence.json".to_string();
         if !Persistence::drone_exists(id) {
             return Ok(());
@@ -452,7 +452,7 @@ impl Persistence {
         p.incidents        
     }
 
-    pub fn add_incident_to_json(location: Location) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn add_incident_to_file(location: Location) -> Result<(), Box<dyn std::error::Error>> {
         let path = "./src/monitoring/persistence.json".to_string();
         if std::fs::metadata(&path).is_err() {
             let p = Persistence::new();

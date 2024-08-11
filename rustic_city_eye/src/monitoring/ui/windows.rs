@@ -238,7 +238,7 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitori
                         if drone.clicked {
                             println!("Removing drone {}", id);
 
-                            match Persistence::remove_drone_from_json(*id) {
+                            match Persistence::remove_drone_from_file(*id) {
                                 Ok(_) => println!("Drone removed"),
                                 Err(e) => println!("Error removing drone: {}", e),
                             }
@@ -250,7 +250,7 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitori
                     for (id, drone_center) in map.drone_centers.iter() {
                         if drone_center.clicked {
                             println!("Removing drone center {}", id);
-                            match Persistence::remove_central_from_json(*id) {
+                            match Persistence::remove_central_from_file(*id) {
                                 Ok(_) => println!("Drone center removed"),
                                 Err(e) => println!("Error removing drone center: {}", e),
                             }
