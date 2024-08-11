@@ -8,12 +8,18 @@ use crate::{
     utils::location::Location,
 };
 
+const PERSISTENCE_FILE: &str = "./src/monitoring/persistence.json";
 
+/// Estructura que representa la persistencia de la información de las cámaras, drones y centros de drones
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Persistence {
+    /// Vector de cámaras
     pub cameras: Vec<Camera>,
+    /// Vector con la información de los centros de drones
     pub drone_centers: Vec<(u32, Location, String, String)>,
+    /// Vector con la información de los drones
     pub drones: Vec<(Location, u32)>,
+    /// Vector con la location de los incidentes
     pub incidents: Vec<Location>,
 }
 
@@ -27,14 +33,40 @@ impl Persistence {
         }
     }
 
-    /// Verifica si una cámara con el id dado existe en el archivo cameras.json
+    /// Cuenta la cantidad de elementos de un tipo en el archivo
+    pub fn count_element(element: String) -> u32 {
+        if std::fs::metadata(PERSISTENCE_FILE).is_err() {
+            return 0;
+        }
+
+        let file = match File::open(PERSISTENCE_FILE) {
+            Ok(file) => file,
+            Err(_) => return 0,
+        };
+
+        let p: Persistence = match serde_json::from_reader(file) {
+            Ok(p) => p,
+            Err(_) => return 0,
+        };
+
+        match element.as_str() {
+            "cameras" => p.cameras.len() as u32,
+            "drones" => p.drones.len() as u32,
+            "drone_centers" => p.drone_centers.len() as u32,
+            "incidents" => p.incidents.len() as u32,
+            _ => 0,
+        }
+    }
+
+    
+
+    /// Verifica si una cámara con el id dado existe en el archivo
     pub fn camera_exists(id: u32) -> bool {
-        let path = "./src/monitoring/persistence.json".to_string();
-        if std::fs::metadata(&path).is_err() {
+        if std::fs::metadata(PERSISTENCE_FILE).is_err() {
             return false;
         }
 
-        let file = match File::open(path) {
+        let file = match File::open(PERSISTENCE_FILE) {
             Ok(file) => file,
             Err(_) => return false,
         };
@@ -53,75 +85,51 @@ impl Persistence {
         false
     }
 
-    /// Devuelve la cantidad de cámaras en el archivo cameras.json
-    pub fn count_cameras() -> u32 {
-        let path = "./src/monitoring/persistence.json".to_string();
-        if std::fs::metadata(&path).is_err() {
-            return 0;
-        }
-
-        let file = match File::open(path) {
-            Ok(file) => file,
-            Err(_) => return 0,
-        };
-
-        let p: Persistence = match serde_json::from_reader(file) {
-            Ok(p) => p,
-            Err(_) => return 0,
-        };
-
-        p.cameras.len() as u32
-    }
-
     /// Agrega una cámara al archivo 
     pub fn add_camera_to_file(camera: Camera) -> Result<(), Box<dyn std::error::Error>> {
-        let path = "./src/monitoring/persistence.json".to_string();
-
-        if std::fs::metadata(&path).is_err() {
+        if std::fs::metadata(PERSISTENCE_FILE).is_err() {
             let p = Persistence::new();
             let json = serde_json::to_string(&p)?;
-            std::fs::write(path.clone(), json)?;
+            std::fs::write(PERSISTENCE_FILE, json)?;
         }
 
-        let file = File::open(path.clone())?;
+        let file = File::open(PERSISTENCE_FILE)?;
         let mut p: Persistence = serde_json::from_reader(file)?;
 
         p.cameras.push(camera);
         let json = serde_json::to_string(&p)?;
-        std::fs::write(path, json)?;
+        std::fs::write(PERSISTENCE_FILE, json)?;
 
         println!("Camera added to json");
 
         Ok(())
     }
 
-    /// Remueve una cámara con el id dado del archivo cameras.json
+    /// Remueve una cámara con el id dado del archivo
     pub fn remove_camera_from_file(id: u32) -> Result<(), Box<dyn std::error::Error>> {
-        let path = "./src/monitoring/persistence.json".to_string();
-        if std::fs::metadata(&path).is_err() {
+        if std::fs::metadata(PERSISTENCE_FILE).is_err() {
             return Ok(());
         }
 
-        let file = File::open(path.clone())?;
+        let file = File::open(PERSISTENCE_FILE)?;
         let mut p: Persistence = serde_json::from_reader(file)?;
 
         if let Some(index) = p.cameras.iter().position(|x| x.id == id) {
             p.cameras.remove(index);
             let json = serde_json::to_string(&p)?;
-            std::fs::write(path, json)?;
+            std::fs::write(PERSISTENCE_FILE, json)?;
         }
 
         Ok(())
     }
 
-    /// Devuelve todas las cámaras en el archivo cameras.json
+    /// Devuelve todas las cámaras en el archivo
     pub fn get_cameras() -> Vec<Camera> {
-        let path = "./src/monitoring/persistence.json".to_string();
-        if std::fs::metadata(&path).is_err() {
+        if std::fs::metadata(PERSISTENCE_FILE).is_err() {
             return Vec::new();
         }
 
-        let file = match File::open(path) {
+        let file = match File::open(PERSISTENCE_FILE) {
             Ok(file) => file,
             Err(_) => return Vec::new(),
         };
@@ -134,24 +142,23 @@ impl Persistence {
         p.cameras
     }
 
-    /// Verifica si un centro de drones con el id dado existe en el archivo drones_central_config.json
+    /// Verifica si un centro de drones con el id dado existe en el archivo
     pub fn central_exists(id: u32) -> bool {
-        let path = "./src/monitoring/persistence.json".to_string();
-        if std::fs::metadata(&path).is_err() {
+        if std::fs::metadata(PERSISTENCE_FILE).is_err() {
             return false;
         }
 
-        let file = match File::open(path) {
+        let file = match File::open(PERSISTENCE_FILE) {
             Ok(file) => file,
             Err(_) => return false,
         };
 
-        let drones_central_config: Persistence = match serde_json::from_reader(file) {
-            Ok(drones_central_config) => drones_central_config,
+        let p: Persistence = match serde_json::from_reader(file) {
+            Ok(p) => p,
             Err(_) => return false,
         };
 
-        for (central_id, _, _, _) in drones_central_config.drone_centers {
+        for (central_id, _, _, _) in p.drone_centers {
             if central_id == id {
                 return true;
             }
@@ -160,109 +167,87 @@ impl Persistence {
         false
     }
 
-    /// Devuelve la cantidad de centros de drones en el archivo drones_central_config.json
-    pub fn count_centrals() -> u32 {
-        let path = "./src/monitoring/persistence.json".to_string();
-        if std::fs::metadata(&path).is_err() {
-            return 0;
-        }
 
-        let file = match File::open(path) {
-            Ok(file) => file,
-            Err(_) => return 0,
-        };
-
-        let drones_central_config: Persistence = match serde_json::from_reader(file) {
-            Ok(drones_central_config) => drones_central_config,
-            Err(_) => return 0,
-        };
-
-        drones_central_config.drone_centers.len() as u32
-    }
-
-    /// Devuelve los centros de drones en el archivo drones_central_config.json
+    /// Devuelve los centros de drones en el archivo
     pub fn get_centrals() -> Vec<DroneCenter> {
-        let path = "./src/monitoring/persistence.json".to_string();
-        if std::fs::metadata(&path).is_err() {
+        if std::fs::metadata(PERSISTENCE_FILE).is_err() {
             return Vec::new();
         }
 
-        let file = match File::open(path) {
+        let file = match File::open(PERSISTENCE_FILE) {
             Ok(file) => file,
             Err(_) => return Vec::new(),
         };
 
-        let drones_central_config: Persistence = match serde_json::from_reader(file) {
-            Ok(drones_central_config) => drones_central_config,
+        let p: Persistence = match serde_json::from_reader(file) {
+            Ok(p) => p,
             Err(_) => return Vec::new(),
         };
 
         let mut drone_centers = Vec::new();
-        for (id, location, config_path, address) in drones_central_config.drone_centers {
+        for (id, location, drone_config_path, address) in p.drone_centers {
             println!("Loaded drone center {}", id);
-            let drone_center = DroneCenter::new(id, location, config_path, address);
+            let drone_center = DroneCenter::new(id, location, drone_config_path, address);
             drone_centers.push(drone_center);
         }
 
         drone_centers
     }
 
-    /// Agrega un centro de drones al archivo drones_central_config.json
+    /// Agrega un centro de drones al archivo
     pub fn add_central_to_file(
         id: u32,
         location: Location,
-        config_path: String,
+        drone_config_path: String,
         address: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let path = "./src/monitoring/persistence.json".to_string();
-        if std::fs::metadata(&path).is_err() {
-            let drones_central_config = Persistence::new();
-            let json = serde_json::to_string(&drones_central_config)?;
-            std::fs::write(path.clone(), json)?;
+        if std::fs::metadata(PERSISTENCE_FILE).is_err() {
+            let p = Persistence::new();
+            let json = serde_json::to_string(&p)?;
+            std::fs::write(PERSISTENCE_FILE, json)?;
         }
 
-        let file = File::open(path.clone())?;
+        let file = File::open(PERSISTENCE_FILE)?;
 
-        let mut drones_central_config: Persistence = serde_json::from_reader(file)?;
+        let mut p: Persistence = serde_json::from_reader(file)?;
 
-        drones_central_config
+        p
             .drone_centers
-            .push((id, location, config_path, address));
-        let json = serde_json::to_string(&drones_central_config)?;
-        std::fs::write(path, json)?;
+            .push((id, location, drone_config_path, address));
+        let json = serde_json::to_string(&p)?;
+        std::fs::write(PERSISTENCE_FILE, json)?;
 
         Ok(())
     }
 
-    /// Elimina un centro de drones con el id dado del archivo drones_central_config.json
+    /// Elimina un centro de drones con el id dado del archivo
     pub fn remove_central_from_file(id: u32) -> Result<(), DroneError> {
-        let path = "./src/monitoring/persistence.json".to_string();
         if !Persistence::central_exists(id) {
             return Ok(());
         }
-        let file = File::open(path.clone()).map_err(|_| {
+        let file = File::open(PERSISTENCE_FILE).map_err(|_| {
             DroneError::CentralError(
                 "Error while opening the drone center persistent file".to_string(),
             )
         })?;
-        let mut drones_central_config: Persistence =
+        let mut p: Persistence =
             serde_json::from_reader(file).map_err(|_| {
                 DroneError::CentralError(
                     "Error while reading the drone center persistent file".to_string(),
                 )
             })?;
-        if let Some(index) = drones_central_config
+        if let Some(index) = p
             .drone_centers
             .iter()
             .position(|x| x.0 == id)
         {
-            drones_central_config.drone_centers.remove(index);
-            let json = serde_json::to_string(&drones_central_config).map_err(|_| {
+            p.drone_centers.remove(index);
+            let json = serde_json::to_string(&p).map_err(|_| {
                 DroneError::CentralError(
                     "Error while serializing the drone center persistent file".to_string(),
                 )
             })?;
-            std::fs::write(path, json).map_err(|_| {
+            std::fs::write(PERSISTENCE_FILE, json).map_err(|_| {
                 DroneError::CentralError(
                     "Error while writing the drone center persistent file".to_string(),
                 )
@@ -271,24 +256,23 @@ impl Persistence {
         Ok(())
     }
 
-    /// Verifica si un dron con el id dado existe en el archivo drones_central_config.json
+    /// Verifica si un dron con el id dado existe en el archivo
     pub fn drone_exists(id: u32) -> bool {
-        let path = "./src/monitoring/persistence.json".to_string();
-        if std::fs::metadata(&path).is_err() {
+        if std::fs::metadata(PERSISTENCE_FILE).is_err() {
             return false;
         }
 
-        let file = match File::open(path) {
+        let file = match File::open(PERSISTENCE_FILE) {
             Ok(file) => file,
             Err(_) => return false,
         };
 
-        let drones_central_config: Persistence = match serde_json::from_reader(file) {
-            Ok(drones_central_config) => drones_central_config,
+        let p: Persistence = match serde_json::from_reader(file) {
+            Ok(p) => p,
             Err(_) => return false,
         };
 
-        for (central_id, _, _, _) in drones_central_config.drone_centers {
+        for (central_id, _, _, _) in p.drone_centers {
             if central_id == id {
                 return true;
             }
@@ -297,82 +281,60 @@ impl Persistence {
         false
     }
 
-    /// Devuelve la cantidad de drones en el archivo drones_central_config.json
-    pub fn count_drones() -> u32 {
-        let path = "./src/monitoring/persistence.json".to_string();
-        if std::fs::metadata(&path).is_err() {
-            return 0;
-        }
-
-        let file = match File::open(path) {
-            Ok(file) => file,
-            Err(_) => return 0,
-        };
-
-        let drones_central_config: Persistence = match serde_json::from_reader(file) {
-            Ok(drones_central_config) => drones_central_config,
-            Err(_) => return 0,
-        };
-
-        drones_central_config.drones.len() as u32
-    }
-
-    /// Devuelve los drones en el archivo drones_central_config.json
+    /// Devuelve los drones en el archivo
     pub fn get_drones() -> Vec<(Location, u32)> {
-        let path = "./src/monitoring/persistence.json".to_string();
-        if std::fs::metadata(&path).is_err() {
+        if std::fs::metadata(PERSISTENCE_FILE).is_err() {
             return Vec::new();
         }
 
-        let file = match File::open(path) {
+        let file = match File::open(PERSISTENCE_FILE) {
             Ok(file) => file,
             Err(_) => return Vec::new(),
         };
 
-        let drones_central_config: Persistence = match serde_json::from_reader(file) {
-            Ok(drones_central_config) => drones_central_config,
+        let p: Persistence = match serde_json::from_reader(file) {
+            Ok(p) => p,
             Err(_) => return Vec::new(),
         };
 
-        drones_central_config.drones
+        p.drones
     }
 
-    /// Agrega un dron al archivo drones_central_config.json
+    /// Agrega un dron al archivo
     pub fn add_drone_to_file(location: Location, id: u32) -> Result<(), DroneError> {
-        let path = "./src/monitoring/persistence.json".to_string();
-        if std::fs::metadata(&path).is_err() {
-            let drones_central_config = Persistence::new();
-            let json = serde_json::to_string(&drones_central_config).map_err(|_| {
+        if std::fs::metadata(PERSISTENCE_FILE).is_err() {
+            let p = Persistence::new();
+            let json = serde_json::to_string(&p).map_err(|_| {
                 DroneError::CentralError(
                     "Error while serializing the drone center persistent file".to_string(),
                 )
             })?;
-            std::fs::write(path.clone(), json).map_err(|_| {
+            std::fs::write(PERSISTENCE_FILE, json).map_err(|_| {
                 DroneError::CentralError(
                     "Error while writing the drone center persistent file".to_string(),
                 )
             })?;
         }
 
-        let file = File::open(path.clone()).map_err(|_| {
+        let file = File::open(PERSISTENCE_FILE).map_err(|_| {
             DroneError::CentralError(
                 "Error while opening the drone center persistent file".to_string(),
             )
         })?;
-        let mut drones_central_config: Persistence =
+        let mut p: Persistence =
             serde_json::from_reader(file).map_err(|_| {
                 DroneError::CentralError(
                     "Error while reading the drone center persistent file".to_string(),
                 )
             })?;
 
-        drones_central_config.drones.push((location, id));
-        let json = serde_json::to_string(&drones_central_config).map_err(|_| {
+        p.drones.push((location, id));
+        let json = serde_json::to_string(&p).map_err(|_| {
             DroneError::CentralError(
                 "Error while serializing the drone center persistent file".to_string(),
             )
         })?;
-        std::fs::write(path, json).map_err(|_| {
+        std::fs::write(PERSISTENCE_FILE, json).map_err(|_| {
             DroneError::CentralError(
                 "Error while writing the drone center persistent file".to_string(),
             )
@@ -381,31 +343,30 @@ impl Persistence {
         Ok(())
     }
 
-    /// Elimina un dron con el id dado del archivo drones_central_config.json
+    /// Elimina un dron con el id dado del archivo
     pub fn remove_drone_from_file(id: u32) -> Result<(), DroneError> {
-        let path = "./src/monitoring/persistence.json".to_string();
         if !Persistence::drone_exists(id) {
             return Ok(());
         }
-        let file = File::open(path.clone()).map_err(|_| {
+        let file = File::open(PERSISTENCE_FILE).map_err(|_| {
             DroneError::CentralError(
                 "Error while opening the drone center persistent file".to_string(),
             )
         })?;
-        let mut drones_central_config: Persistence =
+        let mut p: Persistence =
             serde_json::from_reader(file).map_err(|_| {
                 DroneError::CentralError(
                     "Error while reading the drone center persistent file".to_string(),
                 )
             })?;
-        if let Some(index) = drones_central_config.drones.iter().position(|x| x.1 == id) {
-            drones_central_config.drones.remove(index);
-            let json = serde_json::to_string(&drones_central_config).map_err(|_| {
+        if let Some(index) = p.drones.iter().position(|x| x.1 == id) {
+            p.drones.remove(index);
+            let json = serde_json::to_string(&p).map_err(|_| {
                 DroneError::CentralError(
                     "Error while serializing the drone center persistent file".to_string(),
                 )
             })?;
-            std::fs::write(path, json).map_err(|_| {
+            std::fs::write(PERSISTENCE_FILE, json).map_err(|_| {
                 DroneError::CentralError(
                     "Error while writing the drone center persistent file".to_string(),
                 )
@@ -414,32 +375,13 @@ impl Persistence {
         Ok(())
     }
 
-    pub fn count_incidents() -> u32 {
-        let path = "./src/monitoring/persistence.json".to_string();
-        if std::fs::metadata(&path).is_err() {
-            return 0;
-        }
-
-        let file = match File::open(path) {
-            Ok(file) => file,
-            Err(_) => return 0,
-        };
-
-        let p: Persistence = match serde_json::from_reader(file) {
-            Ok(p) => p,
-            Err(_) => return 0,
-        };
-
-        p.incidents.len() as u32
-    }
-
+    /// Devuelve los incidentes en el archivo
     pub fn get_incidents() -> Vec<Location> {
-        let path = "./src/monitoring/persistence.json".to_string();
-        if std::fs::metadata(&path).is_err() {
+        if std::fs::metadata(PERSISTENCE_FILE).is_err() {
             return Vec::new();
         }
 
-        let file = match File::open(path) {
+        let file = match File::open(PERSISTENCE_FILE) {
             Ok(file) => file,
             Err(_) => return Vec::new(),
         };
@@ -452,80 +394,39 @@ impl Persistence {
         p.incidents        
     }
 
+    /// Agrega un incidente al archivo
     pub fn add_incident_to_file(location: Location) -> Result<(), Box<dyn std::error::Error>> {
-        let path = "./src/monitoring/persistence.json".to_string();
-        if std::fs::metadata(&path).is_err() {
+        if std::fs::metadata(PERSISTENCE_FILE).is_err() {
             let p = Persistence::new();
-            let json = match serde_json::to_string(&p) {
-                Ok(json) => json,
-                Err(_) =>{
-                    println!("Error while serializing the persistence file");
-                    return Ok(());
-                }
-            };
-
-
-            let _ = match std::fs::write(path.clone(), json){
-                Ok(_) => (),
-                Err(_) => {
-                    println!("Error while writing the persistence file");
-                    return Ok(());
-                }
-            };
-            println!("File created");
+            let json = serde_json::to_string(&p)?;
+            std::fs::write(PERSISTENCE_FILE, json)?;
         }
 
-        let file = match File::open(path.clone()){
-            Ok(file) => file,
-            Err(_) => {
-                println!("Error while opening the persistence file");
-                return Ok(());
-            }
-        };
+        let file = File::open(PERSISTENCE_FILE)?;
 
-        let mut p: Persistence = match serde_json::from_reader(file){
-            Ok(p) => p,
-            Err(_) => {
-                println!("Error while reading the persistence file");
-                return Ok(());
-            }
-        };
-        println!("File opened");
+        let mut p: Persistence =serde_json::from_reader(file)?;
 
         p.incidents.push(location);
 
-        let json = match serde_json::to_string(&p){
-            Ok(json) => json,
-            Err(_) => {
-                println!("Error while serializing the persistence file");
-                return Ok(());
-            }
-        };
-        let _ = match std::fs::write(path, json){
-            Ok(_) => (),
-            Err(_) => {
-                println!("Error while writing the persistence file");
-                return Ok(());
-            }
-        };
+        let json = serde_json::to_string(&p)?;
+        std::fs::write(PERSISTENCE_FILE, json)?;
 
-        println!("Incident added to file");
         Ok(())
     }
 
+    /// Elimina un incidente con la location dada del archivo
     pub fn remove_incident_from_file(location: Location) -> Result<(), Box<dyn std::error::Error>> {
-        let path = "./src/monitoring/persistence.json".to_string();
-        if std::fs::metadata(&path).is_err() {
+        if std::fs::metadata(PERSISTENCE_FILE).is_err() {
             return Ok(());
         }
 
-        let file = File::open(path.clone())?;
+        let file = File::open(PERSISTENCE_FILE)?;
         let mut p: Persistence = serde_json::from_reader(file)?;
 
         if let Some(index) = p.incidents.iter().position(|x| *x == location) { 
             p.incidents.remove(index);
             let json = serde_json::to_string(&p)?;
-            std::fs::write(path, json)?;
+            std::fs::write(PERSISTENCE_FILE, json)?;
         }
 
         Ok(())

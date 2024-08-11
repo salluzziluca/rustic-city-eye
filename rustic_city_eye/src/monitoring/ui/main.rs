@@ -270,8 +270,9 @@ impl MyApp {
         };
     }
 
+    /// Carga las camaras del archivo de persistencia
     fn configure_cameras(&mut self) {
-        if Persistence::count_cameras() > 0 {
+        if Persistence::count_element("cameras".to_string()) > 0 {
             Persistence::get_cameras().iter().for_each(|camera| {
                 let location = camera.get_location();
                 let camera_view = CameraView {
@@ -293,8 +294,9 @@ impl MyApp {
         }
     }
 
+    /// Carga los centros de drones del archivo de persistencia
     fn configure_central_drones(&mut self) {
-        if Persistence::count_centrals() > 0 {
+        if Persistence::count_element("drone_centers".to_string()) > 0 {
             Persistence::get_centrals().iter().for_each(|central| {
                 let location = central.get_location();
                 let drone_center_view = drone_center_view::DroneCenterView {
@@ -314,8 +316,9 @@ impl MyApp {
         }
     }
 
+    /// Carga los drones del archivo de persistencia
     fn configure_drones(&mut self) {
-        if Persistence::count_drones() > 0 {
+        if Persistence::count_element("drones".to_string()) > 0 {
             Persistence::get_drones()
                 .iter()
                 .for_each(|drone: &(Location, u32)| {
@@ -334,8 +337,9 @@ impl MyApp {
         }
     }
 
+    /// Carga los incidentes del archivo de persistencia
     fn configure_incidents(&mut self) {
-        if Persistence::count_incidents() > 0 {
+        if Persistence::count_element("incidents".to_string()) > 0 {
             Persistence::get_incidents().iter().for_each(|location| {
                 let incident_view = IncidentView {
                     image: self.map.incident_icon.clone(),
