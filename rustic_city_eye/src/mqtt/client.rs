@@ -356,12 +356,17 @@ impl Client {
                 properties,
                 payload,
             } => {
-                let publish = ClientMessage::Publish { packet_id, topic_name, qos, retain_flag, payload, dup_flag, properties };
+                let publish = ClientMessage::Publish {
+                    packet_id,
+                    topic_name,
+                    qos,
+                    retain_flag,
+                    payload,
+                    dup_flag,
+                    properties,
+                };
 
-                handle_publish_delivery(
-                    sender_channel,
-                    publish
-                );
+                handle_publish_delivery(sender_channel, publish);
 
                 Ok(ClientReturn::PublishDeliveryRecieved)
             }
@@ -537,7 +542,6 @@ fn write_publish(
     pending_id_messages_sender: &Sender<u16>,
     puback_notify_receiver: &Receiver<bool>,
 ) -> Option<Result<(), ProtocolError>> {
-    
     match publish.write_to(stream.get_ref()) {
         Ok(_) => match pending_id_messages_sender.send(packet_id) {
             Ok(_) => {
@@ -590,10 +594,7 @@ fn handle_unsuback(pending_messages: Vec<u16>, packet_id_msb: u8, packet_id_lsb:
     }
 }
 
-fn handle_publish_delivery(
-    sender_channel: Sender<ClientMessage>,
-    publish: ClientMessage
-) {
+fn handle_publish_delivery(sender_channel: Sender<ClientMessage>, publish: ClientMessage) {
     match sender_channel.send(publish) {
         Ok(_) => {}
         Err(e) => println!("Error al enviar publish al sistema: {:?}", e),

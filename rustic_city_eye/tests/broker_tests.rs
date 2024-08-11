@@ -64,29 +64,7 @@ mod tests {
 
             let tls_stream = StreamOwned::new(server_connection, stream);
             let stream = Arc::new(tls_stream);
-            let (tx, _) = mpsc::channel();
-
-            let (message_to_write_sender, _) = mpsc::channel();
-            let stream_ref = Arc::clone(&stream);
-
-            loop {
-                match ClientMessage::read_from(stream.get_ref()) {
-                    Ok(message) => {
-                        let result = broker.handle_message(
-                            message,
-                            &message_to_write_sender,
-                            stream_ref,
-                            tx,
-                        );
-                        println!("Message {:?} received", result);
-                        return Ok(());
-                    }
-                    Err(err) => {
-                        eprintln!("Error {}", err);
-                        break;
-                    }
-                }
-            }
+            assert!(ClientMessage::read_from(stream.get_ref()).is_err());
         }
         Ok(())
     }
@@ -155,7 +133,7 @@ mod tests {
                             assert_eq!(reason_code, 0x00_u8);
                         }
                         _ => {
-                            assert!(false, "Assertion failed: No se recibio un Connack");
+                            panic!("Assertion failed: No se recibio un Connack")
                         }
                     }
                     break;
@@ -168,23 +146,16 @@ mod tests {
                 }
             });
 
-            loop {
-                match ClientMessage::read_from(stream.get_ref()) {
-                    Ok(message) => {
-                        let result = broker.handle_message(
-                            message,
-                            &message_to_write_sender,
-                            stream_ref,
-                            tx,
-                        )?;
-                        println!("Message {:?} received", result);
-                        assert_eq!(result, ProtocolReturn::ConnackSent);
-                        return Ok(());
-                    }
-                    Err(err) => {
-                        eprintln!("Error {}", err);
-                        break;
-                    }
+            match ClientMessage::read_from(stream.get_ref()) {
+                Ok(message) => {
+                    let result =
+                        broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                    println!("Message {:?} received", result);
+                    assert_eq!(result, ProtocolReturn::ConnackSent);
+                    return Ok(());
+                }
+                Err(err) => {
+                    eprintln!("Error {}", err);
                 }
             }
         }
@@ -261,30 +232,23 @@ mod tests {
                             assert_eq!(reason_code, 0x00_u8);
                         }
                         _ => {
-                            assert!(false, "Assertion failed: No se recibio un Suback");
+                            panic!("Assertion failed: No se recibio un Suback");
                         }
                     }
                     break;
                 }
             });
 
-            loop {
-                match ClientMessage::read_from(stream.get_ref()) {
-                    Ok(message) => {
-                        let result = broker.handle_message(
-                            message,
-                            &message_to_write_sender,
-                            stream_ref,
-                            tx,
-                        )?;
-                        println!("{:?}", result);
-                        assert_eq!(result, ProtocolReturn::SubackSent);
-                        return Ok(());
-                    }
-                    Err(err) => {
-                        eprintln!("Error {}", err);
-                        break;
-                    }
+            match ClientMessage::read_from(stream.get_ref()) {
+                Ok(message) => {
+                    let result =
+                        broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                    println!("{:?}", result);
+                    assert_eq!(result, ProtocolReturn::SubackSent);
+                    return Ok(());
+                }
+                Err(err) => {
+                    eprintln!("Error {}", err);
                 }
             }
         }
@@ -375,30 +339,23 @@ mod tests {
                             assert_eq!(reason_code, 0x00_u8);
                         }
                         _ => {
-                            assert!(false, "Assertion failed: No se recibio un Puback");
+                            panic!("Assertion failed: No se recibio un Puback");
                         }
                     }
                     break;
                 }
             });
 
-            loop {
-                match ClientMessage::read_from(stream.get_ref()) {
-                    Ok(message) => {
-                        let result = broker.handle_message(
-                            message,
-                            &message_to_write_sender,
-                            stream_ref,
-                            tx,
-                        )?;
-                        println!("{:?}", result);
-                        assert_eq!(result, ProtocolReturn::PubackSent);
-                        return Ok(());
-                    }
-                    Err(err) => {
-                        eprintln!("Error {}", err);
-                        break;
-                    }
+            match ClientMessage::read_from(stream.get_ref()) {
+                Ok(message) => {
+                    let result =
+                        broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                    println!("{:?}", result);
+                    assert_eq!(result, ProtocolReturn::PubackSent);
+                    return Ok(());
+                }
+                Err(err) => {
+                    eprintln!("Error {}", err);
                 }
             }
         }
@@ -478,33 +435,21 @@ mod tests {
             let (tx, _) = mpsc::channel();
 
             thread::spawn(move || loop {
-                if let Ok(message) = message_to_write_receiver.try_recv() {
-                    match message {
-                        _ => {
-                            assert!(true);
-                        }
-                    }
+                if message_to_write_receiver.try_recv().is_ok() {
                     break;
                 }
             });
 
-            loop {
-                match ClientMessage::read_from(stream.get_ref()) {
-                    Ok(message) => {
-                        let result = broker.handle_message(
-                            message,
-                            &message_to_write_sender,
-                            stream_ref,
-                            tx,
-                        )?;
-                        println!("{:?}", result);
-                        assert_eq!(result, ProtocolReturn::NoAckSent);
-                        return Ok(());
-                    }
-                    Err(err) => {
-                        eprintln!("Error {}", err);
-                        break;
-                    }
+            match ClientMessage::read_from(stream.get_ref()) {
+                Ok(message) => {
+                    let result =
+                        broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                    println!("{:?}", result);
+                    assert_eq!(result, ProtocolReturn::NoAckSent);
+                    return Ok(());
+                }
+                Err(err) => {
+                    eprintln!("Error {}", err);
                 }
             }
         }
@@ -580,30 +525,23 @@ mod tests {
                             assert_eq!(reason_code, 0x00_u8);
                         }
                         _ => {
-                            assert!(false, "Assertion failed: No se recibio un Unsuback");
+                            panic!("Assertion failed: No se recibio un Unsuback");
                         }
                     }
                     break;
                 }
             });
 
-            loop {
-                match ClientMessage::read_from(stream.get_ref()) {
-                    Ok(message) => {
-                        let result = broker.handle_message(
-                            message,
-                            &message_to_write_sender,
-                            stream_ref,
-                            tx,
-                        )?;
-                        println!("{:?}", result);
-                        assert_eq!(result, ProtocolReturn::UnsubackSent);
-                        return Ok(());
-                    }
-                    Err(err) => {
-                        eprintln!("Error {}", err);
-                        break;
-                    }
+            match ClientMessage::read_from(stream.get_ref()) {
+                Ok(message) => {
+                    let result =
+                        broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                    println!("{:?}", result);
+                    assert_eq!(result, ProtocolReturn::UnsubackSent);
+                    return Ok(());
+                }
+                Err(err) => {
+                    eprintln!("Error {}", err);
                 }
             }
         }
@@ -675,30 +613,23 @@ mod tests {
                             assert_eq!(reason_code, 0x00_u8);
                         }
                         _ => {
-                            assert!(false, "Assertion failed: No se recibio un Unsuback");
+                            panic!("Assertion failed: No se recibio un Unsuback");
                         }
                     }
                     break;
                 }
             });
 
-            loop {
-                match ClientMessage::read_from(stream.get_ref()) {
-                    Ok(message) => {
-                        let result = broker.handle_message(
-                            message,
-                            &message_to_write_sender,
-                            stream_ref,
-                            tx,
-                        )?;
-                        println!("{:?}", result);
-                        assert_eq!(result, ProtocolReturn::DisconnectRecieved);
-                        return Ok(());
-                    }
-                    Err(err) => {
-                        eprintln!("Error {}", err);
-                        break;
-                    }
+            match ClientMessage::read_from(stream.get_ref()) {
+                Ok(message) => {
+                    let result =
+                        broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                    println!("{:?}", result);
+                    assert_eq!(result, ProtocolReturn::DisconnectRecieved);
+                    return Ok(());
+                }
+                Err(err) => {
+                    eprintln!("Error {}", err);
                 }
             }
         }
@@ -757,32 +688,25 @@ mod tests {
             thread::spawn(move || loop {
                 if let Ok(message) = message_to_write_receiver.try_recv() {
                     match message {
-                        BrokerMessage::Pingresp => assert!(true),
+                        BrokerMessage::Pingresp => {}
                         _ => {
-                            assert!(false, "Assertion failed: No se recibio un Unsuback");
+                            panic!("Assertion failed: No se recibio un Pingreq");
                         }
                     }
                     break;
                 }
             });
 
-            loop {
-                match ClientMessage::read_from(stream.get_ref()) {
-                    Ok(message) => {
-                        let result = broker.handle_message(
-                            message,
-                            &message_to_write_sender,
-                            stream_ref,
-                            tx,
-                        )?;
-                        println!("{:?}", result);
-                        assert_eq!(result, ProtocolReturn::PingrespSent);
-                        return Ok(());
-                    }
-                    Err(err) => {
-                        eprintln!("Error {}", err);
-                        break;
-                    }
+            match ClientMessage::read_from(stream.get_ref()) {
+                Ok(message) => {
+                    let result =
+                        broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                    println!("{:?}", result);
+                    assert_eq!(result, ProtocolReturn::PingrespSent);
+                    return Ok(());
+                }
+                Err(err) => {
+                    eprintln!("Error {}", err);
                 }
             }
         }
@@ -855,30 +779,23 @@ mod tests {
                             assert_eq!(reason_code, 0x8C_u8);
                         }
                         _ => {
-                            assert!(false, "Assertion failed: No se recibio un Unsuback");
+                            panic!("Assertion failed: No se recibio un Connack");
                         }
                     }
                     break;
                 }
             });
 
-            loop {
-                match ClientMessage::read_from(stream.get_ref()) {
-                    Ok(message) => {
-                        let result = broker.handle_message(
-                            message,
-                            &message_to_write_sender,
-                            stream_ref,
-                            tx,
-                        )?;
-                        println!("{:?}", result);
-                        assert_eq!(result, ProtocolReturn::ConnackSent);
-                        return Ok(());
-                    }
-                    Err(err) => {
-                        eprintln!("Error {}", err);
-                        break;
-                    }
+            match ClientMessage::read_from(stream.get_ref()) {
+                Ok(message) => {
+                    let result =
+                        broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                    println!("{:?}", result);
+                    assert_eq!(result, ProtocolReturn::ConnackSent);
+                    return Ok(());
+                }
+                Err(err) => {
+                    eprintln!("Error {}", err);
                 }
             }
         }
@@ -949,7 +866,7 @@ mod tests {
                             assert_eq!(reason_code, 0x00_u8);
                         }
                         _ => {
-                            assert!(false, "Assertion failed: No se recibio un Connack");
+                            panic!("Assertion failed: No se recibio un Connack");
                         }
                     }
                     break;
@@ -962,23 +879,16 @@ mod tests {
                 }
             });
 
-            loop {
-                match ClientMessage::read_from(stream.get_ref()) {
-                    Ok(message) => {
-                        let result = broker.handle_message(
-                            message,
-                            &message_to_write_sender,
-                            stream_ref,
-                            tx,
-                        )?;
-                        println!("Message {:?} received", result);
-                        assert_eq!(result, ProtocolReturn::ConnackSent);
-                        return Ok(());
-                    }
-                    Err(err) => {
-                        eprintln!("Error {}", err);
-                        break;
-                    }
+            match ClientMessage::read_from(stream.get_ref()) {
+                Ok(message) => {
+                    let result =
+                        broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                    println!("Message {:?} received", result);
+                    assert_eq!(result, ProtocolReturn::ConnackSent);
+                    return Ok(());
+                }
+                Err(err) => {
+                    eprintln!("Error {}", err);
                 }
             }
         }
@@ -1046,30 +956,23 @@ mod tests {
                             assert_eq!(reason_code, 0x00_u8);
                         }
                         _ => {
-                            assert!(false, "Assertion failed: No se recibio un Unsuback");
+                            panic!("Assertion failed: No se recibio un Disconnect");
                         }
                     }
                     break;
                 }
             });
 
-            loop {
-                match ClientMessage::read_from(stream.get_ref()) {
-                    Ok(message) => {
-                        let result = broker.handle_message(
-                            message,
-                            &message_to_write_sender,
-                            stream_ref,
-                            tx,
-                        )?;
-                        println!("{:?}", result);
-                        assert_eq!(result, ProtocolReturn::DisconnectRecieved);
-                        return Ok(());
-                    }
-                    Err(err) => {
-                        eprintln!("Error {}", err);
-                        break;
-                    }
+            match ClientMessage::read_from(stream.get_ref()) {
+                Ok(message) => {
+                    let result =
+                        broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                    println!("{:?}", result);
+                    assert_eq!(result, ProtocolReturn::DisconnectRecieved);
+                    return Ok(());
+                }
+                Err(err) => {
+                    eprintln!("Error {}", err);
                 }
             }
         }
@@ -1127,7 +1030,7 @@ mod tests {
                             assert_eq!(reason_code, 0x00_u8);
                         }
                         _ => {
-                            assert!(false, "Assertion failed: No se recibio un Connack");
+                            panic!("Assertion failed: No se recibio un Connack");
                         }
                     }
                     break;
@@ -1140,23 +1043,16 @@ mod tests {
                 }
             });
 
-            loop {
-                match ClientMessage::read_from(stream.get_ref()) {
-                    Ok(message) => {
-                        let result = broker.handle_message(
-                            message,
-                            &message_to_write_sender,
-                            stream_ref,
-                            tx,
-                        )?;
-                        println!("Message {:?} received", result);
-                        assert_eq!(result, ProtocolReturn::ConnackSent);
-                        return Ok(());
-                    }
-                    Err(err) => {
-                        eprintln!("Error {}", err);
-                        break;
-                    }
+            match ClientMessage::read_from(stream.get_ref()) {
+                Ok(message) => {
+                    let result =
+                        broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
+                    println!("Message {:?} received", result);
+                    assert_eq!(result, ProtocolReturn::ConnackSent);
+                    return Ok(());
+                }
+                Err(err) => {
+                    eprintln!("Error {}", err);
                 }
             }
         }
