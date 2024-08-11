@@ -344,7 +344,6 @@ impl MonitoringApp {
     }
 
     pub fn load_existing_incident(&mut self, location: Location) -> Result<(), ProtocolError> {
-        
         let incident = Incident::new(location);
         let mut incidents = match self.incidents.lock() {
             Ok(incidents) => incidents,
@@ -581,13 +580,11 @@ pub fn update_entities(
                                     to_remove.push(incident.clone());
                                 }
                             }
-                            
+
                             incidents.retain(|(inc, _)| !to_remove.contains(inc));
-                            for inc in to_remove{
+                            for inc in to_remove {
                                 let _ = Persistence::remove_incident_from_file(inc.get_location());
                             }
-
-                            
                         }
                     }
                     "incident" => {

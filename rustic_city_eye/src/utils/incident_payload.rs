@@ -17,8 +17,7 @@ impl IncidentPayload {
     pub fn new(incident: Incident) -> IncidentPayload {
         let mut rng = rand::thread_rng();
         let id = rng.gen_range(0..255);
-        IncidentPayload { id, incident }   
-
+        IncidentPayload { id, incident }
     }
 
     ///Se sabe escribir sobre un stream dado.
