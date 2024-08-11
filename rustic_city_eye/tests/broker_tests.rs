@@ -64,6 +64,7 @@ mod tests {
 
             let tls_stream = StreamOwned::new(server_connection, stream);
             let stream = Arc::new(tls_stream);
+            let (tx, _) = mpsc::channel();
 
             let (message_to_write_sender, _) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
@@ -72,7 +73,7 @@ mod tests {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
                         let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref);
+                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx);
                         println!("Message {:?} received", result);
                         return Ok(());
                     }
@@ -137,6 +138,7 @@ mod tests {
 
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
+            let (tx, rx) = mpsc::channel();
 
             thread::spawn(move || loop {
                 if let Ok(message) = message_to_write_receiver.try_recv() {
@@ -156,11 +158,19 @@ mod tests {
                 }
             });
 
+            thread::spawn(move || {
+                loop {
+                    if rx.try_recv().is_ok() {
+                        break;
+                    }
+                }
+            });
+
             loop {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
                         let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
                         println!("Message {:?} received", result);
                         assert_eq!(result, ProtocolReturn::ConnackSent);
                         return Ok(());
@@ -226,6 +236,7 @@ mod tests {
 
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
+            let (tx, _) = mpsc::channel();
 
             thread::spawn(move || loop {
                 if let Ok(message) = message_to_write_receiver.try_recv() {
@@ -249,7 +260,7 @@ mod tests {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
                         let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
                         println!("Message {:?} received", result);
                         assert_eq!(result, ProtocolReturn::ConnackSent);
                         return Ok(());
@@ -300,6 +311,7 @@ mod tests {
 
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
+            let (tx, rx) = mpsc::channel();
 
             thread::spawn(move || loop {
                 if let Ok(message) = message_to_write_receiver.try_recv() {
@@ -319,11 +331,19 @@ mod tests {
                 }
             });
 
+            thread::spawn(move || {
+                loop {
+                    if rx.try_recv().is_ok() {
+                        break;
+                    }
+                }
+            });
+
             loop {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
                         let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
                         println!("Message {:?} received", result);
                         assert_eq!(result, ProtocolReturn::DisconnectSent);
                         return Ok(());
@@ -395,6 +415,7 @@ mod tests {
 
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
+            let (tx, _) = mpsc::channel();
 
             thread::spawn(move || loop {
                 if let Ok(message) = message_to_write_receiver.try_recv() {
@@ -418,7 +439,7 @@ mod tests {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
                         let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::SubackSent);
                         return Ok(());
@@ -504,6 +525,7 @@ mod tests {
 
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
+            let (tx, _) = mpsc::channel();
 
             thread::spawn(move || loop {
                 if let Ok(message) = message_to_write_receiver.try_recv() {
@@ -527,7 +549,7 @@ mod tests {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
                         let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::PubackSent);
                         return Ok(());
@@ -612,6 +634,7 @@ mod tests {
 
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
+            let (tx, _) = mpsc::channel();
 
             thread::spawn(move || loop {
                 if let Ok(message) = message_to_write_receiver.try_recv() {
@@ -628,7 +651,7 @@ mod tests {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
                         let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::NoAckSent);
                         return Ok(());
@@ -699,6 +722,7 @@ mod tests {
 
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
+            let (tx, _) = mpsc::channel();
 
             thread::spawn(move || loop {
                 if let Ok(message) = message_to_write_receiver.try_recv() {
@@ -722,7 +746,7 @@ mod tests {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
                         let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::UnsubackSent);
                         return Ok(());
@@ -788,6 +812,7 @@ mod tests {
 
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
+            let (tx, _) = mpsc::channel();
 
             thread::spawn(move || loop {
                 if let Ok(message) = message_to_write_receiver.try_recv() {
@@ -812,7 +837,7 @@ mod tests {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
                         let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::DisconnectRecieved);
                         return Ok(());
@@ -874,6 +899,7 @@ mod tests {
 
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
+            let (tx, _) = mpsc::channel();
 
             thread::spawn(move || loop {
                 if let Ok(message) = message_to_write_receiver.try_recv() {
@@ -891,7 +917,7 @@ mod tests {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
                         let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::PingrespSent);
                         return Ok(());
@@ -959,6 +985,7 @@ mod tests {
 
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
+            let (tx, _) = mpsc::channel();
 
             thread::spawn(move || loop {
                 if let Ok(message) = message_to_write_receiver.try_recv() {
@@ -982,7 +1009,7 @@ mod tests {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
                         let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::ConnackSent);
                         return Ok(());
@@ -1048,6 +1075,7 @@ mod tests {
 
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
+            let (tx, rx) = mpsc::channel();
 
             thread::spawn(move || loop {
                 if let Ok(message) = message_to_write_receiver.try_recv() {
@@ -1067,11 +1095,19 @@ mod tests {
                 }
             });
 
+            thread::spawn(move || {
+                loop {
+                    if rx.try_recv().is_ok() {
+                        break;
+                    }
+                }
+            });
+
             loop {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
                         let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
                         println!("Message {:?} received", result);
                         assert_eq!(result, ProtocolReturn::ConnackSent);
                         return Ok(());
@@ -1133,6 +1169,7 @@ mod tests {
 
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
+            let (tx, _) = mpsc::channel();
 
             thread::spawn(move || loop {
                 if let Ok(message) = message_to_write_receiver.try_recv() {
@@ -1157,7 +1194,7 @@ mod tests {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
                         let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
                         println!("{:?}", result);
                         assert_eq!(result, ProtocolReturn::DisconnectRecieved);
                         return Ok(());
@@ -1207,6 +1244,7 @@ mod tests {
 
             let tls_stream = StreamOwned::new(server_connection, stream);
             let stream = Arc::new(tls_stream);
+            let (tx, rx) = mpsc::channel();
 
             let (message_to_write_sender, message_to_write_receiver) = mpsc::channel();
             let stream_ref = Arc::clone(&stream);
@@ -1228,12 +1266,20 @@ mod tests {
                     break;
                 }
             });
+            
+            thread::spawn(move || {
+                loop {
+                    if rx.try_recv().is_ok() {
+                        break;
+                    }
+                }
+            });
 
             loop {
                 match ClientMessage::read_from(stream.get_ref()) {
                     Ok(message) => {
                         let result =
-                            broker.handle_message(message, &message_to_write_sender, stream_ref)?;
+                            broker.handle_message(message, &message_to_write_sender, stream_ref, tx)?;
                         println!("Message {:?} received", result);
                         assert_eq!(result, ProtocolReturn::ConnackSent);
                         return Ok(());

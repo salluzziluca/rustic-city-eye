@@ -20,7 +20,7 @@ use crate::{
     utils::threadpool::ThreadPool,
 };
 
-use super::{client_message, client_return::ClientReturn, error::ClientError};
+use super::{client_message, client_return::ClientReturn};
 
 pub trait ClientTrait {
     fn client_run(&mut self) -> Result<(), ProtocolError>;
@@ -77,30 +77,13 @@ impl Client {
         let client_id = connect.get_client_id().to_string();
         let connect_message = ClientMessage::Connect(connect);
 
-        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
-        let mut root_store = RootCertStore::empty();
-        let cert_file = &mut BufReader::new(File::open("./src/mqtt/certs/cert.pem").unwrap());
-        root_store.add_parsable_certificates(
-            rustls_pemfile::certs(cert_file).map(|result| result.unwrap()),
-        );
+        let tls_stream = Client::build_tls_stream(stream)?;
 
-        let mut config = ClientConfig::builder()
-            .with_root_certificates(root_store)
-            .with_no_client_auth();
-
-        config.key_log = Arc::new(KeyLogFile::new());
-
-        let server_name = "rustic_city_eye".try_into().unwrap();
-        let conn = ClientConnection::new(Arc::new(config), server_name).expect("me rompi");
-
-        let tls_stream = StreamOwned::new(conn, stream);
-        let tls_stream = Arc::new(tls_stream);
-
-        println!("Enviando connect message to broker");
+        println!("Sending Connect message to Broker");
 
         match connect_message.write_to(tls_stream.get_ref()) {
-            Ok(()) => println!("Connect message enviado"),
-            Err(_) => println!("Error al enviar connect message"),
+            Ok(()) => println!("Connect message send"),
+            Err(e) => return Err(e),
         }
 
         if let Ok(message) = BrokerMessage::read_from(tls_stream.get_ref()) {
@@ -110,10 +93,10 @@ impl Client {
                     reason_code,
                     properties: _,
                 } => {
-                    println!("Recibí un Connack");
+                    println!("Connack received");
                     match reason_code {
                         0x00_u8 => {
-                            println!("Conexion exitosa!");
+                            println!("Successful connection!");
 
                             Ok(Client {
                                 receiver_channel: Arc::new(Mutex::new(receiver_channel)),
@@ -124,7 +107,7 @@ impl Client {
                             })
                         }
                         _ => {
-                            println!("Connack con reason code {}", reason_code);
+                            println!("Authentication failed: reason code {}", reason_code);
                             Err(ProtocolError::AuthError)
                         }
                     }
@@ -136,55 +119,34 @@ impl Client {
         }
     }
 
-    /// Publica un mensaje en un topic determinado.
-    pub fn publish_message(
-        message: ClientMessage,
-        stream: Arc<TcpStream>,
-        packet_id: u16,
-    ) -> Result<u16, ClientError> {
-        //chequeo si el mensaje es de tipo publish
-        if let ClientMessage::Publish {
-            packet_id: _,
-            topic_name,
-            qos: _,
-            retain_flag: _,
-            payload: _,
-            dup_flag: _,
-            properties: _,
-        } = message.clone()
-        {
-            match message.write_to(&*stream) {
-                Ok(()) => {
-                    println!("envio publish con topic_name: {:?}", topic_name);
-                    Ok(packet_id)
-                }
-                Err(_) => Err(ClientError::new("Error al enviar mensaje")),
-            }
-        } else {
-            Err(ClientError::new("El mensaje no es de tipo publish"))
+    fn build_tls_stream(stream: TcpStream) -> Result<Arc<StreamOwned<ClientConnection, TcpStream>>, ProtocolError> {
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+        let mut root_store = RootCertStore::empty();
+        let mut cert_file = Client::open_file("./src/mqtt/certs/cert.pem")?;
+        root_store.add_parsable_certificates(
+            rustls_pemfile::certs(&mut cert_file).map(|result| result.unwrap()),
+        );
+
+        let mut config = ClientConfig::builder()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
+
+        config.key_log = Arc::new(KeyLogFile::new());
+
+        let server_name = "rustic_city_eye".try_into().unwrap();
+        match ClientConnection::new(Arc::new(config), server_name) {
+            Ok(c) => Ok(Arc::new(StreamOwned::new(c, stream))),
+            Err(e) => Err(ProtocolError::ClientConnectionError(e.to_string())),
         }
     }
 
-    pub fn subscribe(
-        message: ClientMessage,
-        packet_id: u16,
-        stream: Arc<TcpStream>,
-    ) -> Result<u16, ClientError> {
-        match message.write_to(&*stream) {
-            Ok(()) => Ok(packet_id),
-            Err(_) => Err(ClientError::new("Error al enviar mensaje")),
-        }
-    }
+    fn open_file(file_path: &str) -> Result<BufReader<File>, ProtocolError> {
+        let file = match File::open(file_path) {
+            Ok(file) => file,
+            Err(e) => return Err(ProtocolError::OpenFileError(e.to_string())),
+        };
 
-    pub fn unsubscribe(
-        message: ClientMessage,
-        stream: Arc<TcpStream>,
-        packet_id: u16,
-    ) -> Result<u16, ClientError> {
-        match message.write_to(&*stream) {
-            Ok(()) => Ok(packet_id),
-            Err(_) => Err(ClientError::new("Error al enviar mensaje")),
-        }
+        Ok(BufReader::new(file))
     }
 
     /// Recibe un string que indica la razón de la desconexión y un stream y envia un disconnect message al broker
@@ -346,7 +308,7 @@ impl Client {
                 reason_code: _,
                 properties: _,
             } => {
-                println!("Recibí un Connack");
+                println!("Connack received");
                 Ok(ClientReturn::ConnackReceived)
             }
             BrokerMessage::Puback {

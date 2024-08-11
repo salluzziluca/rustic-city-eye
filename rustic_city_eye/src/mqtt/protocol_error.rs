@@ -38,7 +38,9 @@ pub enum ProtocolError {
     AnnotationError(String),
     ArcMutexError(String),
     ServerConfigError(String),
+    ClientConnectionError(String),
     OpenFileError(String),
+    ReadingCertificateError(String),
     ReadingPrivateKeyError,
 }
 
@@ -96,6 +98,13 @@ impl fmt::Display for ProtocolError {
             ProtocolError::ServerConfigError(ref err) => {
                 write!(f, "Configuracion invalida: {}", err)
             }
+            ProtocolError::ClientConnectionError(ref err) => {
+                write!(f, "Error while connecting MQTT Client: {}", err)
+            }
+            ProtocolError::ReadingCertificateError(ref err) => {
+                write!(f, "Error while reading certificate: {}", err)
+            }
+
             ProtocolError::ChanellError(ref err) => {
                 write!(
                     f,
