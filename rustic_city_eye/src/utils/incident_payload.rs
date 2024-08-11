@@ -1,11 +1,12 @@
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::{monitoring::incident::Incident, mqtt::protocol_error::ProtocolError};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IncidentPayload {
-    id: u8,
-    incident: Incident,
+    pub id: u8,
+    pub incident: Incident,
 }
 
 /// Aqui se define el payload para los packets del tipo publish
@@ -14,7 +15,10 @@ pub struct IncidentPayload {
 /// diferenciar los distintos tipos de payloads que va a tener la aplicacion.
 impl IncidentPayload {
     pub fn new(incident: Incident) -> IncidentPayload {
-        IncidentPayload { id: 1, incident }
+        let mut rng = rand::thread_rng();
+        let id = rng.gen_range(0..255);
+        IncidentPayload { id, incident }   
+
     }
 
     ///Se sabe escribir sobre un stream dado.
