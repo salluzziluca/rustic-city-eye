@@ -1,0 +1,9 @@
+[workspace]
+
+members = [
+    "broker",
+    "client", 
+    "monitoring_app",
+    "protocol",
+    "rustic_city_eye", 
+    "utils"]
