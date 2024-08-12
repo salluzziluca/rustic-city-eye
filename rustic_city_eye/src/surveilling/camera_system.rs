@@ -12,7 +12,7 @@ use std::{
 use rand::Rng;
 
 use crate::{
-    monitoring::incident::Incident,
+    monitoring::{incident::Incident, persistence::Persistence},
     mqtt::{
         client::{Client, ClientTrait},
         client_message::{self, ClientMessage},
@@ -23,7 +23,7 @@ use crate::{
         subscribe_config::SubscribeConfig,
         subscribe_properties::SubscribeProperties,
     },
-    surveilling::{camera::Camera, cameras_config::CamerasConfig},
+    surveilling::camera::Camera,
     utils::{
         incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes,
         threadpool::ThreadPool, watcher::watch_directory,
@@ -146,7 +146,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         }
 
         let camera = Camera::new(location, id)?;
-        let _ = CamerasConfig::add_camera_to_json(camera.clone());
+        let _ = Persistence::add_camera_to_file(camera.clone());
         println!("Camera System creates camera with id: {:?}", id);
         cameras.insert(id, camera);
 
