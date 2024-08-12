@@ -6,4 +6,5 @@ members = [
     "monitoring_app",
     "protocol",
     "rustic_city_eye", 
+    "ui", 
     "utils"]

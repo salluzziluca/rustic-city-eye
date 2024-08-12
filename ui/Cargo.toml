@@ -1,0 +1,13 @@
+[package]
+name = "ui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+utils = { path = "../utils" }
+monitoring_app = { path = "../monitoring_app" }
+
+eframe = "0.28.1"
+egui = "0.28.1"
+walkers = "0.24.0"
+egui_extras = { version = "*", features = ["all_loaders"] }
