@@ -1,0 +1,9 @@
+[package]
+name = "monitoring_app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+protocol = { path = "../protocol" }
+utils = { path = "../utils" }
+serde = "1.0.206"
