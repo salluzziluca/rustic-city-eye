@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{client_message::ClientMessage, messages_config::MessagesConfig, subscription::Subscription};
+use crate::{
+    client_message::ClientMessage, messages_config::MessagesConfig, subscription::Subscription,
+};
 
 use super::subscribe_properties::SubscribeProperties;
-
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SubscribeConfig {

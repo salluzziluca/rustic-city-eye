@@ -1,7 +1,10 @@
-use protocol::{broker_message::BrokerMessage, client_message::{ClientMessage, Connect}, messages_config::MessagesConfig};
+use protocol::{
+    broker_message::BrokerMessage,
+    client_message::{ClientMessage, Connect},
+    messages_config::MessagesConfig,
+};
 use rand::Rng;
 use rustls::{ClientConfig, ClientConnection, KeyLogFile, RootCertStore, StreamOwned};
-use utils::{protocol_error::ProtocolError, threadpool::ThreadPool};
 use std::{
     fs::File,
     io::BufReader,
@@ -13,9 +16,9 @@ use std::{
     thread,
     time::Duration,
 };
+use utils::{protocol_error::ProtocolError, threadpool::ThreadPool};
 
 use crate::client_return::ClientReturn;
-
 
 pub trait ClientTrait {
     fn client_run(&mut self) -> Result<(), ProtocolError>;
@@ -34,7 +37,7 @@ impl Clone for Box<dyn ClientTrait> {
 }
 #[derive(Debug, Clone)]
 pub struct Client {
-    receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
+    pub receiver_channel: Arc<Mutex<Receiver<Box<dyn MessagesConfig + Send>>>>,
 
     // stream es el socket que se conecta al broker
     stream: Arc<StreamOwned<ClientConnection, TcpStream>>,
@@ -851,8 +854,7 @@ mod tests {
         }
         let handle = thread::spawn(move || {
             let connect_config =
-                Connect::read_connect_config("src/drones/connect_config.json")
-                    .unwrap();
+                Connect::read_connect_config("src/drones/connect_config.json").unwrap();
             let (_, rx) = mpsc::channel();
             let (tx2, _) = mpsc::channel();
             let address = "127.0.0.1:5047";
@@ -893,8 +895,7 @@ mod tests {
         }
         let handle = thread::spawn(move || {
             let connect_config =
-                Connect::read_connect_config("src/drones/connect_config.json")
-                    .unwrap();
+                Connect::read_connect_config("src/drones/connect_config.json").unwrap();
             let (_, rx) = mpsc::channel();
             let (tx2, _) = mpsc::channel();
             let address = "127.0.0.1:5039";
@@ -936,8 +937,7 @@ mod tests {
         }
         let handle = thread::spawn(move || {
             let connect_config =
-                Connect::read_connect_config("src/drones/connect_config.json")
-                    .unwrap();
+                Connect::read_connect_config("src/drones/connect_config.json").unwrap();
             let (_, rx) = mpsc::channel();
             let (tx2, _) = mpsc::channel();
             let address = "127.0.0.1:8080";

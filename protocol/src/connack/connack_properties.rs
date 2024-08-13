@@ -1,7 +1,7 @@
+use std::io::{BufWriter, Error, ErrorKind, Read, Write};
 use utils::protocol_error::ProtocolError;
 use utils::reader::*;
 use utils::writer::*;
-use std::io::{BufWriter, Error, ErrorKind, Read, Write};
 
 #[derive(Debug, PartialEq)]
 pub struct ConnackProperties {

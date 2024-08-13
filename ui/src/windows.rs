@@ -7,7 +7,7 @@ use walkers::MapMemory;
 
 use crate::{
     camera_view::CameraView, drone_center_view::DroneCenterView, drone_view::DroneView,
-    incident_view::IncidentView, my_map::MyMap
+    incident_view::IncidentView, my_map::MyMap,
 };
 
 /// Se updatea el zoom level con cada click en los botones de zoom
@@ -122,7 +122,8 @@ pub fn add_drone_center_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Mo
                                 position,
                                 clicked: false,
                             },
-                        );                    }
+                        );
+                    }
                 }
             });
         });

@@ -25,7 +25,6 @@ use utils::single_disconnect_payload::SingleDisconnectPayload;
 
 use crate::persistence::Persistence;
 
-
 /// Es capaz de recibir la carga de incidentes por parte del usuario(que lo hace desde la interfaz grafica)
 /// y notificar a la red ante la aparicion de un incidente nuevo y los cambios de estado del mismo.
 ///
@@ -79,11 +78,13 @@ impl MonitoringApp {
     /// Se crea el Client de la aplicacion, y tambien se instancia el Sistema Central de Camaras, y el Sistema de Drones.
     pub fn new(args: Vec<String>) -> Result<MonitoringApp, ProtocolError> {
         let address = args[2].to_string() + ":" + &args[3].to_string();
-        
+
         let camera_system = CameraSystem::<Client>::with_real_client(address.clone())?;
 
-        let drone_system =
-            DroneSystem::new("./drones/packets_config/drone_config.json".to_string(), address.clone());
+        let drone_system = DroneSystem::new(
+            "./drones/packets_config/drone_config.json".to_string(),
+            address.clone(),
+        );
 
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
@@ -298,9 +299,9 @@ impl MonitoringApp {
         match lock.add_camera(location) {
             Ok((id, camera)) => {
                 let _ = Persistence::add_camera_to_file(camera);
-                
+
                 Ok(id)
-            },
+            }
             Err(e) => {
                 println!("Monitoring: Error adding camera: {:?}", e);
                 Err(ProtocolError::CameraError(e.to_string()))
@@ -383,11 +384,14 @@ impl MonitoringApp {
         location: Location,
         drone_center_id: u32,
     ) -> Result<u32, ProtocolError> {
-        match self.drone_system.add_drone(location.clone(), drone_center_id) {
+        match self
+            .drone_system
+            .add_drone(location.clone(), drone_center_id)
+        {
             Ok(id) => {
                 let _ = Persistence::add_drone_to_file(location, id);
                 Ok(id)
-            },
+            }
             Err(e) => Err(ProtocolError::DroneError(e.to_string())),
         }
     }
@@ -408,8 +412,10 @@ impl MonitoringApp {
 
     /// Agrega un centro de Drones nuevo.
     pub fn add_drone_center(&mut self, location: Location) -> u32 {
-        let center_id = self.drone_system
-            .add_drone_center(location).map_or(0, |id| id);
+        let center_id = self
+            .drone_system
+            .add_drone_center(location)
+            .map_or(0, |id| id);
         let _ = Persistence::add_center_to_file(
             center_id,
             location,

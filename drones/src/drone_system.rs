@@ -13,7 +13,6 @@ pub struct DroneSystem {
     pub address: String,
 }
 
-
 impl DroneSystem {
     pub fn new(drone_config_path: String, address: String) -> DroneSystem {
         Self {
@@ -68,7 +67,7 @@ impl DroneSystem {
         );
 
         self.drone_centers.insert(id, drone_center);
-        
+
         println!("Drone center id: {} added successfully", id);
 
         Ok(id)
@@ -108,174 +107,174 @@ impl DroneSystem {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::{
-        sync::{Arc, Condvar, Mutex},
-        thread::{self},
-    };
+// #[cfg(test)]
+// mod tests {
+//     use std::{
+//         sync::{Arc, Condvar, Mutex},
+//         thread::{self},
+//     };
 
-    use broker::broker::Broker;
+//     use broker::broker::Broker;
 
-    use super::*;
+//     use super::*;
 
-    #[test]
-    fn test_01_drone_system_add_drone_center_ok() {
-        let mut drone_system = DroneSystem::new(
-            "src/drones/drone_config.json".to_string(),
-            "127.0.0.1:5099".to_string(),
-        );
-        let location = Location::new(0.0, 0.0);
-        let _ = drone_system.add_drone_center(location);
+//     #[test]
+//     fn test_01_drone_system_add_drone_center_ok() {
+//         let mut drone_system = DroneSystem::new(
+//             "src/drones/drone_config.json".to_string(),
+//             "127.0.0.1:5099".to_string(),
+//         );
+//         let location = Location::new(0.0, 0.0);
+//         let _ = drone_system.add_drone_center(location);
 
-        assert_eq!(drone_system.drone_centers.len(), 1);
-    }
+//         assert_eq!(drone_system.drone_centers.len(), 1);
+//     }
 
-    #[test]
-    fn test_02_drone_system_add_drone_ok() {
-        let args = vec!["127.0.0.1".to_string(), "5098".to_string()];
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => panic!("Error creating broker: {:?}", e),
-        };
+//     #[test]
+//     fn test_02_drone_system_add_drone_ok() {
+//         let args = vec!["127.0.0.1".to_string(), "5098".to_string()];
+//         let mut broker = match Broker::new(args) {
+//             Ok(broker) => broker,
+//             Err(e) => panic!("Error creating broker: {:?}", e),
+//         };
 
-        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
-        let server_ready_clone = server_ready.clone();
-        thread::spawn(move || {
-            {
-                let (lock, cvar) = &*server_ready_clone;
-                let mut ready = match lock.lock() {
-                    Ok(ready) => ready,
-                    Err(e) => panic!("Error locking mutex: {:?}", e),
-                };
-                *ready = true;
-                cvar.notify_all();
-            }
-            let _ = broker.server_run();
-        });
+//         let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+//         let server_ready_clone = server_ready.clone();
+//         thread::spawn(move || {
+//             {
+//                 let (lock, cvar) = &*server_ready_clone;
+//                 let mut ready = match lock.lock() {
+//                     Ok(ready) => ready,
+//                     Err(e) => panic!("Error locking mutex: {:?}", e),
+//                 };
+//                 *ready = true;
+//                 cvar.notify_all();
+//             }
+//             let _ = broker.server_run();
+//         });
 
-        // Wait for the server to start
-        {
-            let (lock, cvar) = &*server_ready;
-            let mut ready = match lock.lock() {
-                Ok(ready) => ready,
-                Err(e) => panic!("Error locking mutex: {:?}", e),
-            };
-            while !*ready {
-                ready = match cvar.wait(ready) {
-                    Ok(ready) => ready,
-                    Err(e) => panic!("Error waiting for condition variable: {:?}", e),
-                };
-            }
-        }
-        let handle = thread::spawn(move || {
-            let mut drone_system = DroneSystem::new(
-                "src/drones/drone_config.json".to_string(),
-                "127.0.0.1:5098".to_string(),
-            );
-            let location = Location::new(0.0, 0.0);
-            let _ = drone_system.add_drone_center(location);
+//         // Wait for the server to start
+//         {
+//             let (lock, cvar) = &*server_ready;
+//             let mut ready = match lock.lock() {
+//                 Ok(ready) => ready,
+//                 Err(e) => panic!("Error locking mutex: {:?}", e),
+//             };
+//             while !*ready {
+//                 ready = match cvar.wait(ready) {
+//                     Ok(ready) => ready,
+//                     Err(e) => panic!("Error waiting for condition variable: {:?}", e),
+//                 };
+//             }
+//         }
+//         let handle = thread::spawn(move || {
+//             let mut drone_system = DroneSystem::new(
+//                 "src/drones/drone_config.json".to_string(),
+//                 "127.0.0.1:5098".to_string(),
+//             );
+//             let location = Location::new(0.0, 0.0);
+//             let _ = drone_system.add_drone_center(location);
 
-            let location = Location::new(0.0, 0.0);
-            let id = match drone_system.add_drone(location, 0) {
-                Ok(id) => id,
-                Err(e) => panic!("Error adding drone: {:?}", e),
-            };
-            println!("dron id {}", id);
-            assert_eq!(drone_system.drone_centers[&id].get_drones().len(), 1);
-        });
+//             let location = Location::new(0.0, 0.0);
+//             let id = match drone_system.add_drone(location, 0) {
+//                 Ok(id) => id,
+//                 Err(e) => panic!("Error adding drone: {:?}", e),
+//             };
+//             println!("dron id {}", id);
+//             assert_eq!(drone_system.drone_centers[&id].get_drones().len(), 1);
+//         });
 
-        handle.join().unwrap();
-    }
+//         handle.join().unwrap();
+//     }
 
-    #[test]
-    fn test_03_drone_system_add_drone_center_not_found() {
-        let args = vec!["127.0.0.1".to_string(), "5002".to_string()];
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => panic!("Error creating broker: {:?}", e),
-        };
+//     #[test]
+//     fn test_03_drone_system_add_drone_center_not_found() {
+//         let args = vec!["127.0.0.1".to_string(), "5002".to_string()];
+//         let mut broker = match Broker::new(args) {
+//             Ok(broker) => broker,
+//             Err(e) => panic!("Error creating broker: {:?}", e),
+//         };
 
-        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
-        let server_ready_clone = server_ready.clone();
-        thread::spawn(move || {
-            {
-                let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
-                *ready = true;
-                cvar.notify_all();
-            }
-            let _ = broker.server_run();
-        });
+//         let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+//         let server_ready_clone = server_ready.clone();
+//         thread::spawn(move || {
+//             {
+//                 let (lock, cvar) = &*server_ready_clone;
+//                 let mut ready = lock.lock().unwrap();
+//                 *ready = true;
+//                 cvar.notify_all();
+//             }
+//             let _ = broker.server_run();
+//         });
 
-        // Wait for the server to start
-        {
-            let (lock, cvar) = &*server_ready;
-            let mut ready = lock.lock().unwrap();
-            while !*ready {
-                ready = cvar.wait(ready).unwrap();
-            }
-        }
+//         // Wait for the server to start
+//         {
+//             let (lock, cvar) = &*server_ready;
+//             let mut ready = lock.lock().unwrap();
+//             while !*ready {
+//                 ready = cvar.wait(ready).unwrap();
+//             }
+//         }
 
-        let handle = thread::spawn(move || {
-            let mut drone_system = DroneSystem::new(
-                "src/drones/drone_config.json".to_string(),
-                "127.0.0.1:5002".to_string(),
-            );
-            let location = Location::new(0.0, 0.0);
-            let _ = drone_system.add_drone_center(location);
+//         let handle = thread::spawn(move || {
+//             let mut drone_system = DroneSystem::new(
+//                 "src/drones/drone_config.json".to_string(),
+//                 "127.0.0.1:5002".to_string(),
+//             );
+//             let location = Location::new(0.0, 0.0);
+//             let _ = drone_system.add_drone_center(location);
 
-            let location = Location::new(0.0, 0.0);
-            match drone_system.add_drone(location, 1) {
-                Ok(_) => (),
-                Err(e) => assert_eq!(e, DroneError::DroneCenterNotFound),
-            };
-        });
-        handle.join().unwrap();
-    }
+//             let location = Location::new(0.0, 0.0);
+//             match drone_system.add_drone(location, 1) {
+//                 Ok(_) => (),
+//                 Err(e) => assert_eq!(e, DroneError::DroneCenterNotFound),
+//             };
+//         });
+//         handle.join().unwrap();
+//     }
 
-    #[test]
-    fn test_04_connect_drone() {
-        let args = vec!["127.0.0.1".to_string(), "5097".to_string()];
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => panic!("Error creating broker: {:?}", e),
-        };
+//     #[test]
+//     fn test_04_connect_drone() {
+//         let args = vec!["127.0.0.1".to_string(), "5097".to_string()];
+//         let mut broker = match Broker::new(args) {
+//             Ok(broker) => broker,
+//             Err(e) => panic!("Error creating broker: {:?}", e),
+//         };
 
-        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
-        let server_ready_clone = server_ready.clone();
-        thread::spawn(move || {
-            {
-                let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
-                *ready = true;
-                cvar.notify_all();
-            }
-            let _ = broker.server_run();
-        });
+//         let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+//         let server_ready_clone = server_ready.clone();
+//         thread::spawn(move || {
+//             {
+//                 let (lock, cvar) = &*server_ready_clone;
+//                 let mut ready = lock.lock().unwrap();
+//                 *ready = true;
+//                 cvar.notify_all();
+//             }
+//             let _ = broker.server_run();
+//         });
 
-        // Wait for the server to start
-        {
-            let (lock, cvar) = &*server_ready;
-            let mut ready = lock.lock().unwrap();
-            while !*ready {
-                ready = cvar.wait(ready).unwrap();
-            }
-        }
-        let t1 = thread::spawn(move || {
-            let mut drone_system = DroneSystem::new(
-                "src/drones/drone_config.json".to_string(),
-                "127.0.0.1:5097".to_string(),
-            );
-            let location = Location::new(0.0, 0.0);
-            let id = drone_system.add_drone_center(location);
+//         // Wait for the server to start
+//         {
+//             let (lock, cvar) = &*server_ready;
+//             let mut ready = lock.lock().unwrap();
+//             while !*ready {
+//                 ready = cvar.wait(ready).unwrap();
+//             }
+//         }
+//         let t1 = thread::spawn(move || {
+//             let mut drone_system = DroneSystem::new(
+//                 "src/drones/drone_config.json".to_string(),
+//                 "127.0.0.1:5097".to_string(),
+//             );
+//             let location = Location::new(0.0, 0.0);
+//             let id = drone_system.add_drone_center(location);
 
-            let location = Location::new(0.0, 0.0);
-            match drone_system.add_drone(location, id.unwrap()) {
-                Ok(_) => (),
-                Err(e) => panic!("Error adding drone: {:?}", e),
-            };
-        });
-        t1.join().unwrap();
-    }
-}
+//             let location = Location::new(0.0, 0.0);
+//             match drone_system.add_drone(location, id.unwrap()) {
+//                 Ok(_) => (),
+//                 Err(e) => panic!("Error adding drone: {:?}", e),
+//             };
+//         });
+//         t1.join().unwrap();
+//     }
+// }

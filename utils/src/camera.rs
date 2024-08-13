@@ -6,7 +6,10 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{annotation::ImageClassifier, camera_error::CameraError, location::Location, protocol_error::ProtocolError, reader::*, writer::*};
+use crate::{
+    annotation::ImageClassifier, camera_error::CameraError, location::Location,
+    protocol_error::ProtocolError, reader::*, writer::*,
+};
 
 const PATH: &str = "./camera_system/cameras";
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

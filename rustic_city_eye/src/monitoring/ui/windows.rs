@@ -1,7 +1,10 @@
 use std::fs;
 
 use egui::{Align2, RichText, Ui, Window};
-use rustic_city_eye::{monitoring::{monitoring_app::MonitoringApp, persistence::Persistence}, utils::location::Location};
+use rustic_city_eye::{
+    monitoring::{monitoring_app::MonitoringApp, persistence::Persistence},
+    utils::location::Location,
+};
 use walkers::MapMemory;
 
 use crate::{
@@ -120,7 +123,8 @@ pub fn add_drone_center_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Mo
                                 position,
                                 clicked: false,
                             },
-                        );                    }
+                        );
+                    }
                 }
             });
         });

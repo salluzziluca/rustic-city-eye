@@ -1,14 +1,8 @@
 use std::{
-    collections::HashMap,
-    fs::File,
-    io::{stdin, BufRead, BufReader},
-    net::{Shutdown, TcpListener, TcpStream},
-    process::exit,
-    sync::{
+    collections::HashMap, fs::File, io::{stdin, BufRead, BufReader}, net::{Shutdown, TcpListener, TcpStream}, path::Path, process::exit, sync::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex, RwLock,
-    },
-    thread,
+    }, thread
 };
 
 use protocol::{
@@ -67,15 +61,17 @@ pub struct Broker {
 impl Broker {
     pub fn new(args: Vec<String>) -> Result<Broker, ProtocolError> {
         let address = Broker::process_starting_args(args)?;
+        let base_path = Path::new(env!("CARGO_MANIFEST_DIR"));
+        println!("base {:?}", base_path);
 
-        let topics = Broker::get_broker_starting_topics("./broker/src/config/topics")?;
-        let clients_auth_info = Broker::process_clients_file("./broker/src/config/clients")?;
+        let topics = Broker::get_broker_starting_topics(base_path.join("config/topics").to_str().unwrap())?;
+        let clients_auth_info = Broker::process_clients_file(base_path.join("config/clients").to_str().unwrap())?;
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let packets = Arc::new(RwLock::new(HashMap::new()));
 
         let server_config = Broker::set_server_config(
-            "./broker/src/certs/cert.pem",
-            "./broker/src/certs/private_key.pem",
+            base_path.join("certs/cert.pem").to_str().unwrap(),
+            base_path.join("certs/private_key.pem").to_str().unwrap(),
         )?;
 
         Ok(Broker {
@@ -86,6 +82,32 @@ impl Broker {
             clients_ids,
             server_config: Arc::new(server_config),
         })
+    }
+
+    pub fn empty_broker(args: Vec<String>, server_config: ServerConfig) -> Result<Broker, ProtocolError> {
+        let address = Broker::process_starting_args(args)?;
+        
+
+        Ok(Broker {
+            address,
+            topics: HashMap::new(),
+            clients_auth_info: HashMap::new(),
+            packets: Arc::new(RwLock::new(HashMap::new())),
+            clients_ids: Arc::new(RwLock::new(HashMap::new())),
+            server_config: Arc::new(server_config),
+        })
+    }
+
+    pub fn set_topics(&mut self, topics: HashMap<String, Topic>) {
+        self.topics = topics;
+    }
+
+    pub fn set_clients_ids(&mut self, clients_ids: Arc<RwLock<HashMap<String, (Option<Arc<StreamOwned<ServerConnection, TcpStream>>>, Option<LastWill>)>>>) {
+        self.clients_ids = clients_ids;
+    }
+
+    pub fn set_clients_auth_info(&mut self, clients_auth_info: HashMap<String, (String, Vec<u8>)>) {
+        self.clients_auth_info = clients_auth_info;
     }
 
     fn set_server_config(
@@ -1092,12 +1114,13 @@ impl Broker {
 #[cfg(test)]
 mod tests {
 
-    use super::*;
     use std::io::Cursor;
+
+    use super::*;
 
     #[test]
     fn test_01_getting_starting_topics_ok() -> Result<(), ProtocolError> {
-        let file_path = "./src/config/topics";
+        let file_path = "./config/topics";
         let topics = Broker::get_broker_starting_topics(file_path)?;
 
         let mut expected_topics = HashMap::new();
@@ -1144,7 +1167,7 @@ mod tests {
 
     #[test]
     fn test_04_processing_clients_auth_info_ok() -> Result<(), ProtocolError> {
-        let file_path = "./src/monitoring/clients.txt";
+        let file_path = "./config/clients";
         let clients_auth_info = Broker::process_clients_file(file_path)?;
 
         let file = match File::open(file_path) {
@@ -1163,6 +1186,8 @@ mod tests {
 
     #[test]
     fn test_05_processing_input_commands() -> Result<(), ProtocolError> {
+        let base_path = Path::new(env!("CARGO_MANIFEST_DIR"));
+        println!("base {:?}", base_path);
         let mut broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()])?;
         let good_command = b"shutdown\n";
         let cursor_one = Cursor::new(good_command);

@@ -1,9 +1,17 @@
-use std::{collections::{HashMap, VecDeque}, sync::{Arc, Mutex}};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::{Arc, Mutex},
+};
 
 use utils::{camera::Camera, incident::Incident, location::Location};
 use walkers::{MapMemory, Position, Tiles};
 
-use crate::{camera_view::CameraView, drone_center_view, drone_view, incident_view::{self, IncidentView}, plugings::{ClickWatcher, ImagesPluginData}};
+use crate::{
+    camera_view::CameraView,
+    drone_center_view, drone_view,
+    incident_view::{self, IncidentView},
+    plugings::{ClickWatcher, ImagesPluginData},
+};
 
 /// Este struct se utiliza para almacenar la informacion de las imagenes que se van a mostrar en el mapa
 /// junto con su escala
@@ -12,18 +20,18 @@ use crate::{camera_view::CameraView, drone_center_view, drone_view, incident_vie
 pub struct MyMap {
     pub tiles: Box<dyn Tiles>,
     pub map_memory: MapMemory,
-    pub click_watcher: ClickWatcher, 
-    pub camera_icon: ImagesPluginData, 
-    pub cameras: HashMap<u32, CameraView>, 
-    pub camera_radius: ImagesPluginData, 
-    pub active_camera_radius: ImagesPluginData, 
-    pub incident_icon: ImagesPluginData, 
-    pub incidents: Vec<incident_view::IncidentView>, 
-    pub drones: HashMap<u32, drone_view::DroneView>, 
-    pub drone_icon: ImagesPluginData, 
-    pub drone_centers: HashMap<u32, drone_center_view::DroneCenterView>, 
-    pub drone_center_icon: ImagesPluginData, 
-    pub zoom_level: f32, 
+    pub click_watcher: ClickWatcher,
+    pub camera_icon: ImagesPluginData,
+    pub cameras: HashMap<u32, CameraView>,
+    pub camera_radius: ImagesPluginData,
+    pub active_camera_radius: ImagesPluginData,
+    pub incident_icon: ImagesPluginData,
+    pub incidents: Vec<incident_view::IncidentView>,
+    pub drones: HashMap<u32, drone_view::DroneView>,
+    pub drone_icon: ImagesPluginData,
+    pub drone_centers: HashMap<u32, drone_center_view::DroneCenterView>,
+    pub drone_center_icon: ImagesPluginData,
+    pub zoom_level: f32,
 }
 impl MyMap {
     /// Actualiza la posicion de los drones en el mapa

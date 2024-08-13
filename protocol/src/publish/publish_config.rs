@@ -7,7 +7,6 @@ use utils::protocol_error::ProtocolError;
 
 use super::{payload_types::PayloadTypes, publish_properties::PublishProperties};
 
-
 #[derive(Deserialize, Debug, Clone, PartialEq)]
 pub struct PublishConfig {
     pub(crate) dup_flag: usize,
@@ -94,7 +93,7 @@ impl PublishConfig {
 #[cfg(test)]
 
 mod tests {
-   // use crate::publish::publish_properties::TopicProperties;
+    // use crate::publish::publish_properties::TopicProperties;
 
     //use super::*;
     // use crate::{

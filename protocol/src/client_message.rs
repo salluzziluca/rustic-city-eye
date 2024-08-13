@@ -12,7 +12,7 @@ use crate::publish::payload_types::PayloadTypes;
 use crate::publish::publish_properties::PublishProperties;
 use crate::subscribe::subscribe_properties::SubscribeProperties;
 use crate::subscription::Subscription;
-use utils::{reader::*, writer::*, protocol_error::ProtocolError};
+use utils::{protocol_error::ProtocolError, reader::*, writer::*};
 
 // use crate::subscribe::subscribe_properties::SubscribeProperties;
 // use crate::utils::payload_types::PayloadTypes;
@@ -1004,7 +1004,7 @@ mod tests {
     //     utils::{incident_payload::IncidentPayload, location::Location},
     // };
 
-   // use crate::publish::publish_properties::TopicProperties;
+    // use crate::publish::publish_properties::TopicProperties;
 
     use super::*;
     fn read_json_to_connect_config(json_data: &str) -> Result<Connect, Box<dyn std::error::Error>> {
@@ -1034,10 +1034,7 @@ mod tests {
 
         match ClientMessage::read_from(&mut cursor) {
             Ok(_) => {
-                assert_eq!(
-                    connect,
-                    ClientMessage::Connect(connect_read)
-                );
+                assert_eq!(connect, ClientMessage::Connect(connect_read));
             }
             Err(e) => {
                 panic!("no se pudo leer del cursor {:?}", e);

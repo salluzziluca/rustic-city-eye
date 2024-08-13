@@ -1,11 +1,19 @@
 use eframe::{run_native, App, CreationContext, NativeOptions};
 use egui::{CentralPanel, RichText, TextStyle, TopBottomPanel};
 use monitoring_app::{monitoring_app::MonitoringApp, persistence::Persistence};
-use ui::{camera_view::CameraView, drone_center_view, drone_view, incident_view::IncidentView, my_map::MyMap, plugings::{cameras, drone_centers, drones, incidents, ClickWatcher, ImagesPluginData}, windows::{add_camera_window, add_disconnect_window, add_drone_center_window, add_drone_window, add_incident_window, add_remove_window, zoom}};
+use std::collections::HashMap;
+use ui::{
+    camera_view::CameraView,
+    drone_center_view, drone_view,
+    incident_view::IncidentView,
+    my_map::MyMap,
+    plugings::{cameras, drone_centers, drones, incidents, ClickWatcher, ImagesPluginData},
+    windows::{
+        add_camera_window, add_disconnect_window, add_drone_center_window, add_drone_window,
+        add_incident_window, add_remove_window, zoom,
+    },
+};
 use utils::location::Location;
-use std::
-    collections::HashMap
-;
 use walkers::{sources::OpenStreetMap, HttpTiles, Map, MapMemory, Position, Texture, Tiles};
 
 struct MyApp {
@@ -21,7 +29,6 @@ struct MyApp {
     correct_ip: bool,
     correct_port: bool,
 }
-
 
 impl MyApp {
     /// Muestra el formulario de inicio de sesion
@@ -129,11 +136,10 @@ impl MyApp {
                 }
 
                 ui.add_space(20.0);
-                
+
                 if ui.button("Submit").clicked() {
                     self.submit();
                 }
-                
             });
         });
         TopBottomPanel::bottom("credits_panel").show(ctx, |ui| {

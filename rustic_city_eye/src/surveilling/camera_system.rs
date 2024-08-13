@@ -77,8 +77,9 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
             Sender<client_message::ClientMessage>,
         ) -> Result<T, ProtocolError>,
     {
-        let connect_config =
-            client_message::Connect::read_connect_config("./camera_system/src/packets_config/connect_config.json")?;
+        let connect_config = client_message::Connect::read_connect_config(
+            "./camera_system/src/packets_config/connect_config.json",
+        )?;
 
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();

@@ -11,3 +11,5 @@ protocol = { path = "../protocol" }
 drones = { path = "../drones" }
 monitoring_app = { path = "../monitoring_app" }
 camera_system = { path = "../camera_system" }
+rustls = "0.23.12"
+rustls-pemfile = "2.1.3"

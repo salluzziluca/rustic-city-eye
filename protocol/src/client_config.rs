@@ -2,8 +2,8 @@ use std::fs::File;
 
 use serde::{Deserialize, Serialize};
 
-use utils::protocol_error::ProtocolError;
 use super::client_message::ClientMessage;
+use utils::protocol_error::ProtocolError;
 
 /// Estructura que representa la configuración de un cliente
 #[derive(Serialize, Deserialize)]

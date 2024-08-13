@@ -7,7 +7,7 @@ use std::io::Write;
 
 use crate::publish::publish_properties::PublishProperties;
 use crate::publish::publish_properties::TopicProperties;
-use utils::{reader::*, writer::*, protocol_error::ProtocolError};
+use utils::{protocol_error::ProtocolError, reader::*, writer::*};
 
 const WILL_DELAY_INTERVAL_ID: u8 = 0x18;
 const PAYLOAD_FORMAT_INDICATOR_ID: u8 = 0x01;

@@ -79,7 +79,6 @@ impl Payload for PayloadTypes {
                 write_string(stream, &target_location.get_latitude().to_string())?;
                 write_string(stream, &target_location.get_longitude().to_string())?;
 
-
                 Ok(())
             }
             PayloadTypes::AttendingIncident(payload) => {

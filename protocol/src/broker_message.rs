@@ -1,17 +1,17 @@
 use std::io::{BufWriter, Error, ErrorKind, Read, Write};
 
-use crate::{connack::connack_properties::ConnackProperties, publish::{payload::Payload, payload_types::PayloadTypes, publish_properties::PublishProperties}};
-
+use crate::{
+    connack::connack_properties::ConnackProperties,
+    publish::{
+        payload::Payload, payload_types::PayloadTypes, publish_properties::PublishProperties,
+    },
+};
 
 const SESSION_EXPIRY_INTERVAL_ID: u8 = 0x11;
 const REASON_STRING_ID: u8 = 0x1F;
 const USER_PROPERTY_ID: u8 = 0x26;
 
-use utils::{
-    reader::*,
-    writer::*,
-    protocol_error::ProtocolError
-};
+use utils::{protocol_error::ProtocolError, reader::*, writer::*};
 
 #[derive(Debug, PartialEq)]
 pub enum BrokerMessage {

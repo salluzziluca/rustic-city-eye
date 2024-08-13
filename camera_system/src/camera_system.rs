@@ -1,13 +1,27 @@
 use client::client::{Client, ClientTrait};
-use protocol::{client_message::{self, ClientMessage}, disconnect::disconnect_config::DisconnectConfig, messages_config::MessagesConfig, publish::{payload_types::PayloadTypes, publish_config::PublishConfig}, subscribe::{subscribe_config::SubscribeConfig, subscribe_properties::SubscribeProperties}};
+use protocol::{
+    client_message::{self, ClientMessage},
+    disconnect::disconnect_config::DisconnectConfig,
+    messages_config::MessagesConfig,
+    publish::{payload_types::PayloadTypes, publish_config::PublishConfig},
+    subscribe::{subscribe_config::SubscribeConfig, subscribe_properties::SubscribeProperties},
+};
 use rand::Rng;
-use utils::{camera::Camera, camera_error::CameraError, incident::Incident, incident_payload::IncidentPayload, location::Location, protocol_error::ProtocolError, threadpool::ThreadPool, watcher::watch_directory};
+use utils::{
+    camera::Camera, camera_error::CameraError, incident::Incident,
+    incident_payload::IncidentPayload, location::Location, protocol_error::ProtocolError,
+    threadpool::ThreadPool, watcher::watch_directory,
+};
 
 use std::{
-    collections::HashMap, path::Path, sync::{
+    collections::HashMap,
+    path::Path,
+    sync::{
         mpsc::{self, channel, Receiver, Sender},
         Arc, Mutex,
-    }, thread, time::{Duration, Instant}
+    },
+    thread,
+    time::{Duration, Instant},
 };
 
 const AREA_DE_ALCANCE: f64 = 0.0025;
@@ -22,7 +36,7 @@ const PATH_POSITION: usize = 1;
 /// Los mensajes recibidos le llegan mediante el channel `reciev_from_client` y envia una config con los mensajes que quiere enviar mediante `send_to_client_channel``
 pub struct CameraSystem<T: ClientTrait + Clone + Send + Sync> {
     pub send_to_client_channel: Arc<Mutex<Sender<Box<dyn MessagesConfig + Send>>>>,
-    camera_system_client: T,
+    pub camera_system_client: T,
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
     reciev_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
     snapshot: Vec<Camera>,
@@ -56,8 +70,9 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
             Sender<client_message::ClientMessage>,
         ) -> Result<T, ProtocolError>,
     {
-        let connect_config =
-            client_message::Connect::read_connect_config("./camera_system/packets_config/connect_config.json")?;
+        let connect_config = client_message::Connect::read_connect_config(
+            "./camera_system/packets_config/connect_config.json",
+        )?;
 
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
@@ -714,7 +729,7 @@ mod tests {
     use std::time::Duration;
 
     impl CameraSystem<Client> {
-        fn get_client_publish_end_channel(
+        pub fn get_client_publish_end_channel(
             &self,
         ) -> Arc<
             std::sync::Mutex<std::sync::mpsc::Receiver<Box<(dyn MessagesConfig + Send + 'static)>>>,
@@ -938,7 +953,10 @@ mod tests {
             );
             let incident_location = Location::new(0.0, 0.0);
             camera_system.activate_cameras(incident_location).unwrap();
-            assert!(camera_system.get_camera_by_id(id.0).unwrap().get_sleep_mode());
+            assert!(camera_system
+                .get_camera_by_id(id.0)
+                .unwrap()
+                .get_sleep_mode());
             assert!(!camera_system
                 .get_camera_by_id(id2.0)
                 .unwrap()
@@ -965,7 +983,6 @@ mod tests {
     }
 
     #[test]
-
     fn test08_camara_lejana_se_activa_por_reaccion_en_cadena() {
         let args = vec!["127.0.0.1".to_string(), "5020".to_string()];
         let mut broker = match Broker::new(args) {
@@ -1006,7 +1023,10 @@ mod tests {
 
             let incident_location = Location::new(0.0, 0.0);
             camera_system.activate_cameras(incident_location).unwrap();
-            assert!(!camera_system.get_camera_by_id(id.0).unwrap().get_sleep_mode());
+            assert!(!camera_system
+                .get_camera_by_id(id.0)
+                .unwrap()
+                .get_sleep_mode());
             assert!(!camera_system
                 .get_camera_by_id(id2.0)
                 .unwrap()
@@ -1116,7 +1136,10 @@ mod tests {
             );
             let incident_location = Location::new(0.0, 0.0);
             camera_system.activate_cameras(incident_location).unwrap();
-            assert!(camera_system.get_camera_by_id(id.0).unwrap().get_sleep_mode());
+            assert!(camera_system
+                .get_camera_by_id(id.0)
+                .unwrap()
+                .get_sleep_mode());
             assert!(!camera_system
                 .get_camera_by_id(id2.0)
                 .unwrap()
@@ -1135,7 +1158,10 @@ mod tests {
                 .get_sleep_mode());
 
             camera_system.deactivate_cameras(incident_location).unwrap();
-            assert!(camera_system.get_camera_by_id(id.0).unwrap().get_sleep_mode());
+            assert!(camera_system
+                .get_camera_by_id(id.0)
+                .unwrap()
+                .get_sleep_mode());
             assert!(camera_system
                 .get_camera_by_id(id2.0)
                 .unwrap()
@@ -1197,7 +1223,10 @@ mod tests {
 
             let incident_location = Location::new(0.0, 0.0);
             camera_system.activate_cameras(incident_location).unwrap();
-            assert!(!camera_system.get_camera_by_id(id.0).unwrap().get_sleep_mode());
+            assert!(!camera_system
+                .get_camera_by_id(id.0)
+                .unwrap()
+                .get_sleep_mode());
             assert!(!camera_system
                 .get_camera_by_id(id2.0)
                 .unwrap()
@@ -1205,7 +1234,10 @@ mod tests {
 
             let incident_location = Location::new(0.0, 0.0);
             camera_system.deactivate_cameras(incident_location).unwrap();
-            assert!(camera_system.get_camera_by_id(id.0).unwrap().get_sleep_mode());
+            assert!(camera_system
+                .get_camera_by_id(id.0)
+                .unwrap()
+                .get_sleep_mode());
             assert!(camera_system
                 .get_camera_by_id(id2.0)
                 .unwrap()
@@ -1257,7 +1289,10 @@ mod tests {
 
             let incident_location = Location::new(0.0, 0.0);
             camera_system.activate_cameras(incident_location).unwrap();
-            assert!(!camera_system.get_camera_by_id(id.0).unwrap().get_sleep_mode());
+            assert!(!camera_system
+                .get_camera_by_id(id.0)
+                .unwrap()
+                .get_sleep_mode());
             assert!(!camera_system
                 .get_camera_by_id(id2.0)
                 .unwrap()
@@ -1265,7 +1300,10 @@ mod tests {
 
             let incident_location = Location::new(0.0, 0.0);
             camera_system.activate_cameras(incident_location).unwrap();
-            assert!(!camera_system.get_camera_by_id(id.0).unwrap().get_sleep_mode());
+            assert!(!camera_system
+                .get_camera_by_id(id.0)
+                .unwrap()
+                .get_sleep_mode());
             assert!(!camera_system
                 .get_camera_by_id(id2.0)
                 .unwrap()
@@ -1275,7 +1313,10 @@ mod tests {
             let id3 = camera_system.add_camera(incident_location).unwrap();
             let id4 = camera_system.add_camera(incident_location).unwrap();
             camera_system.activate_cameras(incident_location).unwrap();
-            assert!(!camera_system.get_camera_by_id(id.0).unwrap().get_sleep_mode());
+            assert!(!camera_system
+                .get_camera_by_id(id.0)
+                .unwrap()
+                .get_sleep_mode());
             assert!(!camera_system
                 .get_camera_by_id(id2.0)
                 .unwrap()
@@ -1646,7 +1687,10 @@ mod tests {
                 location
             );
             assert_eq!(
-                camera_system.get_camera_by_id(id2.0).unwrap().get_location(),
+                camera_system
+                    .get_camera_by_id(id2.0)
+                    .unwrap()
+                    .get_location(),
                 location2
             );
 

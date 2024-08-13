@@ -1,16 +1,16 @@
-pub mod subscription;
-pub mod topic;
-pub mod reason_code;
-pub mod client_message;
 pub mod broker_message;
+pub mod client_config;
+pub mod client_message;
 pub mod messages_config;
 pub mod protocol_return;
-pub mod client_config;
+pub mod reason_code;
+pub mod subscription;
+pub mod topic;
 
 pub mod connect {
     pub mod connect_properties;
-    pub mod will_properties;
     pub mod last_will;
+    pub mod will_properties;
 }
 
 pub mod connack {
@@ -18,15 +18,15 @@ pub mod connack {
 }
 
 pub mod subscribe {
-    pub mod subscribe_properties;
     pub mod subscribe_config;
+    pub mod subscribe_properties;
 }
 
 pub mod publish {
+    pub mod payload;
+    pub mod payload_types;
     pub mod publish_config;
     pub mod publish_properties;
-    pub mod payload_types;
-    pub mod payload;
 }
 
 pub mod disconnect {

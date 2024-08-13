@@ -225,11 +225,10 @@ impl MyApp {
                 }
 
                 ui.add_space(20.0);
-                
+
                 if ui.button("Submit").clicked() {
                     self.submit();
                 }
-                
             });
         });
         TopBottomPanel::bottom("credits_panel").show(ctx, |ui| {

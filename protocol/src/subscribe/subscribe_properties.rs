@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use utils::{protocol_error::ProtocolError, reader::*, writer::*};
 use std::io::{Error, Read, Write};
+use utils::{protocol_error::ProtocolError, reader::*, writer::*};
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 
