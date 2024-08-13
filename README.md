@@ -29,6 +29,9 @@ cargo run -p broker 5000
 - Al estar ejecutando el Broker, el usuario tiene la posibilidad de ingresar comandos en la misma terminal. 
 - Un comando soportado por el Broker es el "shutdown", que lo que va a hacer es cerrar el Broker manualmente.
 
+[Broker_example](https://github.com/user-attachments/assets/3c03b49d-5cac-4807-b492-8b693b0907b4)
+
+
 ```sh
 shutdown
 ```
@@ -42,6 +45,11 @@ shutdown
 ```sh
 cargo run -p ui
 ```
+
+[UI](https://github.com/user-attachments/assets/3d61e941-4d68-45ce-acfd-58b0df70a837)
+
+
+
 
 ## Cómo testear
 - En una terminal, ejecute el siguiente comando:
