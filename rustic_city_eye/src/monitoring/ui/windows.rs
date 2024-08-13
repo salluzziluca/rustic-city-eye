@@ -224,6 +224,10 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitori
                                 Ok(_) => println!("Camera removed"),
                                 Err(e) => println!("Error removing camera: {}", e),
                             }
+                            match monitoring_app.disconnect_camera_by_id(*id) {
+                                Ok(_) => println!("Camera removed"),
+                                Err(e) => println!("Error removing camera: {}", e),
+                            }
 
                             break;
                         }

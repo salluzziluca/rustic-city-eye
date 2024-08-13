@@ -447,7 +447,7 @@ impl MonitoringApp {
             Err(_) => HashMap::new(),
         }
     }
-
+    ///envia un publish del con topic single_drone_disconnect y con el id del drone en el payload
     pub fn disconnect_drone_by_id(&mut self, client_id: u32) -> Result<(), ProtocolError> {
         let publish_config = PublishConfig::read_config(
             "src/monitoring/publish_single_drone_disconnect_config.json",
@@ -469,6 +469,27 @@ impl MonitoringApp {
         Ok(())
     }
 
+    ///envia un publish del con topic single_camera_disconnect y con el id de la camara en el payload
+    pub fn disconnect_camera_by_id(&mut self, camera_id: u32) -> Result<(), ProtocolError> {
+        let publish_config = PublishConfig::read_config(
+            "src/monitoring/publish_single_camera_disconnect_config.json",
+            PayloadTypes::SingleCameraDisconnect(SingleDisconnectPayload::new(camera_id)),
+        )?;
+        let sent_to_client_channel = match self.send_to_client_channel.lock() {
+            Ok(sent_to_client_channel) => sent_to_client_channel,
+            Err(_) => return Err(ProtocolError::LockError),
+        };
+
+        match sent_to_client_channel.send(Box::new(publish_config)) {
+            Ok(_) => {
+                println!("Single disconnect published successfully");
+            }
+            Err(e) => {
+                println!("Error publishing incident {}", e);
+            }
+        }
+        Ok(())
+    }
     /// Desconecta a los clientes de la MonitoringApp, del CameraSystem, y de los Drones(esto
     /// ultimo se hace a traves del DroneSystem).
     pub fn disconnect(&mut self) -> Result<(), ProtocolError> {

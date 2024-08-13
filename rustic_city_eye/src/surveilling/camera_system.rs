@@ -94,6 +94,14 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         let subscribe_config = SubscribeConfig::new(
             "incident_resolved".to_string(),
             SubscribeProperties::new(1, vec![]),
+            client_id.clone(),
+        );
+
+        let _ = tx.send(Box::new(subscribe_config));
+
+        let subscribe_config = SubscribeConfig::new(
+            "single_camera_disconnect".to_string(),
+            SubscribeProperties::new(1, vec![]),
             client_id,
         );
 
@@ -180,7 +188,10 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
     ///
     /// Si el mensaje es un publish con topic accidenteresuelto, desactiva las camaras cercanas a la location del incidente.
     ///
+    /// Si el mensaje es un publish con topic single_camera_disconnect y el ID enviado en el payload coincide con el de una camara, la elimina del sistema.
+    ///
     /// Recibe un reciever opcional para poder testear la funcion, si este es None, utiliza el propio del broker
+    ///
     pub fn run_client(
         parameter_reciever: Option<Arc<Mutex<Receiver<ClientMessage>>>>,
         system: Arc<Mutex<CameraSystem<Client>>>,
