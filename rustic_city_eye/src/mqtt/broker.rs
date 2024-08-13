@@ -536,7 +536,7 @@ impl Broker {
         let clients = self.clients_ids.read().map_err(|_| false)?;
         if let Some((Some(stream), _)) = clients.get(&user.client_id) {
             message.write_to(stream.get_ref()).map_err(|_| true)?;
-            println!("Mensaje enviado a {}", user.client_id);
+            println!("Mensaje sent to {}", user.client_id);
             Ok(())
         } else {
             Err(true)
