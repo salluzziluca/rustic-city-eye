@@ -10,3 +10,4 @@ pub mod annotation;
 pub mod annotation_error;
 pub mod camera_error;
 pub mod threadpool;
+pub mod watcher;

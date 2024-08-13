@@ -1,13 +1,12 @@
 [package]
-name = "client"
+name = "camera_system"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-utils = { path = "../utils" }
+client = { path = "../client" }
 protocol = { path = "../protocol" }
+utils = { path = "../utils" }
 broker = { path = "../broker" }
 
 rand = "0.8.5"
-rustls = "0.23.12"
-rustls-pemfile = "2.1.3"

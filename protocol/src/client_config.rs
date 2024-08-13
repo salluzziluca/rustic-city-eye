@@ -55,7 +55,7 @@ impl ClientConfig {
     pub fn create_client_log_in_json(client_id: String) -> Result<(), Box<dyn std::error::Error>> {
         let client_config = ClientConfig::new(client_id.clone());
         let json = serde_json::to_string(&client_config)?;
-        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        let path = format!("./broker/src/clients/{}.json", client_id);
 
         std::fs::write(path, json)?;
         Ok(())

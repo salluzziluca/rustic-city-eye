@@ -225,15 +225,12 @@ impl Connect {
                 return Err(ProtocolError::ReadingConfigFileError);
             }
         };
-
         let reader: BufReader<File> = BufReader::new(config_file);
         let connect: Connect = match serde_json::from_reader(reader) {
             Ok(c) => c,
             Err(_) => return Err(ProtocolError::ReadingConfigFileError),
         };
-
         connect.check_will_properties()?;
-
         Ok(connect)
     }
 

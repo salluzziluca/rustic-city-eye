@@ -1,42 +1,21 @@
+use client::client::{Client, ClientTrait};
+use protocol::{client_message::{self, ClientMessage}, disconnect::disconnect_config::DisconnectConfig, messages_config::MessagesConfig, publish::{payload_types::PayloadTypes, publish_config::PublishConfig}, subscribe::{subscribe_config::SubscribeConfig, subscribe_properties::SubscribeProperties}};
+use rand::Rng;
+use utils::{camera::Camera, camera_error::CameraError, incident::Incident, incident_payload::IncidentPayload, location::Location, protocol_error::ProtocolError, threadpool::ThreadPool, watcher::watch_directory};
+
 use std::{
-    collections::HashMap,
-    path::Path,
-    sync::{
+    collections::HashMap, path::Path, sync::{
         mpsc::{self, channel, Receiver, Sender},
         Arc, Mutex,
-    },
-    thread,
-    time::{Duration, Instant},
-};
-
-use rand::Rng;
-
-use crate::{
-    monitoring::{incident::Incident, persistence::Persistence},
-    mqtt::{
-        client::{Client, ClientTrait},
-        client_message::{self, ClientMessage},
-        disconnect_config::DisconnectConfig,
-        messages_config::MessagesConfig,
-        protocol_error::ProtocolError,
-        publish::publish_config::PublishConfig,
-        subscribe_config::SubscribeConfig,
-        subscribe_properties::SubscribeProperties,
-    },
-    surveilling::camera::Camera,
-    utils::{
-        incident_payload::IncidentPayload, location::Location, payload_types::PayloadTypes,
-        threadpool::ThreadPool, watcher::watch_directory,
-    },
+    }, thread, time::{Duration, Instant}
 };
 
 const AREA_DE_ALCANCE: f64 = 0.0025;
 const NIVEL_DE_PROXIMIDAD_MAXIMO: f64 = AREA_DE_ALCANCE;
-const PATH: &str = "src/surveilling/cameras.";
+const PATH: &str = "./camera_system/cameras.";
 const TIME_INTERVAL_IN_SECS: u64 = 1;
 const PATH_POSITION: usize = 1;
 
-use super::camera_error::CameraError;
 #[derive(Debug)]
 
 /// Entidad encargada de gestionar todas las camaras. Tiene como parametro a su instancia de cliente, utiliza un hash `<ID, Camera>` como estructura principal y diferentes channels para comunicarse con su cliente.
@@ -45,7 +24,7 @@ pub struct CameraSystem<T: ClientTrait + Clone + Send + Sync> {
     pub send_to_client_channel: Arc<Mutex<Sender<Box<dyn MessagesConfig + Send>>>>,
     camera_system_client: T,
     cameras: Arc<Mutex<HashMap<u32, Camera>>>,
-    reciev_from_client: Arc<Mutex<Receiver<client_message::ClientMessage>>>,
+    reciev_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
     snapshot: Vec<Camera>,
 }
 
@@ -98,7 +77,6 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         );
 
         let _ = tx.send(Box::new(subscribe_config));
-
         Ok(CameraSystem {
             send_to_client_channel: Arc::new(Mutex::new(tx)),
             camera_system_client,
@@ -128,7 +106,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
     }
 
     /// Agrega una camara al sistema
-    pub fn add_camera(&mut self, location: Location) -> Result<u32, CameraError> {
+    pub fn add_camera(&mut self, location: Location) -> Result<(u32, Camera), CameraError> {
         let mut rng = rand::thread_rng();
         let mut id = rng.gen();
 
@@ -138,11 +116,10 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         }
 
         let camera = Camera::new(location, id)?;
-        let _ = Persistence::add_camera_to_file(camera.clone());
         println!("Camera System creates camera with id: {:?}", id);
-        cameras.insert(id, camera);
+        cameras.insert(id, camera.clone());
 
-        Ok(id)
+        Ok((id, camera))
     }
 
     pub fn get_cameras(&self) -> Arc<Mutex<HashMap<u32, Camera>>> {
@@ -571,7 +548,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         println!("Camera System: publishing camera update to broker");
 
         let publish_config = match PublishConfig::read_config(
-            "./src/surveilling/publish_config_update.json",
+            "./camera_system/src/packets_config/publish_config_update.json",
             PayloadTypes::CamerasUpdatePayload(updated_cameras),
         ) {
             Ok(config) => config,
@@ -696,7 +673,7 @@ fn publish_incident(
     let incident = Incident::new(location);
     let incident_payload = IncidentPayload::new(incident);
     let publish_config = PublishConfig::read_config(
-        "./src/surveilling/publish_incident_config.json",
+        "./camera_system/src/packets_config/publish_incident_config.json",
         PayloadTypes::IncidentLocation(incident_payload),
     )
     .map_err(|e| ProtocolError::SendError(e.to_string()))?;
@@ -730,12 +707,12 @@ mod tests {
     use std::sync::{Arc, Condvar, Mutex};
     use std::thread;
 
+    use broker::broker::Broker;
+
     use super::*;
-    use crate::monitoring::incident::Incident;
-    use crate::mqtt::broker::Broker;
-    use crate::mqtt::client_message::ClientMessage;
-    use crate::utils::incident_payload::IncidentPayload;
+
     use std::time::Duration;
+
     impl CameraSystem<Client> {
         fn get_client_publish_end_channel(
             &self,
@@ -791,7 +768,7 @@ mod tests {
             let mut camera_system =
                 CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
             let location = Location::new(1.0, 2.0);
-            let id = camera_system.add_camera(location).unwrap();
+            let (id, _) = camera_system.add_camera(location).unwrap();
             assert_eq!(camera_system.get_cameras().lock().unwrap().len(), 1);
             assert_eq!(
                 camera_system.get_camera_by_id(id).unwrap().get_location(),
@@ -818,7 +795,7 @@ mod tests {
             let mut camera_system =
                 CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
             let location = Location::new(1.0, 2.0);
-            let id = camera_system.add_camera(location).unwrap();
+            let (id, _) = camera_system.add_camera(location).unwrap();
             assert_eq!(camera_system.get_cameras().lock().unwrap().len(), 1);
             assert_eq!(
                 camera_system.get_camera_by_id(id).unwrap().get_location(),
@@ -897,7 +874,7 @@ mod tests {
             let mut camera_system =
                 CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
             let location = Location::new(1.0, 2.0);
-            let id = camera_system.add_camera(location).unwrap();
+            let (id, _) = camera_system.add_camera(location).unwrap();
             assert_eq!(camera_system.get_cameras().lock().unwrap().len(), 1);
             assert_eq!(
                 camera_system.get_camera_by_id(id).unwrap().get_location(),
@@ -949,33 +926,33 @@ mod tests {
             let location2 = Location::new(0.0001, 0.0002);
             let id2 = camera_system.add_camera(location2).unwrap();
             let location3 = Location::new(0.0003, 0.0001);
-            let id3: u32 = camera_system.add_camera(location3).unwrap();
+            let id3 = camera_system.add_camera(location3).unwrap();
             let location4 = Location::new(10.0, 20.0);
             let id4 = camera_system.add_camera(location4).unwrap();
             let location5 = Location::new(0.0001, 0.0002);
             let id5 = camera_system.add_camera(location5).unwrap();
             assert_eq!(camera_system.get_cameras().lock().unwrap().len(), 5);
             assert_eq!(
-                camera_system.get_camera_by_id(id).unwrap().get_location(),
+                camera_system.get_camera_by_id(id.0).unwrap().get_location(),
                 location
             );
             let incident_location = Location::new(0.0, 0.0);
             camera_system.activate_cameras(incident_location).unwrap();
-            assert!(camera_system.get_camera_by_id(id).unwrap().get_sleep_mode());
+            assert!(camera_system.get_camera_by_id(id.0).unwrap().get_sleep_mode());
             assert!(!camera_system
-                .get_camera_by_id(id2)
+                .get_camera_by_id(id2.0)
                 .unwrap()
                 .get_sleep_mode());
             assert!(!camera_system
-                .get_camera_by_id(id3)
+                .get_camera_by_id(id3.0)
                 .unwrap()
                 .get_sleep_mode());
             assert!(camera_system
-                .get_camera_by_id(id4)
+                .get_camera_by_id(id4.0)
                 .unwrap()
                 .get_sleep_mode());
             assert!(!camera_system
-                .get_camera_by_id(id5)
+                .get_camera_by_id(id5.0)
                 .unwrap()
                 .get_sleep_mode());
         });
@@ -1029,9 +1006,9 @@ mod tests {
 
             let incident_location = Location::new(0.0, 0.0);
             camera_system.activate_cameras(incident_location).unwrap();
-            assert!(!camera_system.get_camera_by_id(id).unwrap().get_sleep_mode());
+            assert!(!camera_system.get_camera_by_id(id.0).unwrap().get_sleep_mode());
             assert!(!camera_system
-                .get_camera_by_id(id2)
+                .get_camera_by_id(id2.0)
                 .unwrap()
                 .get_sleep_mode());
         });
@@ -1074,7 +1051,7 @@ mod tests {
             let id = camera_system.add_camera(location).unwrap();
             assert_eq!(camera_system.get_cameras().lock().unwrap().len(), 1);
             assert_eq!(
-                camera_system.get_camera_by_id(id).unwrap().get_location(),
+                camera_system.get_camera_by_id(id.0).unwrap().get_location(),
                 location
             );
             let incident_location = Location::new(1.0, 2.0);
@@ -1134,45 +1111,45 @@ mod tests {
             let id5 = camera_system.add_camera(location5).unwrap();
             assert_eq!(camera_system.get_cameras().lock().unwrap().len(), 5);
             assert_eq!(
-                camera_system.get_camera_by_id(id).unwrap().get_location(),
+                camera_system.get_camera_by_id(id.0).unwrap().get_location(),
                 location
             );
             let incident_location = Location::new(0.0, 0.0);
             camera_system.activate_cameras(incident_location).unwrap();
-            assert!(camera_system.get_camera_by_id(id).unwrap().get_sleep_mode());
+            assert!(camera_system.get_camera_by_id(id.0).unwrap().get_sleep_mode());
             assert!(!camera_system
-                .get_camera_by_id(id2)
+                .get_camera_by_id(id2.0)
                 .unwrap()
                 .get_sleep_mode());
             assert!(!camera_system
-                .get_camera_by_id(id3)
+                .get_camera_by_id(id3.0)
                 .unwrap()
                 .get_sleep_mode());
             assert!(camera_system
-                .get_camera_by_id(id4)
+                .get_camera_by_id(id4.0)
                 .unwrap()
                 .get_sleep_mode());
             assert!(!camera_system
-                .get_camera_by_id(id5)
+                .get_camera_by_id(id5.0)
                 .unwrap()
                 .get_sleep_mode());
 
             camera_system.deactivate_cameras(incident_location).unwrap();
-            assert!(camera_system.get_camera_by_id(id).unwrap().get_sleep_mode());
+            assert!(camera_system.get_camera_by_id(id.0).unwrap().get_sleep_mode());
             assert!(camera_system
-                .get_camera_by_id(id2)
+                .get_camera_by_id(id2.0)
                 .unwrap()
                 .get_sleep_mode());
             assert!(camera_system
-                .get_camera_by_id(id3)
+                .get_camera_by_id(id3.0)
                 .unwrap()
                 .get_sleep_mode());
             assert!(camera_system
-                .get_camera_by_id(id4)
+                .get_camera_by_id(id4.0)
                 .unwrap()
                 .get_sleep_mode());
             assert!(camera_system
-                .get_camera_by_id(id5)
+                .get_camera_by_id(id5.0)
                 .unwrap()
                 .get_sleep_mode());
         });
@@ -1220,17 +1197,17 @@ mod tests {
 
             let incident_location = Location::new(0.0, 0.0);
             camera_system.activate_cameras(incident_location).unwrap();
-            assert!(!camera_system.get_camera_by_id(id).unwrap().get_sleep_mode());
+            assert!(!camera_system.get_camera_by_id(id.0).unwrap().get_sleep_mode());
             assert!(!camera_system
-                .get_camera_by_id(id2)
+                .get_camera_by_id(id2.0)
                 .unwrap()
                 .get_sleep_mode());
 
             let incident_location = Location::new(0.0, 0.0);
             camera_system.deactivate_cameras(incident_location).unwrap();
-            assert!(camera_system.get_camera_by_id(id).unwrap().get_sleep_mode());
+            assert!(camera_system.get_camera_by_id(id.0).unwrap().get_sleep_mode());
             assert!(camera_system
-                .get_camera_by_id(id2)
+                .get_camera_by_id(id2.0)
                 .unwrap()
                 .get_sleep_mode());
         });
@@ -1280,17 +1257,17 @@ mod tests {
 
             let incident_location = Location::new(0.0, 0.0);
             camera_system.activate_cameras(incident_location).unwrap();
-            assert!(!camera_system.get_camera_by_id(id).unwrap().get_sleep_mode());
+            assert!(!camera_system.get_camera_by_id(id.0).unwrap().get_sleep_mode());
             assert!(!camera_system
-                .get_camera_by_id(id2)
+                .get_camera_by_id(id2.0)
                 .unwrap()
                 .get_sleep_mode());
 
             let incident_location = Location::new(0.0, 0.0);
             camera_system.activate_cameras(incident_location).unwrap();
-            assert!(!camera_system.get_camera_by_id(id).unwrap().get_sleep_mode());
+            assert!(!camera_system.get_camera_by_id(id.0).unwrap().get_sleep_mode());
             assert!(!camera_system
-                .get_camera_by_id(id2)
+                .get_camera_by_id(id2.0)
                 .unwrap()
                 .get_sleep_mode());
 
@@ -1298,17 +1275,17 @@ mod tests {
             let id3 = camera_system.add_camera(incident_location).unwrap();
             let id4 = camera_system.add_camera(incident_location).unwrap();
             camera_system.activate_cameras(incident_location).unwrap();
-            assert!(!camera_system.get_camera_by_id(id).unwrap().get_sleep_mode());
+            assert!(!camera_system.get_camera_by_id(id.0).unwrap().get_sleep_mode());
             assert!(!camera_system
-                .get_camera_by_id(id2)
+                .get_camera_by_id(id2.0)
                 .unwrap()
                 .get_sleep_mode());
             assert!(!camera_system
-                .get_camera_by_id(id3)
+                .get_camera_by_id(id3.0)
                 .unwrap()
                 .get_sleep_mode());
             assert!(!camera_system
-                .get_camera_by_id(id4)
+                .get_camera_by_id(id4.0)
                 .unwrap()
                 .get_sleep_mode());
             let message_config = channel.lock().unwrap().recv().unwrap();
@@ -1443,7 +1420,7 @@ mod tests {
             let id = camera_system.add_camera(location).unwrap();
             assert_eq!(camera_system.get_cameras().lock().unwrap().len(), 1);
             assert_eq!(
-                camera_system.get_camera_by_id(id).unwrap().get_location(),
+                camera_system.get_camera_by_id(id.0).unwrap().get_location(),
                 location
             );
             let incident_location = Location::new(1.0, 2.0);
@@ -1582,7 +1559,7 @@ mod tests {
         let address = "127.0.0.1:5006".to_string();
 
         let publish_config = PublishConfig::read_config(
-            "./src/surveilling/publish_config_test.json",
+            "./camera_system/src/packets_config/publish_config_test.json",
             PayloadTypes::IncidentLocation(IncidentPayload::new(Incident::new(Location::new(
                 1.0, 2.0,
             )))),
@@ -1660,24 +1637,24 @@ mod tests {
             let mut camera_system =
                 CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
             let location = Location::new(1.0, 2.0);
-            let id: u32 = camera_system.add_camera(location).unwrap();
+            let id = camera_system.add_camera(location).unwrap();
             let location2 = Location::new(1.0, 5.0);
             let id2 = camera_system.add_camera(location2).unwrap();
             assert_eq!(camera_system.get_cameras().lock().unwrap().len(), 2);
             assert_eq!(
-                camera_system.get_camera_by_id(id).unwrap().get_location(),
+                camera_system.get_camera_by_id(id.0).unwrap().get_location(),
                 location
             );
             assert_eq!(
-                camera_system.get_camera_by_id(id2).unwrap().get_location(),
+                camera_system.get_camera_by_id(id2.0).unwrap().get_location(),
                 location2
             );
 
-            let dir_name = format!("./{}", id);
+            let dir_name = format!("./{}", id.0);
             let path1 = "src/surveilling/cameras".to_string() + &dir_name;
             assert!(Path::new(path1.as_str()).exists());
 
-            let dir_name = format!("./{}", id2);
+            let dir_name = format!("./{}", id2.0);
             let path2 = "src/surveilling/cameras".to_string() + &dir_name;
             assert!(Path::new(path2.as_str()).exists());
 
@@ -1742,8 +1719,8 @@ mod tests {
                 CameraSystem::<Client>::run_client(None, camera_arc_clone_for_thread1).unwrap();
                 let mut camera_system = camera_arc_clone_for_thread2.lock().unwrap();
                 let location = Location::new(1.0, 2.0);
-                let id: u32 = camera_system.add_camera(location).unwrap();
-                *camera_id_shared.lock().unwrap() = Some(id);
+                let id = camera_system.add_camera(location).unwrap();
+                *camera_id_shared.lock().unwrap() = Some(id.0);
                 // Signal to start the second thread
                 {
                     let (lock, cvar) = &*can_start_second_thread_clone;

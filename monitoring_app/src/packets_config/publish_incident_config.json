@@ -1,0 +1,33 @@
+{
+  "dup_flag": 1,
+  "qos": 1,
+  "retain_flag": 1,
+  "topic_name": "incident",
+  "payload": {
+    "IncidentLocation": {
+      "id": 1,
+      "incident": {
+        "location": {
+          "long": 25.0,
+          "lat": 12.1
+        }
+      }
+    }
+  },
+  "publish_properties": {
+    "payload_format_indicator": 1,
+    "message_expiry_interval": 10,
+    "topic_properties": {
+      "topic_alias": 10,
+      "response_topic": "String"
+    },
+    "correlation_data": [
+      1,
+      2,
+      3
+    ],
+    "user_property": "a",
+    "subscription_identifier": 1,
+    "content_type": "a"
+  }
+}

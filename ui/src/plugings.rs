@@ -56,6 +56,18 @@ pub struct ImagesPluginData {
     pub y_scale: f32,
 }
 
+impl ImagesPluginData {
+    /// recibe el zoom level inicial y la escala para cada una de las imagenes
+    pub fn new(texture: Texture, initial_zoom_level: f32, original_scale: f32) -> Self {
+        let scale = initial_zoom_level * original_scale;
+        Self {
+            texture,
+            x_scale: scale,
+            y_scale: scale,
+        }
+    }
+}
+
 // Creates a built-in `Images` plugin with an example image.
 pub fn cameras(
     cameras: &mut HashMap<u32, CameraView>,
