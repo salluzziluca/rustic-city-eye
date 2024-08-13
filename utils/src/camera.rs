@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{annotation::ImageClassifier, camera_error::CameraError, location::Location, protocol_error::ProtocolError, reader::*, writer::*};
 
-const PATH: &str = "src/surveilling/cameras";
+const PATH: &str = "./camera_system/cameras";
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Camera {
     /// Esta sera la localizacion que tendra la camara dentro del sistema.

@@ -83,7 +83,7 @@ impl MonitoringApp {
         let camera_system = CameraSystem::<Client>::with_real_client(address.clone())?;
 
         let drone_system =
-            DroneSystem::new("./drones/src/packets_config/drone_config.json".to_string(), address.clone());
+            DroneSystem::new("./drones/packets_config/drone_config.json".to_string(), address.clone());
 
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
@@ -127,7 +127,7 @@ impl MonitoringApp {
         send_from_monitoring_channel: Sender<Box<dyn MessagesConfig + Send>>,
     ) -> Result<Client, ProtocolError> {
         let mut connect_config =
-            Connect::read_connect_config("./monitoring_app/src/packets_config/connect_config.json")?;
+            Connect::read_connect_config("./monitoring_app/packets_config/connect_config.json")?;
         if let Some(username) = username {
             connect_config.username = Some(username);
         }
@@ -323,7 +323,7 @@ impl MonitoringApp {
 
         let incident_payload = IncidentPayload::new(incident);
         let publish_config = PublishConfig::read_config(
-            "./monitoring_app/src/packets_config/publish_incident_config.json",
+            "./monitoring_app/packets_config/publish_incident_config.json",
             PayloadTypes::IncidentLocation(incident_payload),
         )?;
 
@@ -356,7 +356,7 @@ impl MonitoringApp {
 
         let incident_payload = IncidentPayload::new(incident.clone());
         let publish_config = PublishConfig::read_config(
-            "./monitoring_app/src/packets_config/publish_incident_config.json",
+            "./monitoring_app/packets_config/publish_incident_config.json",
             PayloadTypes::IncidentLocation(incident_payload.clone()),
         )?;
 
@@ -457,7 +457,7 @@ impl MonitoringApp {
 
     pub fn disconnect_drone_by_id(&mut self, client_id: u32) -> Result<(), ProtocolError> {
         let publish_config = PublishConfig::read_config(
-            "./monitoring_app/src/packets_config/publish_single_drone_disconnect_config.json",
+            "./monitoring_app/packets_config/publish_single_drone_disconnect_config.json",
             PayloadTypes::SingleDroneDisconnect(SingleDisconnectPayload::new(client_id)),
         )?;
         let sent_to_client_channel = match self.send_to_client_channel.lock() {

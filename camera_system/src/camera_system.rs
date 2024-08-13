@@ -57,7 +57,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         ) -> Result<T, ProtocolError>,
     {
         let connect_config =
-            client_message::Connect::read_connect_config("./camera_system/src/packets_config/connect_config.json")?;
+            client_message::Connect::read_connect_config("./camera_system/packets_config/connect_config.json")?;
 
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
@@ -265,7 +265,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
                 match rx.recv() {
                     Ok(event) => {
                         let now = Instant::now();
-                        let should_process = match last_event_times.get(&event[PATH_POSITION]) {
+                        let should_process = match last_event_times.get(&event[0]) {
                             Some(&last_time) => {
                                 now.duration_since(last_time)
                                     > Duration::from_secs(TIME_INTERVAL_IN_SECS)
@@ -548,7 +548,7 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         println!("Camera System: publishing camera update to broker");
 
         let publish_config = match PublishConfig::read_config(
-            "./camera_system/src/packets_config/publish_config_update.json",
+            "./camera_system/packets_config/publish_config_update.json",
             PayloadTypes::CamerasUpdatePayload(updated_cameras),
         ) {
             Ok(config) => config,
@@ -673,7 +673,7 @@ fn publish_incident(
     let incident = Incident::new(location);
     let incident_payload = IncidentPayload::new(incident);
     let publish_config = PublishConfig::read_config(
-        "./camera_system/src/packets_config/publish_incident_config.json",
+        "./camera_system/packets_config/publish_incident_config.json",
         PayloadTypes::IncidentLocation(incident_payload),
     )
     .map_err(|e| ProtocolError::SendError(e.to_string()))?;
@@ -1751,7 +1751,7 @@ mod tests {
                 } // Retrieve the shared camera ID
                 let camera_id = camera_id_shared_clone.lock().unwrap();
                 let path1 =
-                    "src/surveilling/cameras./".to_string() + &camera_id.unwrap().to_string();
+                    "src/surveilling/cameras/".to_string() + &camera_id.unwrap().to_string();
                 let dir_path = Path::new(path1.as_str());
                 let temp_file_path = dir_path.join("temp_file.txt");
                 File::create(&temp_file_path).expect("Failed to create temporary file");

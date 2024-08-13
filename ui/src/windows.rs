@@ -213,8 +213,8 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitori
                     for (id, camera) in map.cameras.iter() {
                         if camera.clicked {
                             println!("Removing camera {}", id);
-                            //delete the dir rustic_city_eye/src/surveilling/cameras./id
-                            match fs::remove_dir_all(format!("src/surveilling/cameras./{}", id)) {
+                            //delete the dir rustic_city_eye/src/surveilling/cameras/id
+                            match fs::remove_dir_all(format!("./camera_system/cameras./{}", id)) {
                                 Ok(_) => println!("Camera removed"),
                                 Err(e) => println!("Error removing camera: {}", e),
                             }

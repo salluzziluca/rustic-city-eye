@@ -87,7 +87,7 @@ impl Drone {
         disconnect_receiver_from_center: Receiver<()>,
     ) -> Result<Drone, DroneError> {
         let drone_config = DroneConfig::new(config_file_path)?;
-        let connect_config = Drone::read_connect_config("./drones/src/packets_config/connect_config.json", id)?;
+        let connect_config = Drone::read_connect_config("./drones/packets_config/connect_config.json", id)?;
 
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
@@ -518,7 +518,7 @@ impl Drone {
                                         incident.get_location(),
                                     ));
                                     let publish_config = match PublishConfig::read_config(
-                                        "./drones/src/packets_config/publish_solved_incident_config.json",
+                                        "./drones/packets_config/publish_solved_incident_config.json",
                                         PayloadTypes::IncidentLocation(incident_payload),
                                     ) {
                                         Ok(config) => config,
@@ -752,7 +752,7 @@ impl Drone {
 
     fn update_location(&mut self) {
         let publish_config = match PublishConfig::read_config(
-            "./drones/src/packets_config/publish_config.json",
+            "./drones/packets_config/publish_config.json",
             PayloadTypes::DroneLocation(self.id, self.location, self.target_location),
         ) {
             Ok(config) => config,
@@ -783,7 +783,7 @@ impl Drone {
         let incident = Incident::new(location);
         let incident_payload = IncidentPayload::new(incident.clone());
         let publish_config = match PublishConfig::read_config(
-            "./drones/src/packets_config/publish_attending_incident_config.json",
+            "./drones/packets_config/publish_attending_incident_config.json",
             PayloadTypes::AttendingIncident(incident_payload),
         ) {
             Ok(config) => config,

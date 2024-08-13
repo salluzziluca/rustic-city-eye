@@ -53,9 +53,6 @@ impl MyMap {
     /// Si la camara esta activa, se muestra con un radio rojo
     ///
     pub fn update_cameras(&mut self, new_cameras: HashMap<u32, Camera>) {
-        if !new_cameras.is_empty() {
-            println!("new_cameras: {:?}", new_cameras);
-        }
         for (id, camera) in new_cameras {
             if let Some(camera_view) = self.cameras.get_mut(&id) {
                 camera_view.active = !camera.get_sleep_mode();

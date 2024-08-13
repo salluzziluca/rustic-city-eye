@@ -15,13 +15,13 @@
 2. Ejecute el siguiente comando, reemplazando `[puerto]` con el numero de puerto deseado:
 
 ```sh
-cargo run --bin broker [puerto]
+cargo run -p broker [puerto]
 ```
 
 Ejemplo:
 
 ```sh
-cargo run --bin broker 5000
+cargo run -p broker 5000
 ```
 
 ### Cierre manual del Broker
@@ -40,7 +40,7 @@ shutdown
 2. En esta nueva terminal, ejecute el siguiente comando:
 
 ```sh
-cargo run --bin monitoring_app
+cargo run -p ui
 ```
 
 ## Cómo testear
