@@ -31,7 +31,7 @@ pub struct Camera {
 impl Camera {
     pub fn new(location: Location, id: u32) -> Result<Camera, CameraError> {
         let url = "https://vision.googleapis.com/v1/images:annotate".to_string();
-        let incident_keywords_file_path = "./utils/src/incident_keywords";
+        let incident_keywords_file_path = "./utils/incident_keywords";
 
         let image_classifier = ImageClassifier::new(url, incident_keywords_file_path)
             .map_err(|e| CameraError::AnnotationError(e.to_string()))?;
@@ -91,7 +91,7 @@ impl Camera {
 
     pub fn read_from(stream: &mut dyn Read) -> Result<Camera, Error> {
         let url = "https://vision.googleapis.com/v1/images:annotate".to_string();
-        let incident_keywords_file_path = "./src/surveilling/incident_keywords";
+        let incident_keywords_file_path = "./utils/incident_keywords";
 
         let image_classifier = ImageClassifier::new(url, incident_keywords_file_path)
             .map_err(|e| CameraError::AnnotationError(e.to_string()))
