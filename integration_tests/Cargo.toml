@@ -1,0 +1,13 @@
+[package]
+name = "integration_tests"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+broker = { path = "../broker" }
+client = { path = "../client" }
+utils = { path = "../utils" }
+protocol = { path = "../protocol" }
+drones = { path = "../drones" }
+monitoring_app = { path = "../monitoring_app" }
+camera_system = { path = "../camera_system" }
