@@ -749,7 +749,10 @@ impl Broker {
                         return Err(ProtocolError::WriteError);
                     }
 
-                    client_id_sender.send(connect.client_id.clone()).unwrap();
+                    match client_id_sender.send(connect.client_id.clone()) {
+                        Ok(_) => (),
+                        Err(e) => return Err(ProtocolError::SendError(e.to_string())),
+                    };
                 }
 
                 let properties = ConnackProperties {

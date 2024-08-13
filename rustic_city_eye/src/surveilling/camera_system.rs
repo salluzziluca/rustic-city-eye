@@ -721,15 +721,22 @@ fn analize_image(event: Vec<String>, system: &Arc<Mutex<CameraSystem<Client>>>, 
             }
         };
         println!("Camera id {:?} is analyzing an image", camera_id);
-
-        let camera = match system_clone.lock().unwrap().get_camera_by_id(camera_id) {
-            Some(camera) => camera,
-            None => {
-                return Err(ProtocolError::InvalidCommand(
-                    "Camera not found".to_string(),
+        let camera = match system_clone.lock() {
+            Ok(mut system) => match system.get_camera_by_id(camera_id) {
+                Some(camera) => camera,
+                None => {
+                    return Err(ProtocolError::InvalidCommand(
+                        "Camera not found".to_string(),
+                    ));
+                }
+            },
+            Err(_) => {
+                return Err(ProtocolError::ArcMutexError(
+                    "Error locking cameras mutex".to_string(),
                 ));
             }
         };
+
         let classification_result = camera.annotate_image(&str_path)?;
 
         if !classification_result {

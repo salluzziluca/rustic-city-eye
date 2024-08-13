@@ -437,7 +437,7 @@ impl Drone {
                     };
                 }
                 DroneState::AttendingIncident(location) => {
-                    println!("Drone {} yendo a solucionar el incidente", lock.id);
+                    println!("Drone {}'s on its way to solve the incident", lock.id);
                     lock.update_target_location(Some(location))?;
                     if lock.calculate_new_position() {
                         lock.publish_attending_accident(location);
