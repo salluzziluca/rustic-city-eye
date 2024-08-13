@@ -65,14 +65,14 @@ impl Broker {
     pub fn new(args: Vec<String>) -> Result<Broker, ProtocolError> {
         let address = Broker::process_starting_args(args)?;
 
-        let topics = Broker::get_broker_starting_topics("./src/config/topics")?;
-        let clients_auth_info = Broker::process_clients_file("./src/config/clients")?;
+        let topics = Broker::get_broker_starting_topics("./broker/src/config/topics")?;
+        let clients_auth_info = Broker::process_clients_file("./broker/src/config/clients")?;
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let packets = Arc::new(RwLock::new(HashMap::new()));
 
         let server_config = Broker::set_server_config(
-            "./src/certs/cert.pem",
-            "./src/certs/private_key.pem",
+            "./broker/src/certs/cert.pem",
+            "./broker/src/certs/private_key.pem",
         )?;
 
         Ok(Broker {
@@ -1093,7 +1093,7 @@ mod tests {
 
     #[test]
     fn test_01_getting_starting_topics_ok() -> Result<(), ProtocolError> {
-        let file_path = "./src/monitoring/topics.txt";
+        let file_path = "./src/config/topics";
         let topics = Broker::get_broker_starting_topics(file_path)?;
 
         let mut expected_topics = HashMap::new();

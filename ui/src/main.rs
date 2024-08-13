@@ -1,87 +1,12 @@
 use eframe::{run_native, App, CreationContext, NativeOptions};
 use egui::{CentralPanel, RichText, TextStyle, TopBottomPanel};
-use ui::{camera_view::CameraView, drone_center_view, drone_view, incident_view::{self, IncidentView}, plugings::{ClickWatcher, ImagesPluginData}};
-use utils::{camera::Camera, incident::Incident, location::Location};
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::{Arc, Mutex},
-};
+use monitoring_app::{monitoring_app::MonitoringApp, persistence::Persistence};
+use ui::{camera_view::CameraView, drone_center_view, drone_view, incident_view::IncidentView, my_map::MyMap, plugings::{cameras, drone_centers, drones, incidents, ClickWatcher, ImagesPluginData}, windows::{add_camera_window, add_disconnect_window, add_drone_center_window, add_drone_window, add_incident_window, add_remove_window, zoom}};
+use utils::location::Location;
+use std::
+    collections::HashMap
+;
 use walkers::{sources::OpenStreetMap, HttpTiles, Map, MapMemory, Position, Texture, Tiles};
-
-/// Este struct se utiliza para almacenar la informacion de las imagenes que se van a mostrar en el mapa
-/// junto con su escala
-/// Se utiliza para los iconos de camaras, incidentes, drones y centros de drones
-/// La escala se actualiza teniendo en cuenta el zoom level
-struct MyMap {
-    tiles: Box<dyn Tiles>,
-    map_memory: MapMemory,
-    click_watcher: ClickWatcher,
-    camera_icon: ImagesPluginData,
-    cameras: HashMap<u32, CameraView>,
-    camera_radius: ImagesPluginData,
-    active_camera_radius: ImagesPluginData,
-    incident_icon: ImagesPluginData,
-    incidents: Vec<incident_view::IncidentView>,
-    drones: HashMap<u32, drone_view::DroneView>,
-    drone_icon: ImagesPluginData,
-    drone_centers: HashMap<u32, drone_center_view::DroneCenterView>,
-    drone_center_icon: ImagesPluginData,
-    zoom_level: f32,
-}
-impl MyMap {
-    /// Actualiza la posicion de los drones en el mapa
-    fn update_drones(
-        &mut self,
-        updated_locations: Arc<Mutex<VecDeque<(u32, Location, Location)>>>,
-    ) {
-        if let Ok(mut new_drone_locations) = updated_locations.try_lock() {
-            if !new_drone_locations.is_empty() {
-                println!("new_drone_locations: {:?}", new_drone_locations);
-            }
-            while let Some((id, location, target_location)) = new_drone_locations.pop_front() {
-                if let Some(drone) = self.drones.get_mut(&id) {
-                    drone.position = Position::from_lon_lat(location.long, location.lat);
-                    drone.target_position =
-                        Position::from_lon_lat(target_location.long, target_location.lat);
-                }
-            }
-        };
-        for drone in self.drones.values_mut() {
-            drone.move_towards();
-        }
-    }
-
-    /// Actualiza la posicion de las camaras en el mapa
-    /// Si la camara esta en modo sleep, se muestra con un radio azul
-    /// Si la camara esta activa, se muestra con un radio rojo
-    ///
-    fn update_cameras(&mut self, new_cameras: HashMap<u32, Camera>) {
-        if !new_cameras.is_empty() {
-            println!("new_cameras: {:?}", new_cameras);
-        }
-        for (id, camera) in new_cameras {
-            if let Some(camera_view) = self.cameras.get_mut(&id) {
-                camera_view.active = !camera.get_sleep_mode();
-            }
-        }
-    }
-    /// Actualiza la posicion de los incidentes en el mapa
-    fn update_incidents(&mut self, incidents: Vec<Incident>) {
-        let mut new_incident_view = vec![];
-        for incident in incidents {
-            let location = incident.get_location();
-
-            let incident_view = IncidentView {
-                image: self.incident_icon.clone(),
-                position: Position::from_lon_lat(location.long, location.lat),
-                clicked: false,
-            };
-            new_incident_view.push(incident_view);
-        }
-
-        self.incidents = new_incident_view;
-    }
-}
 
 struct MyApp {
     username: String,
@@ -96,17 +21,8 @@ struct MyApp {
     correct_ip: bool,
     correct_port: bool,
 }
-impl ImagesPluginData {
-    /// recibe el zoom level inicial y la escala para cada una de las imagenes
-    fn new(texture: Texture, initial_zoom_level: f32, original_scale: f32) -> Self {
-        let scale = initial_zoom_level * original_scale;
-        Self {
-            texture,
-            x_scale: scale,
-            y_scale: scale,
-        }
-    }
-}
+
+
 impl MyApp {
     /// Muestra el formulario de inicio de sesion
     /// Si se presiona el boton de submit, se intenta conectar al servidor
@@ -118,7 +34,7 @@ impl MyApp {
                 ui.add_space(30.0);
 
                 ui.add(
-                    egui::Image::new(egui::include_image!("./assets/eyeicon.png"))
+                    egui::Image::new(egui::include_image!("../assets/eyeicon.png"))
                         .max_width(250.0)
                         .rounding(10.0),
                 );

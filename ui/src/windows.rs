@@ -1,12 +1,13 @@
 use std::fs;
 
 use egui::{Align2, RichText, Ui, Window};
-use rustic_city_eye::{monitoring::{monitoring_app::MonitoringApp, persistence::Persistence}, utils::location::Location};
+use monitoring_app::{monitoring_app::MonitoringApp, persistence::Persistence};
+use utils::location::Location;
 use walkers::MapMemory;
 
 use crate::{
     camera_view::CameraView, drone_center_view::DroneCenterView, drone_view::DroneView,
-    incident_view::IncidentView, MyMap,
+    incident_view::IncidentView, my_map::MyMap
 };
 
 /// Se updatea el zoom level con cada click en los botones de zoom
@@ -30,6 +31,7 @@ pub fn zoom(ui: &Ui, map_memory: &mut MapMemory, zoom_level: &mut f32) {
             });
         });
 }
+
 /// Se añade una ventana para agregar una cámara
 /// Al tocar el boton, se añade una camara en la posicion anteriormente seleccionada,
 /// y se llama a la funcion `monitoring_app.add_camera` para añadir la camara al sistema de monitoreo.

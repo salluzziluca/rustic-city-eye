@@ -19,6 +19,7 @@ pub mod connack {
 
 pub mod subscribe {
     pub mod subscribe_properties;
+    pub mod subscribe_config;
 }
 
 pub mod publish {
@@ -26,4 +27,8 @@ pub mod publish {
     pub mod publish_properties;
     pub mod payload_types;
     pub mod payload;
+}
+
+pub mod disconnect {
+    pub mod disconnect_config;
 }

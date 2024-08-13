@@ -6,4 +6,8 @@ edition = "2021"
 [dependencies]
 protocol = { path = "../protocol" }
 utils = { path = "../utils" }
+client = { path = "../client" }
+camera_system = { path = "../camera_system" }
+drones = { path = "../drones" }
 serde = "1.0.206"
+serde_json = "1.0.124"

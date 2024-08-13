@@ -1,8 +1,8 @@
 [workspace]
 
 members = [
-    "broker",
-    "client", 
+    "broker", "camera_system",
+    "client", "drones", 
     "monitoring_app",
     "protocol",
     "rustic_city_eye", 
