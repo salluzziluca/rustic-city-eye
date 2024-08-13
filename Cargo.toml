@@ -2,7 +2,7 @@
 
 members = [
     "broker", "camera_system",
-    "client", "drones", 
+    "client", "drones", "integration_tests", 
     "monitoring_app",
     "protocol",
     "rustic_city_eye", 
