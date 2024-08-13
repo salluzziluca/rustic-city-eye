@@ -32,7 +32,7 @@ const TWO_PI: f64 = 2.0 * PI;
 const COORDINATE_SCALE_FACTOR: f64 = 100.0;
 const FULL_BATTERY: i64 = 100;
 const ANGLE_SCALING_FACTOR: f64 = 0.6; // este valor hace que en cada tick los drones avancen mas o menos
-
+const REQUIRED_DRONES_TO_SOLVE_INCIDENT: i8 = 2;
 #[derive(Debug, Clone)]
 #[allow(clippy::type_complexity)]
 pub struct Drone {
@@ -80,7 +80,7 @@ pub struct Drone {
     /// A traves de este receiver, el Drone recibe los mensajes provenientes de su Client.
     recieve_from_client: Arc<Mutex<Receiver<ClientMessage>>>,
 
-    incidents: Vec<(Incident, u8)>,
+    incidents: Vec<(Incident, i8)>,
 
     disconnect_receiver_from_center: Arc<Mutex<Receiver<()>>>,
 }
@@ -497,7 +497,7 @@ impl Drone {
                             self_cloned.drone_state = DroneState::AttendingIncident(location);
 
                             let (incident, drones_attending_incident) =
-                                (payload.get_incident().clone(), 0);
+                                (payload.get_incident().clone(), -1);
 
                             self_cloned
                                 .incidents
@@ -514,13 +514,13 @@ impl Drone {
                 } => match topic_name.as_str() {
                     "attending_incident" => {
                         let mut to_remove = Vec::new();
-
+                        // if payload.get_incident().get_location() != self_cloned.location {
                         for (incident, count) in self_cloned.incidents.iter_mut() {
                             if incident.get_location() == payload.get_incident().get_location() {
                                 *count += 1;
-
-                                if *count == 2 {
-                                    sleep(Duration::from_secs(10));
+                                println!("drones atendiendo incidente: {:?}", count);
+                                if *count == REQUIRED_DRONES_TO_SOLVE_INCIDENT {
+                                    println!("timestamp ANTES: {:?}", Utc::now());
                                     to_remove.push(incident.clone());
 
                                     let incident_payload = IncidentPayload::new(Incident::new(
@@ -566,6 +566,7 @@ impl Drone {
                         }
 
                         if !to_remove.is_empty() {
+                            println!("timestamp DESPUES: {:?}", Utc::now());
                             for incident in to_remove {
                                 self_cloned.incidents.retain(|(i, _)| i != &incident);
                             }
