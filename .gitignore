@@ -16,10 +16,12 @@ Cargo.lock
 **/.vscode/
 **/.devcontainer/
 
+persistence.json
 0.json
 1.json
 2.json
 3.json
+4.json
 kvtr33.json
 camera_system.json
 monitoring_app.json

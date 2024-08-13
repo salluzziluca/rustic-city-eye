@@ -227,7 +227,7 @@ impl Broker {
     fn bind_to_address(address: &str) -> Result<TcpListener, ProtocolError> {
         match TcpListener::bind(address) {
             Ok(listener) => {
-                println!("Broker escuchando en {}", address);
+                println!("Broker listening to {}", address);
                 Ok(listener)
             }
             Err(e) => Err(ProtocolError::BindingError(e.to_string())),

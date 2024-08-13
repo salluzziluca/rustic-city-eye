@@ -32,9 +32,7 @@ impl MyMap {
         updated_locations: Arc<Mutex<VecDeque<(u32, Location, Location)>>>,
     ) {
         if let Ok(mut new_drone_locations) = updated_locations.try_lock() {
-            if !new_drone_locations.is_empty() {
-                println!("new_drone_locations: {:?}", new_drone_locations);
-            }
+
             while let Some((id, location, target_location)) = new_drone_locations.pop_front() {
                 if let Some(drone) = self.drones.get_mut(&id) {
                     drone.position = Position::from_lon_lat(location.long, location.lat);
