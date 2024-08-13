@@ -12,7 +12,10 @@ use std::{
 };
 
 use protocol::{
-    broker_message::BrokerMessage, client_config::ClientConfig, client_message::ClientMessage, connack::connack_properties::ConnackProperties, connect::last_will::LastWill, protocol_return::ProtocolReturn, publish::payload_types::PayloadTypes, reason_code::*, subscription::Subscription, topic::Topic
+    broker_message::BrokerMessage, client_config::ClientConfig, client_message::ClientMessage,
+    connack::connack_properties::ConnackProperties, connect::last_will::LastWill,
+    protocol_return::ProtocolReturn, publish::payload_types::PayloadTypes, reason_code::*,
+    subscription::Subscription, topic::Topic,
 };
 use rustls::{
     pki_types::{CertificateDer, PrivateKeyDer},
@@ -1141,7 +1144,7 @@ mod tests {
 
     #[test]
     fn test_04_processing_clients_auth_info_ok() -> Result<(), ProtocolError> {
-        let file_path = "./src/monitoring/clients.txt";
+        let file_path = "../rustic_city_eye/src/monitoring/clients.txt";
         let clients_auth_info = Broker::process_clients_file(file_path)?;
 
         let file = match File::open(file_path) {
