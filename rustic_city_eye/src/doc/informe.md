@@ -332,8 +332,10 @@ El proceso se da dentro del metodo función run_client en el CameraSystem. Este 
 1. El primer hilo se encarga de ejecutar el cliente del CameraSystem (camera_system_client.client_run()).
 2. El segundo hilo se dedica a recibir y procesar mensajes de incidentes y resoluciones de incidentes. Inicialmente, se define un Receiver que puede ser un parámetro opcional o el receptor del cliente del CameraSystem.
 3. El tercer hilo se encarga de vigilar el directorio de imágenes. Utiliza una `ThreadPool` para gestionar los jobs de procesamiento de cambios en el directorio de camaras.
-Se crea un canal para recibir eventos de cambios en el directorio(los cuales son notificados por el Watcher). En un loop infinito, este thread espera recibir eventos de cambios en el directorio. Cuando se detecta un cambio, se decide si el evento debe ser procesado en función del tiempo transcurrido desde el último evento similar.
-Si se debe procesar el evento, se llama a process_dir_change para manejar el cambio de directorio).
+
+    Se crea un canal para recibir eventos de cambios en el directorio(los cuales son notificados por el Watcher). En un loop infinito, este thread espera recibir eventos de cambios en el directorio. Cuando se detecta un cambio, se decide si el evento debe ser procesado en función del tiempo transcurrido desde el último evento similar.
+    
+    Si se debe procesar el evento, se llama a process_dir_change para manejar el cambio de directorio).
 
 Dentro de este metodo, se spawnean los threads Dentro de run_client y se llama a watch_directory, un método del Watcher, para iniciar la vigilancia del directorio de imágenes.
 
