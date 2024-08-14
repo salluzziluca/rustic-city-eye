@@ -92,7 +92,7 @@ mod tests {
 
     #[test]
     fn test_01_config_creation_cases() {
-        let config_ok = DroneConfig::new("./src/drones/drone_config.json");
+        let config_ok = DroneConfig::new("packets_config/drone_config.json");
 
         let config_err = DroneConfig::new("este/es/un/path/feo");
 
