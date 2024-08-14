@@ -4,9 +4,12 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use utils::{camera::Camera, incident::Incident, incident_payload::IncidentPayload, location::Location, single_disconnect_payload::SingleDisconnectPayload};
+use utils::{
+    camera::Camera, incident::Incident, incident_payload::IncidentPayload, location::Location,
+    single_disconnect_payload::SingleDisconnectPayload,
+};
 
-use utils::{protocol_error::ProtocolError, reader::*, writer::* };
+use utils::{protocol_error::ProtocolError, reader::*, writer::*};
 
 use super::payload::Payload;
 
@@ -66,7 +69,6 @@ impl Payload for PayloadTypes {
                 write_string(stream, &location.get_longitude().to_string())?;
                 write_string(stream, &target_location.get_latitude().to_string())?;
                 write_string(stream, &target_location.get_longitude().to_string())?;
-
 
                 Ok(())
             }
@@ -253,8 +255,6 @@ mod tests {
         let incident = Incident::new(location);
         let incident_payload = IncidentPayload::new(incident.clone());
         let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
-        
-        let id_test= IncidentPayload::get_incident_id(&incident_payload.clone());
 
         let mut cursor = Cursor::new(Vec::new());
         payload.write_to(&mut cursor).unwrap();
