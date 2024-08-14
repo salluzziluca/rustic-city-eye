@@ -343,39 +343,6 @@ impl MonitoringApp {
         }
     }
 
-    pub fn load_existing_incident(&mut self, location: Location) -> Result<(), ProtocolError> {
-        let incident = Incident::new(location);
-        let mut incidents = match self.incidents.lock() {
-            Ok(incidents) => incidents,
-            Err(_) => return Err(ProtocolError::LockError),
-        };
-
-        let lenght = incidents.len();
-        incidents.push((incident.clone(), lenght as u8));
-
-        let incident_payload = IncidentPayload::new(incident.clone());
-        let publish_config = PublishConfig::read_config(
-            "src/monitoring/publish_incident_config.json",
-            PayloadTypes::IncidentLocation(incident_payload.clone()),
-        )?;
-
-        let send_to_client_channel = match self.send_to_client_channel.lock() {
-            Ok(send_to_client_channel) => send_to_client_channel,
-            Err(_) => return Err(ProtocolError::LockError),
-        };
-
-        match send_to_client_channel.send(Box::new(publish_config)) {
-            Ok(_) => {
-                println!("Incident published successfully");
-                Ok(())
-            }
-            Err(e) => {
-                println!("Error publishing incident {}", e);
-                Err(ProtocolError::PublishError)
-            }
-        }
-    }
-
     /// Agrega un Drone al sistema.
     pub fn add_drone(
         &mut self,

@@ -419,7 +419,7 @@ impl MyApp {
                 self.map.incidents.push(incident_view);
 
                 if let Some(monitoring_app) = &mut self.monitoring_app {
-                    let _ = monitoring_app.load_existing_incident(*location);
+                    let _ = monitoring_app.add_incident(*location);
                 }
             });
         }
