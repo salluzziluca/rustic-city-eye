@@ -50,9 +50,6 @@ impl MyMap {
         updated_locations: Arc<Mutex<VecDeque<(u32, Location, Location)>>>,
     ) {
         if let Ok(mut new_drone_locations) = updated_locations.try_lock() {
-            if !new_drone_locations.is_empty() {
-                println!("new_drone_locations: {:?}", new_drone_locations);
-            }
             while let Some((id, location, target_location)) = new_drone_locations.pop_front() {
                 if let Some(drone) = self.drones.get_mut(&id) {
                     drone.position = Position::from_lon_lat(location.long, location.lat);
@@ -279,7 +276,10 @@ impl MyApp {
     /// Carga las diferentes ventanas de camaras, incidentes, drones y centros de drones
     fn handle_map(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         if let Some(monitoring_app) = &self.monitoring_app {
-            let lock = monitoring_app.connected.lock().unwrap();
+            let lock = match monitoring_app.connected.lock() {
+                Ok(lock) => lock,
+                Err(_) => return,
+            };
             if !*lock {
                 self.connected = false;
                 self.username.clear();

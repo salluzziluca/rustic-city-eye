@@ -292,7 +292,13 @@ impl Drone {
             Arc::clone(&self.disconnect_receiver_from_center);
 
         thread::spawn(move || loop {
-            let lock = disconnect_receiver_from_center_clone.lock().unwrap();
+            let lock = match disconnect_receiver_from_center_clone.lock() {
+                Ok(locked) => locked,
+                Err(e) => {
+                    println!("Error locking disconnect_receiver_from_center: {:?}", e);
+                    return;
+                }
+            };
             if lock.try_recv().is_ok() {
                 match disconnect_sender_clone.send(()) {
                     Ok(_) => (),
@@ -431,7 +437,7 @@ impl Drone {
                     };
                 }
                 DroneState::AttendingIncident(location) => {
-                    println!("Drone {} yendo a solucionar el incidente", lock.id);
+                    println!("Drone {}'s on its way to solve the incident", lock.id);
                     lock.update_target_location(Some(location))?;
                     if lock.calculate_new_position() {
                         lock.publish_attending_accident(location);

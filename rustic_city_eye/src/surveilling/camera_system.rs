@@ -215,135 +215,10 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
         });
 
         thread::spawn(move || {
-            let mut incident_location: Option<Location> = None;
-            let mut solved_incident_location: Option<Location> = None;
-            let reciever: Arc<Mutex<Receiver<ClientMessage>>> = match parameter_reciever {
-                Some(parameter_reciever) => parameter_reciever,
-                None => match system_clone_two.lock() {
-                    Ok(guard) => guard.reciev_from_client.clone(),
-                    Err(_) => {
-                        return;
-                    }
-                },
-            };
-            loop {
-                let self_clone_two = Arc::clone(&system_clone_two);
-
-                let mut lock = match self_clone_two.lock() {
-                    Ok(guard) => guard.clone(),
-                    Err(_) => {
-                        return;
-                    }
-                };
-
-                if let Some(location) = incident_location {
-                    if let Err(e) = lock
-                        .activate_cameras(location)
-                        .map_err(|e| ProtocolError::CameraError(e.to_string()))
-                    {
-                        println!("CameraSys: Error activating cameras: {:?}", e);
-                    }
-                    incident_location = None;
-                }
-                if let Some(location) = solved_incident_location {
-                    if let Err(e) = lock
-                        .deactivate_cameras(location)
-                        .map_err(|e| ProtocolError::CameraError(e.to_string()))
-                    {
-                        println!("CameraSys: Error deactivating cameras: {:?}", e);
-                    }
-                    solved_incident_location = None;
-                }
-
-                let reciever = match reciever.lock() {
-                    Ok(guard) => guard,
-                    Err(_) => {
-                        return;
-                    }
-                };
-
-                match reciever.recv() {
-                    Ok(client_message::ClientMessage::Publish {
-                        topic_name,
-                        payload: PayloadTypes::IncidentLocation(payload),
-                        ..
-                    }) => {
-                        if topic_name == "incident" {
-                            incident_location = Some(payload.get_incident().get_location());
-                            drop(reciever); // Release the lock here
-
-                            continue;
-                        } else if topic_name == "incident_resolved" {
-                            solved_incident_location = Some(payload.get_incident().get_location());
-                            drop(reciever); // Release the lock here
-
-                            continue;
-                        }
-                    }
-                    Ok(client_message::ClientMessage::Publish {
-                        topic_name,
-                        payload: PayloadTypes::SingleCameraDisconnect(payload),
-                        ..
-                    }) => {
-                        if topic_name == "single_camera_disconnect" {
-                            let mut hash = lock.cameras.lock().unwrap();
-                            println!(
-                                "Camera System: Number of cameras before deleting {:?}",
-                                hash.len()
-                            );
-                            hash.remove(&payload.get_id());
-                            println!(
-                                "Camera System: Number of cameras after deleting {:?}",
-                                hash.len()
-                            );
-                        }
-                    }
-                    Ok(_) => {}
-                    Err(_) => {
-                        continue;
-                    }
-                }
-            }
+            handle_incident_messages(system_clone_two, parameter_reciever);
         });
-        thread::spawn(move || {
-            let pool = ThreadPool::new(10);
-            let (tx, rx) = channel();
-            watch_directory(Path::new(PATH).to_path_buf(), tx);
-            let mut last_event_times: HashMap<String, Instant> = HashMap::new();
 
-            loop {
-                match rx.recv() {
-                    Ok(event) => {
-                        let now = Instant::now();
-                        let should_process = match last_event_times.get(&event[PATH_POSITION]) {
-                            Some(&last_time) => {
-                                now.duration_since(last_time)
-                                    > Duration::from_secs(TIME_INTERVAL_IN_SECS)
-                            }
-                            None => true,
-                        };
-
-                        if should_process {
-                            if let Some(value) = process_dir_change(
-                                &mut last_event_times,
-                                &event[PATH_POSITION],
-                                now,
-                                event.clone(),
-                                &system,
-                                &pool,
-                            ) {
-                                return value;
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        println!("watch error: {:?}", e);
-                        break;
-                    }
-                }
-            }
-            Ok(())
-        });
+        thread::spawn(move || watch_dirs(system));
         Ok(())
     }
 
@@ -624,6 +499,169 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
     }
 }
 
+/// Se encarga de supervisar el directorio de camaras.
+/// Cada vez que se detecta un cambio en el directorio, se revisa el hash para saber si ese evento fue procesado recientemente.
+/// (eso es para evitar que por algun bug un evento se detecte +1 vez, como copiados y pegados que a veces involucran mas de un evento)
+/// De no ser asi, se lo procesa
+fn watch_dirs(system: Arc<Mutex<CameraSystem<Client>>>) -> Result<(), ProtocolError> {
+    let pool = ThreadPool::new(10);
+    let (tx, rx) = channel();
+    watch_directory(Path::new(PATH).to_path_buf(), tx);
+    let mut last_event_times: HashMap<String, Instant> = HashMap::new();
+
+    loop {
+        match rx.recv() {
+            Ok(event) => {
+                let now = Instant::now();
+                let should_process = match last_event_times.get(&event[PATH_POSITION]) {
+                    Some(&last_time) => {
+                        now.duration_since(last_time) > Duration::from_secs(TIME_INTERVAL_IN_SECS)
+                    }
+                    None => true,
+                };
+
+                if should_process {
+                    if let Some(value) = process_dir_change(
+                        &mut last_event_times,
+                        &event[PATH_POSITION],
+                        now,
+                        event.clone(),
+                        &system,
+                        &pool,
+                    ) {
+                        return value;
+                    }
+                }
+            }
+            Err(e) => {
+                println!("watch error: {:?}", e);
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Maneja los mensajes relacionados con incidentes que se reciben del cliente,
+/// activando o desactivando cámaras según la ubicación del incidente.
+///
+/// # Parámetros
+///
+/// - `system`: Un `Arc<Mutex<CameraSystem<Client>>>` que contiene el sistema de cámaras.
+/// - `parameter_reciever`: Una `Option<Arc<Mutex<Receiver<ClientMessage>>>>` que puede
+///   contener un receptor de mensajes del cliente. Si es `None`, se obtiene de
+///   `system.reciev_from_client`.
+///
+/// # Comportamiento
+///
+/// La función entra en un bucle infinito donde:
+///
+/// 1. Obtiene una copia del sistema de cámaras.
+/// 2. Si hay una ubicación de incidente pendiente (`incident_location`), intenta activar
+///    las cámaras en esa ubicación y luego resetea `incident_location`.
+/// 3. Si hay una ubicación de incidente resuelto pendiente (`solved_incident_location`),
+///    intenta desactivar las cámaras en esa ubicación y luego resetea
+///    `solved_incident_location`.
+/// 4. Bloquea el receptor para recibir un mensaje del cliente. Si el mensaje indica
+///    que un incidente ha ocurrido o ha sido resuelto, actualiza las ubicaciones
+///    correspondientes (`incident_location` o `solved_incident_location`).
+/// 5. Libera el bloqueo del receptor antes de continuar el ciclo para evitar
+///    deadlocks.
+fn handle_incident_messages(
+    system: Arc<Mutex<CameraSystem<Client>>>,
+    parameter_reciever: Option<Arc<Mutex<Receiver<ClientMessage>>>>,
+) {
+    let mut incident_location: Option<Location> = None;
+    let mut solved_incident_location: Option<Location> = None;
+    let reciever: Arc<Mutex<Receiver<ClientMessage>>> = match parameter_reciever {
+        Some(parameter_reciever) => parameter_reciever,
+        None => match system.lock() {
+            Ok(guard) => guard.reciev_from_client.clone(),
+            Err(_) => {
+                return;
+            }
+        },
+    };
+
+    loop {
+        let system_clone = Arc::clone(&system);
+
+        let mut lock = match system_clone.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => {
+                return;
+            }
+        };
+
+        if let Some(location) = incident_location {
+            if let Err(e) = lock
+                .activate_cameras(location)
+                .map_err(|e| ProtocolError::CameraError(e.to_string()))
+            {
+                println!("CameraSys: Error activating cameras: {:?}", e);
+            }
+            incident_location = None;
+        }
+        if let Some(location) = solved_incident_location {
+            if let Err(e) = lock
+                .deactivate_cameras(location)
+                .map_err(|e| ProtocolError::CameraError(e.to_string()))
+            {
+                println!("CameraSys: Error deactivating cameras: {:?}", e);
+            }
+            solved_incident_location = None;
+        }
+
+        let reciever = match reciever.lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                return;
+            }
+        };
+
+        match reciever.recv() {
+            Ok(message) => {
+                process_client_message(
+                    message,
+                    &mut incident_location,
+                    &mut solved_incident_location,
+                );
+                drop(reciever); // Libera el lock acá
+                continue;
+            }
+            Err(_) => {
+                continue;
+            }
+        }
+    }
+}
+/// Se encarga de procesar los mensajes del cliente.
+/// Si el mensaje es un publish con topic incidente, guarda la location del incidente.
+/// Si el mensaje es un publish con topic incidente resuelto, guarda la location del incidente resuelto.
+
+fn process_client_message(
+    message: ClientMessage,
+    incident_location: &mut Option<Location>,
+    solved_incident_location: &mut Option<Location>,
+) {
+    match message {
+        client_message::ClientMessage::Publish {
+            topic_name,
+            payload: PayloadTypes::IncidentLocation(payload),
+            ..
+        } => {
+            if topic_name == "incident" {
+                *incident_location = Some(payload.get_incident().get_location());
+            } else if topic_name == "incident_resolved" {
+                *solved_incident_location = Some(payload.get_incident().get_location());
+            }
+        }
+        _ => {
+            // Maneja otros tipos de mensajes si es necesario
+        }
+    }
+}
+
 /// Procesa cualquier evento de cambio en en el directorio observado
 /// Si es un evento del tipo Create (creacion de directorio), notifica mediante logging al usuario
 ///
@@ -694,15 +732,22 @@ fn analize_image(event: Vec<String>, system: &Arc<Mutex<CameraSystem<Client>>>, 
             }
         };
         println!("Camera id {:?} is analyzing an image", camera_id);
-
-        let camera = match system_clone.lock().unwrap().get_camera_by_id(camera_id) {
-            Some(camera) => camera,
-            None => {
-                return Err(ProtocolError::InvalidCommand(
-                    "Camera not found".to_string(),
+        let camera = match system_clone.lock() {
+            Ok(mut system) => match system.get_camera_by_id(camera_id) {
+                Some(camera) => camera,
+                None => {
+                    return Err(ProtocolError::InvalidCommand(
+                        "Camera not found".to_string(),
+                    ));
+                }
+            },
+            Err(_) => {
+                return Err(ProtocolError::ArcMutexError(
+                    "Error locking cameras mutex".to_string(),
                 ));
             }
         };
+
         let classification_result = camera.annotate_image(&str_path)?;
 
         if !classification_result {

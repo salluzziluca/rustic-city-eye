@@ -536,7 +536,7 @@ impl Broker {
         let clients = self.clients_ids.read().map_err(|_| false)?;
         if let Some((Some(stream), _)) = clients.get(&user.client_id) {
             message.write_to(stream.get_ref()).map_err(|_| true)?;
-            println!("Mensaje enviado a {}", user.client_id);
+            println!("Mensaje sent to {}", user.client_id);
             Ok(())
         } else {
             Err(true)
@@ -749,7 +749,10 @@ impl Broker {
                         return Err(ProtocolError::WriteError);
                     }
 
-                    client_id_sender.send(connect.client_id.clone()).unwrap();
+                    match client_id_sender.send(connect.client_id.clone()) {
+                        Ok(_) => (),
+                        Err(e) => return Err(ProtocolError::SendError(e.to_string())),
+                    };
                 }
 
                 let properties = ConnackProperties {

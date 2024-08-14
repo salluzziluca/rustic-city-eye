@@ -127,9 +127,16 @@ impl Client {
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
         let mut root_store = RootCertStore::empty();
         let mut cert_file = Client::open_file("./src/mqtt/certs/cert.pem")?;
-        root_store.add_parsable_certificates(
-            rustls_pemfile::certs(&mut cert_file).map(|result| result.unwrap()),
-        );
+
+        let certs = rustls_pemfile::certs(&mut cert_file).filter_map(|result| match result {
+            Ok(cert) => Some(cert),
+            Err(e) => {
+                println!("Error parsing certificate: {:?}", e);
+                None
+            }
+        });
+
+        root_store.add_parsable_certificates(certs);
 
         let mut config = ClientConfig::builder()
             .with_root_certificates(root_store)
@@ -137,7 +144,14 @@ impl Client {
 
         config.key_log = Arc::new(KeyLogFile::new());
 
-        let server_name = "rustic_city_eye".try_into().unwrap();
+        let server_name = match "rustic_city_eye".try_into() {
+            Ok(name) => name,
+            Err(_) => {
+                return Err(ProtocolError::ServerConfigError(
+                    "Error al convertir el nombre del servidor".to_string(),
+                ))
+            }
+        };
         match ClientConnection::new(Arc::new(config), server_name) {
             Ok(c) => Ok(Arc::new(StreamOwned::new(c, stream))),
             Err(e) => Err(ProtocolError::ClientConnectionError(e.to_string())),

@@ -241,7 +241,10 @@ pub fn add_remove_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monitori
                                 Ok(_) => println!("Drone removed"),
                                 Err(e) => println!("Error removing drone: {}", e),
                             }
-                            monitoring_app.disconnect_drone_by_id(*id).unwrap();
+                            match monitoring_app.disconnect_drone_by_id(*id) {
+                                Ok(_) => println!("Drone disconnected"),
+                                Err(e) => println!("Error disconnecting drone: {}", e),
+                            }
                             break;
                         }
                     }
