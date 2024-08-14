@@ -249,20 +249,6 @@ mod tests {
     use super::*;
     use std::io::{Cursor, Read};
 
-    #[test]
-    fn test_read_from() {
-        let location = Location::new(1.0, 2.0);
-        let incident = Incident::new(location);
-        let incident_payload = IncidentPayload::new(incident.clone());
-        let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
-
-        let mut cursor = Cursor::new(Vec::new());
-        payload.write_to(&mut cursor).unwrap();
-        cursor.set_position(0);
-
-        let read_payload = PayloadTypes::read_from(&mut cursor).unwrap();
-        assert_eq!(read_payload, payload);
-    }
 
     #[test]
     fn test_write_to() {

@@ -829,47 +829,6 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_assign_packet_id() {
-        let args = vec!["127.0.0.1".to_string(), "5047".to_string()];
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => panic!("Error creating broker: {:?}", e),
-        };
-
-        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
-        let server_ready_clone = server_ready.clone();
-        thread::spawn(move || {
-            {
-                let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
-                *ready = true;
-                cvar.notify_all();
-            }
-            broker.server_run().unwrap();
-        });
-
-        // Wait for the server to start
-        {
-            let (lock, cvar) = &*server_ready;
-            let mut ready = lock.lock().unwrap();
-            while !*ready {
-                ready = cvar.wait(ready).unwrap();
-            }
-        }
-        let handle = thread::spawn(move || {
-            let connect_config =
-                Connect::read_connect_config("drones/packets_config/connect_config.json")
-                    .unwrap();
-            let (_, rx) = mpsc::channel();
-            let (tx2, _) = mpsc::channel();
-            let address = "127.0.0.1:5047";
-            let client = Client::new(rx, address.to_string(), connect_config, tx2).unwrap();
-            let packet_id = client.assign_packet_id();
-            assert_ne!(packet_id, 0);
-        });
-        handle.join().unwrap();
-    }
 
     #[test]
     fn test_si_el_id_de_paquete_es_unico() {

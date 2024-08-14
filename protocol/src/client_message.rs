@@ -248,6 +248,8 @@ impl Connect {
 
     /// Abre un archivo de configuracion con propiedades y guarda sus lecturas.
     pub fn read_connect(file_path: &str) -> Result<Connect, ProtocolError> {
+        let file_path = Connect::get_clean_path(file_path);
+
         let config_file = match File::open(file_path) {
             Ok(file) => file,
             Err(_) => return Err(ProtocolError::ReadingConfigFileError),
@@ -1025,7 +1027,7 @@ mod tests {
     }
     #[test]
     fn test_01_connect_message_ok() {
-        let connect_read = match Connect::read_connect("./src/monitoring/connect_config.json") {
+        let connect_read = match Connect::read_connect("monitoring_app/packets_config/connect_config.json") {
             Ok(c) => c,
             Err(e) => {
                 panic!("no se pudo leer el archivo de configuracion {:?}", e);
@@ -1333,7 +1335,7 @@ mod tests {
 
     #[test]
     fn test_01_config_creation_cases() {
-        let config_ok = Connect::read_connect_config("./src/monitoring/connect_config.json");
+        let config_ok = Connect::read_connect_config("monitoring_app/packets_config/connect_config.json");
 
         let config_err = Connect::read_connect_config("este/es/un/path/feo");
 

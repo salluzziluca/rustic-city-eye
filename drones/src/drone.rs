@@ -121,7 +121,8 @@ impl Drone {
     /// Setea su client id al id que ingrese por parametro(va a estar definido por el usuario
     /// a la hora de instanciar a un nuevo Drone).
     pub fn read_connect_config(file_path: &str, id: u32) -> Result<Connect, DroneError> {
-        let mut connect_config = match Connect::read_connect_config(file_path) {
+        let file_path = Drone::get_clean_path(file_path);
+        let mut connect_config = match Connect::read_connect_config(&file_path.clone()) {
             Ok(config) => config,
             Err(e) => {
                 println!("path: {}", file_path);
