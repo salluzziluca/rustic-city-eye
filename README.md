@@ -8,8 +8,14 @@
 
 ## Requisitos previos
 - Rust y Cargo instalados en su sistema. Puede instalar Cargo y Rust desde [aqui](https://www.rust-lang.org/tools/install).
-- Proyecto en Google Cloud Vision AI
 
+### Para el analisis de incidentes mediante AI (opcional) 
+Para esto deberan hablar con Luca Salluzzi (salluzzi.luca@gmail.com). Él los agregará a el proyecto correspondiente en Google Cloud y les indicará los pasos a seguir para hacer el setup de la API key.
+1. Setear el entorno de desarrollo de google cloud. https://cloud.google.com/docs/authentication/provide-credentials-adc?hl=es-419#local-dev
+2. Una vez habilitado dentro del proyecto de google cloud. Deberá:
+- ir a la seccion de "IAM y Adiministración/Cuentas de Servicio). Hacer click en la cuenta habilitada.
+- Clickear en Claves -> agregar clave y descargar el JSON.
+3. Finalmente, debera setear la env var mediante el siguiente comando: `export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"`
 ## Cómo levantar un Broker
 1. Abra una terminal.
 2. Ejecute el siguiente comando, reemplazando `[puerto]` con el numero de puerto deseado:
