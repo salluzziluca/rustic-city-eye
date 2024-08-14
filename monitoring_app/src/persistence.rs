@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use utils::{camera::Camera, location::Location};
 
-const PERSISTENCE_FILE: &str = "./monitoring_app/persistence/persistence.json";
-const TEST_PERSISTENCE_FILE: &str = "./monitoring_app/persistence/test_persistence.json";
+const PERSISTENCE_FILE: &str = "persistence/persistence.json";
+const TEST_PERSISTENCE_FILE: &str = "persistence/test_persistence.json";
 
 /// Estructura que representa la persistencia de la información de las cámaras, drones y centros de drones
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -457,33 +457,41 @@ mod tests {
 
     #[test]
     fn persistence() {
-        test_add_and_remove_camera_to_file();
-        test_add_and_remove_central_to_file();
-        test_add_and_remove_drone_to_file();
-        test_add_incident_to_file();
+        // assert!(test_add_and_remove_camera_to_file().is_ok());
+        assert!(test_add_and_remove_central_to_file().is_ok());
+        assert!(test_add_and_remove_drone_to_file().is_ok());
+        assert!(test_add_incident_to_file().is_ok());
     }
 
-    fn test_add_and_remove_camera_to_file() {
+    #[test]
+    fn test_add_and_remove_camera_to_file() -> Result<(), Box<dyn std::error::Error>> {
+        
         if std::fs::metadata(TEST_PERSISTENCE_FILE).is_ok() {
             std::fs::remove_file(TEST_PERSISTENCE_FILE).unwrap();
         }
+        
         let camera: Camera = Camera::new(Location::new(1.0, 1.0), 0).unwrap();
 
         let _ = Persistence::add_camera_to_file(camera);
 
         let cameras = Persistence::get_cameras();
-        assert_eq!(cameras.len(), 1);
-        assert_eq!(cameras[0].id, 0);
+        if cameras.len() != 1 || cameras[0].id != 0 {
+            return Err("Error: Camera not added to file".into());
+        }
 
         Persistence::remove_camera_from_file(0).unwrap();
 
         let cameras = Persistence::get_cameras();
-        assert_eq!(cameras.len(), 0);
+        if cameras.len() != 0 {
+            return Err("Error: Camera not removed from file".into());
+        }
 
         std::fs::remove_file(TEST_PERSISTENCE_FILE).unwrap();
+
+        Ok(())
     }
 
-    fn test_add_and_remove_central_to_file() {
+    fn test_add_and_remove_central_to_file() -> Result<(), Box<dyn std::error::Error>> {
         if std::fs::metadata(TEST_PERSISTENCE_FILE).is_ok() {
             std::fs::remove_file(TEST_PERSISTENCE_FILE).unwrap();
         }
@@ -491,23 +499,29 @@ mod tests {
         let _ = Persistence::add_center_to_file(
             0,
             Location::new(1.0, 1.0),
-            "src/drones/drone_config.json".to_string(),
+            "packets_config/drone_config.json".to_string(),
             "127.0.0.1:5098".to_string(),
         );
 
         let centrals = Persistence::get_centrals();
-        assert_eq!(centrals.len(), 1);
-        assert_eq!(centrals[0].id, 0);
+        if centrals[0].location != Location::new(1.0, 1.0)
+            || centrals[0].id != 0
+        {
+            return Err("Error: Central not added to file".into());
+        }
 
         Persistence::remove_central_from_file(0).unwrap();
 
         let centrals = Persistence::get_centrals();
-        assert_eq!(centrals.len(), 0);
+        if centrals.len() != 0 {
+            return Err("Error: Central not removed from file".into());
+        }
 
         std::fs::remove_file(TEST_PERSISTENCE_FILE).unwrap();
+        Ok(())
     }
 
-    fn test_add_and_remove_drone_to_file() {
+    fn test_add_and_remove_drone_to_file() -> Result<(), Box<dyn std::error::Error>> {
         if std::fs::metadata(TEST_PERSISTENCE_FILE).is_ok() {
             std::fs::remove_file(TEST_PERSISTENCE_FILE).unwrap();
         }
@@ -515,19 +529,22 @@ mod tests {
         let _ = Persistence::add_drone_to_file(Location::new(1.0, 1.0), 0);
 
         let drones = Persistence::get_drones();
-        assert_eq!(drones.len(), 1);
-        assert_eq!(drones[0].1, 0);
+        if drones.len() != 1 || drones[0].1 != 0 {
+            return Err("Error: Drone not added to file".into());
+        }
 
         let _ = Persistence::remove_drone_from_file(0);
 
         let drones = Persistence::get_drones();
-
-        assert_eq!(drones.len(), 0);
+        if drones.len() != 0 {
+            return Err("Error: Drone not removed from file".into());
+        }
 
         std::fs::remove_file(TEST_PERSISTENCE_FILE).unwrap();
+        Ok(())
     }
 
-    fn test_add_incident_to_file() {
+    fn test_add_incident_to_file() -> Result<(), Box<dyn std::error::Error>> {
         if std::fs::metadata(TEST_PERSISTENCE_FILE).is_ok() {
             std::fs::remove_file(TEST_PERSISTENCE_FILE).unwrap();
         }
@@ -535,13 +552,17 @@ mod tests {
         let _ = Persistence::add_incident_to_file(Location::new(1.0, 1.0));
 
         let incidents = Persistence::get_incidents();
-        assert_eq!(incidents.len(), 1);
-        assert_eq!(incidents[0], Location::new(1.0, 1.0));
+        if incidents.len() != 1 || incidents[0] != Location::new(1.0, 1.0) {
+            return Err("Error: Incident not added to file".into());
+        }
 
         Persistence::remove_incident_from_file(Location::new(1.0, 1.0)).unwrap();
 
         let incidents = Persistence::get_incidents();
-        assert_eq!(incidents.len(), 0);
+        if incidents.len() != 0 {
+            return Err("Error: Incident not removed from file".into());
+        }
         std::fs::remove_file(TEST_PERSISTENCE_FILE).unwrap();
+        Ok(())
     }
 }
