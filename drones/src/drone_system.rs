@@ -170,7 +170,7 @@ mod tests {
         }
         let handle = thread::spawn(move || {
             let mut drone_system = DroneSystem::new(
-                "src/drones/drone_config.json".to_string(),
+                "packets_config/drone_config.json".to_string(),
                 "127.0.0.1:5098".to_string(),
             );
             let location = Location::new(0.0, 0.0);
@@ -219,7 +219,7 @@ mod tests {
 
         let handle = thread::spawn(move || {
             let mut drone_system = DroneSystem::new(
-                "src/drones/drone_config.json".to_string(),
+                "packets_config/drone_config.json".to_string(),
                 "127.0.0.1:5002".to_string(),
             );
             let location = Location::new(0.0, 0.0);
@@ -264,7 +264,7 @@ mod tests {
         }
         let t1 = thread::spawn(move || {
             let mut drone_system = DroneSystem::new(
-                "src/drones/drone_config.json".to_string(),
+                "packets_config/drone_config.json".to_string(),
                 "127.0.0.1:5097".to_string(),
             );
             let location = Location::new(0.0, 0.0);
