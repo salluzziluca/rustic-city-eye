@@ -28,6 +28,9 @@ static SERVER_ARGS: usize = 2;
 
 const THREADPOOL_SIZE: usize = 30;
 
+const FILE_PATH_TOPICS: &str = "./broker/src/config/topics";
+const FILE_PATH_CLIENTS: &str = "./broker/src/config/clients";
+
 #[derive(Clone)]
 pub struct Broker {
     address: String,
@@ -66,10 +69,11 @@ pub struct Broker {
 
 impl Broker {
     pub fn new(args: Vec<String>) -> Result<Broker, ProtocolError> {
-        let address = Broker::process_starting_args(args)?;
 
-        let topics = Broker::get_broker_starting_topics("./broker/src/config/topics")?;
-        let clients_auth_info = Broker::process_clients_file("./broker/src/config/clients")?;
+        let address = Broker::process_starting_args(args)?; 
+        let topics = Broker::get_broker_starting_topics(FILE_PATH_TOPICS)?;
+        let clients_auth_info = Broker::process_clients_file(FILE_PATH_CLIENTS)?;
+        
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let packets = Arc::new(RwLock::new(HashMap::new()));
 
@@ -139,7 +143,7 @@ impl Broker {
         }
     }
 
-    fn process_starting_args(args: Vec<String>) -> Result<String, ProtocolError> {
+    pub fn process_starting_args(args: Vec<String>) -> Result<String, ProtocolError> {
         if args.len() != SERVER_ARGS {
             let app_name = &args[0];
             println!("Usage:\n{:?} <puerto>", app_name);
@@ -151,7 +155,7 @@ impl Broker {
     }
 
     /// Recibe un path a un archivo de configuracion de topics y devuelve un HashMap con los topics.
-    fn get_broker_starting_topics(
+    pub fn get_broker_starting_topics(
         file_path: &str,
     ) -> Result<HashMap<String, Topic>, ProtocolError> {
         let mut topics = HashMap::new();
@@ -168,7 +172,9 @@ impl Broker {
     fn process_topic_config_file(file_path: &str) -> Result<Vec<String>, ProtocolError> {
         let file = match File::open(file_path) {
             Ok(file) => file,
-            Err(_) => return Err(ProtocolError::ReadingTopicConfigFileError),
+            Err(_) => {
+                
+                return Err(ProtocolError::ReadingTopicConfigFileError)},
         };
 
         let readings = Broker::read_topic_config_file(&file)?;
@@ -177,7 +183,7 @@ impl Broker {
     }
 
     ///Devuelvo las lecturas que haga en el archivo de topics.
-    fn read_topic_config_file(file: &File) -> Result<Vec<String>, ProtocolError> {
+    pub fn read_topic_config_file(file: &File) -> Result<Vec<String>, ProtocolError> {
         let reader = BufReader::new(file).lines();
         let mut readings = Vec::new();
 
@@ -192,7 +198,7 @@ impl Broker {
     }
 
     ///Abro y devuelvo las lecturas del archivo de clients.
-    fn process_clients_file(
+    pub fn process_clients_file(
         file_path: &str,
     ) -> Result<HashMap<String, (String, Vec<u8>)>, ProtocolError> {
         let file = match File::open(file_path) {
@@ -206,7 +212,7 @@ impl Broker {
     }
 
     ///Devuelvo las lecturas que haga en el archivo de clients.
-    fn read_clients_file(file: &File) -> Result<HashMap<String, (String, Vec<u8>)>, ProtocolError> {
+    pub fn read_clients_file(file: &File) -> Result<HashMap<String, (String, Vec<u8>)>, ProtocolError> {
         let reader = BufReader::new(file).lines();
         let mut readings = HashMap::new();
 
@@ -462,7 +468,7 @@ impl Broker {
         }
     }
 
-    fn process_input_command<R: BufRead>(&mut self, reader: R) -> Result<(), ProtocolError> {
+    pub fn process_input_command<R: BufRead>(&mut self, reader: R) -> Result<(), ProtocolError> {
         let mut iterator = reader.lines();
 
         if let Some(command) = iterator.next() {
@@ -526,7 +532,7 @@ impl Broker {
         let clients = self.clients_ids.read().map_err(|_| false)?;
         if let Some((Some(stream), _)) = clients.get(&user.client_id) {
             message.write_to(stream.get_ref()).map_err(|_| true)?;
-            println!("Mensaje enviado a {}", user.client_id);
+            println!("Message sent to {}", user.client_id);
             Ok(())
         } else {
             Err(true)
@@ -1089,26 +1095,28 @@ impl Broker {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use std::io::Cursor;
+    use utils::protocol_error::ProtocolError;
+
+    use std::{io::Cursor, path::PathBuf};
 
     #[test]
     fn test_01_getting_starting_topics_ok() -> Result<(), ProtocolError> {
-        let file_path = "./src/config/topics";
-        let topics = Broker::get_broker_starting_topics(file_path)?;
+        let project_dir = env!("CARGO_MANIFEST_DIR");
 
-        let mut expected_topics = HashMap::new();
-        let topic_readings = Broker::process_topic_config_file(file_path)?;
+        let file_path = PathBuf::from(project_dir).join("src/config/topics");
 
-        for topic in topic_readings {
-            expected_topics.insert(topic, Topic::new());
-        }
-
-        for (topic_name, _topic) in topics {
-            assert!(expected_topics.contains_key(&topic_name));
+        let topics = Broker::get_broker_starting_topics(file_path.to_str().unwrap())?;
+       
+        let topic_names = vec!["incident", "drone_locations", "incident_resolved", "camera_update","attending_incident",
+        "single_drone_disconnect"];
+        
+        for topic_name in topic_names {
+            assert!(topics.contains_key(topic_name));
         }
 
         Ok(())
@@ -1144,10 +1152,12 @@ mod tests {
 
     #[test]
     fn test_04_processing_clients_auth_info_ok() -> Result<(), ProtocolError> {
-        let file_path = "./src/monitoring/clients.txt";
-        let clients_auth_info = Broker::process_clients_file(file_path)?;
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let file_path = PathBuf::from(project_dir).join("src/config/clients");
+     
+        let clients_auth_info = Broker::process_clients_file(file_path.to_str().unwrap())?;
 
-        let file = match File::open(file_path) {
+        let file = match File::open(file_path.to_str().unwrap()) {
             Ok(file) => file,
             Err(_) => return Err(ProtocolError::ReadingClientsFileError),
         };
@@ -1163,6 +1173,14 @@ mod tests {
 
     #[test]
     fn test_05_processing_input_commands() -> Result<(), ProtocolError> {
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let file_path = PathBuf::from(project_dir).join("broker/src/config/topics");
+        println!("file_path to process: {:?}", file_path);
+
+        if !file_path.exists() {
+            panic!("File does not exist: {:?}", file_path);
+        }
+
         let mut broker = Broker::new(vec!["127.0.0.1".to_string(), "5000".to_string()])?;
         let good_command = b"shutdown\n";
         let cursor_one = Cursor::new(good_command);
@@ -1175,4 +1193,5 @@ mod tests {
 
         Ok(())
     }
+
 }
