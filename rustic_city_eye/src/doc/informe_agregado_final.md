@@ -68,7 +68,7 @@ Para hacer uso del clasificador de imagenes, se debe proveer un url sobre el cua
 
 Antes de avanzar, cabe destacar que el servicio de Vision AI tomara imagenes, y nos devolvera etiquetas sobre la misma, con un score determinado(este score nos dira que tan confiable es la etiqueta, obviamente esto depende del preprocesamiento y entrenamiento que Google hizo sobre el modelo). Aqui hay un ejemplo tomado de la pagina oficial:
 
-![dog_result](./assets/dog_result.png)
+![dog_result](https://i.ibb.co/PQSymVH/dog-result.png)
 
 En este caso, el modelo nos indica que la imagen contiene un perro(con un score de 0.96), y nos brinda mas caracteristicas sobre la misma. Para manejar mejor los resultados, la misma herramienta nos da la posibilidad de obtener la respuesta en formato JSON, lo cual nos parece mas acertado y comodo para trabajar con las peticiones, ya que vamos a hacer uso de los crates externos `serde` y `serde_json` para facilitar la serializacion y deserializacion de los documentos.
 
@@ -77,7 +77,7 @@ Para detectar incidentes, optamos por utilizar dos filtros que nos provee la API
 El clasificador de imagenes que hemos declarado funciona de la siguiente manera para etiquetar las imagenes: se le provee un path hacia una imagen local, y se pasa a codificarla en base 64(haciendo uso del crate externo `Base64`), luego se realiza la request a la API, haciendo uso de un Client del crate externo `reqwest` en modo Blocking: esto nos permite manejar peticiones HTTP de manera sincronica, ya que va a bloquear el thread en ejecucion hasta que reciba una response. Las requests van a serializarse, y las responses van a deserializarse, obteniendo asi un vector de tuplas `(String, f64)`: el String corresponde a la etiqueta, y el f64 corresponde al score de esa etiqueta.
 
 Al obtener el vector de etiquetas con sus respectivos scores, se pasa a detectar posibles incidentes, y es que si alguna de esas etiquetas contiene una palabra clave para detectar incidentes(puede ser por ejemplo la palabra `Fire`), se indica que un incidente fue detectado.  
-![alt text](./assets/image.png)
+![alt text](https://i.ibb.co/VjZPX2j/image.png)
 
 # MultiThreading
 
@@ -142,7 +142,7 @@ El método `annotate_image` de la cámara, a su vez, llama a `annotate_image` en
 
 Finalmente, si el CameraSystem recibe un true, llama a `publish_incident` para publicar el incidente correspondiente.
 
-![alt text](./assets/classify_sequence1.png)
+![alt text](https://i.ibb.co/cNZ4hCx/classify-sequence1.png)
 
 
 # Desgloce de la implementacion
