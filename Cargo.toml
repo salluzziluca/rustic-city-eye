@@ -3,7 +3,7 @@ resolver = "2"
 
 members = [
     "broker", "camera_system",
-    "client", "drones", "integration_tests", 
+    "client", "drones", "tests", 
     "monitoring_app",
     "protocol",
     "rustic_city_eye", 

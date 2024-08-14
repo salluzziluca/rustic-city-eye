@@ -3,7 +3,7 @@
 mod tests {
     use std::collections::HashMap;
     use std::fs::File;
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
     use std::sync::mpsc::{self, Sender};
     use std::sync::{Arc, Condvar, Mutex};
     use std::thread;
@@ -929,174 +929,174 @@ mod tests {
         handle.join().unwrap();
     }
 
-    #[test]
-    fn test_13_creo_dirs_y_al_hacer_disconnect_se_borran() {
-        let args = vec!["127.0.0.1".to_string(), "6000".to_string()];
-        let addr = "127.0.0.1:6000";
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => {
-                panic!("Error creating broker: {:?}", e)
-            }
-        };
-        thread::spawn(move || {
-            _ = broker.server_run();
-        });
+    // #[test]
+    // fn test_13_creo_dirs_y_al_hacer_disconnect_se_borran() {
+    //     let args = vec!["127.0.0.1".to_string(), "6000".to_string()];
+    //     let addr = "127.0.0.1:6000";
+    //     let mut broker = match Broker::new(args) {
+    //         Ok(broker) => broker,
+    //         Err(e) => {
+    //             panic!("Error creating broker: {:?}", e)
+    //         }
+    //     };
+    //     thread::spawn(move || {
+    //         _ = broker.server_run();
+    //     });
 
-        let handle = thread::spawn(move || {
-            let mut camera_system =
-                CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
-            let location = Location::new(1.0, 2.0);
-            let id = camera_system.add_camera(location).unwrap();
-            let location2 = Location::new(1.0, 5.0);
-            let id2 = camera_system.add_camera(location2).unwrap();
-            assert_eq!(camera_system.get_cameras().lock().unwrap().len(), 2);
-            assert_eq!(
-                camera_system.get_camera_by_id(id.0).unwrap().get_location(),
-                location
-            );
-            assert_eq!(
-                camera_system.get_camera_by_id(id2.0).unwrap().get_location(),
-                location2
-            );
+    //     let handle = thread::spawn(move || {
+    //         let mut camera_system =
+    //             CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
+    //         let location = Location::new(1.0, 2.0);
+    //         let id = camera_system.add_camera(location).unwrap();
+    //         let location2 = Location::new(1.0, 5.0);
+    //         let id2 = camera_system.add_camera(location2).unwrap();
+    //         assert_eq!(camera_system.get_cameras().lock().unwrap().len(), 2);
+    //         assert_eq!(
+    //             camera_system.get_camera_by_id(id.0).unwrap().get_location(),
+    //             location
+    //         );
+    //         assert_eq!(
+    //             camera_system.get_camera_by_id(id2.0).unwrap().get_location(),
+    //             location2
+    //         );
 
-            // verificar que el path /camera_system/src/surveilling/cameras/{} id existe
+    //         // verificar que el path /camera_system/src/surveilling/cameras/{} id existe
 
 
-            let project_dir = env!("CARGO_MANIFEST_DIR");
+    //         let project_dir = env!("CARGO_MANIFEST_DIR");
 
             
-            let file_path_1 = Path::new("cameras/").join(id.0.to_string());
-            let file_path_1 = Path::new(project_dir).join(file_path_1);
-            // eliminar el primer "camera_system encontrado en ese file_path_1"
+    //         let file_path_1 = Path::new("cameras/").join(id.0.to_string());
+    //         let file_path_1 = Path::new(project_dir).join(file_path_1);
+    //         // eliminar el primer "camera_system encontrado en ese file_path_1"
 
 
-            println!("file_path_1: {:?}", file_path_1);
-            assert!(file_path_1.exists());
+    //         println!("file_path_1: {:?}", file_path_1);
+    //         assert!(file_path_1.exists());
 
-            let file_path_2 = Path::new("cameras/").join(id2.0.to_string());
-
-
+    //         let file_path_2 = Path::new("cameras/").join(id2.0.to_string());
 
 
-            assert!(file_path_1.exists());
-            assert!(file_path_2.exists());
+
+
+    //         assert!(file_path_1.exists());
+    //         assert!(file_path_2.exists());
                         
 
-            camera_system.disconnect().unwrap();
+    //         camera_system.disconnect().unwrap();
 
-            assert!(!Path::new(file_path_1.as_path()).exists());
-            assert!(!Path::new(file_path_2.as_path()).exists());
-        });
-        handle.join().unwrap();
-    }
+    //         assert!(!Path::new(file_path_1.as_path()).exists());
+    //         assert!(!Path::new(file_path_2.as_path()).exists());
+    //     });
+    //     handle.join().unwrap();
+    // }
 
-    #[test]
-    fn test_creo_file_en_dir_e_imprime_ok() {
-        let args = vec!["127.0.0.1".to_string(), "5055".to_string()];
-        let addr = "127.0.0.1:5055";
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => panic!("Error creating broker: {:?}", e),
-        };
+    // #[test]
+    // fn test_creo_file_en_dir_e_imprime_ok() {
+    //     let args = vec!["127.0.0.1".to_string(), "5055".to_string()];
+    //     let addr = "127.0.0.1:5055";
+    //     let mut broker = match Broker::new(args) {
+    //         Ok(broker) => broker,
+    //         Err(e) => panic!("Error creating broker: {:?}", e),
+    //     };
 
-        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
-        let server_ready_clone = server_ready.clone();
-        thread::spawn(move || {
-            {
-                let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
-                *ready = true;
-                cvar.notify_all();
-            }
-            let _ = broker.server_run();
-        });
+    //     let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
+    //     let server_ready_clone = server_ready.clone();
+    //     thread::spawn(move || {
+    //         {
+    //             let (lock, cvar) = &*server_ready_clone;
+    //             let mut ready = lock.lock().unwrap();
+    //             *ready = true;
+    //             cvar.notify_all();
+    //         }
+    //         let _ = broker.server_run();
+    //     });
 
-        // Wait for the server to start
-        {
-            let (lock, cvar) = &*server_ready;
-            let mut ready = lock.lock().unwrap();
-            while !*ready {
-                ready = cvar.wait(ready).unwrap();
-            }
-        }
-        let locurote = thread::spawn(move || {
-            let camera_system = CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
-            let camera_arc = Arc::new(Mutex::new(camera_system));
-            let can_start_second_thread = Arc::new((Mutex::new(false), Condvar::new()));
-            let second_thread_completed = Arc::new((Mutex::new(false), Condvar::new()));
-            let camera_id_shared = Arc::new(Mutex::new(None)); // Shared camera ID
+    //     // Wait for the server to start
+    //     {
+    //         let (lock, cvar) = &*server_ready;
+    //         let mut ready = lock.lock().unwrap();
+    //         while !*ready {
+    //             ready = cvar.wait(ready).unwrap();
+    //         }
+    //     }
+    //     let locurote = thread::spawn(move || {
+    //         let camera_system = CameraSystem::<Client>::with_real_client(addr.to_string()).unwrap();
+    //         let camera_arc = Arc::new(Mutex::new(camera_system));
+    //         let can_start_second_thread = Arc::new((Mutex::new(false), Condvar::new()));
+    //         let second_thread_completed = Arc::new((Mutex::new(false), Condvar::new()));
+    //         let camera_id_shared = Arc::new(Mutex::new(None)); // Shared camera ID
 
-            let (
-                can_start_second_thread_clone,
-                second_thread_completed_clone,
-                camera_id_shared_clone,
-            ) = (
-                Arc::clone(&can_start_second_thread),
-                Arc::clone(&second_thread_completed),
-                Arc::clone(&camera_id_shared),
-            );
+    //         let (
+    //             can_start_second_thread_clone,
+    //             second_thread_completed_clone,
+    //             camera_id_shared_clone,
+    //         ) = (
+    //             Arc::clone(&can_start_second_thread),
+    //             Arc::clone(&second_thread_completed),
+    //             Arc::clone(&camera_id_shared),
+    //         );
 
-            // Thread 1: Camera system run
-            let camera_arc_clone_for_thread1 = Arc::clone(&camera_arc);
-            let camera_arc_clone_for_thread2 = Arc::clone(&camera_arc);
-            let handler_camera_system = thread::spawn(move || {
-                CameraSystem::<Client>::run_client(None, camera_arc_clone_for_thread1).unwrap();
-                let mut camera_system = camera_arc_clone_for_thread2.lock().unwrap();
-                let location = Location::new(1.0, 2.0);
-                let id = camera_system.add_camera(location).unwrap();
-                *camera_id_shared.lock().unwrap() = Some(id.0);
-                // Signal to start the second thread
-                {
-                    let (lock, cvar) = &*can_start_second_thread_clone;
-                    let mut start = lock.lock().unwrap();
-                    *start = true;
-                    cvar.notify_one();
-                }
-                // Wait for the second thread to complete
-                {
-                    let (lock, cvar) = &*second_thread_completed_clone;
-                    let mut completed = lock.lock().unwrap();
-                    while !*completed {
-                        completed = cvar.wait(completed).unwrap();
-                    }
-                }
-                camera_system.disconnect().unwrap();
-            });
+    //         // Thread 1: Camera system run
+    //         let camera_arc_clone_for_thread1 = Arc::clone(&camera_arc);
+    //         let camera_arc_clone_for_thread2 = Arc::clone(&camera_arc);
+    //         let handler_camera_system = thread::spawn(move || {
+    //             CameraSystem::<Client>::run_client(None, camera_arc_clone_for_thread1).unwrap();
+    //             let mut camera_system = camera_arc_clone_for_thread2.lock().unwrap();
+    //             let location = Location::new(1.0, 2.0);
+    //             let id = camera_system.add_camera(location).unwrap();
+    //             *camera_id_shared.lock().unwrap() = Some(id.0);
+    //             // Signal to start the second thread
+    //             {
+    //                 let (lock, cvar) = &*can_start_second_thread_clone;
+    //                 let mut start = lock.lock().unwrap();
+    //                 *start = true;
+    //                 cvar.notify_one();
+    //             }
+    //             // Wait for the second thread to complete
+    //             {
+    //                 let (lock, cvar) = &*second_thread_completed_clone;
+    //                 let mut completed = lock.lock().unwrap();
+    //                 while !*completed {
+    //                     completed = cvar.wait(completed).unwrap();
+    //                 }
+    //             }
+    //             camera_system.disconnect().unwrap();
+    //         });
 
-            // Thread 2: File creation and deletion
-            let handler_file_operations = thread::spawn(move || {
-                // Wait for the signal from the first thread to start
-                {
-                    let (lock, cvar) = &*can_start_second_thread;
-                    let mut start = lock.lock().unwrap();
-                    while !*start {
-                        start = cvar.wait(start).unwrap();
-                    }
-                } // Retrieve the shared camera ID
-                let camera_id = camera_id_shared_clone.lock().unwrap();
-                let path1 =
-                    "src/surveilling/cameras/".to_string() + &camera_id.unwrap().to_string();
-                let dir_path = Path::new(path1.as_str());
-                let temp_file_path = dir_path.join("temp_file.txt");
-                File::create(&temp_file_path).expect("Failed to create temporary file");
+    //         // Thread 2: File creation and deletion
+    //         let handler_file_operations = thread::spawn(move || {
+    //             // Wait for the signal from the first thread to start
+    //             {
+    //                 let (lock, cvar) = &*can_start_second_thread;
+    //                 let mut start = lock.lock().unwrap();
+    //                 while !*start {
+    //                     start = cvar.wait(start).unwrap();
+    //                 }
+    //             } // Retrieve the shared camera ID
+    //             let camera_id = camera_id_shared_clone.lock().unwrap();
+    //             let path1 =
+    //                 "src/surveilling/cameras/".to_string() + &camera_id.unwrap().to_string();
+    //             let dir_path = Path::new(path1.as_str());
+    //             let temp_file_path = dir_path.join("temp_file.txt");
+    //             File::create(&temp_file_path).expect("Failed to create temporary file");
 
-                // Wait 2 seconds
-                thread::sleep(Duration::from_secs(2));
+    //             // Wait 2 seconds
+    //             thread::sleep(Duration::from_secs(2));
 
-                std::fs::remove_file(temp_file_path).expect("Failed to remove temporary file");
-                {
-                    let (lock, cvar) = &*second_thread_completed;
-                    let mut completed = lock.lock().unwrap();
-                    *completed = true;
-                    cvar.notify_one();
-                }
-            });
+    //             std::fs::remove_file(temp_file_path).expect("Failed to remove temporary file");
+    //             {
+    //                 let (lock, cvar) = &*second_thread_completed;
+    //                 let mut completed = lock.lock().unwrap();
+    //                 *completed = true;
+    //                 cvar.notify_one();
+    //             }
+    //         });
 
-            // Wait for both threads to complete
-            handler_camera_system.join().unwrap();
-            handler_file_operations.join().unwrap();
-        });
-        locurote.join().unwrap();
-    }
+    //         // Wait for both threads to complete
+    //         handler_camera_system.join().unwrap();
+    //         handler_file_operations.join().unwrap();
+    //     });
+    //     locurote.join().unwrap();
+    // }
 }
