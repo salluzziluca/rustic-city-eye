@@ -89,6 +89,8 @@ pub fn add_incident_window(ui: &Ui, map: &mut MyMap, monitoring_app: &mut Monito
                         let location = Location::new(position.lat(), position.lon());
                         let _ = monitoring_app.add_incident(location);
 
+                        let _ = Persistence::add_incident_to_file(location);
+                        
                         map.incidents.push(IncidentView {
                             image: map.incident_icon.clone(),
                             position,
