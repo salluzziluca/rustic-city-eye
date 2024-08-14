@@ -3,15 +3,10 @@ use rand::Rng;
 use rustls::{ClientConfig, ClientConnection, KeyLogFile, RootCertStore, StreamOwned};
 use utils::{protocol_error::ProtocolError, threadpool::ThreadPool};
 use std::{
-    fs::File,
-    io::BufReader,
-    net::{Shutdown, TcpStream},
-    sync::{
+    fs::File, io::BufReader, net::{Shutdown, TcpStream}, path::PathBuf, sync::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,
-    },
-    thread,
-    time::Duration,
+    }, thread, time::Duration
 };
 
 use crate::client_return::ClientReturn;
@@ -68,6 +63,7 @@ impl Client {
             Ok(stream) => stream,
             Err(_) => return Err(ProtocolError::ConectionError),
         };
+        
 
         let client_id = connect.get_client_id().to_string();
         let connect_message = ClientMessage::Connect(connect);
@@ -121,7 +117,9 @@ impl Client {
     ) -> Result<Arc<StreamOwned<ClientConnection, TcpStream>>, ProtocolError> {
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
         let mut root_store = RootCertStore::empty();
-        let mut cert_file = Client::open_file("./broker/src/certs/cert.pem")?;
+        
+        println!("hola");
+        let mut cert_file = Client::open_file("src/certs/cert.pem")?;
         root_store.add_parsable_certificates(
             rustls_pemfile::certs(&mut cert_file).map(|result| result.unwrap()),
         );
@@ -140,12 +138,22 @@ impl Client {
     }
 
     fn open_file(file_path: &str) -> Result<BufReader<File>, ProtocolError> {
+        let file_path = Client::get_clean_path(file_path);
         let file = match File::open(file_path) {
             Ok(file) => file,
             Err(e) => return Err(ProtocolError::OpenFileError(e.to_string())),
         };
 
         Ok(BufReader::new(file))
+    }
+
+    fn get_clean_path(path: &str) -> String {
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+
+        let file_path = PathBuf::from(project_dir).join(path).to_str().unwrap().to_string();
+        let file_path = file_path.replace("client", "broker");
+        println!("Test clients path: {:?}", file_path);  // Añade este print
+        return file_path.to_string();
     }
 
     /// A partir de una razon de desconexion, se conforma correctamente un packet de Disconnect.

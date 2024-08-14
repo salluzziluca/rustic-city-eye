@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::drone_error::DroneError;
-use std::{fs::File, io::BufReader};
+use std::{fs::File, io::BufReader, path::PathBuf};
 
 /// Sirve para levantar la configuracion del Drone a partir del JSON.
 /// Pone a correr al Drone:
@@ -33,10 +33,21 @@ pub struct DroneConfig {
 impl DroneConfig {
     /// Leo la configuracion a partir de un archivo json.
     pub fn new(config_file_path: &str) -> Result<DroneConfig, DroneError> {
-        match DroneConfig::read_drone_config(config_file_path) {
+        let config_file_path = DroneConfig::get_clean_path(config_file_path);
+        match DroneConfig::read_drone_config(&config_file_path) {
             Ok(config) => Ok(config),
-            Err(err) => Err(err),
+            Err(err) => {
+                println!("Error reading Drone configuration file: {:?}", err);
+                Err(err)
+            },
         }
+    }
+
+    fn get_clean_path(path: &str) -> String {
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let file_path = PathBuf::from(project_dir).join(path);
+        println!("Test clients path: {:?}", file_path);  // Añade este print
+        return file_path.to_str().unwrap().to_string();
     }
 
     /// Toma un path a un archivo de configuracion y levanta el DroneConfig.

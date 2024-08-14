@@ -4,12 +4,10 @@ use protocol::{client_message::{ClientMessage, Connect}, disconnect::disconnect_
 use utils::{incident::Incident, incident_payload::IncidentPayload, location::Location, protocol_error::ProtocolError};
 
 use std::{
-    sync::{
+    path::PathBuf, sync::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,
-    },
-    thread::{self, sleep},
-    time::Duration,
+    }, thread::{self, sleep}, time::Duration
 };
 
 use super::{drone_config::DroneConfig, drone_error::DroneError, drone_state::DroneState};
@@ -86,14 +84,19 @@ impl Drone {
         address: String,
         disconnect_receiver_from_center: Receiver<()>,
     ) -> Result<Drone, DroneError> {
-        let drone_config = DroneConfig::new(config_file_path)?;
-        let connect_config = Drone::read_connect_config("./drones/packets_config/connect_config.json", id)?;
+        
+        let drone_config = DroneConfig::new(&config_file_path)?;
+
+        let file = Drone::get_clean_path("packets_config/connect_config.json");
+
+        let connect_config = Drone::read_connect_config(&file, id)?;
 
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
-
+            println!("Drone {} created successfully", id);
         let drone_client = Drone::create_client(id, rx, address, connect_config, tx2, tx.clone())?;
 
+       
         let target_location = location;
         Ok(Drone {
             id,
@@ -117,14 +120,23 @@ impl Drone {
     ///
     /// Setea su client id al id que ingrese por parametro(va a estar definido por el usuario
     /// a la hora de instanciar a un nuevo Drone).
-    fn read_connect_config(file_path: &str, id: u32) -> Result<Connect, DroneError> {
+    pub fn read_connect_config(file_path: &str, id: u32) -> Result<Connect, DroneError> {
         let mut connect_config = match Connect::read_connect_config(file_path) {
             Ok(config) => config,
-            Err(e) => return Err(DroneError::ProtocolError(e.to_string())),
+            Err(e) => {
+                println!("path: {}", file_path);
+                return Err(DroneError::ProtocolError(e.to_string()))},
         };
         connect_config.client_id = id.to_string();
 
         Ok(connect_config)
+    }
+
+    fn get_clean_path(path: &str) -> String {
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let file_path = PathBuf::from(project_dir).join(path);
+        println!("Test clients path: {:?}", file_path);  // Añade este print
+        return file_path.to_str().unwrap().to_string();
     }
 
     /// Crea el Client a traves del cual el Drone va a comunicarse con la red.
@@ -518,7 +530,7 @@ impl Drone {
                                         incident.get_location(),
                                     ));
                                     let publish_config = match PublishConfig::read_config(
-                                        "./drones/packets_config/publish_solved_incident_config.json",
+                                        "drones/packets_config/publish_solved_incident_config.json",
                                         PayloadTypes::IncidentLocation(incident_payload),
                                     ) {
                                         Ok(config) => config,
@@ -597,7 +609,7 @@ impl Drone {
     /// es mayor o igual al ratio de carga
     ///
     /// Si la bateria llega a 100%, el estado del dron pasa a Waiting
-    fn update_battery_charge(
+    pub fn update_battery_charge(
         &mut self,
         start_time: DateTime<Utc>,
         current_time: DateTime<Utc>,
@@ -622,7 +634,7 @@ impl Drone {
     /// Descarga un 1% la bateria si el elapsed time (diferencial de tiempo inicial y tiempo final)
     /// es mayor o igual al ratio de descarga
     /// Si la bateria llega a 20%, el estado del dron pasa a LowBatteryLevel
-    fn update_battery_discharge(
+    pub fn update_battery_discharge(
         &mut self,
         last_discharge_time: DateTime<Utc>,
         current_time: DateTime<Utc>,
@@ -731,7 +743,7 @@ impl Drone {
         Ok(())
     }
 
-    fn calculate_new_position(&mut self) -> bool {
+    pub fn calculate_new_position(&mut self) -> bool {
         let direction_lat = self.target_location.lat - self.location.lat;
         let direction_long = self.target_location.long - self.location.long;
         let magnitude = (direction_lat.powi(2) + direction_long.powi(2)).sqrt();
@@ -752,7 +764,7 @@ impl Drone {
 
     fn update_location(&mut self) {
         let publish_config = match PublishConfig::read_config(
-            "./drones/packets_config/publish_config.json",
+            "drones/packets_config/publish_config.json",
             PayloadTypes::DroneLocation(self.id, self.location, self.target_location),
         ) {
             Ok(config) => config,
@@ -783,7 +795,7 @@ impl Drone {
         let incident = Incident::new(location);
         let incident_payload = IncidentPayload::new(incident.clone());
         let publish_config = match PublishConfig::read_config(
-            "./drones/packets_config/publish_attending_incident_config.json",
+            "drones/packets_config/publish_attending_incident_config.json",
             PayloadTypes::AttendingIncident(incident_payload),
         ) {
             Ok(config) => config,
@@ -832,427 +844,3 @@ impl Drone {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    
-    use std::{
-        sync::{Arc, Condvar, Mutex},
-        thread,
-    };
-
-    use broker::broker::Broker;
-
-    use super::*;
-
-    #[test]
-    fn test_01_reading_connect_config_ok() -> Result<(), DroneError> {
-        let file_path = "./src/packets_config/connect_config.json";
-        let id = 1;
-        let connect_config = Drone::read_connect_config(file_path, id);
-
-        match connect_config {
-            Ok(config) => {
-                println!("Connect config: {:?}", config);
-
-                Ok(())
-            }
-            Err(e) => Err(e),
-        }
-    }
-
-    #[test]
-    fn test_02_drone_arranca_en_waiting_state() {
-        let args = vec!["127.0.0.1".to_string(), "5001".to_string()];
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => panic!("Error creating broker: {:?}", e),
-        };
-
-        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
-        let server_ready_clone = server_ready.clone();
-        thread::spawn(move || {
-            {
-                let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
-                *ready = true;
-                cvar.notify_all();
-            }
-            let _ = broker.server_run();
-        });
-
-        // Wait for the server to start
-        {
-            let (lock, cvar) = &*server_ready;
-            let mut ready = lock.lock().unwrap();
-            while !*ready {
-                ready = cvar.wait(ready).unwrap();
-            }
-        }
-
-        let (_disconnect_sender, disconnect_receiver) = mpsc::channel();
-
-        let handle = thread::spawn(move || {
-            let latitude = 0.0;
-            let longitude = 0.0;
-            let location = Location::new(latitude, longitude);
-            let center_location = Location::new(0.0, 0.0);
-            let mut drone = Drone::new(
-                1,
-                location,
-                center_location,
-                "./src/packets_config/drone_config.json",
-                "127.0.0.1:5001".to_string(),
-                disconnect_receiver,
-            )
-            .unwrap();
-
-            let _ = drone.run_drone();
-
-            assert_eq!(drone.get_state(), DroneState::Waiting);
-        });
-        handle.join().unwrap();
-    }
-
-    #[test]
-    fn test_03_get_id_ok() {
-        let args = vec!["127.0.0.1".to_string(), "5003".to_string()];
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => panic!("Error creating broker: {:?}", e),
-        };
-
-        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
-        let server_ready_clone = server_ready.clone();
-        thread::spawn(move || {
-            {
-                let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
-                *ready = true;
-                cvar.notify_all();
-            }
-            let _ = broker.server_run();
-        });
-
-        // Wait for the server to start
-        {
-            let (lock, cvar) = &*server_ready;
-            let mut ready = lock.lock().unwrap();
-            while !*ready {
-                ready = cvar.wait(ready).unwrap();
-            }
-        }
-
-        let (_disconnect_sender, disconnect_receiver) = mpsc::channel();
-
-        let handle = thread::spawn(move || {
-            let latitude = 0.0;
-            let longitude = 0.0;
-            let location = Location::new(latitude, longitude);
-            let center_location = Location::new(0.0, 0.0);
-            let drone = Drone::new(
-                1,
-                location,
-                center_location,
-                "./tests/drone_config_test.json",
-                "127.0.0.1:5003".to_string(),
-                disconnect_receiver,
-            )
-            .unwrap();
-
-            assert_eq!(drone.get_id(), 1);
-        });
-        handle.join().unwrap();
-    }
-
-    #[test]
-    fn test_04_drone_bad_config_file() {
-        let latitude = 0.0;
-        let longitude = 0.0;
-        let (_disconnect_sender, disconnect_receiver) = mpsc::channel();
-
-        let location = Location::new(latitude, longitude);
-        let center_location = Location::new(0.0, 0.0);
-        let drone = Drone::new(
-            1,
-            location,
-            center_location,
-            "./tests/bad_config_file.json",
-            "127.0.0.1:5000".to_string(),
-            disconnect_receiver,
-        );
-        assert!(drone.is_err());
-    }
-
-    #[test]
-    fn test_drone_stays_within_radius() {
-        let args = vec!["127.0.0.1".to_string(), "5004".to_string()];
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => panic!("Error creating broker: {:?}", e),
-        };
-
-        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
-        let server_ready_clone = server_ready.clone();
-        thread::spawn(move || {
-            {
-                let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
-                *ready = true;
-                cvar.notify_all();
-            }
-            let _ = broker.server_run();
-        });
-
-        // Wait for the server to start
-        {
-            let (lock, cvar) = &*server_ready;
-            let mut ready = lock.lock().unwrap();
-            while !*ready {
-                ready = cvar.wait(ready).unwrap();
-            }
-        }
-
-        let handle = thread::spawn(move || {
-            let latitude = 0.0;
-            let longitude = 0.0;
-            let (_disconnect_sender, disconnect_receiver) = mpsc::channel();
-
-            let location = Location::new(latitude, longitude);
-            let center_location = Location::new(0.0, 0.0);
-            let drone = Drone::new(
-                1,
-                location,
-                center_location,
-                "./src/drones/drone_config.json",
-                "127.0.0.1:5004".to_string(),
-                disconnect_receiver,
-            )
-            .unwrap();
-            let radius = 0.005;
-            // let _ = drone.drone_movement(target_location);
-
-            let distance_from_center =
-                ((drone.location.lat).powi(2) + (drone.location.long).powi(2)).sqrt();
-            assert!(
-                distance_from_center <= radius,
-                "Drone should stay within the radius."
-            );
-        });
-        handle.join().unwrap();
-    }
-
-    #[test]
-    fn test_new_drone() {
-        let args = vec!["127.0.0.1".to_string(), "5007".to_string()];
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => panic!("Error creating broker: {:?}", e),
-        };
-
-        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
-        let server_ready_clone = server_ready.clone();
-        thread::spawn(move || {
-            {
-                let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
-                *ready = true;
-                cvar.notify_all();
-            }
-            let _ = broker.server_run();
-        });
-
-        // Wait for the server to start
-        {
-            let (lock, cvar) = &*server_ready;
-            let mut ready = lock.lock().unwrap();
-            while !*ready {
-                ready = cvar.wait(ready).unwrap();
-            }
-        }
-        let handle = thread::spawn(move || {
-            let location = Location {
-                lat: 0.0,
-                long: 0.0,
-            };
-            let center_location = Location {
-                lat: 0.0,
-                long: 0.0,
-            };
-            let config_file_path = "./src/drones/drone_config.json";
-            let address = "127.0.0.1:5007".to_string();
-            let (_disconnect_sender, disconnect_receiver) = mpsc::channel();
-
-            let drone: Result<Drone, DroneError> = Drone::new(
-                1,
-                location,
-                center_location,
-                config_file_path,
-                address,
-                disconnect_receiver,
-            );
-
-            assert!(drone.is_ok());
-            let drone = drone.unwrap();
-            assert_eq!(drone.id, 1);
-            assert_eq!(drone.location, location);
-            assert_eq!(drone.center_location, center_location);
-            assert_eq!(drone.battery_level, 100);
-            assert_eq!(drone.drone_state, DroneState::Waiting);
-        });
-        handle.join().unwrap();
-    }
-
-    #[test]
-    fn test_battery_discharge() {
-        let args = vec!["127.0.0.1".to_string(), "5008".to_string()];
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => panic!("Error creating broker: {:?}", e),
-        };
-
-        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
-        let server_ready_clone = server_ready.clone();
-        thread::spawn(move || {
-            {
-                let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
-                *ready = true;
-                cvar.notify_all();
-            }
-            let _ = broker.server_run();
-        });
-
-        // Wait for the server to start
-        {
-            let (lock, cvar) = &*server_ready;
-            let mut ready = lock.lock().unwrap();
-            while !*ready {
-                ready = cvar.wait(ready).unwrap();
-            }
-        }
-        let mut drone = setup_test_drone("127.0.0.1:5008".to_string());
-        for _ in 0..100 {
-            drone.update_battery_discharge(Utc::now(), Utc::now() + chrono::Duration::seconds(120));
-        }
-
-        assert!(drone.battery_level <= 0);
-        assert_eq!(drone.drone_state, DroneState::LowBatteryLevel);
-    }
-
-    #[test]
-    fn test_charge_battery() {
-        let args = vec!["127.0.0.1".to_string(), "5009".to_string()];
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => panic!("Error creating broker: {:?}", e),
-        };
-
-        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
-        let server_ready_clone = server_ready.clone();
-        thread::spawn(move || {
-            {
-                let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
-                *ready = true;
-                cvar.notify_all();
-            }
-            let _ = broker.server_run();
-        });
-
-        // Wait for the server to start
-        {
-            let (lock, cvar) = &*server_ready;
-            let mut ready = lock.lock().unwrap();
-            while !*ready {
-                ready = cvar.wait(ready).unwrap();
-            }
-        }
-
-        let mut drone = setup_test_drone("127.0.0.1:5009".to_string());
-        for _ in 0..100 {
-            drone.update_battery_discharge(Utc::now(), Utc::now() + chrono::Duration::seconds(120));
-        }
-
-        assert!(drone.battery_level <= 0);
-        assert_eq!(drone.drone_state, DroneState::LowBatteryLevel);
-
-        for _ in 0..100 {
-            drone.update_battery_charge(Utc::now(), Utc::now() + chrono::Duration::seconds(120));
-        }
-        assert_eq!(drone.battery_level, 100);
-        assert_eq!(drone.get_state(), DroneState::Waiting);
-    }
-
-    #[test]
-    fn test_drone_movement() {
-        let args = vec!["127.0.0.1".to_string(), "5010".to_string()];
-        let mut broker = match Broker::new(args) {
-            Ok(broker) => broker,
-            Err(e) => panic!("Error creating broker: {:?}", e),
-        };
-
-        let server_ready = Arc::new((Mutex::new(false), Condvar::new()));
-        let server_ready_clone = server_ready.clone();
-        thread::spawn(move || {
-            {
-                let (lock, cvar) = &*server_ready_clone;
-                let mut ready = lock.lock().unwrap();
-                *ready = true;
-                cvar.notify_all();
-            }
-            let _ = broker.server_run();
-        });
-
-        // Wait for the server to start
-        {
-            let (lock, cvar) = &*server_ready;
-            let mut ready = lock.lock().unwrap();
-            while !*ready {
-                ready = cvar.wait(ready).unwrap();
-            }
-        }
-        let handle = thread::spawn(move || {
-            let mut drone = setup_test_drone("127.0.0.1:5010".to_string());
-            drone.location = Location {
-                lat: 0.0,
-                long: 0.0,
-            };
-            let drone_arc = Arc::new(Mutex::new(drone));
-            for _ in 0..14 {
-                let mut drone = drone_arc.lock().unwrap();
-                drone.calculate_new_position();
-            }
-            let drone = drone_arc.lock().unwrap();
-            let new_location = &drone.location;
-            println!("New location: {:?}", new_location);
-            assert!(new_location.lat > -1.0 && new_location.lat < 1.0);
-            assert!(new_location.long > -1.0 && new_location.long < 1.0);
-        });
-        handle.join().unwrap();
-    }
-
-    // Helper function to setup a test drone
-    fn setup_test_drone(addres: String) -> Drone {
-        let location = Location {
-            lat: 0.0,
-            long: 0.0,
-        };
-        let center_location = Location {
-            lat: 0.0,
-            long: 0.0,
-        };
-        let config_file_path = "./src/drones/drone_config.json";
-        let address = addres.to_string();
-        let (_disconnect_sender, disconnect_receiver) = mpsc::channel();
-
-        Drone::new(
-            1,
-            location,
-            center_location,
-            config_file_path,
-            address,
-            disconnect_receiver,
-        )
-        .unwrap()
-    }
-}

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Error, ErrorKind, Read, Write};
+use std::path::PathBuf;
 
 use crate::connect::connect_properties::ConnectProperties;
 use crate::connect::last_will::LastWill;
@@ -217,8 +218,19 @@ impl Connect {
             will_properties,
         ))
     }
+
+    fn get_clean_path(path: &str) -> String {
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let file_path = PathBuf::from(project_dir).join(path).to_str().unwrap().to_string();
+        let file_path = file_path.replace("protocol/", "");
+        println!("Test clients path: {:?}", file_path);  // Añade este print
+        return file_path.to_string();
+    }
+
     /// Abre un archivo de configuracion con propiedades y guarda sus lecturas.
     pub fn read_connect_config(file_path: &str) -> Result<Connect, ProtocolError> {
+
+        let file_path = Connect::get_clean_path(file_path);
         let config_file = match File::open(file_path) {
             Ok(file) => file,
             Err(_) => {

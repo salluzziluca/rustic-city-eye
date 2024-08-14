@@ -1,4 +1,4 @@
-use std::{fs::File, io::BufReader};
+use std::{fs::File, io::BufReader, path::PathBuf};
 
 use serde::Deserialize;
 
@@ -65,11 +65,14 @@ impl PublishConfig {
             publish_properties: config.publish_properties,
         }
     }
+
+
     /// Abre un archivo de configuracion con propiedades y guarda sus lecturas.
     pub fn read_config(
         file_path: &str,
         payload: PayloadTypes,
     ) -> Result<PublishConfig, ProtocolError> {
+        let file_path = PublishConfig::get_clean_path(file_path);
         let config_file = match File::open(file_path) {
             Ok(file) => file,
             Err(_) => return Err(ProtocolError::ReadingConfigFileError),
@@ -88,6 +91,24 @@ impl PublishConfig {
             payload,
             publish_properties: config.publish_properties,
         })
+    }
+
+    fn get_clean_path(path: &str) -> String {
+        println!("hola: {:?}", path);  // Añade este print
+
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let file_path = PathBuf::from(project_dir).join(path).to_str().unwrap().to_string();
+        
+    
+        let file_path = if file_path.contains("protocol") {
+            file_path.replace("protocol/", "")
+        } else {
+            file_path
+        };
+        
+        
+        println!("Test clients path: {:?}", file_path);  // Añade este print
+        file_path
     }
 }
 

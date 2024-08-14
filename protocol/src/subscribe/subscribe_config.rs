@@ -1,3 +1,7 @@
+
+
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{client_message::ClientMessage, messages_config::MessagesConfig, subscription::Subscription};
@@ -37,7 +41,8 @@ impl SubscribeConfig {
     }
 
     pub fn json_to_publish_config(path: &str) -> SubscribeConfig {
-        let config: SubscribeConfig = match serde_json::from_str(path) {
+        let path = SubscribeConfig::get_clean_path(path);
+        let config: SubscribeConfig = match serde_json::from_str(&path) {
             Ok(config) => config,
             Err(e) => panic!("Error reading json to PublishConfig: {}", e),
         };
@@ -48,7 +53,17 @@ impl SubscribeConfig {
             client_id: config.client_id,
         }
     }
+
+    fn get_clean_path(path: &str) -> String {
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let file_path = PathBuf::from(project_dir).join(path);
+        println!("Test clients path: {:?}", file_path);  // Añade este print
+        return file_path.to_str().unwrap().to_string();
+    }
+
+
     pub fn write_config_to_json_file(&self, path: &str) {
+        let path = SubscribeConfig::get_clean_path(path);
         let json = match serde_json::to_string(&self) {
             Ok(json) => json,
             Err(e) => panic!("Error converting PublishConfig to json: {}", e),
