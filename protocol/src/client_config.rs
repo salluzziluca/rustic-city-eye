@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::{fs::File, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -37,8 +37,11 @@ impl ClientConfig {
         client_id: String,
         state: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let path = format!("./src/mqtt/clients/{}.json", client_id);
-        let file = File::open(&path)?;
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let path =  "src/clients/".to_string() + &client_id + ".json";
+
+        let file_path = PathBuf::from(project_dir).join(path);
+        let file = File::open(file_path.clone())?;
         let client_config: ClientConfig = serde_json::from_reader(file)?;
         let new_client_config = ClientConfig {
             client_id: client_config.client_id,
@@ -47,7 +50,7 @@ impl ClientConfig {
             pending_messages: client_config.pending_messages,
         };
         let json = serde_json::to_string(&new_client_config)?;
-        std::fs::write(&path, json)?;
+        std::fs::write(file_path, json)?;
         Ok(())
     }
 
@@ -55,7 +58,8 @@ impl ClientConfig {
     pub fn create_client_log_in_json(client_id: String) -> Result<(), Box<dyn std::error::Error>> {
         let client_config = ClientConfig::new(client_id.clone());
         let json = serde_json::to_string(&client_config)?;
-        let path = format!("./broker/src/clients/{}.json", client_id);
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let path = PathBuf::from(project_dir).join("src/clients/".to_string() + &client_id + ".json");
 
         std::fs::write(path, json)?;
         Ok(())
@@ -66,7 +70,10 @@ impl ClientConfig {
         client_id: String,
         topic: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let path =  "src/clients/".to_string() + &client_id + ".json";
+        let path = PathBuf::from(project_dir).join(path);
+
         if !ClientConfig::client_exists(client_id.clone()) {
             let _ = ClientConfig::create_client_log_in_json(client_id.clone());
         }
@@ -88,7 +95,10 @@ impl ClientConfig {
         client_id: String,
         topic: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let path =  "src/clients/".to_string() + &client_id + ".json";
+        let path = PathBuf::from(project_dir).join(path);
+
         let file = std::fs::File::open(path.clone())?;
         let mut client_config: ClientConfig = serde_json::from_reader(file)?;
         if let Some(index) = client_config.subscriptions.iter().position(|x| x == &topic) {
@@ -103,15 +113,18 @@ impl ClientConfig {
 
     /// Verifica si un cliente existe en el archivo json
     pub fn client_exists(client_id: String) -> bool {
-        // verifica si un cliente existe en el archivo json
-        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let path =  "src/clients/".to_string() + &client_id + ".json";
+        let path = PathBuf::from(project_dir).join(path);
         std::fs::metadata(path).is_ok()
     }
 
     /// Remueve un cliente del archivo json
     pub fn delete_client_file(client_id: String) -> Result<(), ProtocolError> {
-        // remueve un cliente del archivo json
-        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let path =  "src/clients/".to_string() + &client_id + ".json";
+        let path = PathBuf::from(project_dir).join(path);
+
         if std::fs::metadata(&path).is_err() {
             return Ok(());
         }
@@ -123,7 +136,11 @@ impl ClientConfig {
     }
 
     pub fn client_is_online(client_id: String) -> bool {
-        let path = format!("./src/mqtt/clients/{}.json", client_id);
+
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let path =  "src/clients/".to_string() + &client_id + ".json";
+        let path = PathBuf::from(project_dir).join(path);
+
         if std::fs::metadata(&path).is_ok() {
             let file = match std::fs::File::open(path) {
                 Ok(file) => file,
@@ -142,7 +159,9 @@ impl ClientConfig {
     pub fn _remove_all_subscriptions_from_file(
         client_id: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let path =  "src/clients/".to_string() + &client_id + ".json";
+        let path = PathBuf::from(project_dir).join(path);
         let file = std::fs::File::open(path.clone())?;
         let mut client_config: ClientConfig = serde_json::from_reader(file)?;
         client_config.subscriptions = Vec::new();
@@ -154,7 +173,9 @@ impl ClientConfig {
     pub fn _get_client_subscriptions(
         client_id: String,
     ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let path =  "src/clients/".to_string() + &client_id + ".json";
+        let path = PathBuf::from(project_dir).join(path);
         let file = std::fs::File::open(path.clone())?;
         let client_config: ClientConfig = serde_json::from_reader(file)?;
         Ok(client_config.subscriptions)
@@ -164,7 +185,9 @@ impl ClientConfig {
         client_id: String,
         message: ClientMessage,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let path =  "src/clients/".to_string() + &client_id + ".json";
+        let path = PathBuf::from(project_dir).join(path);
         if !ClientConfig::client_exists(client_id.clone()) {
             let _ = ClientConfig::create_client_log_in_json(client_id.clone());
         }
@@ -185,9 +208,10 @@ mod tests {
     impl ClientConfig {
         /// Obtiene un cliente del archivo json
         pub fn get_client(client_id: String) -> ClientConfig {
-            // obtiene un cliente del archivo json
-            let path = format!("./src/mqtt/clients/{}.json", client_id);
-            let file = std::fs::File::open(path).unwrap();
+            let project_dir = env!("CARGO_MANIFEST_DIR");
+            let file_path = PathBuf::from(project_dir).join("src/clients/".to_string() + &client_id + ".json");
+            println!("Test clients path: {:?}", file_path);
+            let file = std::fs::File::open(file_path).unwrap();
             serde_json::from_reader(file).unwrap()
         }
     }
@@ -215,7 +239,9 @@ mod tests {
     fn test_create_client_log_in_json() {
         let client_id = "test".to_string();
         let _ = ClientConfig::create_client_log_in_json(client_id.clone());
-        let path = format!("./src/mqtt/clients/{}.json", client_id);
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let path =  "src/clients/".to_string() + &client_id + ".json";
+        let path = PathBuf::from(project_dir).join(path);
         assert!(std::fs::metadata(path).is_ok());
         ClientConfig::delete_client_file(client_id.clone()).unwrap();
     }

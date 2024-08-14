@@ -253,6 +253,8 @@ mod tests {
         let incident = Incident::new(location);
         let incident_payload = IncidentPayload::new(incident.clone());
         let payload = PayloadTypes::IncidentLocation(incident_payload.clone());
+        
+        let id_test= IncidentPayload::get_incident_id(&incident_payload.clone());
 
         let mut cursor = Cursor::new(Vec::new());
         payload.write_to(&mut cursor).unwrap();

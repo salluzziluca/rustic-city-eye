@@ -29,4 +29,8 @@ impl IncidentPayload {
     pub fn get_incident(&self) -> Incident {
         self.incident.clone()
     }
+
+    pub fn get_incident_id(&self) -> u8 {
+        self.id
+    }
 }
