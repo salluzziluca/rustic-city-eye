@@ -224,7 +224,7 @@ impl Connect {
         let file_path = PathBuf::from(project_dir).join(path).to_str().unwrap().to_string();
         let file_path = file_path.replace("protocol/", "");
         println!("Test clients path: {:?}", file_path);  // Añade este print
-        return file_path.to_string();
+        file_path.to_string()
     }
 
     /// Abre un archivo de configuracion con propiedades y guarda sus lecturas.

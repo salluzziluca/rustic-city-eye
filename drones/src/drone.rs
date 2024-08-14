@@ -85,7 +85,7 @@ impl Drone {
         disconnect_receiver_from_center: Receiver<()>,
     ) -> Result<Drone, DroneError> {
         
-        let drone_config = DroneConfig::new(&config_file_path)?;
+        let drone_config = DroneConfig::new(config_file_path)?;
 
         let file = Drone::get_clean_path("packets_config/connect_config.json");
 

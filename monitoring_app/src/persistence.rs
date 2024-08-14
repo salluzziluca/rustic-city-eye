@@ -484,7 +484,7 @@ mod tests {
         Persistence::remove_camera_from_file(0).unwrap();
 
         let cameras = Persistence::get_cameras();
-        if cameras.len() != 0 {
+        if !cameras.is_empty() {
             return Err("Error: Camera not removed from file".into());
         }
 
@@ -515,7 +515,7 @@ mod tests {
         Persistence::remove_central_from_file(0).unwrap();
 
         let centrals = Persistence::get_centrals();
-        if centrals.len() != 0 {
+        if !centrals.is_empty() {
             return Err("Error: Central not removed from file".into());
         }
 
@@ -538,7 +538,7 @@ mod tests {
         let _ = Persistence::remove_drone_from_file(0);
 
         let drones = Persistence::get_drones();
-        if drones.len() != 0 {
+        if !drones.is_empty() {
             return Err("Error: Drone not removed from file".into());
         }
 
@@ -561,7 +561,7 @@ mod tests {
         Persistence::remove_incident_from_file(Location::new(1.0, 1.0)).unwrap();
 
         let incidents = Persistence::get_incidents();
-        if incidents.len() != 0 {
+        if !incidents.is_empty() {
             return Err("Error: Incident not removed from file".into());
         }
         std::fs::remove_file(TEST_PERSISTENCE_FILE).unwrap();

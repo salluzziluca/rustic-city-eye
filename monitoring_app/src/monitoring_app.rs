@@ -384,7 +384,7 @@ impl MonitoringApp {
         location: Location,
         drone_center_id: u32,
     ) -> Result<u32, ProtocolError> {
-        match self.drone_system.add_drone(location.clone(), drone_center_id) {
+        match self.drone_system.add_drone(location, drone_center_id) {
             Ok(id) => {
                 let _ = Persistence::add_drone_to_file(location, id);
                 Ok(id)

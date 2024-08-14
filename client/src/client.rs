@@ -153,7 +153,7 @@ impl Client {
         let file_path = PathBuf::from(project_dir).join(path).to_str().unwrap().to_string();
         let file_path = file_path.replace("client", "broker");
         println!("Test clients path: {:?}", file_path);  // Añade este print
-        return file_path.to_string();
+        file_path.to_string()
     }
 
     /// A partir de una razon de desconexion, se conforma correctamente un packet de Disconnect.

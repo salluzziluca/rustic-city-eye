@@ -2,8 +2,8 @@
 
 mod tests {
     use std::collections::HashMap;
-    use std::fs::File;
-    use std::path::Path;
+    
+    
     use std::sync::mpsc::{self, Sender};
     use std::sync::{Arc, Condvar, Mutex};
     use std::thread;
@@ -22,7 +22,7 @@ mod tests {
     use crate::camera_system::CameraSystem;
 
 
-    use std::time::Duration;
+    
 
     impl CameraSystem<Client> {
         fn get_client_publish_end_channel(

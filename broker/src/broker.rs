@@ -181,7 +181,7 @@ impl Broker {
             Some(s) => s.to_string(),
             None => "".to_string(),
         };
-        return file_path_str.to_string();
+        file_path_str.to_string()
     }
 
     ///Abro y devuelvo las lecturas del archivo de topics.
