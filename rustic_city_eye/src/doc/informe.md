@@ -298,15 +298,15 @@ Una Threadpool es un mecanismo para manejar y ejecutar múltiples tareas de mane
 
 La estructura principal es ThreadPool, que contiene un vector de Workers y un sender de un canal mpsc.
 
-    workers: Un vector que almacena los Workers que están disponibles para ejecutar tareas.
-    sender: Permite enviar trabajos (Jobs) a los Workers.
+- workers: Un vector que almacena los Workers que están disponibles para ejecutar tareas.
+- sender: Permite enviar trabajos (Jobs) a los Workers.
 
 2. Worker
 
 Cada Worker es responsable de ejecutar los trabajos que recibe. Un Worker tiene un ID único y un thread que se ejecuta en un bucle esperando recibir trabajos.
 
-    id: Identificador único del Worker.
-    thread: El hilo en el que se ejecutan los jobs.
+- id: Identificador único del Worker.
+- thread: El hilo en el que se ejecutan los jobs.
 
 3. Job
 
