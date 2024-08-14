@@ -859,7 +859,7 @@ mod tests {
         }
         let handle = thread::spawn(move || {
             let connect_config =
-                Connect::read_connect_config("src/drones/connect_config.json")
+                Connect::read_connect_config("drones/packets_config/connect_config.json")
                     .unwrap();
             let (_, rx) = mpsc::channel();
             let (tx2, _) = mpsc::channel();
@@ -901,7 +901,7 @@ mod tests {
         }
         let handle = thread::spawn(move || {
             let connect_config =
-                Connect::read_connect_config("src/drones/connect_config.json")
+                Connect::read_connect_config("drones/packets_config/connect_config.json")
                     .unwrap();
             let (_, rx) = mpsc::channel();
             let (tx2, _) = mpsc::channel();
@@ -944,7 +944,7 @@ mod tests {
         }
         let handle = thread::spawn(move || {
             let connect_config =
-                Connect::read_connect_config("src/drones/connect_config.json")
+                Connect::read_connect_config("drones/packets_config/connect_config.json")
                     .unwrap();
             let (_, rx) = mpsc::channel();
             let (tx2, _) = mpsc::channel();
