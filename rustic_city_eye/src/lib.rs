@@ -4,6 +4,7 @@ pub mod doc;
 pub mod utils;
 #[doc = include_str!("doc/informe.md")]
 #[doc = include_str!("doc/marco_teorico.md")]
+#[doc = include_str!("doc/informe_final.md")]
 
 pub mod mqtt {
     pub mod connect {

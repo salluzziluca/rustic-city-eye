@@ -27,9 +27,9 @@ Primer Cuatrimestre de 2024.
 # Introducción
 
 Para este agregados, tuvimos que incorporar la tecnologia de reconocimiento de imagenes al sistema central de camaras desarrollado en nuestro proyecto de Agentes 
-Autonomos de Prevencion. Esta tecnologia incorpora una inteligencia artificial que nos permite interpretar y comprender el contenido de imagenes digitales, utilizando algoritmos de aprendizaje automatico como las redes neuronales convolucionales para identificar y clasificar objetos, asi como para identificar caracteristicas visuales de nuestras imagenes.
+Autonomos de Prevencion. Esta tecnologia incorpora una inteligencia artificial que nos permite interpretar y comprender el contenido de imagenes digitales, utilizando algoritmos de aprendizaje automatico como las redes neuronales convolucionales, para identificar y clasificar objetos, y tambien para identificar caracteristicas visuales de nuestras imagenes.
 
-Las aplicaciones de seguridad y vigilancia suelen servirse de esta tecnologia, debido a su capacidad de detectar ciertos eventos u objetos a traves de nuestros dispositivos de seguridad, y tomar medidas al respecto. Para nuestra aplicacion, tuvimos que hacer capaz al sistema central de camaras de procesar imagenes para detectar potenciales incidentes en la via publica(por ejemplo incendios, accidentes de transito, etc). Luego de detectar un incidente en las imagenes, el sistema de camaras debe hacer uso del sistema de mensajeria para publicar un mensaje que describa este incidente y, en consecuencia, generar el incidente correspondiente y poner en marcha el circuito de resolucion de incidentes implementado en el proyecto. 
+Las aplicaciones de seguridad y vigilancia suelen servirse de esta tecnologia, debido a que podemos detectar ciertos eventos u objetos a traves de nuestros dispositivos de seguridad, y tomar medidas al respecto. Para nuestra aplicacion, tuvimos que hacer capaz al sistema central de camaras de procesar imagenes para detectar potenciales incidentes en la via publica(por ejemplo incendios, accidentes de transito, etc). Luego de detectar un incidente en las imagenes, el sistema de camaras debe hacer uso del sistema de mensajeria para publicar un mensaje que describa este incidente y, en consecuencia, generar el incidente correspondiente y poner en marcha el circuito de resolucion de incidentes implementado en el proyecto. 
 
 
 # Proveedor de Infraestructura en la nube
@@ -48,23 +48,15 @@ Para servirnos de un modelo y una infraestructura previamente preprocesados y en
 
 ### Analisis de Costos y performance
 
-Para evaluar los costos y el rendimiento del sistema, realizamos un análisis basado en el número de solicitudes de procesamiento de imágenes que el sistema de cámaras puede realizar en condiciones de funcionamiento continuo.
-
-#### Estimación de Carga del Sistema
 Supongamos que el sistema de cámaras realiza un promedio de 10 solicitudes por minuto en funcionamiento continuo. Esto equivale a:
 
 - Solicitudes por hora: 10 solicitudes/minuto * 60 minutos/hora = 600 solicitudes/hora
 - Solicitudes por día: 600 solicitudes/hora * 24 horas/día = 14,400 solicitudes/día
 - Solicitudes por mes: 14,400 solicitudes/día * 30 días/mes = 432,000 solicitudes/mes
-#### Costos del Servicio
-El servicio de Google Vision AI tiene un costo promedio de $1.50 por cada 1000 imágenes a procesar. Por lo tanto, calculamos el costo mensual del sistema de la siguiente manera:
 
-Costo mensual: (432,000 solicitudes/mes) / 1000 * $1.50 = $648/mes
-#### Performance del Servicio
-El servicio de Google Vision AI es rápido en el procesamiento de peticiones, con un tiempo de respuesta promedio de 0.35 a 0.6 segundos por solicitud. Esta rapidez es fundamental para nuestra aplicación, ya que permite detectar incidentes en tiempo real y actuar en consecuencia.
+El servicio de Google tiene un costo promedio de $1.50 por cada 1000 imagenes a procesar. Por lo que haciendo ese numero de peticiones al mes, tendriamos un total de $646.50/mes.
 
-#### Análisis de Viabilidad
-Dado el costo total y el alto rendimiento del servicio, consideramos que Google Vision AI es una excelente opción para la detección de incidentes en el contexto de nuestra aplicación. La capacidad de procesamiento en tiempo real y el costo razonable lo convierten en una solución viable y efectiva para nuestras necesidades.
+El servicio es rapido a la hora de hacerle peticiones, en promedio se tarda de 0.35 a 0.6 segundos. Teniendo en cuenta el costo total, y el alto rendimiento que esta IA posee, creemos que es una gran opcion para la deteccion de incidentes en el contexto de nuestra aplicacion.
 
 ## Uso del proveedor
 
@@ -82,11 +74,9 @@ En este caso, el modelo nos indica que la imagen contiene un perro(con un score 
 
 Para detectar incidentes, optamos por utilizar dos filtros que nos provee la API: `LABEL_DETECTION` y `SAFE_SEARCH_DETECTION`: la primera nos permite detectar etiquetas sobre la imagen, y la segunda nos permite detectar imagenes con contenido explicito(sirviendonos del detector que Google tiene integrado). Tambien, hemos modificado la cantidad maxima de resultados que nos da el modelo(por defecto son 10), y lo que hemos hecho fue setearlos con 50 resultados para label_detection, y con 10 para safe_search_detection.
 
---- 
-
 El clasificador de imagenes que hemos declarado funciona de la siguiente manera para etiquetar las imagenes: se le provee un path hacia una imagen local, y se pasa a codificarla en base 64(haciendo uso del crate externo `Base64`), luego se realiza la request a la API, haciendo uso de un Client del crate externo `reqwest` en modo Blocking: esto nos permite manejar peticiones HTTP de manera sincronica, ya que va a bloquear el thread en ejecucion hasta que reciba una response. Las requests van a serializarse, y las responses van a deserializarse, obteniendo asi un vector de tuplas `(String, f64)`: el String corresponde a la etiqueta, y el f64 corresponde al score de esa etiqueta.
 
-Al obtener el vector de etiquetas con sus respectivos scores, se pasa a detectar posibles incidentes, si alguna de esas etiquetas contiene una palabra clave para detectar incidentes(puede ser por ejemplo la palabra `Fire`), se indica que un incidente fue detectado.  
+Al obtener el vector de etiquetas con sus respectivos scores, se pasa a detectar posibles incidentes, y es que si alguna de esas etiquetas contiene una palabra clave para detectar incidentes(puede ser por ejemplo la palabra `Fire`), se indica que un incidente fue detectado.  
 ![alt text](./assets/image.png)
 
 # MultiThreading
@@ -153,3 +143,94 @@ El método `annotate_image` de la cámara, a su vez, llama a `annotate_image` en
 Finalmente, si el CameraSystem recibe un true, llama a `publish_incident` para publicar el incidente correspondiente.
 
 ![alt text](./assets/classify_sequence1.png)
+
+
+# Desgloce de la implementacion
+
+El sistema está compuesto por tres módulos principales:
+
+1. **Cliente de Mensajería (`run_client`)**
+2. **Manejo de Mensajes de Incidentes (`handle_incident_messages`)**
+3. **Supervisión de Directorios de Cámaras (`watch_dirs`)**
+
+Cada uno de estos módulos interactúa para garantizar que el sistema de cámaras responda de manera efectiva a los incidentes reportados por el cliente.
+
+## 3. Cliente de Mensajería
+
+### 3.1. Función `run_client`
+
+La función `run_client` es el punto de entrada principal del sistema, encargada de coordinar la ejecución del cliente de mensajería y los subsistemas que supervisan incidentes y directorios de cámaras. Recibe dos parámetros:
+
+- `parameter_reciever`: Un receptor opcional de mensajes del cliente (`Option<Arc<Mutex<Receiver<ClientMessage>>>>`). Si no se proporciona, utiliza el receptor predeterminado del sistema de cámaras.
+- `system`: Una referencia compartida y protegida al sistema de cámaras (`Arc<Mutex<CameraSystem<Client>>>`).
+
+Esta función lanza tres hilos (`thread::spawn`):
+
+1. **Hilo de Ejecución del Cliente**: Invoca el método `client_run` del sistema de cámaras para iniciar la conexión con el broker y recibir mensajes del cliente.
+2. **Hilo de Manejo de Mensajes de Incidentes**: Ejecuta la función `handle_incident_messages` que procesa los mensajes relacionados con incidentes.
+3. **Hilo de Supervisión de Directorios**: Inicia la función `watch_dirs` para monitorear cambios en los directorios de cámaras.
+
+### 3.2. Método `client_run`
+
+Dentro del hilo de ejecución del cliente, el método `client_run` del sistema de cámaras es llamado para establecer la conexión con el broker y comenzar a recibir mensajes. Si ocurre algún error durante la ejecución, este es capturado y registrado, pero el sistema sigue funcionando en otros aspectos.
+
+## 4. Manejo de Mensajes de Incidentes
+
+### 4.1. Función `handle_incident_messages`
+
+La función `handle_incident_messages` es responsable de procesar los mensajes relacionados con incidentes y responder adecuadamente. Esta función se ejecuta en un bucle infinito y utiliza una copia del sistema de cámaras (`Arc::clone(&system)`) para evitar problemas de concurrencia.
+
+Los pasos principales dentro del bucle son:
+
+1. **Verificar y Procesar Incidentes Activos**: Si hay una ubicación de incidente pendiente, se intenta activar las cámaras cercanas utilizando el método `activate_cameras` del sistema de cámaras.
+2. **Verificar y Procesar Incidentes Resueltos**: Si hay una ubicación de incidente resuelto pendiente, se intenta desactivar las cámaras cercanas utilizando el método `deactivate_cameras`.
+3. **Recepción y Procesamiento de Mensajes**: Se bloquea el receptor para recibir un mensaje del cliente. Dependiendo del tipo de mensaje, se actualizan las ubicaciones de incidentes pendientes.
+
+### 4.2. Función `process_client_message`
+
+La función `process_client_message` es utilizada por `handle_incident_messages` para procesar los mensajes recibidos:
+
+- Si el mensaje es un `publish` con el tópico `incident`, la ubicación del incidente es almacenada en `incident_location`.
+- Si el mensaje es un `publish` con el tópico `incident_resolved`, la ubicación del incidente resuelto es almacenada en `solved_incident_location`.
+
+Este procesamiento permite que las funciones `activate_cameras` y `deactivate_cameras` actúen en consecuencia.
+
+## 5. Supervisión de Directorios de Cámaras
+
+### 5.1. Función `watch_dirs`
+
+La función `watch_dirs` supervisa el directorio de cámaras en busca de cambios (como la creación o modificación de archivos) y procesa estos eventos para garantizar que solo se manejen una vez, evitando duplicaciones debidas a posibles errores.
+
+El proceso de supervisión se realiza en los siguientes pasos:
+
+1. **Inicialización de un Pool de Hilos (`ThreadPool`)**: Un `ThreadPool` con 10 hilos se utiliza para manejar múltiples eventos simultáneamente.
+2. **Observación de Directorios**: Utiliza la función `watch_directory` para monitorear un directorio específico.
+3. **Procesamiento de Eventos**: En un bucle continuo, se reciben eventos a través de un canal (`channel`) y se determina si deben ser procesados, basándose en un control de tiempo (`last_event_times`). Si el evento no ha sido procesado recientemente, se invoca la función `process_dir_change`.
+
+### 5.2. Función `process_dir_change`
+
+La función `process_dir_change` se encarga de manejar los eventos de cambio detectados en los directorios:
+
+- **Eventos de Creación de Archivos**: Si un archivo nuevo es detectado (especialmente imágenes con extensiones `.jpg`, `.jpeg`, `.png`), se invoca la función `analize_image` para que la cámara correspondiente analice la imagen.
+- **Eventos de Creación de Directorios**: Si un nuevo directorio es detectado, se registra la creación y se notifica al sistema mediante logging.
+
+### 5.3. Función `analize_image`
+
+Cuando una imagen nueva es agregada al directorio de una cámara, la función `analize_image` localiza la cámara correspondiente en el sistema, y esta se encarga de analizar la imagen utilizando su método `annotate_image`.
+
+- Si la imagen corresponde a un incidente, se invoca la función `publish_incident` para enviar un mensaje al broker con la ubicación del incidente.
+- Si no es un incidente, el proceso se registra como tal y no se toma ninguna acción adicional.
+
+## 6. Publicación de Incidentes
+
+### 6.1. Función `publish_incident`
+
+La función `publish_incident` es responsable de enviar un mensaje al broker cuando una cámara detecta un incidente. Este mensaje incluye la ubicación del incidente y se basa en la configuración de publicación (`PublishConfig`) que se lee de un archivo de configuración específico (`publish_incident_config.json`).
+
+Los pasos clave en la publicación del incidente son:
+
+1. **Obtención de la Ubicación de la Cámara**: Se extrae la ubicación desde la cámara que detectó el incidente.
+2. **Creación de la Carga Útil (`IncidentPayload`)**: Se genera una carga útil con la información del incidente.
+3. **Envío del Mensaje**: Utilizando el método `send_message` del sistema de cámaras, se envía el mensaje al broker.
+
+En caso de errores durante este proceso, se manejan y registran adecuadamente para garantizar la estabilidad del sistema.
