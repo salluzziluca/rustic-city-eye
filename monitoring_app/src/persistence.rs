@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::{fs::File, path::{Path, PathBuf}};
 
 use drones::{drone_center::DroneCenter, drone_error::DroneError};
 use serde::{Deserialize, Serialize};
@@ -31,18 +31,21 @@ impl Persistence {
         }
     }
 
-    fn get_filepath() -> &'static str {
+    fn get_filepath() -> String {
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let mut path = PathBuf::from(project_dir);
         if cfg!(test) {
-            TEST_PERSISTENCE_FILE
+            path.push(TEST_PERSISTENCE_FILE);
         } else {
-            PERSISTENCE_FILE
+            path.push(PERSISTENCE_FILE);
         }
+        path.to_str().unwrap().to_owned()
     }
 
     /// Cuenta la cantidad de elementos de un tipo en el archivo de persistencia
     pub fn count_element(element: String) -> u32 {
         let file_path = Self::get_filepath();
-        if std::fs::metadata(file_path).is_err() {
+        if std::fs::metadata(file_path.clone().clone()).is_err() {
             return 0;
         }
 
@@ -68,7 +71,7 @@ impl Persistence {
     /// Verifica si una cámara con el id dado existe en el archivo de persistencia
     pub fn camera_exists(id: u32) -> bool {
         let file_path = Self::get_filepath();
-        if std::fs::metadata(file_path).is_err() {
+        if std::fs::metadata(file_path.clone()).is_err() {
             return false;
         }
 
@@ -94,13 +97,13 @@ impl Persistence {
     /// Agrega una cámara al archivo de persistencia
     pub fn add_camera_to_file(camera: Camera) -> Result<(), Box<dyn std::error::Error>> {
         let file_path = Self::get_filepath();
-        if std::fs::metadata(file_path).is_err() {
+        if std::fs::metadata(file_path.clone()).is_err() {
             let p = Persistence::new();
             let json = serde_json::to_string(&p)?;
-            std::fs::write(file_path, json)?;
+            std::fs::write(file_path.clone(), json)?;
         }
 
-        let file = File::open(file_path)?;
+        let file = File::open(file_path.clone())?;
         let mut p: Persistence = serde_json::from_reader(file)?;
 
         p.cameras.push(camera);
@@ -115,11 +118,11 @@ impl Persistence {
     /// Remueve una cámara con el id dado del archivo de persistencia
     pub fn remove_camera_from_file(id: u32) -> Result<(), Box<dyn std::error::Error>> {
         let file_path = Self::get_filepath();
-        if std::fs::metadata(file_path).is_err() {
+        if std::fs::metadata(file_path.clone()).is_err() {
             return Ok(());
         }
 
-        let file = File::open(file_path)?;
+        let file = File::open(file_path.clone())?;
         let mut p: Persistence = serde_json::from_reader(file)?;
 
         if let Some(index) = p.cameras.iter().position(|x| x.id == id) {
@@ -134,7 +137,7 @@ impl Persistence {
     /// Devuelve todas las cámaras en el archivo de persistencia
     pub fn get_cameras() -> Vec<Camera> {
         let file_path = Self::get_filepath();
-        if std::fs::metadata(file_path).is_err() {
+        if std::fs::metadata(file_path.clone()).is_err() {
             return Vec::new();
         }
 
@@ -154,7 +157,7 @@ impl Persistence {
     /// Verifica si un centro de drones con el id dado existe en el archivo de persistencia
     pub fn central_exists(id: u32) -> bool {
         let file_path = Self::get_filepath();
-        if std::fs::metadata(file_path).is_err() {
+        if std::fs::metadata(file_path.clone()).is_err() {
             return false;
         }
 
@@ -180,7 +183,7 @@ impl Persistence {
     /// Devuelve los centros de drones en el archivo de persistencia
     pub fn get_centrals() -> Vec<DroneCenter> {
         let file_path = Self::get_filepath();
-        if std::fs::metadata(file_path).is_err() {
+        if std::fs::metadata(file_path.clone()).is_err() {
             return Vec::new();
         }
 
@@ -212,13 +215,13 @@ impl Persistence {
         address: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let file_path = Self::get_filepath();
-        if std::fs::metadata(file_path).is_err() {
+        if std::fs::metadata(file_path.clone()).is_err() {
             let p = Persistence::new();
             let json = serde_json::to_string(&p)?;
-            std::fs::write(file_path, json)?;
+            std::fs::write(file_path.clone(), json)?;
         }
 
-        let file = File::open(file_path)?;
+        let file = File::open(file_path.clone())?;
 
         let mut p: Persistence = serde_json::from_reader(file)?;
 
@@ -236,7 +239,7 @@ impl Persistence {
         if !Persistence::central_exists(id) {
             return Ok(());
         }
-        let file = File::open(file_path).map_err(|_| {
+        let file = File::open(file_path.clone()).map_err(|_| {
             DroneError::CentralError(
                 "Error while opening the drone center persistent file".to_string(),
             )
@@ -265,7 +268,7 @@ impl Persistence {
     /// Verifica si un dron con el id dado existe en el archivo de persistencia
     pub fn drone_exists(id: u32) -> bool {
         let file_path = Self::get_filepath();
-        if std::fs::metadata(file_path).is_err() {
+        if std::fs::metadata(file_path.clone()).is_err() {
             return false;
         }
 
@@ -291,7 +294,7 @@ impl Persistence {
     /// Devuelve los drones en el archivo de persistencia
     pub fn get_drones() -> Vec<(Location, u32)> {
         let file_path = Self::get_filepath();
-        if std::fs::metadata(file_path).is_err() {
+        if std::fs::metadata(file_path.clone()).is_err() {
             return Vec::new();
         }
 
@@ -311,21 +314,21 @@ impl Persistence {
     /// Agrega un dron al archivo de persistencia
     pub fn add_drone_to_file(location: Location, id: u32) -> Result<(), DroneError> {
         let file_path = Self::get_filepath();
-        if std::fs::metadata(file_path).is_err() {
+        if std::fs::metadata(file_path.clone()).is_err() {
             let p = Persistence::new();
             let json = serde_json::to_string(&p).map_err(|_| {
                 DroneError::CentralError(
                     "Error while serializing the drone center persistent file".to_string(),
                 )
             })?;
-            std::fs::write(file_path, json).map_err(|_| {
+            std::fs::write(file_path.clone(), json).map_err(|_| {
                 DroneError::CentralError(
                     "Error while writing the drone center persistent file".to_string(),
                 )
             })?;
         }
 
-        let file = File::open(file_path).map_err(|_| {
+        let file = File::open(file_path.clone()).map_err(|_| {
             DroneError::CentralError(
                 "Error while opening the drone center persistent file".to_string(),
             )
@@ -357,7 +360,7 @@ impl Persistence {
         if !Persistence::drone_exists(id) {
             return Ok(());
         }
-        let file = File::open(file_path).map_err(|_| {
+        let file = File::open(file_path.clone()).map_err(|_| {
             DroneError::CentralError(
                 "Error while opening the drone center persistent file".to_string(),
             )
@@ -386,7 +389,7 @@ impl Persistence {
     /// Devuelve los incidentes en el archivo de persistencia
     pub fn get_incidents() -> Vec<Location> {
         let file_path = Self::get_filepath();
-        if std::fs::metadata(file_path).is_err() {
+        if std::fs::metadata(file_path.clone()).is_err() {
             return Vec::new();
         }
 
@@ -406,13 +409,13 @@ impl Persistence {
     /// Agrega un incidente al archivo de persistencia
     pub fn add_incident_to_file(location: Location) -> Result<(), Box<dyn std::error::Error>> {
         let file_path = Self::get_filepath();
-        if std::fs::metadata(file_path).is_err() {
+        if std::fs::metadata(file_path.clone()).is_err() {
             let p = Persistence::new();
             let json = serde_json::to_string(&p)?;
-            std::fs::write(file_path, json)?;
+            std::fs::write(file_path.clone(), json)?;
         }
 
-        let file = File::open(file_path)?;
+        let file = File::open(file_path.clone())?;
 
         let mut p: Persistence = serde_json::from_reader(file)?;
 
@@ -427,11 +430,11 @@ impl Persistence {
     /// Elimina un incidente con la location dada del archivo de persistencia
     pub fn remove_incident_from_file(location: Location) -> Result<(), Box<dyn std::error::Error>> {
         let file_path = Self::get_filepath();
-        if std::fs::metadata(file_path).is_err() {
+        if std::fs::metadata(file_path.clone()).is_err() {
             return Ok(());
         }
 
-        let file = File::open(file_path)?;
+        let file = File::open(file_path.clone())?;
         let mut p: Persistence = serde_json::from_reader(file)?;
 
         if let Some(index) = p.incidents.iter().position(|x| *x == location) {
