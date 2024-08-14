@@ -1,8 +1,15 @@
 use std::{
-    collections::HashMap, fs::File, io::{stdin, BufRead, BufReader}, net::{Shutdown, TcpListener, TcpStream}, path::PathBuf, process::exit, sync::{
+    collections::HashMap,
+    fs::File,
+    io::{stdin, BufRead, BufReader},
+    net::{Shutdown, TcpListener, TcpStream},
+    path::PathBuf,
+    process::exit,
+    sync::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex, RwLock,
-    }, thread
+    },
+    thread,
 };
 
 use protocol::{
@@ -68,20 +75,17 @@ impl Broker {
         let topics_path = Broker::get_clean_path(FILE_PATH_TOPICS);
         let clients_path = Broker::get_clean_path(FILE_PATH_CLIENTS);
 
-        let address = Broker::process_starting_args(args)?; 
+        let address = Broker::process_starting_args(args)?;
         let topics = Broker::get_broker_starting_topics(&topics_path)?;
         let clients_auth_info = Broker::process_clients_file(&clients_path)?;
-        
+
         let clients_ids = Arc::new(RwLock::new(HashMap::new()));
         let packets = Arc::new(RwLock::new(HashMap::new()));
 
         let certh_path = Broker::get_clean_path(FILE_PATH_CERTS);
         let private_key_path = Broker::get_clean_path(FILE_PATH_PRIVATE_KEY);
 
-        let server_config = Broker::set_server_config(
-            &certh_path,
-            &private_key_path,
-        )?;
+        let server_config = Broker::set_server_config(&certh_path, &private_key_path)?;
 
         Ok(Broker {
             address,
@@ -172,8 +176,12 @@ impl Broker {
     fn get_clean_path(path: &str) -> String {
         let project_dir = env!("CARGO_MANIFEST_DIR");
         let file_path = PathBuf::from(project_dir).join(path);
-        println!("Test clients path: {:?}", file_path);  // Añade este print
-        return file_path.to_str().unwrap().to_string();
+        println!("Test clients path: {:?}", file_path); // Añade este print
+        let file_path_str = match file_path.to_str() {
+            Some(s) => s.to_string(),
+            None => "".to_string(),
+        };
+        return file_path_str.to_string();
     }
 
     ///Abro y devuelvo las lecturas del archivo de topics.
@@ -183,7 +191,8 @@ impl Broker {
             Ok(file) => file,
             Err(_) => {
                 println!("Error opening file");
-                return Err(ProtocolError::ReadingTopicConfigFileError)},
+                return Err(ProtocolError::ReadingTopicConfigFileError);
+            }
         };
 
         let readings = Broker::read_topic_config_file(&file)?;
@@ -202,7 +211,8 @@ impl Broker {
                 Ok(line) => readings.push(line),
                 Err(_err) => {
                     println!("Error reading line");
-                    return Err(ProtocolError::ReadingTopicConfigFileError)},
+                    return Err(ProtocolError::ReadingTopicConfigFileError);
+                }
             }
         }
 
@@ -224,7 +234,9 @@ impl Broker {
     }
 
     ///Devuelvo las lecturas que haga en el archivo de clients.
-    pub fn read_clients_file(file: &File) -> Result<HashMap<String, (String, Vec<u8>)>, ProtocolError> {
+    pub fn read_clients_file(
+        file: &File,
+    ) -> Result<HashMap<String, (String, Vec<u8>)>, ProtocolError> {
         let reader = BufReader::new(file).lines();
         let mut readings = HashMap::new();
 
@@ -758,7 +770,10 @@ impl Broker {
                         return Err(ProtocolError::WriteError);
                     }
 
-                    client_id_sender.send(connect.client_id.clone()).unwrap();
+                    match client_id_sender.send(connect.client_id.clone()) {
+                        Ok(_) => (),
+                        Err(e) => return Err(ProtocolError::SendError(e.to_string())),
+                    }
                 }
 
                 let properties = ConnackProperties {
@@ -1106,5 +1121,3 @@ impl Broker {
         Ok(connack_reason_code)
     }
 }
-
-

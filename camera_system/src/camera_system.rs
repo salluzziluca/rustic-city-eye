@@ -1,13 +1,27 @@
 use client::client::{Client, ClientTrait};
-use protocol::{client_message::{self, ClientMessage}, disconnect::disconnect_config::DisconnectConfig, messages_config::MessagesConfig, publish::{payload_types::PayloadTypes, publish_config::PublishConfig}, subscribe::{subscribe_config::SubscribeConfig, subscribe_properties::SubscribeProperties}};
+use protocol::{
+    client_message::{self, ClientMessage},
+    disconnect::disconnect_config::DisconnectConfig,
+    messages_config::MessagesConfig,
+    publish::{payload_types::PayloadTypes, publish_config::PublishConfig},
+    subscribe::{subscribe_config::SubscribeConfig, subscribe_properties::SubscribeProperties},
+};
 use rand::Rng;
-use utils::{camera::Camera, camera_error::CameraError, incident::Incident, incident_payload::IncidentPayload, location::Location, protocol_error::ProtocolError, threadpool::ThreadPool, watcher::watch_directory};
+use utils::{
+    camera::Camera, camera_error::CameraError, incident::Incident,
+    incident_payload::IncidentPayload, location::Location, protocol_error::ProtocolError,
+    threadpool::ThreadPool, watcher::watch_directory,
+};
 
 use std::{
-    collections::HashMap, path::Path, sync::{
+    collections::HashMap,
+    path::Path,
+    sync::{
         mpsc::{self, channel, Receiver, Sender},
         Arc, Mutex,
-    }, thread, time::{Duration, Instant}
+    },
+    thread,
+    time::{Duration, Instant},
 };
 
 const AREA_DE_ALCANCE: f64 = 0.0025;
@@ -56,8 +70,9 @@ impl<T: ClientTrait + Clone + Send + Sync + 'static> CameraSystem<T> {
             Sender<client_message::ClientMessage>,
         ) -> Result<T, ProtocolError>,
     {
-        let connect_config =
-            client_message::Connect::read_connect_config("camera_system/packets_config/connect_config.json")?;
+        let connect_config = client_message::Connect::read_connect_config(
+            "camera_system/packets_config/connect_config.json",
+        )?;
 
         let (tx, rx) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
@@ -645,11 +660,18 @@ fn analize_image(event: Vec<String>, system: &Arc<Mutex<CameraSystem<Client>>>, 
         };
         println!("Camera id {:?} is analyzing an image", camera_id);
 
-        let camera = match system_clone.lock().unwrap().get_camera_by_id(camera_id) {
-            Some(camera) => camera,
-            None => {
+        let camera = match system_clone.lock() {
+            Ok(mut guard) => match guard.get_camera_by_id(camera_id) {
+                Some(camera) => camera,
+                None => {
+                    return Err(ProtocolError::InvalidCommand(
+                        "Camera not found".to_string(),
+                    ));
+                }
+            },
+            Err(_) => {
                 return Err(ProtocolError::InvalidCommand(
-                    "Camera not found".to_string(),
+                    "Failed to lock the camera system".to_string(),
                 ));
             }
         };
@@ -698,4 +720,3 @@ impl CameraSystem<Client> {
         })
     }
 }
-
