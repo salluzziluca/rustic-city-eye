@@ -1,7 +1,7 @@
 use std::{
     fs,
     io::{Error, Read, Write},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use serde::{Deserialize, Serialize};
@@ -31,9 +31,11 @@ pub struct Camera {
 impl Camera {
     pub fn new(location: Location, id: u32) -> Result<Camera, CameraError> {
         let url = "https://vision.googleapis.com/v1/images:annotate".to_string();
-        let incident_keywords_file_path = "./utils/incident_keywords";
+        let incident_keywords_file_path = Camera::get_clean_path("incident_keywords");
 
-        let image_classifier = ImageClassifier::new(url, incident_keywords_file_path)
+        
+
+        let image_classifier = ImageClassifier::new(url, &incident_keywords_file_path)
             .map_err(|e| CameraError::AnnotationError(e.to_string()))?;
 
         let camera = Self {
@@ -50,6 +52,13 @@ impl Camera {
         }
 
         Ok(camera)
+    }
+
+    fn get_clean_path(path: &str) -> String {
+        let project_dir = env!("CARGO_MANIFEST_DIR");
+        let file_path = PathBuf::from(project_dir).join(path);
+        println!("Test clients path: {:?}", file_path);  // Añade este print
+        return file_path.to_str().unwrap().to_string();
     }
 
     /// Utiliza su clasificador de imagenes para clasificar una imagen con un posible incidente.

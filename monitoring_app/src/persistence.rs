@@ -457,13 +457,12 @@ mod tests {
 
     #[test]
     fn persistence() {
-        // assert!(test_add_and_remove_camera_to_file().is_ok());
+        assert!(test_add_and_remove_camera_to_file().is_ok());
         assert!(test_add_and_remove_central_to_file().is_ok());
         assert!(test_add_and_remove_drone_to_file().is_ok());
         assert!(test_add_incident_to_file().is_ok());
     }
 
-    #[test]
     fn test_add_and_remove_camera_to_file() -> Result<(), Box<dyn std::error::Error>> {
         
         if std::fs::metadata(TEST_PERSISTENCE_FILE).is_ok() {
